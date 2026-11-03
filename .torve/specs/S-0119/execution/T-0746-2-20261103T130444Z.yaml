@@ -1,0 +1,774 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0746
+attempt: 2
+base: 7e0271e5b95bb2aaf7d476c9ad341fe62c785e17
+commit: 5f65076ca60fd65d0002741f4d4cb4ef4a12c596
+at: '2026-11-03T13:04:44Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: S-0053/D-9
+    grade: LOCKED
+  - id: S-0053/D-13
+    grade: ASSUMED
+  - id: S-0054/D-6
+    grade: LOCKED
+  - id: S-0054/D-7
+    grade: LOCKED
+  - id: S-0054/D-9
+    grade: LOCKED
+  - id: S-0054/D-14
+    grade: ASSUMED
+  - id: S-0054/D-15
+    grade: ASSUMED
+  - id: S-0054/D-16
+    grade: ASSUMED
+  - id: S-0055/D-4
+    grade: LOCKED
+  - id: S-0055/D-5
+    grade: LOCKED
+  - id: S-0055/D-18
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-20
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-25
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-30
+    grade: ASSUMED
+  - id: S-0055/D-31
+    grade: ASSUMED
+  - id: S-0055/D-32
+    grade: ASSUMED
+  - id: S-0055/D-33
+    grade: ASSUMED
+  - id: S-0055/D-34
+    grade: ASSUMED
+  - id: S-0055/D-36
+    grade: ASSUMED
+  - id: S-0055/D-38
+    grade: ASSUMED
+  - id: S-0055/D-40
+    grade: ASSUMED
+  - id: S-0055/D-45
+    grade: ASSUMED
+  - id: S-0055/D-46
+    grade: ASSUMED
+  - id: S-0055/D-47
+    grade: ASSUMED
+  - id: S-0055/D-50
+    grade: LOCKED
+  - id: S-0055/D-52
+    grade: ASSUMED
+  - id: S-0055/D-56
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-4
+    grade: LOCKED
+  - id: S-0056/D-6
+    grade: LOCKED
+  - id: S-0056/D-7
+    grade: ASSUMED
+  - id: S-0056/D-8
+    grade: ASSUMED
+  - id: S-0056/D-10
+    grade: LOCKED
+  - id: S-0057/D-3
+    grade: LOCKED
+  - id: S-0057/D-4
+    grade: LOCKED
+  - id: S-0057/D-5
+    grade: LOCKED
+  - id: S-0057/D-10
+    grade: ASSUMED
+  - id: S-0057/D-13
+    grade: OPEN
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0058/D-3
+    grade: LOCKED
+  - id: S-0058/D-7
+    grade: LOCKED
+  - id: S-0058/D-10
+    grade: ASSUMED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-3
+    grade: LOCKED
+  - id: S-0059/D-5
+    grade: LOCKED
+  - id: S-0059/D-6
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+  - id: S-0060/D-1
+    grade: LOCKED
+  - id: S-0060/D-4
+    grade: LOCKED
+  - id: S-0060/D-5
+    grade: LOCKED
+  - id: S-0060/D-8
+    grade: LOCKED
+  - id: S-0061/D-3
+    grade: LOCKED
+  - id: S-0061/D-9
+    grade: ASSUMED
+  - id: S-0061/D-11
+    grade: ASSUMED
+  - id: S-0062/D-5
+    grade: ASSUMED
+  - id: S-0062/D-6
+    grade: LOCKED
+  - id: S-0062/D-9
+    grade: LOCKED
+  - id: S-0063/D-2
+    grade: LOCKED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0063/D-11
+    grade: LOCKED
+  - id: S-0064/D-1
+    grade: LOCKED
+  - id: S-0064/D-4
+    grade: LOCKED
+  - id: S-0064/D-5
+    grade: ASSUMED
+  - id: S-0064/D-6
+    grade: LOCKED
+  - id: S-0067/D-10
+    grade: ASSUMED
+  - id: S-0068/D-1
+    grade: ASSUMED
+  - id: S-0071/D-1
+    grade: ASSUMED
+  - id: S-0071/D-2
+    grade: ASSUMED
+  - id: S-0071/D-5
+    grade: LOCKED
+  - id: S-0074/D-5
+    grade: ASSUMED
+  - id: S-0079/D-5
+    grade: ASSUMED
+  - id: S-0079/D-6
+    grade: ASSUMED
+  - id: S-0079/D-7
+    grade: ASSUMED
+  - id: S-0079/D-10
+    grade: ASSUMED
+  - id: S-0079/D-11
+    grade: ASSUMED
+  - id: S-0079/D-12
+    grade: ASSUMED
+  - id: S-0080/D-1
+    grade: ASSUMED
+  - id: S-0080/D-2
+    grade: ASSUMED
+  - id: S-0080/D-6
+    grade: ASSUMED
+  - id: S-0080/D-13
+    grade: ASSUMED
+  - id: S-0082/D-12
+    grade: ASSUMED
+  - id: S-0083/D-1
+    grade: ASSUMED
+  - id: S-0083/D-2
+    grade: ASSUMED
+  - id: S-0083/D-9
+    grade: ASSUMED
+  - id: S-0083/D-15
+    grade: ASSUMED
+  - id: S-0084/D-1
+    grade: ASSUMED
+  - id: S-0084/D-2
+    grade: ASSUMED
+  - id: S-0084/D-5
+    grade: ASSUMED
+  - id: S-0084/D-16
+    grade: ASSUMED
+  - id: S-0085/D-1
+    grade: ASSUMED
+  - id: S-0085/D-4
+    grade: ASSUMED
+  - id: S-0086/D-5
+    grade: ASSUMED
+  - id: S-0086/D-6
+    grade: ASSUMED
+  - id: S-0087/D-1
+    grade: ASSUMED
+  - id: S-0087/D-2
+    grade: ASSUMED
+  - id: S-0087/D-3
+    grade: ASSUMED
+  - id: S-0088/D-3
+    grade: ASSUMED
+  - id: S-0089/D-1
+    grade: ASSUMED
+  - id: S-0089/D-2
+    grade: ASSUMED
+  - id: S-0089/D-3
+    grade: ASSUMED
+  - id: S-0089/D-5
+    grade: ASSUMED
+  - id: S-0091/D-1
+    grade: ASSUMED
+  - id: S-0091/D-2
+    grade: ASSUMED
+  - id: S-0091/D-3
+    grade: ASSUMED
+  - id: S-0092/D-4
+    grade: ASSUMED
+  - id: S-0094/D-1
+    grade: ASSUMED
+  - id: S-0094/D-3
+    grade: ASSUMED
+  - id: S-0094/D-4
+    grade: ASSUMED
+  - id: S-0094/D-5
+    grade: ASSUMED
+  - id: S-0095/D-1
+    grade: ASSUMED
+  - id: S-0095/D-2
+    grade: ASSUMED
+  - id: S-0095/D-4
+    grade: ASSUMED
+  - id: S-0095/D-5
+    grade: ASSUMED
+  - id: S-0095/D-6
+    grade: ASSUMED
+  - id: S-0096/D-2
+    grade: ASSUMED
+  - id: S-0096/D-3
+    grade: ASSUMED
+  - id: S-0096/D-4
+    grade: ASSUMED
+  - id: S-0097/D-4
+    grade: ASSUMED
+  - id: S-0097/D-5
+    grade: ASSUMED
+  - id: S-0097/D-7
+    grade: ASSUMED
+  - id: S-0098/D-1
+    grade: ASSUMED
+  - id: S-0098/D-2
+    grade: ASSUMED
+  - id: S-0099/D-1
+    grade: ASSUMED
+  - id: S-0099/D-4
+    grade: ASSUMED
+  - id: S-0099/D-5
+    grade: ASSUMED
+  - id: S-0099/D-7
+    grade: ASSUMED
+  - id: S-0099/D-9
+    grade: ASSUMED
+  - id: S-0100/D-1
+    grade: ASSUMED
+  - id: S-0100/D-4
+    grade: ASSUMED
+  - id: S-0100/D-5
+    grade: ASSUMED
+  - id: S-0100/D-7
+    grade: ASSUMED
+  - id: S-0100/D-9
+    grade: ASSUMED
+  - id: S-0100/D-11
+    grade: ASSUMED
+  - id: S-0100/D-12
+    grade: ASSUMED
+  - id: S-0101/D-2
+    grade: ASSUMED
+  - id: S-0101/D-3
+    grade: ASSUMED
+  - id: S-0101/D-8
+    grade: ASSUMED
+  - id: S-0101/D-9
+    grade: ASSUMED
+  - id: S-0102/D-4
+    grade: ASSUMED
+  - id: S-0102/D-5
+    grade: ASSUMED
+  - id: S-0103/D-4
+    grade: ASSUMED
+  - id: S-0104/D-1
+    grade: ASSUMED
+  - id: S-0104/D-5
+    grade: ASSUMED
+  - id: S-0104/D-9
+    grade: ASSUMED
+  - id: S-0104/D-11
+    grade: ASSUMED
+  - id: S-0105/D-2
+    grade: ASSUMED
+  - id: S-0105/D-4
+    grade: ASSUMED
+  - id: S-0106/D-4
+    grade: ASSUMED
+  - id: S-0106/D-7
+    grade: ASSUMED
+  - id: S-0108/D-1
+    grade: ASSUMED
+  - id: S-0108/D-2
+    grade: ASSUMED
+  - id: S-0109/D-1
+    grade: ASSUMED
+  - id: S-0110/D-1
+    grade: ASSUMED
+  - id: S-0110/D-2
+    grade: ASSUMED
+  - id: S-0110/D-3
+    grade: ASSUMED
+  - id: S-0110/D-4
+    grade: ASSUMED
+  - id: S-0110/D-7
+    grade: ASSUMED
+  - id: S-0110/D-8
+    grade: ASSUMED
+  - id: S-0110/D-11
+    grade: ASSUMED
+  - id: S-0110/D-12
+    grade: ASSUMED
+  - id: S-0110/D-13
+    grade: ASSUMED
+  - id: S-0111/D-1
+    grade: ASSUMED
+  - id: S-0111/D-4
+    grade: ASSUMED
+  - id: S-0111/D-7
+    grade: ASSUMED
+  - id: S-0112/D-2
+    grade: ASSUMED
+  - id: S-0112/D-3
+    grade: ASSUMED
+  - id: S-0112/D-5
+    grade: ASSUMED
+  - id: S-0112/D-8
+    grade: ASSUMED
+  - id: S-0113/D-4
+    grade: ASSUMED
+  - id: S-0113/D-5
+    grade: ASSUMED
+  - id: S-0114/D-1
+    grade: ASSUMED
+  - id: S-0114/D-3
+    grade: ASSUMED
+  - id: S-0115/D-8
+    grade: ASSUMED
+  - id: S-0116/D-2
+    grade: ASSUMED
+  - id: S-0116/D-13
+    grade: ASSUMED
+  - id: S-0116/D-14
+    grade: ASSUMED
+  - id: S-0117/D-1
+    grade: ASSUMED
+  - id: S-0117/D-3
+    grade: ASSUMED
+  - id: S-0117/D-4
+    grade: LOCKED
+  - id: S-0117/D-5
+    grade: ASSUMED
+  - id: S-0117/D-6
+    grade: LOCKED
+  - id: S-0117/D-7
+    grade: OPEN
+  - id: S-0117/D-8
+    grade: ASSUMED
+  - id: S-0118/D-9
+    grade: LOCKED
+entries:
+  - decision: S-0055/D-4
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The intake label validator touches no credential: every configuration file still
+      carries variable names, and no value entered the tree.
+    evidence: >-
+      src/torve/config/runconfig.py:1584 — the changed field is issue_label, a plain
+      label string; the broker and provider sections are untouched.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0055/D-5
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      Executor memory stays off by default: the run configuration gains no memory
+      key, only a stripped intake label.
+    evidence: >-
+      src/torve/config/runconfig.py:1590 — the validator strips surrounding whitespace
+      from the label; the memory and shadow settings are untouched.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0055/D-22
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The moved intake-leg builder adds no user-facing string: every message it returns
+      is one the manager and the fleet already printed, with no corpus coordinate.
+    evidence: >-
+      src/torve/cli/assembly.py:85 — the builder's strings are issue intake off and
+      the planner refusal, neither naming a corpus identifier.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The layering gate still passes: the intake leg moves into the cli composition
+      root and imports adapters lazily there, as every other builder in the module
+      does.
+    evidence: >-
+      src/torve/cli/assembly.py:85 — the builder sits in cli beside build_tier_agent
+      and its adapter imports are inside the function; uv run lint-imports reports
+      five contracts kept.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0055/D-25
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      No adapter imports another adapter: the forge read's cursor guard is local to
+      GhScm and reaches no sibling adapter module.
+    evidence: >-
+      src/torve/adapters/vcs/git.py:1315 — the page-info guard raises inside GhScm.labelled_issues
+      and imports nothing new.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0055/D-26
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The specification format stays out of the adapters: the new failure path in
+      the forge adapter names no task contract and imports no format owner.
+    evidence: >-
+      src/torve/adapters/vcs/git.py:1312 — the guard reads the GraphQL page and raises
+      a plain RuntimeError; no spec module is imported.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0057/D-3
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The corpus and archive paths are unchanged: the run configuration edit is a
+      label validator, and no specs.path or rfcs.path key moved.
+    evidence: >-
+      src/torve/config/runconfig.py:1584 — IntakeConfig's issue_label is the only
+      field touched; the specs layout keys are untouched.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0057/D-4
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The skill's prose keeps the namespace the row names: the rewritten step says
+      document and torve spec check, and introduces no rfc spelling.
+    evidence: >-
+      skills/spec-writer/references/workflows.md:101 — the rewritten sentence names
+      torve spec check and the document; no rfc verb or identifier appears.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      Every identifier the changed files add is the global form S-0119/D-n; no legacy
+      citation shape entered the tree or the prose.
+    evidence: >-
+      src/torve/application/neighbours.py:277 — the new comment and code cite S-0119/D-12,
+      and the added test docstrings cite S-0119/D-11 and S-0119/D-12.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0059/D-1
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      A contract still names its document as spec S-NNNN; the adoption change reads
+      a source file path and adds no rfc key.
+    evidence: >-
+      src/torve/application/intake.py:2243 — the check-ignore call sits inside adopt
+      beside the source handling; the contract keys it writes are unchanged.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0059/D-5
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      No closed vocabulary word is spelled inline: the intake label stays a free string,
+      and no role, tier, gate or source-kind word is added to the configuration.
+    evidence: >-
+      src/torve/config/runconfig.py:1584 — the field is a str label with no vocabulary
+      member; the validator adds no word.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0059/D-6
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      A field's meaning stays its attribute docstring: issue_label keeps its docstring
+      and the new validator introduces no field and no Field description.
+    evidence: >-
+      src/torve/config/runconfig.py:1584-1595 — the field and its docstring are unchanged,
+      and the validator's own words are its docstring.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0059/D-12
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      No new reader of a landing is added: the label-keyed cache reads configuration
+      only, and the moved builder reads the record's task ids, not a trailer or a
+      subject.
+    evidence: >-
+      src/torve/cli/fleet.py:198 — the cache compares the configured intake label
+      and rebuilds the leg; it runs no git command.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0060/D-5
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The source still rides the drafting run and every adopted contract: the change
+      only keeps an ignored source file out of the commit, never off the contract.
+    evidence: >-
+      src/torve/application/intake.py:2243 — an ignored filed source is skipped for
+      git add; the source id written onto each contract is unchanged.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0060/D-8
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      A document's kind guidance is unchanged: the rewritten step speaks of documents
+      and LOCKED rows, and says nothing about kind.
+    evidence: >-
+      skills/spec-writer/references/workflows.md:101 — the new sentence names torve
+      spec check and LOCKED rows; the kind rule is untouched.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0061/D-3
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The seat still holds only what varies per run: the configuration edit is a label,
+      and no harness, profile, model or routing key moved.
+    evidence: >-
+      src/torve/config/runconfig.py:1590 — the validator strips whitespace; the seat
+      and tier sections are untouched.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0062/D-6
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The skill a gate reads stays package data: workflows.md remains under skills/spec-writer,
+      versioned with the engine, and only its prose changed.
+    evidence: >-
+      skills/spec-writer/references/workflows.md:101 — the rewritten sentence is prose
+      in the shipped skill; the file's path under skills is unchanged.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0064/D-1
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      No provider fact moves: the run configuration change is an intake label, and
+      the provider files and their keys are untouched.
+    evidence: >-
+      src/torve/config/runconfig.py:1584 — issue_label is the only edited field; the
+      providers section is not read by the validator.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0064/D-4
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The harness and provider dialect refusal is untouched: no manifest or seat changed,
+      only a label validator was added.
+    evidence: >-
+      src/torve/config/runconfig.py:1590 — the added validator touches issue_label
+      alone; the dialect check is not in this model.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0064/D-6
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      Reasoning effort stays the seat's: the validator strips a label and reads no
+      effort or profile key.
+    evidence: >-
+      src/torve/config/runconfig.py:1590 — the validator's only input is issue_label;
+      the effort and profile resolution are untouched.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0071/D-5
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      No acceptance command becomes unrunnable: the change reads git's ignore rules
+      in adopt and does not touch the acceptance-command lint.
+    evidence: >-
+      src/torve/application/intake.py:2243 — the check-ignore call is inside adopt;
+      the lint that refuses a host-dependent acceptance command is unchanged.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0117/D-6
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The chain's self-checkout guard is untouched: the manager's change is an import
+      alias for the shared intake-leg builder.
+    evidence: >-
+      src/torve/cli/manager.py:23 — the line imports the builder from the composition
+      root; the chain's planning and fast-forward logic is not in this edit.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0118/D-9
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The lane's battery writer is untouched: the manager edit moves the intake-leg
+      builder only, and the judged-battery callback and its finally remain.
+    evidence: >-
+      src/torve/cli/manager.py:23 — the only added manager line before its existing
+      wiring; the lane-judgment recording is unchanged.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The forge read now fails whole on a page it cannot follow: hasNextPage with
+      an empty endCursor raises instead of returning a partial listing, and the read
+      is paged until none is left.
+    evidence: >-
+      src/torve/adapters/vcs/git.py:1315 — the cursorless page raises RuntimeError,
+      so the leg drafts nothing from an incomplete read.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-03T12:46:22Z'
+    claim: >-
+      The review claim that the discarded issue-leg result is an escalation signal
+      does not hold: the tuple's second value is whether a drafting run started, true
+      after a green draft too, and the escalation a spent budget raises is persisted
+      by RunState.escalate and read by the next pass's pause.
+    evidence: >-
+      src/torve/application/runstate.py:107 — escalate saves the run-state file and
+      emits the escalation event; residency re-decides paused at the top of each pass,
+      so the draft's escalation holds the pause exactly as any mid-pass escalation
+      does.
+    action: decided
+    proposal: >-
+      No change: S-0119/D-10 says the run holds the pause like any escalation, and
+      the pass-scoped pause is re-decided at the next pass (S-0048/A-1). A same-pass
+      stop would need the row to say so and the leg to report the escalation separately
+      from having started a run.
+  - decision: D-6
+    grade: ASSUMED
+    kind: departed
+    at: '2026-11-03T12:51:08Z'
+    claim: >-
+      Adoption now leaves an ignored filed source out of the commit and commits the
+      contracts: git add rejects the whole batch over an ignored path, so the source
+      stays where it was filed instead of being forced into a tree whose ignore rules
+      refuse it.
+    evidence: >-
+      src/torve/application/intake.py:2243 — git check-ignore decides whether the
+      filed source may ride the adoption commit; an ignored one is skipped while the
+      contracts that cite it still commit.
+    action: departed
+    proposal: >-
+      S-0119/D-6 should say the source rides the adoption commit when the tree can
+      add it, and an ignored source stays filed but uncommitted.
