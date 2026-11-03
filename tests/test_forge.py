@@ -1010,17 +1010,23 @@ def test_labelled_issues_a_page_that_cannot_be_read_fails_the_whole_read(monkeyp
         GhScm(repo="example/lab", token_env=None).labelled_issues("torve:ready")
 
 
-def test_may_triage_answers_true_for_triage_and_false_for_read_only(monkeypatch):
-    """S-0119/D-3: triage or more is true; read-only is not."""
+def test_labelled_issues_may_triage_answers_true_for_triage_and_false_for_read_only(
+    monkeypatch,
+):
+    """S-0119/D-3: triage or more is true; read-only is not. GitHub's legacy
+    `permission` field reads triage back as `read`, so the role is `role_name`."""
 
-    _gh_run(monkeypatch, {"permission": "triage"})
+    _gh_run(monkeypatch, {"permission": "read", "role_name": "triage"})
     assert GhScm(repo="example/lab", token_env=None).may_triage("alice") is True
 
-    _gh_run(monkeypatch, {"permission": "read"})
+    _gh_run(monkeypatch, {"permission": "write", "role_name": "maintain"})
+    assert GhScm(repo="example/lab", token_env=None).may_triage("keeper") is True
+
+    _gh_run(monkeypatch, {"permission": "read", "role_name": "read"})
     assert GhScm(repo="example/lab", token_env=None).may_triage("reader") is False
 
 
-def test_may_triage_answers_false_for_a_non_collaborator(monkeypatch):
+def test_labelled_issues_may_triage_answers_false_for_a_non_collaborator(monkeypatch):
     """S-0119/D-3: the forge's 404 answers false rather than failing the read."""
 
     _gh_run(monkeypatch, (1, "", "gh: Not Found (HTTP 404)"))

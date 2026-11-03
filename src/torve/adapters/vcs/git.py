@@ -1328,9 +1328,12 @@ class GhScm:
 
             raise
 
-        permission = str(cast("dict[str, Any]", json.loads(raw or "{}")).get("permission") or "")
+        # `permission` is the legacy field, which reads triage back as `read`
+        # and maintain as `write`; `role_name` carries the role itself.
+        answered = cast("dict[str, Any]", json.loads(raw or "{}"))
+        role = str(answered.get("role_name") or answered.get("permission") or "")
 
-        return permission.lower() in {"triage", "write", "maintain", "admin"}
+        return role.lower() in {"triage", "write", "maintain", "admin"}
 
     # ....................... #
 
