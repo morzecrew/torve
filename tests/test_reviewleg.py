@@ -1472,6 +1472,33 @@ def test_another_reviewers_thread_beside_an_answered_one_is_a_new_finding(seeded
     assert events(seeded.root, "lane_finding_reraised") == []
 
 
+def test_a_group_with_a_reraise_still_mints_the_other_reviewers_thread(seeded):
+    """#240: grouping can put a returning reviewer's thread beside another
+    reviewer's new one. Only the returning thread is the re-raise; the other
+    reaches the next round, at its own anchor."""
+
+    open_document(seeded.root)
+    ready(seeded.root, "T-0900")
+    forge = StubForge(pr(thread("t1")))
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+    (minted,) = events(seeded.root, "lane_review_task")
+    found = landing((minted["task"], "cafe123"))
+    review_thread_leg(seeded.root, config(), forge, found)
+
+    forge.info = pr(
+        thread("t9", line=13),
+        thread("t8", line=14, author=HUMAN, body="this loop never ends"),
+    )
+    review_thread_leg(seeded.root, config(), forge, found)
+
+    (reraised,) = events(seeded.root, "lane_finding_reraised")
+    assert reraised["threads"] == ["t9"]
+    rounds = events(seeded.root, "lane_review_task")
+    assert len(rounds) == 2
+    assert rounds[-1]["threads"] == ["t8"]
+    assert rounds[-1]["line"] == 14
+
+
 def test_a_review_of_a_round_the_leg_minted_opens_no_further_round(seeded):
     """S-0090/D-1: a round's own review blocks its landing on a blocker, but
     what it finds opens no further round; the same review of any other task of

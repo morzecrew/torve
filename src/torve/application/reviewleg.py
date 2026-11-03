@@ -1474,6 +1474,23 @@ def _reraised(finding: Finding, row: dict[str, Any]) -> bool:
     )
 
 
+def _narrowed(finding: Finding, threads: tuple[ReviewThread, ...]) -> Finding:
+    """*finding* carrying only *threads*, its span theirs (as `group_findings`
+    draws it), so a round never records a dropped thread's lines."""
+
+    lines = sorted(one.line for one in threads if one.line is not None)
+
+    return replace(
+        finding,
+        threads=threads,
+        line=lines[0] if lines else None,
+        end_line=lines[-1] if lines else None,
+    )
+
+
+# ....................... #
+
+
 def _raisers(finding: Finding) -> list[str]:
     """Who opened *finding*'s threads. A recorded finding's author is the review
     task that wrote it, a new one each review, so the engine's reviewer counts
@@ -1899,32 +1916,49 @@ def review_thread_leg(
                 refused.append(reason)
                 continue
 
-            if any(_reraised(finding, row) for row in replied):
+            # A group can hold several reviewers' threads, so each thread is
+            # judged alone: only the answered reviewer's own is a re-raise, and
+            # the rest go on as a finding (#240).
+            again = tuple(
+                one
+                for one in finding.threads
+                if any(_reraised(_narrowed(finding, (one,)), row) for row in replied)
+            )
+
+            if again:
+                reraise = _narrowed(finding, again)
                 # S-0099/D-9, S-0102/D-6: only a re-raise on a moved head is
                 # news — a finding raised again on the head the lane already
                 # recorded writes no row and does not escalate twice. The head
                 # the leg last recorded one at lives for the life of the
                 # process, so the dedupe needs no stream.
-                key = (str(root), branch, finding.path, finding.line or 0)
+                key = (str(root), branch, reraise.path, reraise.line or 0)
 
                 if RERAISED.get(key) != info.head_sha:
-                    detail = f"{finding.path} was raised again after a landed reply answered it"
+                    detail = f"{reraise.path} was raised again after a landed reply answered it"
                     engine_event(
                         root,
                         "lane_finding_reraised",
                         {
                             "branch": branch,
                             "pr": info.number,
-                            "path": finding.path,
-                            "line": finding.line,
-                            "threads": list(finding.ids),
+                            "path": reraise.path,
+                            "line": reraise.line,
+                            "threads": list(reraise.ids),
                             "head": info.head_sha,
                         },
                     )
                     RERAISED[key] = info.head_sha
                     _escalate(root, branch, detail)
-                    escalated.append(finding.path)
-                continue
+                    escalated.append(reraise.path)
+
+                rest = tuple(one for one in finding.threads if one not in again)
+
+                if not rest:
+                    continue
+
+                finding = _narrowed(finding, rest)
+                from_record = [ident for ident in finding.ids if ident.startswith(RECORD)]
 
             if any(_same_anchor(finding, row) for row in prior if row not in replied):
                 # A round of this finding is already on the board; it is
@@ -1961,15 +1995,7 @@ def review_thread_leg(
                 if not rest:
                     continue
 
-                # The span is the surviving threads' own (as `group_findings`
-                # draws it), so a round never records a refused thread's lines.
-                lines = sorted(one.line for one in rest if one.line is not None)
-                finding = replace(
-                    finding,
-                    threads=rest,
-                    line=lines[0] if lines else None,
-                    end_line=lines[-1] if lines else None,
-                )
+                finding = _narrowed(finding, rest)
                 from_record = [ident for ident in finding.ids if ident.startswith(RECORD)]
 
             files = sorted({f for ident in from_record for f in touched.get(ident, [])})
