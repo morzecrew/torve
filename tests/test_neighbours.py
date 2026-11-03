@@ -7,10 +7,14 @@ are what a repository with no Python still gets)."""
 from __future__ import annotations
 
 import shutil
+import string
 from pathlib import Path
 
-from torve.application.neighbours import contingent_paths
-from torve.domain.spec import Document, Phase
+from hypothesis import given
+from hypothesis import strategies as st
+
+from torve.application.neighbours import acceptance_runs, contingent_paths, phase_reach
+from torve.domain.spec import Corpus, Document, Phase
 
 # ----------------------- #
 
@@ -146,3 +150,88 @@ def test_a_nested_worktree_is_not_the_tree(tmp_path: Path) -> None:
     assert "src/app.py" in expected
     assert contingent_paths(root, ["src/pkg/core.py"]) == expected
     assert contingent_paths(tree(tmp_path / ".wt"), ["src/pkg/core.py"]) == expected
+
+
+# ....................... #
+# S-0119/D-12
+
+
+@given(
+    stem=st.text(alphabet=string.ascii_lowercase + string.digits, min_size=1, max_size=12),
+    flags=st.lists(st.sampled_from(["-q", "-x", "--maxfail=2", "-k slow"]), max_size=3),
+)
+def test_acceptance_runs_counts_only_a_command_that_launches_the_test(
+    stem: str, flags: list[str]
+) -> None:
+    """S-0119/D-12: a command counts a test only when it launches the tests,
+    as `pytest`, `-m pytest` or the manifest's `tests.run`, and names the file,
+    a directory above it, or no path at all; a linter mentions it and runs
+    nothing."""
+
+    path = f"tests/test_{stem}.py"
+    launcher = "python3 -m pytest -q -p no:cacheprovider"
+    head = " ".join(["uv run pytest", *flags])
+
+    assert acceptance_runs(f"{head} {path}", path, launcher)
+    assert acceptance_runs(f"{head} tests", path, launcher)
+    assert acceptance_runs(head, path, launcher)
+    assert acceptance_runs(f"uv run python3 -m pytest {path}", path, launcher)
+    assert not acceptance_runs(f"{head} tests/unit/test_other.py", path, launcher)
+    assert not acceptance_runs(f"uv run ruff check {path}", path, launcher)
+
+
+# ....................... #
+# S-0119/D-11
+
+
+def reach_tree(tmp_path: Path) -> Path:
+    root = tmp_path / "repo"
+
+    for relative, text in {
+        "src/pkg/__init__.py": "",
+        "src/pkg/core.py": "value = 1\n",
+        "src/app.py": "import pkg.core\n",
+        "src/other.py": "import pkg.core\n",
+        "tests/unit/test_core.py": "import pkg.core\n",
+        "tests/unit/test_other.py": "import pkg.core\n",
+    }.items():
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    return root
+
+
+def test_phase_reach_names_the_unowned_owned_and_unrun(tmp_path: Path) -> None:
+    """S-0119/D-11: a phase's importers outside its scope are split by the
+    phase that owns them, and its tests by the acceptance commands that run
+    them — one warning line each."""
+
+    root = reach_tree(tmp_path)
+    doc = Document(
+        id="S-0001",
+        title="Widgets",
+        status="accepted",
+        owner="tester",
+        phasing=[
+            Phase(
+                phase=1,
+                title="Core",
+                intent="Do the work.",
+                scope=["src/pkg/core.py"],
+                acceptance=["uv run pytest tests/unit/test_other.py"],
+            ),
+            Phase(phase=2, title="Other", intent="Do the work.", scope=["src/other.py"]),
+        ],
+    )
+
+    lines = phase_reach(Corpus(documents=[doc]), root)
+
+    assert lines == [
+        "S-0001: phase 1 (Core) reaches 1 file no phase owns: src/app.py",
+        "S-0001: phase 1 (Core) reaches 1 file phase 2 owns: src/other.py",
+        (
+            "S-0001: phase 1 (Core) leaves 1 test of its files unrun by every acceptance: "
+            "tests/unit/test_core.py"
+        ),
+    ]

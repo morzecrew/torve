@@ -348,3 +348,65 @@ def test_the_check_says_the_scan_did_not_run_without_a_list(tmp_path: Path, monk
     assert code == 0, output
     assert any("scan did not run" in warning for warning in report["warnings"])
     assert not any("scan did not run" in problem for problem in report["problems"])
+
+
+# ----------------------- #
+# S-0119/D-11: the reach lines are warnings, so a phase whose callers lie
+# outside its scope still checks green.
+
+
+def test_the_check_prints_a_phases_reach_as_warnings(tmp_path: Path) -> None:
+    import subprocess
+
+    corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001",
+                [("S-0001/D-1", "ASSUMED", "A plain row", "—")],
+                implementation="none",
+                phasing=[
+                    {
+                        "phase": 1,
+                        "title": "Core",
+                        "intent": "Do the work.",
+                        "scope": ["src/pkg/core.py"],
+                        "acceptance": ["uv run pytest tests/unit/test_other.py"],
+                    },
+                    {
+                        "phase": 2,
+                        "title": "Other",
+                        "intent": "Do the work.",
+                        "scope": ["src/other.py"],
+                    },
+                ],
+            )
+        },
+    )
+
+    for relative, text in {
+        "src/pkg/__init__.py": "",
+        "src/pkg/core.py": "value = 1\n",
+        "src/app.py": "import pkg.core\n",
+        "src/other.py": "import pkg.core\n",
+        "tests/unit/test_core.py": "import pkg.core\n",
+        "tests/unit/test_other.py": "import pkg.core\n",
+    }.items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
+
+    code, output = _spec(tmp_path, "check")
+    report = json.loads(output)
+
+    assert code == 0, output
+    assert report["problems"] == []
+    assert "S-0001: phase 1 (Core) reaches 1 file no phase owns: src/app.py" in report["warnings"]
+    assert "S-0001: phase 1 (Core) reaches 1 file phase 2 owns: src/other.py" in report["warnings"]
+    assert (
+        "S-0001: phase 1 (Core) leaves 1 test of its files unrun by every acceptance: "
+        "tests/unit/test_core.py" in report["warnings"]
+    )
