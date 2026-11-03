@@ -154,13 +154,19 @@
     },
     "IntakeConfig": {
       "additionalProperties": false,
-      "description": "The drafting run's knobs (S-0020). `max_drafts` is S-0020/D-8's\ndecomposition ceiling \u2014 how many contracts one request may yield;\n`iterations` bounds the draft-lint loop like any attempt budget.\n`document_threshold` is the document-threshold rule's starting point \u2014\nthe number of distinct documents whose settled ground a scope must\ncross before the work needs one of its own (S-0030 S-0030/D-3), a\ncalibration knob rather than a truth.",
+      "description": "The drafting run's knobs (S-0020). `max_drafts` is S-0020/D-8's\ndecomposition ceiling \u2014 how many contracts one request may yield;\n`iterations` bounds the draft-lint loop like any attempt budget.\n`document_threshold` is the document-threshold rule's starting point \u2014\nthe number of distinct documents whose settled ground a scope must\ncross before the work needs one of its own (S-0030 S-0030/D-3), a\ncalibration knob rather than a truth. `issue_label` is the pass's one\nswitch (S-0119/D-1): empty, the intake leg reads nothing and builds no\ndrafting agent, so an adopter that sets nothing gets today's pass.",
       "properties": {
         "document_threshold": {
           "default": 2,
           "description": "The document-threshold rule's starting point \u2014 the number of distinct documents\nwhose settled ground a scope must cross before the work needs one of its own (S-0030\nS-0030/D-3), a calibration knob rather than a truth.",
           "title": "Document Threshold",
           "type": "integer"
+        },
+        "issue_label": {
+          "default": "",
+          "description": "The label the pass's intake leg drafts from (S-0119/D-1). Empty, the default,\nturns the leg off and builds no drafting agent.",
+          "title": "Issue Label",
+          "type": "string"
         },
         "iterations": {
           "default": 3,

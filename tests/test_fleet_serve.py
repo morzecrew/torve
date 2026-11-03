@@ -344,3 +344,49 @@ def test_the_pause_counts_the_record_and_not_only_the_files(tmp_path):
 
     # Nothing on disk is escalated; the record alone carries the queue.
     assert seen == [True]
+
+
+# ....................... #
+# The fleet's intake leg (S-0119/D-8): one root's pass builds it, and builds
+# no agent while the label is empty.
+
+
+def test_the_fleets_issues_leg_builds_no_agent_while_the_label_is_empty(tmp_path, monkeypatch):
+    """S-0119/D-1: a root whose `intake.issue_label` is empty gets the leg off,
+    and no drafting agent is built for it — a pass over that root is exactly
+    the pass it was before the leg existed."""
+
+    from torve.cli import assembly
+    from torve.cli.fleet import _issues_leg
+    from torve.config.runconfig import RunnerConfig
+
+    def explode(*_args, **_kwargs):
+        raise AssertionError("no planner agent is built with the leg off")
+
+    monkeypatch.setattr(assembly, "build_tier_agent", explode)
+
+    detail, moved = asyncio.run(_issues_leg(tmp_path, RunnerConfig())())
+
+    assert (detail, moved) == ("issue intake off", False)
+
+
+def test_the_fleets_issues_leg_keeps_a_planner_build_error_on_its_detail_line(
+    tmp_path, monkeypatch
+):
+    """S-0119/D-8: a planner tier the root cannot build is the leg's detail
+    line, not an exception — the rest of that root's pass runs."""
+
+    from torve.cli import assembly
+    from torve.cli.fleet import _issues_leg
+    from torve.config.runconfig import IntakeConfig, RunnerConfig
+
+    def refuse(*_args, **_kwargs):
+        raise ValueError("planner tier names no harness")
+
+    monkeypatch.setattr(assembly, "build_tier_agent", refuse)
+    config = RunnerConfig(intake=IntakeConfig(issue_label="torve:ready"))
+
+    detail, moved = asyncio.run(_issues_leg(tmp_path, config)())
+
+    assert moved is False
+    assert "planner tier names no harness" in detail

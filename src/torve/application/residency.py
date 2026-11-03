@@ -106,6 +106,13 @@ Standing = Callable[[], tuple[str, bool] | Awaitable[tuple[str, bool]]]
 # Awaitable since S-0101/D-4: the served leg reads the board before it runs.
 Threads = Callable[[], tuple[str, bool] | Awaitable[tuple[str, bool]]]
 
+# One pass of the intake leg (S-0119/D-8), returning what it did and whether it
+# started a drafting run. Wired by the composition root because reading the
+# forge and starting a drafting run are adapters' work, and this module decides
+# only *when*. A pause stops it for the lane's reason: a drafting run it starts
+# is work somebody has to triage.
+Issues = Callable[[], tuple[str, bool] | Awaitable[tuple[str, bool]]]
+
 # Whether a term of the night has been reached, asked once at the top of a
 # pass and never inside one. Returns the reason to stop, or None to go round
 # again. A callable because every term it reads — the spend, the queue, the
@@ -580,6 +587,7 @@ async def once(
     lane: Lane | None = None,
     lane_through_pause: bool = False,
     threads: Threads | None = None,
+    issues: Issues | None = None,
 ) -> str | None:
     """One pass: reclaim what expired, mint what is new, then let the worker
     take at most one task. Returns the task id it handled, or None when the
@@ -617,6 +625,11 @@ async def once(
     operator's capacity to triage, never about the safety of what is
     already running, so an attempt in flight is not interrupted and a task
     already on the board is still claimed.
+
+    The intake leg runs after standing and before the scan, for the standing
+    leg's reason one leg on (S-0119/D-8): a drafting run it starts is a
+    contract the scan after it puts on the board, and it is work somebody has
+    to adopt and triage, so a pause stops it.
     """
 
     if relay is not None:
@@ -657,6 +670,14 @@ async def once(
         # predicate, because a predicate that fires creates work and a
         # pause is a statement that nobody has capacity to triage it.
         await _leg(root, "standing", standing)
+
+    if issues is not None and not paused:
+        # S-0119/D-8: after standing and before the scan, for the standing
+        # leg's reason one leg on — a drafting run this pass starts is a
+        # contract the scan after it puts on the board. The pause stops it
+        # where the relay's does not: drafts are work somebody has to adopt,
+        # and a pause says nobody has capacity to triage more of it.
+        await _leg(root, "issues", issues)
 
     tasks = contracts(root)
 
@@ -701,6 +722,7 @@ async def serve(
     lane: Lane | None = None,
     lane_through_pause: bool = False,
     threads: Threads | None = None,
+    issues: Issues | None = None,
     stop: Stop | None = None,
     passes_run: list[int] | None = None,
 ) -> int:
@@ -721,6 +743,10 @@ async def serve(
     `lane_through_pause` is the landing mode's one effect on the pause
     (S-0108/D-1): true under a pull-request landing, where a paused pass
     still runs the lane, false under a local one, where the pause stops it.
+
+    `issues` is the intake leg (S-0119/D-8), run in each pass after the
+    standing leg and stopped by a pause like it: a drafting run it starts is
+    work somebody has to adopt.
 
     `stop` is asked at the top of each pass and nowhere else. A term reached
     mid-pass is honoured at the next one, which is what makes every bound a
@@ -757,6 +783,7 @@ async def serve(
             lane=lane,
             lane_through_pause=lane_through_pause,
             threads=threads,
+            issues=issues,
         )
 
         if task_id is not None:

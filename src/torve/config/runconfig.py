@@ -1567,7 +1567,9 @@ class IntakeConfig(BaseModel):
     `document_threshold` is the document-threshold rule's starting point —
     the number of distinct documents whose settled ground a scope must
     cross before the work needs one of its own (S-0030 S-0030/D-3), a
-    calibration knob rather than a truth."""
+    calibration knob rather than a truth. `issue_label` is the pass's one
+    switch (S-0119/D-1): empty, the intake leg reads nothing and builds no
+    drafting agent, so an adopter that sets nothing gets today's pass."""
 
     model_config = STRICT
 
@@ -1579,6 +1581,9 @@ class IntakeConfig(BaseModel):
     """The document-threshold rule's starting point — the number of distinct documents
     whose settled ground a scope must cross before the work needs one of its own (S-0030
     S-0030/D-3), a calibration knob rather than a truth."""
+    issue_label: str = ""
+    """The label the pass's intake leg drafts from (S-0119/D-1). Empty, the default,
+    turns the leg off and builds no drafting agent."""
 
 
 # ....................... #
