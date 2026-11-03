@@ -1,0 +1,250 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0735
+attempt: 3
+base: 4a909a0955fc0fd12543122d9c45ccd8df9b3508
+commit: e9abfa503e2526d82ae133b472071b7eaf31ce68
+at: '2026-11-03T11:32:19Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: S-0054/D-15
+    grade: ASSUMED
+  - id: S-0054/D-16
+    grade: ASSUMED
+  - id: S-0055/D-18
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-20
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-45
+    grade: ASSUMED
+  - id: S-0055/D-46
+    grade: ASSUMED
+  - id: S-0055/D-47
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-10
+    grade: LOCKED
+  - id: S-0057/D-5
+    grade: LOCKED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+  - id: S-0060/D-5
+    grade: LOCKED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0067/D-10
+    grade: ASSUMED
+  - id: S-0071/D-1
+    grade: ASSUMED
+  - id: S-0071/D-2
+    grade: ASSUMED
+  - id: S-0071/D-5
+    grade: LOCKED
+  - id: S-0074/D-5
+    grade: ASSUMED
+  - id: S-0089/D-5
+    grade: ASSUMED
+  - id: S-0095/D-6
+    grade: ASSUMED
+  - id: S-0096/D-4
+    grade: ASSUMED
+  - id: S-0100/D-7
+    grade: ASSUMED
+  - id: S-0104/D-9
+    grade: ASSUMED
+  - id: S-0105/D-2
+    grade: ASSUMED
+  - id: S-0105/D-4
+    grade: ASSUMED
+  - id: S-0106/D-4
+    grade: ASSUMED
+  - id: S-0106/D-7
+    grade: ASSUMED
+  - id: S-0110/D-1
+    grade: ASSUMED
+  - id: S-0110/D-4
+    grade: ASSUMED
+  - id: S-0110/D-11
+    grade: ASSUMED
+  - id: S-0111/D-7
+    grade: ASSUMED
+  - id: S-0112/D-3
+    grade: ASSUMED
+  - id: S-0112/D-5
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-03T09:37:18Z'
+    claim: >-
+      The review claim does not hold against this tree: the command does build the
+      configured broker and draft_request does hand it to run_intake, so a configured
+      broker is not skipped. The tree already carries the fix from T-0726, and nothing
+      about the drafting run changed here.
+    evidence: >-
+      src/torve/cli/intake.py:93 — intake_cmd passes broker=build_broker(config.broker)
+      into draft_request; src/torve/application/intake.py:2049 passes broker=broker
+      into run_intake.
+    action: decided
+    proposal: >-
+      No specification change: S-0119/D-7 already requires the caller to supply the
+      broker, and both the command and the leg do. The claim is stale as of T-0726.
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-11-03T09:37:18Z'
+    claim: >-
+      The change adds only the stdlib shutil import and uses layout and naming, both
+      already imported by this application module; no import direction changes.
+    evidence: >-
+      src/torve/application/intake.py:17 — shutil is stdlib; layout and naming imports
+      above it are unchanged.
+    action: decided
+    proposal: No change.
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-11-03T09:37:18Z'
+    claim: >-
+      The change introduces no identifier the conversion mapping governs; the added
+      literals are the task-directory cleanup and test names.
+    evidence: >-
+      src/torve/application/intake.py:2043-2045 — the cleanup names layout.task_dir
+      and the minted task id, no legacy identifier.
+    action: decided
+    proposal: No change.
+  - decision: S-0059/D-1
+    grade: LOCKED
+    at: '2026-11-03T09:37:18Z'
+    claim: >-
+      The minted drafting contract still names its document by identifier and keeps
+      schema version 2; the reorder moves when minting happens, not what it writes.
+    evidence: >-
+      src/torve/application/intake.py:2034 — mint_intake_task is called unchanged,
+      only after the base check.
+    action: decided
+    proposal: No change.
+  - decision: S-0060/D-5
+    grade: LOCKED
+    at: '2026-11-03T09:37:18Z'
+    claim: >-
+      The source is still recorded on the drafting run through mint_intake_task, called
+      unchanged with spec and source; torve intake still passes --source through.
+    evidence: >-
+      src/torve/application/intake.py:2034 — mint_intake_task(root, request, config,
+      spec=spec, source=source, taken=taken) is unchanged.
+    action: decided
+    proposal: No change.
+  - decision: S-0071/D-5
+    grade: LOCKED
+    at: '2026-11-03T09:37:18Z'
+    claim: >-
+      The change adds no acceptance command and no test reading Docker, host credentials
+      or operational state; the new tests use tmp_path and a seeded local repository.
+    evidence: >-
+      tests/test_intake.py:1027-1043 — the new tests use tmp_path and the seeded fixture
+      only, no sandbox or host state.
+    action: decided
+    proposal: No change.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-03T09:50:02Z'
+    attempt: 2
+    claim: >-
+      The claim does not hold against this tree: `draft_request` resolves and verifies
+      the base tip before it mints anything, so a missing base raises ValueError("no
+      base tip to draft against") with no contract written, and a failed `git worktree
+      add` removes the just-minted task directory, leaving no orphan and freeing its
+      task number.
+    evidence: >-
+      src/torve/application/intake.py:2030 — the no-base raise precedes mint_intake_task
+      at :2034, and the worktree-failure branch at :2043-2045 removes layout.task_dir(root,
+      task.id); tests/test_intake.py:1027 and :1043 cover both paths
+    action: decided
+    proposal: >-
+      No specification change: S-0119/D-7 already says the run is minted and its worktree
+      cut at base, and the code now orders the base check before minting and cleans
+      up the minted directory on failure. The thread can be resolved.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-03T09:50:02Z'
+    attempt: 2
+    claim: >-
+      The claim does not hold against this tree: `torve intake` builds the configured
+      broker and passes it to `draft_request`, which forwards it to `run_intake`,
+      so a configured broker is in force for drafting runs the command starts.
+    evidence: >-
+      src/torve/cli/intake.py:93 — intake_cmd passes broker=build_broker(config.broker);
+      src/torve/application/intake.py:2049 forwards broker=broker to run_intake
+    action: decided
+    proposal: >-
+      No specification change: S-0119/D-7 already makes the planner agent and the
+      broker the caller’s, and both the command and the intake leg supply them. The
+      thread can be resolved.
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-11-03T09:50:02Z'
+    attempt: 2
+    claim: >-
+      The change does not contradict the intake leg’s issue-labelling rule: the issues
+      module and its test file have not landed in this tree, so the row’s check selects
+      nothing and no test cites it. The change only reorders minting after the base
+      check in the drafting run and leaves the caller’s broker handoff; it reads no
+      issue and writes nothing to a forge.
+    evidence: >-
+      `ls src/torve/application/issues.py tests/test_issues.py` — both files are absent,
+      so the row’s check `uv run pytest tests/test_issues.py -k labelled` selects
+      nothing in this tree
+    action: decided
+    proposal: >-
+      No change: the row stands as written and its check becomes green when the intake
+      leg’s tests land.

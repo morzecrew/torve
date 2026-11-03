@@ -1411,6 +1411,21 @@ def test_init_writes_the_revision_variant_into_the_config_schema(tmp_path):
     assert variant["default"] == ""
 
 
+def test_init_writes_the_intake_issue_label_into_the_config_schema(tmp_path):
+    """S-0119/D-1: the schema is derived from the model, so the pass's one
+    switch reaches an editor validating a configuration."""
+
+    root = _bare_repo(tmp_path)
+    assert CliRunner().invoke(app, ["init", "--root", str(root)]).exit_code == 0
+
+    config = json.loads((root / ".torve" / "schemas" / "config.json").read_text(encoding="utf-8"))
+    label = config["$defs"]["IntakeConfig"]["properties"]["issue_label"]
+
+    assert label["type"] == "string"
+    assert label["default"] == ""
+    assert label["description"]
+
+
 def test_init_appends_a_missing_pattern_below_the_operators_lines_and_rewrites_a_stale_schema(
     tmp_path,
 ):

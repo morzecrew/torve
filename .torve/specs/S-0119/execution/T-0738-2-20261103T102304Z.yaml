@@ -1,0 +1,295 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0738
+attempt: 2
+base: e57467e25cb08c9c7a49f9587487b1111dad6967
+at: '2026-11-03T10:23:04Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: S-0053/D-9
+    grade: LOCKED
+  - id: S-0053/D-13
+    grade: ASSUMED
+  - id: S-0054/D-6
+    grade: LOCKED
+  - id: S-0054/D-7
+    grade: LOCKED
+  - id: S-0054/D-9
+    grade: LOCKED
+  - id: S-0055/D-18
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-25
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-40
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-4
+    grade: LOCKED
+  - id: S-0056/D-6
+    grade: LOCKED
+  - id: S-0056/D-7
+    grade: ASSUMED
+  - id: S-0056/D-10
+    grade: LOCKED
+  - id: S-0057/D-4
+    grade: LOCKED
+  - id: S-0057/D-5
+    grade: LOCKED
+  - id: S-0057/D-10
+    grade: ASSUMED
+  - id: S-0057/D-13
+    grade: OPEN
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0058/D-3
+    grade: LOCKED
+  - id: S-0058/D-7
+    grade: LOCKED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+  - id: S-0062/D-5
+    grade: ASSUMED
+  - id: S-0062/D-9
+    grade: LOCKED
+  - id: S-0063/D-2
+    grade: LOCKED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0063/D-11
+    grade: LOCKED
+  - id: S-0071/D-1
+    grade: ASSUMED
+  - id: S-0071/D-2
+    grade: ASSUMED
+  - id: S-0080/D-6
+    grade: ASSUMED
+  - id: S-0080/D-13
+    grade: ASSUMED
+  - id: S-0083/D-9
+    grade: ASSUMED
+  - id: S-0084/D-1
+    grade: ASSUMED
+  - id: S-0084/D-2
+    grade: ASSUMED
+  - id: S-0086/D-5
+    grade: ASSUMED
+  - id: S-0087/D-2
+    grade: ASSUMED
+  - id: S-0087/D-3
+    grade: ASSUMED
+  - id: S-0089/D-2
+    grade: ASSUMED
+  - id: S-0091/D-1
+    grade: ASSUMED
+  - id: S-0091/D-2
+    grade: ASSUMED
+  - id: S-0091/D-3
+    grade: ASSUMED
+  - id: S-0095/D-4
+    grade: ASSUMED
+  - id: S-0095/D-6
+    grade: ASSUMED
+  - id: S-0097/D-4
+    grade: ASSUMED
+  - id: S-0099/D-4
+    grade: ASSUMED
+  - id: S-0099/D-7
+    grade: ASSUMED
+  - id: S-0100/D-7
+    grade: ASSUMED
+  - id: S-0101/D-3
+    grade: ASSUMED
+  - id: S-0101/D-8
+    grade: ASSUMED
+  - id: S-0101/D-9
+    grade: ASSUMED
+  - id: S-0103/D-4
+    grade: ASSUMED
+  - id: S-0104/D-1
+    grade: ASSUMED
+  - id: S-0104/D-5
+    grade: ASSUMED
+  - id: S-0104/D-11
+    grade: ASSUMED
+  - id: S-0105/D-4
+    grade: ASSUMED
+  - id: S-0106/D-4
+    grade: ASSUMED
+  - id: S-0106/D-7
+    grade: ASSUMED
+  - id: S-0110/D-1
+    grade: ASSUMED
+  - id: S-0110/D-4
+    grade: ASSUMED
+  - id: S-0110/D-7
+    grade: ASSUMED
+  - id: S-0110/D-11
+    grade: ASSUMED
+  - id: S-0111/D-1
+    grade: ASSUMED
+  - id: S-0112/D-3
+    grade: ASSUMED
+  - id: S-0112/D-5
+    grade: ASSUMED
+  - id: S-0114/D-1
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-03T10:01:06Z'
+    claim: >-
+      Rejected: the tree already reads the current role field. `may_triage` takes
+      the role from `answered.get("role_name")` and keeps `permission` only as a fallback,
+      and the tests record a body the endpoint really sends — `{"permission": "read",
+      "role_name": "triage"}` answers true — so a triage holder is not skipped and
+      the second read of S-0119/D-3 holds as written. Nothing is changed for this
+      claim.
+    evidence: >-
+      src/torve/adapters/vcs/git.py:1334-1337 — the role is `role_name` first and
+      `permission` only a fallback; tests/test_forge.py:1019-1026 records `{"permission":
+      "read", "role_name": "triage"}` and `{"permission": "write", "role_name": "maintain"}`
+      as true and `{"permission": "read", "role_name": "read"}` as false.
+    action: decided
+    proposal: >-
+      No amendment: S-0119/D-3 already requires triage or more, and the adapter reads
+      `role_name`, the field the collaborators permission endpoint sends for triage
+      and maintain. The thread is answered by the tree as fixed in the T-0727 landing
+      f6d2322.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-03T10:01:06Z'
+    claim: >-
+      Rejected: the D-3 check does run both triage tests. They are named `test_labelled_issues_may_triage_answers_true_for_triage_and_false_for_read_only`
+      and `test_labelled_issues_may_triage_answers_false_for_a_non_collaborator`,
+      both carrying `labelled_issues`, and `uv run pytest tests/test_forge.py -k labelled_issues`
+      exits 0 with 10 tests selected — the read-only assertion makes an always-true
+      implementation fail.
+    evidence: >-
+      tests/test_forge.py:1013-1029 — both triage tests carry `labelled_issues` in
+      their names and the bodies assert true for triage and maintain and false for
+      read; running `uv run pytest tests/test_forge.py -k labelled_issues` selected
+      10 tests and exited 0.
+    action: decided
+    proposal: >-
+      No amendment to the row. The check keys on the word `labelled_issues`, so a
+      rename that drops it would silently narrow D-3 to nothing: any rename of these
+      tests owes an edit to the row check.
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-11-03T10:01:13Z'
+    claim: >-
+      Attested: the change keeps the five layers. The adapter edit adds no import,
+      the application edit adds a pure local string helper, and the two test edits
+      add no import the files did not already carry.
+    evidence: >-
+      src/torve/application/neighbours.py:265-274 — `_tree_path` is a local helper
+      over `str` beside the existing `_argv`, and src/torve/adapters/vcs/git.py:1281-1289
+      adds no import.
+    action: decided
+  - decision: S-0055/D-25
+    grade: LOCKED
+    at: '2026-11-03T10:01:13Z'
+    claim: >-
+      Attested: no adapter imports another. The one adapter edit stays inside `GhScm.labelled_issues`
+      in `adapters/vcs/git.py`, adding nothing to its imports.
+    evidence: >-
+      src/torve/adapters/vcs/git.py:1281-1289 — the edit replaces the `errors` test
+      and raises inside the read; the module keeps its path and its import list.
+    action: decided
+  - decision: S-0055/D-26
+    grade: LOCKED
+    at: '2026-11-03T10:01:13Z'
+    claim: >-
+      Attested: format containment holds. The adapter edit imports nothing, least
+      of all the specification format; it only reads the JSON that `gh` answered.
+    evidence: >-
+      src/torve/adapters/vcs/git.py:1281-1289 — the change reads `answered["errors"]`
+      and raises; no specification module is reached.
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-11-03T10:01:13Z'
+    claim: >-
+      Attested: the one grammar still holds over the touched files. The adapter comment
+      names S-0119/D-3 in the global form and the application helper writes no identifier
+      at all.
+    evidence: >-
+      src/torve/adapters/vcs/git.py:1281-1283 — the added prose cites S-0119/D-3;
+      src/torve/application/neighbours.py:265-274 adds only prose about path prefixes.
+    action: decided
+  - decision: S-0059/D-12
+    grade: LOCKED
+    at: '2026-11-03T10:01:13Z'
+    claim: >-
+      Attested: no landing reader is added or changed. The adapter edit is the GraphQL
+      `errors` check inside `labelled_issues`, and no trailer, subject or landing
+      is read anywhere in the change.
+    evidence: >-
+      src/torve/adapters/vcs/git.py:1281-1289 — the changed lines inspect a GraphQL
+      body and raise; the tests exercise that read alone.
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-11-03T10:13:43Z'
+    attempt: 2
+    claim: >-
+      Attested: this change does not touch the row's area — src/torve/application/issues.py
+      does not exist at this base — and nothing in it contradicts D-2's rule that
+      only an issue labelled by a triage-or-more account, unedited after that labelling,
+      is drafted. S-0119 phase 3 is the phase that settles D-2: it builds the leg
+      and its triage guard in that file and the tests/test_issues.py the row's check
+      runs, so the check is empty until phase 3 lands, not because anything here disagrees
+      with the row.
+    evidence: >-
+      .torve/specs/S-0119/phasing.yaml:54-94 — phase 3's intent at line 78 names D-2
+      among the rows it settles, and its scope at line 86 and its acceptance at line
+      94 both name tests/test_issues.py.
+    action: decided

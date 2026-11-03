@@ -1220,3 +1220,21 @@ def test_a_sealed_broker_refuses_nested_docker() -> None:
             runtime=RuntimeConfig(docker="nested", network="torve-sealed"),
             broker=BrokerConfig(adapter="local", mode="sealed", network="torve-sealed"),
         )
+
+
+# ....................... #
+# intake.issue_label (S-0119/D-1): the pass's one switch, and off by default.
+
+
+def test_the_intake_issue_label_is_empty_by_default_and_loads_from_yaml(tmp_path: Path):
+    """S-0119/D-1: an adopter that sets nothing gets today's pass, and a
+    repository turns the intake leg on by naming one label."""
+
+    from torve.config.runconfig import IntakeConfig
+
+    assert RunnerConfig().intake.issue_label == ""
+    assert IntakeConfig().issue_label == ""
+
+    config = load(tmp_path, "schema_version: 1\nintake:\n  issue_label: 'torve:ready'\n")
+
+    assert config.intake.issue_label == "torve:ready"

@@ -4230,3 +4230,110 @@ def test_judged_subject_uses_the_judged_branch_over_a_shared_head(tmp_path):
     assert judged_subject(root, judgment("torve/T-0042"), None) == "T-0042"
     # The completion battery on the document branch names its last task.
     assert judged_subject(root, judgment("torve/S-0118"), None) == "T-0001"
+
+
+# ....................... #
+# The served intake leg (S-0119/D-8): the pass builds it, and builds no agent
+# while the label is empty.
+
+
+def test_the_issues_leg_builds_no_agent_while_the_label_is_empty(tmp_path, monkeypatch):
+    """S-0119/D-1: with `intake.issue_label` empty the served leg is off and
+    no drafting agent is built, so a planner tier this host cannot build never
+    stops a pass."""
+
+    from torve.cli import assembly
+    from torve.cli.manager import _issues_leg
+    from torve.config.runconfig import RunnerConfig
+
+    calls: list[int] = []
+
+    def explode(*_args, **_kwargs):
+        calls.append(1)
+        raise AssertionError("no planner agent is built with the leg off")
+
+    monkeypatch.setattr(assembly, "build_tier_agent", explode)
+
+    detail, moved = asyncio.run(_issues_leg(tmp_path, RunnerConfig())())
+
+    assert (detail, moved) == ("issue intake off", False)
+    # The detail line alone passes even if the agent was built eagerly and
+    # the refusal swallowed, so what is asserted is the build itself.
+    assert calls == []
+
+
+def test_a_planner_agent_that_cannot_be_built_is_the_issues_legs_detail(tmp_path, monkeypatch):
+    """S-0119/D-8: an error building the planner's agent reaches the leg's
+    detail line, and the rest of the pass runs — it does not raise out of the
+    wiring and take the pass with it."""
+
+    from torve.cli import assembly
+    from torve.cli.manager import _issues_leg
+    from torve.config.runconfig import IntakeConfig, RunnerConfig
+
+    def refuse(*_args, **_kwargs):
+        raise ValueError("planner tier names no harness")
+
+    monkeypatch.setattr(assembly, "build_tier_agent", refuse)
+    config = RunnerConfig(intake=IntakeConfig(issue_label="torve:ready"))
+
+    detail, moved = asyncio.run(_issues_leg(tmp_path, config)())
+
+    assert moved is False
+    assert "planner tier names no harness" in detail
+
+
+def test_the_served_issues_leg_drafts_through_the_forge_and_the_planner_agent(
+    tmp_path, monkeypatch
+):
+    """S-0119/D-7, S-0119/D-8: the served leg reads through `GhScm`, starts the
+    same `draft_request` `torve intake` starts with the planner tier's agent,
+    and hands it the request and the source id the issue files as."""
+
+    from torve.application import intake as intake_module
+    from torve.application import issues as issues_module
+    from torve.application.intake import IntakeOutcome
+    from torve.cli import assembly
+    from torve.cli.manager import _issues_leg
+    from torve.config.runconfig import IntakeConfig, RunnerConfig
+
+    agent = object()
+    seen: dict[str, object] = {}
+    readers: list[object] = []
+    drafted: list[tuple[object, ...]] = []
+
+    monkeypatch.setattr(assembly, "build_tier_agent", lambda *_a, **_k: agent)
+
+    def fake_issue_leg(root, config, reader, draft):
+        seen["root"] = root
+        readers.append(reader)
+        drafted.append(draft("A title\n\nA body", "operator/issue-1"))
+
+        return "drafted #1 as operator/issue-1", True
+
+    monkeypatch.setattr(issues_module, "issue_leg", fake_issue_leg)
+
+    calls: list[tuple[object, ...]] = []
+
+    def fake_draft_request(root, request, config, built, **kwargs):
+        calls.append((root, request, built, kwargs))
+
+        return IntakeOutcome("T-0042", "1 draft(s) lint-green")
+
+    monkeypatch.setattr(intake_module, "draft_request", fake_draft_request)
+
+    config = RunnerConfig(intake=IntakeConfig(issue_label="torve:ready"))
+
+    async def records():
+        return [event(EventKind.TASK_MINTED, "T-0041")]
+
+    detail, moved = asyncio.run(_issues_leg(tmp_path, config, records=records)())
+
+    assert (detail, moved) == ("drafted #1 as operator/issue-1", True)
+    assert seen["root"] == tmp_path
+    assert readers[0].repo == config.scm.repo
+    assert calls[0][1] == "A title\n\nA body"
+    assert calls[0][2] is agent
+    assert calls[0][3]["source"] == "operator/issue-1"
+    assert calls[0][3]["taken"] == ["T-0041"]
+    assert [row.task_id for row in drafted] == ["T-0042"]

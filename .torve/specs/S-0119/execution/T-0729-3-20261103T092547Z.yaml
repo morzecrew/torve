@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0729
+phase: 4
+attempt: 3
+base: 32f2ea61ecbd7dd6d36dfd2ff38b97f92f811122
+commit: d3c6da493909f2683b7cb2eb57be006024cd4ebf
+at: '2026-11-03T09:25:47Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-11-03T09:11:49Z'
+    attempt: 2
+    claim: >-
+      S-0119/D-2's decision check names tests/test_issues.py, which this tree does
+      not hold: the gate selects no test and reports the check as failed. D-2 governs
+      the intake leg in src/torve/application/issues.py, a file this change neither
+      touches nor relies on; the reach warnings and acceptance-run rule implemented
+      here do not exercise, alter or contradict the labelling rule, so there is nothing
+      in this attempt for D-2 to govern.
+    evidence: >-
+      `uv run pytest tests/test_issues.py -k labelled` — no tests ran in 3.66s (tests/test_issues.py
+      does not exist at this base)
+    action: decided
+  - decision: D-2
+    grade: LOCKED
+    at: '2026-11-03T09:20:31Z'
+    attempt: 2
+    claim: >-
+      S-0119/D-2's decision check names tests/test_issues.py, which this tree does
+      not hold: the gate selects no test and reports the check as failed. D-2 governs
+      the intake leg in src/torve/application/issues.py, a file this change neither
+      touches nor relies on; the reach warnings and acceptance-run rule implemented
+      here do not exercise, alter or contradict the labelling rule, so there is nothing
+      in this attempt for D-2 to govern.
+    evidence: >-
+      `uv run pytest tests/test_issues.py -k labelled` — no tests ran in 3.66s (tests/test_issues.py
+      does not exist at this base)
+    action: decided

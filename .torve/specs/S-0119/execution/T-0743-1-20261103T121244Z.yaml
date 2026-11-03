@@ -1,0 +1,448 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0743
+base: 203395e45047ec48f7a50625c7f3324c3641fbd1
+commit: f4aa70a3089ec73c0abbdbf6ec2415f3889c7df6
+at: '2026-11-03T12:12:44Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: S-0053/D-9
+    grade: LOCKED
+  - id: S-0053/D-13
+    grade: ASSUMED
+  - id: S-0054/D-6
+    grade: LOCKED
+  - id: S-0054/D-7
+    grade: LOCKED
+  - id: S-0054/D-9
+    grade: LOCKED
+  - id: S-0054/D-14
+    grade: ASSUMED
+  - id: S-0055/D-4
+    grade: LOCKED
+  - id: S-0055/D-5
+    grade: LOCKED
+  - id: S-0055/D-18
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-29
+    grade: ASSUMED
+  - id: S-0055/D-30
+    grade: ASSUMED
+  - id: S-0055/D-31
+    grade: ASSUMED
+  - id: S-0055/D-32
+    grade: ASSUMED
+  - id: S-0055/D-33
+    grade: ASSUMED
+  - id: S-0055/D-34
+    grade: ASSUMED
+  - id: S-0055/D-38
+    grade: ASSUMED
+  - id: S-0055/D-50
+    grade: LOCKED
+  - id: S-0055/D-56
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-4
+    grade: LOCKED
+  - id: S-0056/D-6
+    grade: LOCKED
+  - id: S-0056/D-7
+    grade: ASSUMED
+  - id: S-0056/D-10
+    grade: LOCKED
+  - id: S-0057/D-3
+    grade: LOCKED
+  - id: S-0057/D-4
+    grade: LOCKED
+  - id: S-0057/D-5
+    grade: LOCKED
+  - id: S-0057/D-10
+    grade: ASSUMED
+  - id: S-0057/D-13
+    grade: OPEN
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0058/D-3
+    grade: LOCKED
+  - id: S-0058/D-7
+    grade: LOCKED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-3
+    grade: LOCKED
+  - id: S-0059/D-5
+    grade: LOCKED
+  - id: S-0059/D-6
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+  - id: S-0060/D-1
+    grade: LOCKED
+  - id: S-0060/D-4
+    grade: LOCKED
+  - id: S-0061/D-3
+    grade: LOCKED
+  - id: S-0061/D-9
+    grade: ASSUMED
+  - id: S-0061/D-11
+    grade: ASSUMED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0064/D-1
+    grade: LOCKED
+  - id: S-0064/D-4
+    grade: LOCKED
+  - id: S-0064/D-5
+    grade: ASSUMED
+  - id: S-0064/D-6
+    grade: LOCKED
+  - id: S-0068/D-1
+    grade: ASSUMED
+  - id: S-0071/D-1
+    grade: ASSUMED
+  - id: S-0071/D-2
+    grade: ASSUMED
+  - id: S-0079/D-5
+    grade: ASSUMED
+  - id: S-0079/D-6
+    grade: ASSUMED
+  - id: S-0079/D-7
+    grade: ASSUMED
+  - id: S-0079/D-10
+    grade: ASSUMED
+  - id: S-0079/D-11
+    grade: ASSUMED
+  - id: S-0079/D-12
+    grade: ASSUMED
+  - id: S-0080/D-1
+    grade: ASSUMED
+  - id: S-0080/D-2
+    grade: ASSUMED
+  - id: S-0083/D-1
+    grade: ASSUMED
+  - id: S-0083/D-2
+    grade: ASSUMED
+  - id: S-0083/D-15
+    grade: ASSUMED
+  - id: S-0084/D-5
+    grade: ASSUMED
+  - id: S-0084/D-16
+    grade: ASSUMED
+  - id: S-0085/D-1
+    grade: ASSUMED
+  - id: S-0085/D-4
+    grade: ASSUMED
+  - id: S-0086/D-6
+    grade: ASSUMED
+  - id: S-0087/D-1
+    grade: ASSUMED
+  - id: S-0088/D-3
+    grade: ASSUMED
+  - id: S-0089/D-1
+    grade: ASSUMED
+  - id: S-0089/D-3
+    grade: ASSUMED
+  - id: S-0091/D-1
+    grade: ASSUMED
+  - id: S-0091/D-3
+    grade: ASSUMED
+  - id: S-0092/D-4
+    grade: ASSUMED
+  - id: S-0094/D-1
+    grade: ASSUMED
+  - id: S-0094/D-3
+    grade: ASSUMED
+  - id: S-0094/D-4
+    grade: ASSUMED
+  - id: S-0094/D-5
+    grade: ASSUMED
+  - id: S-0095/D-1
+    grade: ASSUMED
+  - id: S-0095/D-2
+    grade: ASSUMED
+  - id: S-0095/D-4
+    grade: ASSUMED
+  - id: S-0095/D-5
+    grade: ASSUMED
+  - id: S-0095/D-6
+    grade: ASSUMED
+  - id: S-0096/D-2
+    grade: ASSUMED
+  - id: S-0096/D-3
+    grade: ASSUMED
+  - id: S-0097/D-4
+    grade: ASSUMED
+  - id: S-0097/D-5
+    grade: ASSUMED
+  - id: S-0097/D-7
+    grade: ASSUMED
+  - id: S-0098/D-1
+    grade: ASSUMED
+  - id: S-0098/D-2
+    grade: ASSUMED
+  - id: S-0099/D-1
+    grade: ASSUMED
+  - id: S-0099/D-5
+    grade: ASSUMED
+  - id: S-0099/D-9
+    grade: ASSUMED
+  - id: S-0100/D-7
+    grade: ASSUMED
+  - id: S-0100/D-9
+    grade: ASSUMED
+  - id: S-0100/D-12
+    grade: ASSUMED
+  - id: S-0101/D-2
+    grade: ASSUMED
+  - id: S-0102/D-4
+    grade: ASSUMED
+  - id: S-0102/D-5
+    grade: ASSUMED
+  - id: S-0103/D-4
+    grade: ASSUMED
+  - id: S-0104/D-1
+    grade: ASSUMED
+  - id: S-0104/D-5
+    grade: ASSUMED
+  - id: S-0104/D-11
+    grade: ASSUMED
+  - id: S-0105/D-4
+    grade: ASSUMED
+  - id: S-0106/D-4
+    grade: ASSUMED
+  - id: S-0106/D-7
+    grade: ASSUMED
+  - id: S-0108/D-1
+    grade: ASSUMED
+  - id: S-0108/D-2
+    grade: ASSUMED
+  - id: S-0109/D-1
+    grade: ASSUMED
+  - id: S-0110/D-1
+    grade: ASSUMED
+  - id: S-0110/D-2
+    grade: ASSUMED
+  - id: S-0110/D-4
+    grade: ASSUMED
+  - id: S-0110/D-8
+    grade: ASSUMED
+  - id: S-0110/D-11
+    grade: ASSUMED
+  - id: S-0110/D-13
+    grade: ASSUMED
+  - id: S-0111/D-1
+    grade: ASSUMED
+  - id: S-0111/D-4
+    grade: ASSUMED
+  - id: S-0112/D-2
+    grade: ASSUMED
+  - id: S-0112/D-3
+    grade: ASSUMED
+  - id: S-0112/D-5
+    grade: ASSUMED
+  - id: S-0113/D-4
+    grade: ASSUMED
+  - id: S-0113/D-5
+    grade: ASSUMED
+  - id: S-0114/D-3
+    grade: ASSUMED
+  - id: S-0116/D-2
+    grade: ASSUMED
+  - id: S-0116/D-14
+    grade: ASSUMED
+  - id: S-0117/D-1
+    grade: ASSUMED
+  - id: S-0117/D-3
+    grade: ASSUMED
+  - id: S-0117/D-4
+    grade: LOCKED
+  - id: S-0117/D-5
+    grade: ASSUMED
+  - id: S-0117/D-6
+    grade: LOCKED
+  - id: S-0117/D-7
+    grade: OPEN
+  - id: S-0118/D-9
+    grade: LOCKED
+entries:
+  - decision: S-0055/D-22
+    grade: LOCKED
+    at: '2026-11-03T12:01:51Z'
+    claim: >-
+      The fleet's intake leg is now built once per root for the serve. The change
+      adds code comments and docstring sentences naming S-0119/D-8; the leg's user-facing
+      strings are its existing detail lines, and none carries a corpus coordinate.
+    evidence: >-
+      src/torve/cli/fleet.py:135-143 — the docstring is the only added prose; the
+      strings printed by the leg at src/torve/cli/fleet.py:167-171 are unchanged.
+    action: decided
+    proposal: >-
+      No amendment: the row stands and the change keeps its rule.
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-11-03T12:01:51Z'
+    claim: >-
+      No import crosses a layer. `application/neighbours.py` adds only the stdlib
+      `string` module, to keep a shell operator out of a command's argument list,
+      and `cli/fleet.py` adds no import — it reuses the `Issues` type already imported
+      under TYPE_CHECKING. `uv run lint-imports` is green.
+    evidence: >-
+      src/torve/application/neighbours.py:17 — `import string` is the only added import
+      and it is stdlib; the fleet change adds none.
+    action: decided
+    proposal: >-
+      No amendment: the change stays inside the existing layer directions.
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-11-03T12:01:51Z'
+    claim: >-
+      Every identifier the change adds is in the current grammar: the comments and
+      docstrings name S-0119/D-8, S-0119/D-12, S-0044/A-11 and S-0105/D-4 in the S-NNNN/D-n
+      form, and no legacy spelling is introduced.
+    evidence: >-
+      src/torve/application/neighbours.py:237 — the added comment cites S-0119/D-12
+      in the current grammar; src/torve/cli/fleet.py:241 cites S-0119/D-8.
+    action: decided
+    proposal: 'No amendment: the row stands.'
+  - decision: S-0059/D-1
+    grade: LOCKED
+    at: '2026-11-03T12:01:51Z'
+    claim: >-
+      The change writes no contract and touches no contract's `spec:` field or its
+      lookup: it caches the fleet's intake leg per root and adds tests. Nothing about
+      the contract's shape changes.
+    evidence: >-
+      src/torve/cli/fleet.py:246 — the added line is the per-root leg cache; the contract
+      model and its readers are untouched.
+    action: decided
+    proposal: 'No amendment: the row stands.'
+  - decision: S-0059/D-12
+    grade: LOCKED
+    at: '2026-11-03T12:01:51Z'
+    claim: >-
+      The change reads no landing by a new route. The fleet still reads `landed(root)`
+      and `ran_here(root)` exactly as it did, and the intake leg reads no landing,
+      trailer or subject; the one new piece of state is the leg cache.
+    evidence: >-
+      src/torve/cli/fleet.py:255 — `landings = landed(root)` is unchanged; the added
+      code around it caches the intake leg only.
+    action: decided
+    proposal: 'No amendment: the row stands.'
+  - decision: S-0118/D-9
+    grade: LOCKED
+    at: '2026-11-03T12:01:51Z'
+    claim: >-
+      The edit of tests/test_manager.py only adds a build counter and `assert calls
+      == []` to the intake leg's guard test. It writes and reads no lane battery and
+      no `lane.judged` event; every writer of `lane.judged` is untouched.
+    evidence: >-
+      tests/test_manager.py:4262 — the added assertion is `assert calls == []` on
+      the planner-agent build; no lane battery code is edited.
+    action: decided
+    proposal: 'No amendment: the row stands.'
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-03T12:01:51Z'
+    claim: >-
+      The thread on tests/test_issues.py:353 (T-0741) says the test cited for S-0119/D-10
+      never exercises the row, because it substitutes a FakeDraft returning a string
+      and asserts only that the issue is not retried. The tree carries the answering
+      test: `test_a_leg_started_draft_that_spends_its_budget_escalates_and_holds_the_pause`
+      drives the real `draft_request` with an agent whose answers never parse, and
+      asserts the run state is ESCALATED with reason `budget_exhausted` and that `escalated_tasks`
+      counts it. The FakeDraft test remains the no-retry guard it was written for,
+      so the defect the thread names is not present.
+    evidence: >-
+      tests/test_issues.py:392 — the test drives `draft_request` end to end and asserts
+      the escalated state's reason is `budget_exhausted` and that `escalated_tasks(repo.root)`
+      names the task.
+    action: decided
+    proposal: >-
+      No row changes: S-0119/D-10 is proved by the test at tests/test_issues.py:392,
+      and the thread can be resolved against it.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-03T12:01:51Z'
+    claim: >-
+      The thread on the D-11 check (T-0736) says the reach tests never exercise the
+      ten-path cap or the implementation-none filter, because both trees have one
+      path per line and both documents have `implementation: none`. The tree now has
+      `test_phase_reach_caps_the_paths_and_skips_a_landed_document`, selected by `-k
+      reach`: it builds fourteen unowned callers and asserts the line names ten, and
+      asserts a document with `implementation: partial` produces no line. Re-running
+      the thread's own reproduction — removing the cap and the filter — fails that
+      test, so the claim no longer holds.
+    evidence: >-
+      tests/test_neighbours.py:269 — the test asserts the capped line names ten of
+      fourteen callers and that `phase_reach` over an `implementation: partial` document
+      is empty.
+    action: decided
+    proposal: >-
+      No row changes: the D-11 check now exercises both clauses; the thread can be
+      resolved against tests/test_neighbours.py:269.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-03T12:01:51Z'
+    claim: >-
+      The thread on tests/test_residency.py:254 (T-0740) says the D-8 check only exercises
+      a fake leg in `once`/`serve`, never the manager's or the fleet's pass, and never
+      the earliest-labelling rule, so leaving `issues=` out of either pass or drafting
+      the newest issue would still pass. The tree's `-k issue` selection now holds
+      five tests that close each clause: the real leg drains two issues oldest-labelling-first
+      across two passes, and the manager's and the fleet's wiring are each spied on.
+      Omitting `issues=` from either pass, or drafting the newest issue, fails the
+      check.
+    evidence: >-
+      tests/test_residency.py:335 — the test runs the real leg over two passes and
+      asserts `operator/issue-8` drafts before `operator/issue-3`; the manager and
+      fleet wiring tests are at tests/test_residency.py:386 and tests/test_residency.py:425.
+    action: decided
+    proposal: >-
+      No row changes: the D-8 check now exercises the wiring and the earliest-labelling
+      rule; the thread can be resolved against tests/test_residency.py:335.

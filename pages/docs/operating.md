@@ -1120,6 +1120,52 @@ empty after the import refuses the night as it always did (S-0096/D-3). Reach
 for the pass above when you want to look at the board first, not to make a
 night work.
 
+## A labelled issue becomes drafts
+
+The manager's and the fleet's pass can turn a labelled issue into drafts with
+no command typed (S-0119/D-8). The leg is off until `intake.issue_label`
+names a label:
+
+```yaml
+intake:
+  issue_label: torve-candidate   # empty, the default: the leg reads nothing
+```
+
+With a label set, each pass lists the open issues carrying it, oldest
+labelling first, and starts at most one drafting run — for the first issue it
+may draft. Two rules decide what that is:
+
+- **Who applied the label.** The account behind the last event that applied
+  it must hold triage, write, maintain or admin on the repository; an account
+  that is not a collaborator answers no. An issue template that applies the
+  label for its author, or an issue a stranger labelled, is skipped and named
+  in the pass's detail line until a maintainer labels it again (S-0119/D-2).
+- **Whether it moved since.** Neither the title nor the body may be edited
+  after that labelling. The reader takes the later of the body's last edit
+  and the last title rename, and an issue whose text moved is skipped the
+  same way (S-0119/D-2).
+
+An issue drafts once (S-0119/D-5). Before the run the leg files it as an
+ordinary operator source, `.torve/sources/operator/issue-<number>.yaml`, with
+the issue's URL as `ref`, its title, the labelling instant as `at`, and its
+body as `summary`. A later pass skips any issue whose source file the tree
+already holds, so a run that fails or escalates — `budget_exhausted`
+included, which holds the pause like any escalation (S-0119/D-10) — is
+retried by a person, never by the loop: `torve intake --source
+operator/issue-<number>` re-runs it, or delete the file to let the next pass
+take the issue again.
+
+The leg never writes to the forge — no comment, no label change, no close
+(S-0119/D-9); the issue stays as the person left it. It runs after the
+standing leg and before the mint, and a paused pass skips it, so a pass that
+drafts dispatches only after the drafting run returns. One drafting run per
+pass drains a queue of labelled issues one per pass. The drafts are ordinary
+drafts: nothing dispatches until a person runs `torve adopt`, which commits
+the source file its drafting run names, beside the contracts that cite it.
+The pass's detail line and the `issue_drafted` and `issue_skipped` engine
+events name each issue drafted and skipped; nothing decides on them
+(S-0119/D-9).
+
 ## Getting told
 
 An interrupt-class escalation is delivered once, by a leg of the manager's

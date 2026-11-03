@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import re
 import shlex
+import shutil
 import subprocess
 from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
@@ -1994,6 +1995,73 @@ def _merged_decisions(
 # ....................... #
 
 
+def draft_request(
+    root: Path,
+    request: str,
+    config: RunnerConfig,
+    agent: Agent,
+    *,
+    spec: str | None = None,
+    source: str | None = None,
+    runtime: Runtime,
+    taken: Iterable[str] = (),
+    broker: Broker | None = None,
+) -> IntakeOutcome:
+    """One request drafted the same way whichever surface started it
+    (S-0119/D-7): the run is minted, its worktree cut at base, `run_intake`
+    given the caller's agent, and the worktree removed whatever happens.
+
+    The base tip is resolved before anything is minted, and a run whose
+    worktree cannot be cut takes its contract back with it: a request that
+    never started leaves no orphan draft and spends no task number.
+
+    The planner tier's agent and the broker are the caller's, so the
+    composition root stays in the CLI layer and this module never imports
+    it; the broker carries the provider credential, never the sandbox."""
+
+    from torve.application.telemetry import config_hash
+    from torve.gates.context import resolve_base
+
+    base_ref = resolve_base(root, config.base) or "HEAD"
+    base = subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "--verify", f"{base_ref}^{{commit}}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if base.returncode != 0:
+        raise ValueError("no base tip to draft against")
+
+    task = mint_intake_task(root, request, config, spec=spec, source=source, taken=taken)
+    workdir = naming.intake_worktree(root, task.id)
+    added = subprocess.run(
+        ["git", "-C", str(root), "worktree", "add", "--detach", str(workdir), base.stdout.strip()],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if added.returncode != 0:
+        shutil.rmtree(root / layout.TORVE_DIR / "tasks" / task.id, ignore_errors=True)
+        raise RuntimeError(added.stderr.strip() or "worktree add failed")
+
+    try:
+        digest = config_hash(layout.gates_file(root), root, config)
+        return run_intake(root, workdir, task, config, runtime, agent, digest, broker=broker)
+
+    finally:
+        subprocess.run(
+            ["git", "-C", str(root), "worktree", "remove", "--force", str(workdir)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+
+# ....................... #
+
+
 def adopted_file(root: Path, task_id: str) -> Path:
     return root / layout.TORVE_DIR / "tasks" / task_id / ADOPTED_FILE
 
@@ -2148,6 +2216,26 @@ def adopt(
             )
 
             written.append(parent_contract)
+
+        # S-0119/D-6: a drafting run that names a filed source carries the file
+        # it names into the commit with the contracts that cite it, unless the
+        # tree already tracks it. A document source names no file at all.
+        if asked:
+            from torve.config.sources import source_file
+            from torve.domain.source import FILED_ID
+
+            if FILED_ID.match(asked):
+                filed = source_file(root, asked)
+                rel = filed.relative_to(root)
+                tracked = subprocess.run(
+                    ["git", "-C", str(root), "ls-files", "--error-unmatch", "--", str(rel)],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+
+                if filed.is_file() and tracked.returncode != 0:
+                    written.append(filed)
 
         proc = subprocess.run(
             ["git", "-C", str(root), "add", "--"] + [str(p.relative_to(root)) for p in written],

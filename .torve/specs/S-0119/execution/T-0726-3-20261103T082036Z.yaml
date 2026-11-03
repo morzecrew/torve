@@ -1,0 +1,116 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0726
+phase: 1
+attempt: 3
+base: 0395f74794afbb712041e8b462436443d9292b4d
+commit: 2fc6662d5eb1c144775be7431bc6639892aa46eb
+at: '2026-11-03T08:20:36Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: LOCKED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: LOCKED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: LOCKED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    class: spec-gap
+    at: '2026-11-03T07:55:52Z'
+    claim: >-
+      Moving the drafting sequence into draft_request leaves the egress broker out
+      of the signature, so torve intake no longer opens the configured broker for
+      its drafting run; under broker.adapter: local the planner credential now passes
+      through unbrokered, where the command used to hand run_intake a build_broker(config.broker).
+    evidence: >-
+      src/torve/application/intake.py:2043 — run_intake is called with no broker,
+      and the signature at src/torve/application/intake.py:1997 takes none from the
+      caller.
+    action: decided
+    proposal: >-
+      D-7 should say how the drafting run reaches the broker, and add it to draft_request's
+      signature: draft_request(..., broker: Broker | None = None), each caller passing
+      build_broker(config.broker) from the CLI composition root as torve intake did
+      before.
+  - decision: D-2
+    grade: LOCKED
+    class: spec-gap
+    at: '2026-11-03T08:04:29Z'
+    attempt: 2
+    claim: >-
+      This task neither touches nor contradicts D-2: src/torve/application/issues.py
+      is absent from the tree and the diff changes only application/intake.py and
+      its callers. The row check names tests/test_issues.py, the deliverable of S-0119
+      intake-leg phase and outside this task scope, so the check selects nothing.
+      The specification did not say an inherited LOCKED row could carry a check whose
+      test another phase owns; reported here rather than inventing the test outside
+      scope.
+    evidence: >-
+      .torve/tasks/T-0726/contract.yaml:140 — the row declares its check as uv run
+      pytest tests/test_issues.py -k labelled, and neither that test file nor src/torve/application/issues.py
+      exists in the tree.
+    action: decided
+    proposal: >-
+      S-0119 phasing should land tests/test_issues.py in the phase that owns issues.py,
+      and a battery that precedes that landing should carry D-2 with no check until
+      it does; a check naming an unlanded phase test is owed an entry, not a contradiction.
+  - decision: D-7
+    grade: ASSUMED
+    class: spec-gap
+    at: '2026-11-03T08:14:14Z'
+    attempt: 2
+    claim: >-
+      draft_request takes broker: Broker | None = None beside the agent, and torve
+      intake passes build_broker(config.broker), so a drafting run keeps going through
+      the configured broker as the command did before; the contract's signature named
+      no broker.
+    evidence: >-
+      src/torve/application/intake.py:2006 — the broker keyword, forwarded to run_intake
+      in the try block below; src/torve/cli/intake.py builds it next to build_tier_agent
+    action: departed
+    proposal: >-
+      D-7 should say the caller supplies the broker with the agent, both built in
+      the CLI layer.
+  - decision: D-2
+    grade: LOCKED
+    class: spec-gap
+    at: '2026-11-03T08:14:38Z'
+    attempt: 2
+    claim: >-
+      This task neither touches nor contradicts D-2: src/torve/application/issues.py
+      is absent from the tree and the diff changes only application/intake.py and
+      its callers. The row check names tests/test_issues.py, the deliverable of S-0119
+      intake-leg phase and outside this task scope, so the check selects nothing.
+      The specification did not say an inherited LOCKED row could carry a check whose
+      test another phase owns; reported here rather than inventing the test outside
+      scope.
+    evidence: >-
+      .torve/tasks/T-0726/contract.yaml:140 — the row declares its check as uv run
+      pytest tests/test_issues.py -k labelled, and neither that test file nor src/torve/application/issues.py
+      exists in the tree.
+    action: decided
+    proposal: >-
+      S-0119 phasing should land tests/test_issues.py in the phase that owns issues.py,
+      and a battery that precedes that landing should carry D-2 with no check until
+      it does; a check naming an unlanded phase test is owed an entry, not a contradiction.

@@ -832,3 +832,215 @@ def test_a_phase_whose_landing_file_rides_in_the_branch_counts_as_landed(tmp_pat
     assert complete
     assert title == "S-0090: Landing by document · 2/2 phases"
     assert "## T-8401 · phase 1" in body
+
+
+# ....................... #
+# The intake leg's forge read (S-0119/D-3): open issues carrying a label, the
+# last event that applied it, and an account's permission — recorded gh output.
+
+T1 = "2026-01-01T00:00:00Z"
+T2 = "2026-01-02T00:00:00Z"
+T3 = "2026-01-03T00:00:00Z"
+
+
+def _issue(number: int, *, timeline: list[dict] | None = None, last_edited: str | None = None):
+    return {
+        "number": number,
+        "url": f"https://github.com/example/lab/issues/{number}",
+        "title": f"Issue {number}",
+        "body": f"body {number}",
+        "lastEditedAt": last_edited,
+        "timelineItems": {"nodes": list(timeline or [])},
+    }
+
+
+def _labelled(login: str, at: str, label: str = "torve:ready") -> dict:
+    return {
+        "__typename": "LabeledEvent",
+        "createdAt": at,
+        "actor": {"login": login},
+        "label": {"name": label},
+    }
+
+
+def _renamed(at: str) -> dict:
+    return {"__typename": "RenamedTitleEvent", "createdAt": at}
+
+
+def _page(nodes: list[dict], *, more: bool = False, cursor: str | None = None) -> dict:
+    return {
+        "data": {
+            "repository": {
+                "issues": {
+                    "pageInfo": {"hasNextPage": more, "endCursor": cursor},
+                    "nodes": nodes,
+                }
+            }
+        }
+    }
+
+
+def _gh_run(monkeypatch, *answers):
+    """Recorded gh output: a dict is a successful JSON body, a tuple is
+    (returncode, stdout, stderr)."""
+
+    commands: list[list[str]] = []
+    queue = list(answers)
+
+    def fake_run(command, **kwargs):
+        commands.append([str(part) for part in command])
+        answer = queue.pop(0)
+
+        if isinstance(answer, tuple):
+            return subprocess.CompletedProcess(command, *answer)
+
+        return subprocess.CompletedProcess(command, 0, stdout=json.dumps(answer), stderr="")
+
+    monkeypatch.setattr(git_module.subprocess, "run", fake_run)
+
+    return commands
+
+
+def test_labelled_issues_takes_the_last_event_that_applied_the_label(monkeypatch):
+    """S-0119/D-3: the last labelling wins, not any other label's event."""
+
+    commands = _gh_run(
+        monkeypatch,
+        _page(
+            [
+                _issue(
+                    7,
+                    timeline=[
+                        _labelled("alice", T1),
+                        _labelled("mallory", T2, label="other"),
+                        _labelled("bob", T3),
+                    ],
+                )
+            ]
+        ),
+    )
+
+    issues = GhScm(repo="example/lab", token_env=None).labelled_issues("torve:ready")
+
+    assert [(issue.number, issue.labelled_by, issue.labelled_at) for issue in issues] == [
+        (7, "bob", T3)
+    ]
+    assert issues[0].unreadable is None
+    assert commands[0][:3] == ["gh", "api", "graphql"]
+    assert "label=torve:ready" in commands[0]
+
+
+def test_labelled_issues_a_never_edited_issue_has_no_edited_at(monkeypatch):
+    """S-0119/D-3: neither an edit nor a rename leaves edited_at empty."""
+
+    _gh_run(monkeypatch, _page([_issue(8, timeline=[_labelled("alice", T1)])]))
+
+    issue = GhScm(repo="example/lab", token_env=None).labelled_issues("torve:ready")[0]
+
+    assert issue.edited_at is None
+    assert (issue.url, issue.title, issue.body) == (
+        "https://github.com/example/lab/issues/8",
+        "Issue 8",
+        "body 8",
+    )
+
+
+def test_labelled_issues_an_edited_body_sets_edited_at(monkeypatch):
+    """S-0119/D-3: the body's last edit is read beside the labelling."""
+
+    _gh_run(monkeypatch, _page([_issue(9, last_edited=T3, timeline=[_labelled("alice", T1)])]))
+
+    issue = GhScm(repo="example/lab", token_env=None).labelled_issues("torve:ready")[0]
+
+    assert issue.edited_at == T3
+
+
+def test_labelled_issues_a_rename_later_than_the_edit_sets_edited_at(monkeypatch):
+    """S-0119/D-3: edited_at is the later of the body edit and the last rename."""
+
+    _gh_run(
+        monkeypatch,
+        _page([_issue(10, last_edited=T1, timeline=[_labelled("alice", T1), _renamed(T3)])]),
+    )
+
+    issue = GhScm(repo="example/lab", token_env=None).labelled_issues("torve:ready")[0]
+
+    assert issue.edited_at == T3
+
+
+def test_labelled_issues_a_labelling_outside_the_window_is_unreadable(monkeypatch):
+    """S-0119/D-3: a labelling outside the window is marked, never dropped."""
+
+    _gh_run(monkeypatch, _page([_issue(11, timeline=[_renamed(T3)])]))
+
+    issues = GhScm(repo="example/lab", token_env=None).labelled_issues("torve:ready")
+
+    assert len(issues) == 1
+    assert (issues[0].labelled_by, issues[0].labelled_at) == (None, None)
+    assert issues[0].unreadable is not None
+    assert "100" in issues[0].unreadable
+
+
+def test_labelled_issues_follows_page_info_until_none_is_left(monkeypatch):
+    """S-0119/D-3: the read pages until hasNextPage is false."""
+
+    commands = _gh_run(
+        monkeypatch,
+        _page([_issue(1, timeline=[_labelled("alice", T1)])], more=True, cursor="CUR1"),
+        _page([_issue(2, timeline=[_labelled("alice", T2)])]),
+    )
+
+    issues = GhScm(repo="example/lab", token_env=None).labelled_issues("torve:ready")
+
+    assert [issue.number for issue in issues] == [1, 2]
+    assert "cursor=CUR1" in commands[1]
+
+
+def test_labelled_issues_a_page_that_cannot_be_read_fails_the_whole_read(monkeypatch):
+    """S-0119/D-3: a page the reader cannot read fails the read, not a partial
+    listing."""
+
+    _gh_run(
+        monkeypatch,
+        _page([_issue(1, timeline=[_labelled("alice", T1)])], more=True, cursor="CUR1"),
+        (1, "", "gh: Something went wrong (HTTP 500)"),
+    )
+
+    with pytest.raises(RuntimeError, match="500"):
+        GhScm(repo="example/lab", token_env=None).labelled_issues("torve:ready")
+
+
+def test_labelled_issues_a_partial_error_page_fails_the_whole_read(monkeypatch):
+    """S-0119/D-3: `errors` beside partial `data` is a page the reader cannot
+    read, not an issue whose labelling falls outside the window."""
+
+    page = _page([{**_issue(1), "timelineItems": None}])
+    page["errors"] = [{"message": "timelineItems could not be resolved"}]
+    _gh_run(monkeypatch, page)
+
+    with pytest.raises(RuntimeError, match="timelineItems"):
+        GhScm(repo="example/lab", token_env=None).labelled_issues("torve:ready")
+
+
+def test_labelled_issues_may_triage_answers_true_for_triage_and_false_for_read_only(
+    monkeypatch,
+):
+    """S-0119/D-3: triage or more is true; read-only is not. GitHub's legacy
+    `permission` field reads triage back as `read`, so the role is `role_name`."""
+
+    _gh_run(monkeypatch, {"permission": "read", "role_name": "triage"})
+    assert GhScm(repo="example/lab", token_env=None).may_triage("alice") is True
+
+    _gh_run(monkeypatch, {"permission": "write", "role_name": "maintain"})
+    assert GhScm(repo="example/lab", token_env=None).may_triage("keeper") is True
+
+    _gh_run(monkeypatch, {"permission": "read", "role_name": "read"})
+    assert GhScm(repo="example/lab", token_env=None).may_triage("reader") is False
+
+
+def test_labelled_issues_may_triage_answers_false_for_a_non_collaborator(monkeypatch):
+    """S-0119/D-3: the forge's 404 answers false rather than failing the read."""
+
+    _gh_run(monkeypatch, (1, "", "gh: Not Found (HTTP 404)"))
+
+    assert GhScm(repo="example/lab", token_env=None).may_triage("stranger") is False

@@ -13,6 +13,8 @@ once phase 2 adds it, the gate manifest's `scope.derived` map.
 from __future__ import annotations
 
 import ast
+import shlex
+import string
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,7 +22,7 @@ from torve.application.intake import paired_test_files, tree_files
 from torve.base.globs import matches
 
 if TYPE_CHECKING:
-    from torve.domain.spec import Document
+    from torve.domain.spec import Corpus, Document
 
 # ----------------------- #
 
@@ -198,3 +200,282 @@ def contingent_paths(
             found.update(p.as_posix() for p in files if _matched(p, entry.scope))
 
     return sorted(found - own)
+
+
+# ....................... #
+# S-0119/D-12: a test file is run by an acceptance command only when the
+# command launches the tests and names the file, a directory above it, or no
+# path at all — mentioning it, as a type checker or a linter does, runs
+# nothing.
+
+# The pytest options that take the next token as their value, so it is not
+# read as a path argument.
+_VALUE_OPTIONS = frozenset(
+    {
+        "-k",
+        "-m",
+        "-p",
+        "-c",
+        "-o",
+        "-W",
+        "-n",
+        "--maxfail",
+        "--rootdir",
+        "--junitxml",
+        "--cov",
+        "--cov-report",
+        "--ignore",
+        "--deselect",
+        "--tb",
+        "--confcutdir",
+    }
+)
+
+
+# The shell operators that end one simple command and start another, so a
+# path named to a second command's launcher is not read as the first's
+# argument (S-0119/D-12).
+_OPERATORS = frozenset({"&&", "||", ";", "|", "&"})
+
+
+def _argv(command: str) -> list[str]:
+    """The command's tokens, with the shell operators that chain one command
+    to the next kept as tokens of their own and every other punctuation left
+    inside the token it belongs to."""
+
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+        lexer.wordchars += "".join(ch for ch in string.punctuation if ch not in ";&|'\"\\#")
+
+        return list(lexer)
+
+    except ValueError:
+        return command.split()
+
+
+def _segments(argv: list[str]) -> list[list[str]]:
+    """*argv* split into the simple commands a shell would chain, so each is
+    read for whether it launches the tests at all."""
+
+    segments: list[list[str]] = [[]]
+
+    for token in argv:
+        if token in _OPERATORS:
+            segments.append([])
+            continue
+
+        segments[-1].append(token)
+
+    return [segment for segment in segments if segment]
+
+
+def _launch_at(argv: list[str], launcher: str) -> int | None:
+    """Where the command stops being the launcher and starts being the tests'
+    arguments: after the manifest's `tests.run`, `-m pytest`, or `pytest` —
+    in that order, so a configured launcher wins over the heuristic."""
+
+    wanted = _argv(launcher)
+
+    if wanted:
+        for start in range(len(argv) - len(wanted) + 1):
+            if argv[start : start + len(wanted)] == wanted:
+                return start + len(wanted)
+
+    for start in range(len(argv) - 1):
+        if argv[start] == "-m" and argv[start + 1] == "pytest":
+            return start + 2
+
+    for start, token in enumerate(argv):
+        if token == "pytest":
+            return start + 1
+
+    return None
+
+
+def _tree_path(path: str) -> str:
+    """*path* as the tree spells it: a leading `./` removed and nothing else.
+    A bare `lstrip("./")` also eats the dots and slashes of `../tests` and
+    `.hidden/t.py`, making them `tests` and `hidden/t.py` — paths they do not
+    name. `.` is the root, which names every path under it."""
+
+    while path.startswith("./"):
+        path = path[2:]
+
+    return "" if path == "." else path
+
+
+def acceptance_runs(command: str, test: str, launcher: str) -> bool:
+    """Whether *command* runs the test file at *test* (S-0119/D-12). It must
+    launch the tests — as `pytest`, `-m pytest`, or the manifest's
+    `tests.run` in *launcher* — and either name *test*, name a directory above
+    it, or name no path at all. `mypy` or `ruff` over the path mentions it and
+    runs nothing, and neither does the rest of a command chain past the
+    operator that ends the launching command."""
+
+    test = _tree_path(test.replace("\\", "/"))
+
+    return any(_segment_runs(segment, test, launcher) for segment in _segments(_argv(command)))
+
+
+def _segment_runs(argv: list[str], test: str, launcher: str) -> bool:
+    """One simple command: whether it launches the tests and names *test*."""
+
+    start = _launch_at(argv, launcher)
+
+    if start is None:
+        return False
+
+    named_a_path = False
+    skip = False
+
+    for token in argv[start:]:
+        if skip:
+            skip = False
+            continue
+
+        if token.startswith("-"):
+            skip = token in _VALUE_OPTIONS
+            continue
+
+        named_a_path = True
+        candidate = _tree_path(token.split("::", 1)[0].replace("\\", "/")).rstrip("/")
+
+        if not candidate or test == candidate or test.startswith(f"{candidate}/"):
+            return True
+
+    return not named_a_path
+
+
+# ....................... #
+# S-0119/D-11: the callers a phase's change reaches outside its scope, while
+# the phasing is still a draft — the importer no phase owns, the phases that
+# own the rest, and the tests nothing runs.
+
+
+def _test_config(root: Path) -> tuple[list[str], str]:
+    """The manifest's `tests.patterns` and `tests.run`, its defaults when the
+    repository carries no manifest (the same reading the intake does)."""
+
+    from torve.config import layout
+    from torve.config.manifest import DEFAULT_TEST_PATTERNS, DEFAULT_TEST_RUN, load_manifest
+
+    path = layout.gates_file(root)
+
+    if not path.is_file():
+        return list(DEFAULT_TEST_PATTERNS), DEFAULT_TEST_RUN
+
+    try:
+        tests = load_manifest(path).tests
+
+    except (OSError, ValueError):
+        return list(DEFAULT_TEST_PATTERNS), DEFAULT_TEST_RUN
+
+    return list(tests.patterns), tests.run
+
+
+def _count(count: int, noun: str) -> str:
+    return f"{count} {noun}{'' if count == 1 else 's'}"
+
+
+def _shown(paths: set[str]) -> str:
+    """At most ten sorted paths, the count carrying the rest (S-0119/D-11)."""
+
+    return ", ".join(sorted(paths)[:10])
+
+
+def phase_reach(corpus: Corpus, root: Path) -> list[str]:
+    """The warning lines of S-0119/D-11: for each phase of a document not
+    archived, not superseded and with implementation `none`, the non-test
+    Python files outside its scope that import a file its scope matches —
+    one line for those no phase owns and one per other phase that owns some —
+    and the test files importing such a file that no acceptance command of the
+    document runs. Each line names the document, the phase, the count and at
+    most ten sorted paths."""
+
+    files = tree_files(root)
+    names = _module_names(files)
+
+    if not names:
+        return []
+
+    patterns, launcher = _test_config(root)
+    dotted = {path: name for name, path in names.items()}
+    imported = {path: _imports(path, root, dotted) for path in files if path.suffix == ".py"}
+    lines: list[str] = []
+
+    def is_test(path: Path) -> bool:
+        return _matched(path, patterns)
+
+    for doc in corpus.documents:
+        if doc.archived or doc.superseded_by or doc.implementation != "none":
+            continue
+
+        acceptance = [command for phase in doc.phasing for command in phase.acceptance]
+
+        for phase in doc.phasing:
+            matched = [
+                path for path in files if path.suffix == ".py" and _matched(path, phase.scope)
+            ]
+
+            if not matched:
+                continue
+
+            importers = [
+                path
+                for path in files
+                if path.suffix == ".py"
+                and path not in matched
+                and any(_resolve(name, names) in matched for name in imported[path])
+            ]
+
+            unowned: set[str] = set()
+            owned: dict[int, set[str]] = {}
+            unrun: set[str] = set()
+
+            for path in importers:
+                if is_test(path):
+                    if not any(
+                        acceptance_runs(command, path.as_posix(), launcher)
+                        for command in acceptance
+                    ):
+                        unrun.add(path.as_posix())
+
+                    continue
+
+                owners = [
+                    other
+                    for other in doc.phasing
+                    if other.phase != phase.phase and _matched(path, other.scope)
+                ]
+
+                if not owners:
+                    unowned.add(path.as_posix())
+
+                for other in owners:
+                    owned.setdefault(other.phase, set()).add(path.as_posix())
+
+            where = f"{doc.id}: phase {phase.phase} ({phase.title})"
+
+            if unowned:
+                lines.append(
+                    f"{where} reaches {_count(len(unowned), 'file')} no phase owns: "
+                    f"{_shown(unowned)}"
+                )
+
+            for other in doc.phasing:
+                if other.phase == phase.phase or other.phase not in owned:
+                    continue
+
+                reached = owned[other.phase]
+                lines.append(
+                    f"{where} reaches {_count(len(reached), 'file')} phase {other.phase} owns: "
+                    f"{_shown(reached)}"
+                )
+
+            if unrun:
+                lines.append(
+                    f"{where} leaves {_count(len(unrun), 'test')} of its files unrun by every "
+                    f"acceptance: {_shown(unrun)}"
+                )
+
+    return lines

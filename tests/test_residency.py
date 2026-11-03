@@ -251,6 +251,201 @@ def test_the_standing_leg_runs_before_the_scan_and_a_paused_pass_skips_it(tmp_pa
     run(scenario)
 
 
+def test_the_issues_leg_runs_after_standing_and_a_paused_pass_skips_it(tmp_path):
+    """S-0119/D-8: the intake leg runs after the standing leg and before the
+    scan, so a drafting run it starts is on the board this pass — and a pause
+    stops it, because drafts are work somebody has to adopt and triage."""
+
+    order: list[str] = []
+    contract(tmp_path, "T-0001")
+
+    def standing() -> tuple[str, bool]:
+        order.append("standing")
+
+        return "no standing jobs due", False
+
+    def issues() -> tuple[str, bool]:
+        # What a real leg does: mint the drafting run, and let the scan find it.
+        order.append("issues")
+        contract(tmp_path, "T-0002")
+
+        return "drafted #142 as operator/issue-142", True
+
+    async def scenario(log):
+        worker = worker_over(log, [])
+        await once(
+            log,
+            worker,
+            tmp_path,
+            PARTITION,
+            dispatch=False,
+            standing=standing,
+            issues=issues,
+        )
+
+        board = project(await log.since(partition=PARTITION))
+        assert order == ["standing", "issues"]
+        assert "T-0002" in board.tasks
+
+        order.clear()
+        await once(
+            log,
+            worker,
+            tmp_path,
+            PARTITION,
+            dispatch=False,
+            standing=standing,
+            issues=issues,
+            paused=True,
+        )
+        assert order == []
+
+    run(scenario)
+
+
+def test_serve_carries_the_issues_leg_into_every_pass(tmp_path):
+    """S-0119/D-8: `serve` hands the leg to every pass it runs, so a resident
+    manager drafts without the `once` call having to be wired again."""
+
+    contract(tmp_path, "T-0001")
+    calls: list[str] = []
+
+    def issues() -> tuple[str, bool]:
+        calls.append("issues")
+
+        return "issue intake off", False
+
+    async def scenario(log):
+        await serve(
+            log,
+            worker_over(log, []),
+            tmp_path,
+            PARTITION,
+            passes=2,
+            idle_seconds=0,
+            dispatch=False,
+            issues=issues,
+        )
+
+        assert calls == ["issues", "issues"]
+
+    run(scenario)
+
+
+def test_a_pass_with_the_issues_leg_drafts_only_the_issue_labelled_earliest(tmp_path):
+    """S-0119/D-8: with the real leg in the pass, a queue of labelled issues
+    drains one per pass, earliest labelling first — not the listing's order
+    and not the issue number's."""
+
+    from torve.application.intake import IntakeOutcome
+    from torve.application.issues import issue_leg
+    from torve.application.ports import LabelledIssue
+    from torve.config.runconfig import IntakeConfig
+
+    def labelled(number: int, at: str) -> LabelledIssue:
+        return LabelledIssue(
+            number=number,
+            url=f"https://github.com/acme/lab/issues/{number}",
+            title=f"issue {number}",
+            body=f"body of {number}",
+            labelled_by="alice",
+            labelled_at=at,
+            edited_at=None,
+        )
+
+    class Reader:
+        def labelled_issues(self, label: str) -> list[LabelledIssue]:
+            return [labelled(3, "2026-11-02T10:00:00Z"), labelled(8, "2026-10-30T10:00:00Z")]
+
+        def may_triage(self, login: str) -> bool:
+            return True
+
+    drafted: list[str] = []
+
+    def draft(request: str, source: str) -> IntakeOutcome:
+        drafted.append(source)
+
+        return IntakeOutcome("T-0100", "1 draft(s) lint-green")
+
+    config = RunnerConfig(intake=IntakeConfig(issue_label="torve:ready"))
+
+    def issues() -> tuple[str, bool]:
+        return issue_leg(tmp_path, config, Reader(), draft)
+
+    async def scenario(log):
+        worker = worker_over(log, [])
+        await once(log, worker, tmp_path, PARTITION, dispatch=False, issues=issues)
+        assert drafted == ["operator/issue-8"]
+
+        await once(log, worker, tmp_path, PARTITION, dispatch=False, issues=issues)
+        assert drafted == ["operator/issue-8", "operator/issue-3"]
+
+    run(scenario)
+
+
+def test_the_managers_pass_is_handed_the_issues_leg(tmp_path, monkeypatch):
+    """S-0119/D-8: the manager's serve hands its pass the intake leg, so the
+    leg runs in the manager's pass and not only where a test wires it."""
+
+    from torve.application import residency
+    from torve.cli import manager as manager_cli
+    from torve.cli.manager import _serve
+
+    seen: list[object] = []
+
+    class Stopped(Exception):
+        pass
+
+    async def spy(*_args, **kwargs):
+        seen.append(kwargs.get("issues"))
+        raise Stopped
+
+    monkeypatch.setattr(residency, "serve", spy)
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: RunnerConfig())
+
+    with pytest.raises(Stopped):
+        asyncio.run(
+            _serve(
+                None,
+                PARTITION,
+                root=tmp_path,
+                config_path=None,
+                worker="w-1",
+                passes=1,
+                interval=0,
+                only=None,
+                dispatch=False,
+            )
+        )
+
+    assert seen and callable(seen[0])
+    assert asyncio.run(seen[0]()) == ("issue intake off", False)
+
+
+def test_the_fleets_pass_is_handed_the_issues_leg(tmp_path, monkeypatch):
+    """S-0119/D-8: each root's pass in the fleet runs the intake leg too."""
+
+    from torve.application import residency
+    from torve.cli.fleet import _serve_fleet
+    from torve.config.fleet import FleetManifest, FleetRepository
+
+    seen: list[object] = []
+
+    async def spy(*_args, **kwargs):
+        seen.append(kwargs.get("issues"))
+
+    monkeypatch.setattr(residency, "once", spy)
+    (tmp_path / ".torve").mkdir(exist_ok=True)
+    manifest = FleetManifest(
+        repositories=[FleetRepository(root=str(tmp_path), trust="own", partition=PARTITION)]
+    )
+
+    asyncio.run(_serve_fleet(manifest, None, worker="w-1", rounds=1, interval=0))
+
+    assert seen and callable(seen[0])
+    assert asyncio.run(seen[0]()) == ("issue intake off", False)
+
+
 def test_a_broken_leg_is_recorded_and_the_pass_carries_on(tmp_path):
     """Found by the first live dispatch (A-128): a standing job that could
     not be instantiated raised out of the pass, so nothing was claimed and

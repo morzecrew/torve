@@ -119,6 +119,41 @@ every thread a configured bot opened is resolved and the head's checks are
 green, keyed by head so it lands once. Every login in `bots` is also what the
 night's review wait waits for.
 
+## Drafting from a labelled issue
+
+A pass can turn a labelled issue into drafts with no one at the terminal. The
+leg is off until `intake.issue_label` names a label:
+
+```yaml
+intake:
+  issue_label: torve-candidate   # empty, the default: the leg reads nothing
+```
+
+With a label set, each pass lists the open issues carrying it, oldest
+labelling first, and starts at most one drafting run — for the first issue a
+maintainer labelled and nobody has edited since. The account behind the last
+event that applied the label must hold triage or more on the repository, and
+neither the title nor the body may be edited after that event; anything else
+is skipped and named in the pass's detail line until somebody labels it
+again. A label an issue template applies for its author is therefore not
+enough on its own.
+
+An issue drafts once. Before the run the leg files it as an ordinary source,
+`.torve/sources/operator/issue-<number>.yaml`, with the issue's URL as `ref`,
+its title, the labelling instant as `at`, and its body as `summary`; a later
+pass skips any issue whose source file the tree already holds. A run that
+fails or spends its budget — `budget_exhausted`, which holds the pause like
+any escalation — is not retried by the leg. Re-run it by hand with
+`torve intake --source operator/issue-<number>`, or delete the source file to
+let the next pass take the issue again.
+
+The leg never writes to the forge: no comment, no label change, no close. It
+runs after the standing leg and before the mint, and a paused pass skips it.
+The drafts are ordinary drafts: they wait for a person's `torve adopt`, as
+`torve intake`'s do, and adoption commits the source file its run named. Read
+what a pass did in its detail line and in the `issue_drafted` and
+`issue_skipped` engine events.
+
 ## Watch
 
 - `torve manager board <partition> --format json` every few minutes, filtered
