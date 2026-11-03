@@ -417,6 +417,42 @@ def test_the_fleets_issues_leg_is_built_once_for_the_serve(tmp_path, monkeypatch
     assert legs[0] is legs[1]
 
 
+def test_a_label_change_under_the_serve_builds_a_new_issues_leg(tmp_path, monkeypatch):
+    """S-0119/D-1: the fleet reloads a root's configuration each pass, so a
+    pass naming another `intake.issue_label` gets a leg built for that label
+    rather than drafting from the first one's."""
+
+    from torve.application import residency
+    from torve.cli import assembly
+    from torve.cli.fleet import _serve_fleet
+    from torve.config import runconfig as runconfig_module
+    from torve.config.fleet import FleetManifest
+    from torve.config.runconfig import IntakeConfig, RunnerConfig
+
+    labels = ["one", "one", "two"]
+    seen: list[object] = []
+
+    async def spy(*_args, **kwargs):
+        seen.append(kwargs.get("issues"))
+
+    def load(_root):
+        return RunnerConfig(intake=IntakeConfig(issue_label=labels[len(seen)]))
+
+    monkeypatch.setattr(residency, "once", spy)
+    monkeypatch.setattr(assembly, "build_tier_agent", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(runconfig_module, "load_runner_config", load)
+    (tmp_path / ".torve").mkdir(exist_ok=True)
+    manifest_ = FleetManifest(
+        repositories=[FleetRepository(root=str(tmp_path), trust="own", partition="acme/one")]
+    )
+
+    asyncio.run(_serve_fleet(manifest_, None, worker="w-1", rounds=3, interval=0))
+
+    assert len(seen) == 3
+    assert seen[0] is seen[1]
+    assert seen[2] is not seen[0]
+
+
 def test_the_fleets_issues_leg_keeps_a_planner_build_error_on_its_detail_line(
     tmp_path, monkeypatch
 ):

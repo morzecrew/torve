@@ -1238,3 +1238,17 @@ def test_the_intake_issue_label_is_empty_by_default_and_loads_from_yaml(tmp_path
     config = load(tmp_path, "schema_version: 1\nintake:\n  issue_label: 'torve:ready'\n")
 
     assert config.intake.issue_label == "torve:ready"
+
+
+def test_a_whitespace_only_intake_issue_label_is_off(tmp_path: Path):
+    """S-0119/D-1: a label that is only whitespace names nothing, so it reads
+    as the empty default and the leg stays off; a real label keeps its word."""
+
+    from torve.config.runconfig import IntakeConfig
+
+    assert IntakeConfig(issue_label="  ").issue_label == ""
+
+    config = load(tmp_path, "schema_version: 1\nintake:\n  issue_label: '   '\n")
+
+    assert config.intake.issue_label == ""
+    assert IntakeConfig(issue_label=" torve:ready ").issue_label == "torve:ready"

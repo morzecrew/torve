@@ -13,6 +13,7 @@ once phase 2 adds it, the gate manifest's `scope.derived` map.
 from __future__ import annotations
 
 import ast
+import re
 import shlex
 import string
 from pathlib import Path
@@ -228,6 +229,37 @@ _VALUE_OPTIONS = frozenset(
         "--deselect",
         "--tb",
         "--confcutdir",
+        "--basetemp",
+        "--capture",
+        "--color",
+        "--durations",
+        "--durations-min",
+        "--ignore-glob",
+        "--import-mode",
+        "--junit-prefix",
+        "--cache-dir",
+        "--log-level",
+        "--log-file",
+        "--log-file-level",
+        "--log-file-format",
+        "--log-format",
+        "--log-date-format",
+        "--log-cli-level",
+        "--log-cli-format",
+        "--log-cli-date-format",
+        "--pdbcls",
+        "--show-capture",
+        "--result-log",
+        "--numprocesses",
+        "--dist",
+        "--tx",
+        "--timeout",
+        "--timeout-method",
+        "--cov-config",
+        "--cov-fail-under",
+        "--cov-context",
+        "--doctest-glob",
+        "--override-ini",
     }
 )
 
@@ -236,6 +268,56 @@ _VALUE_OPTIONS = frozenset(
 # path named to a second command's launcher is not read as the first's
 # argument (S-0119/D-12).
 _OPERATORS = frozenset({"&&", "||", ";", "|", "&"})
+
+
+# A shell redirection: an optional file descriptor or `&`, then `>`, `>>`, `<`
+# or `<<`, then either nothing — its target is the next token — or the target
+# written against it (`>/dev/null`, `2>&1`). The target is a file, never a
+# test path (S-0119/D-12).
+_REDIRECT = re.compile(r"^(?P<fd>\d*|&)(?P<op>>>?|<<?)(?P<tail>.*)$")
+
+
+def _without_redirections(argv: list[str]) -> list[str]:
+    """*argv* with every shell redirection and its target dropped: the word
+    after `>` names a file to write, not a path pytest was asked to run, so
+    `pytest -q > pytest.log` runs the default suite (S-0119/D-12)."""
+
+    kept: list[str] = []
+    index = 0
+
+    while index < len(argv):
+        token = argv[index]
+        following = argv[index + 1] if index + 1 < len(argv) else ""
+
+        # `&> out.log` and `&>> out.log` arrive as an ampersand and then the
+        # operator; both, and the target, are the redirection.
+        if token == "&" and _REDIRECT.match(following):
+            operator = _REDIRECT.match(following)
+            index += 2
+
+            if operator is not None and not operator.group("tail"):
+                index += 1
+
+            continue
+
+        match = _REDIRECT.match(token)
+
+        if match is None:
+            kept.append(token)
+            index += 1
+            continue
+
+        if match.group("tail"):
+            # The target is written against the operator: `>/dev/null`, `2>&1`.
+            index += 1
+            continue
+
+        # A bare operator takes the next token as its target. The tokenizer
+        # splits a duplication, `2>&1` or `>& out.log`, into the operator, an
+        # ampersand and the target, so the ampersand takes one more.
+        index += 3 if following == "&" else 2
+
+    return kept
 
 
 def _argv(command: str) -> list[str]:
@@ -314,7 +396,10 @@ def acceptance_runs(command: str, test: str, launcher: str) -> bool:
 
     test = _tree_path(test.replace("\\", "/"))
 
-    return any(_segment_runs(segment, test, launcher) for segment in _segments(_argv(command)))
+    return any(
+        _segment_runs(segment, test, launcher)
+        for segment in _segments(_without_redirections(_argv(command)))
+    )
 
 
 def _segment_runs(argv: list[str], test: str, launcher: str) -> bool:
@@ -392,6 +477,17 @@ def phase_reach(corpus: Corpus, root: Path) -> list[str]:
     document runs. Each line names the document, the phase, the count and at
     most ten sorted paths."""
 
+    documents = [
+        doc
+        for doc in corpus.documents
+        if not doc.archived and not doc.superseded_by and doc.implementation == "none"
+    ]
+
+    if not documents:
+        # Nothing is unbuilt, so there is no phase to describe: return before
+        # walking the tree or parsing a single file (S-0119/D-11).
+        return []
+
     files = tree_files(root)
     names = _module_names(files)
 
@@ -406,10 +502,7 @@ def phase_reach(corpus: Corpus, root: Path) -> list[str]:
     def is_test(path: Path) -> bool:
         return _matched(path, patterns)
 
-    for doc in corpus.documents:
-        if doc.archived or doc.superseded_by or doc.implementation != "none":
-            continue
-
+    for doc in documents:
         acceptance = [command for phase in doc.phasing for command in phase.acceptance]
 
         for phase in doc.phasing:

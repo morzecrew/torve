@@ -1309,7 +1309,10 @@ class GhScm:
             cursor = str(page.get("endCursor") or "")
 
             if not cursor:
-                return found
+                # A page that promises more and hands back no cursor cannot
+                # be followed, so the listing would be partial — and a read
+                # the port cannot complete fails whole (S-0119/D-3).
+                raise RuntimeError("gh api graphql read more issues but no cursor")
 
     # ....................... #
 
