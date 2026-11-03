@@ -20,6 +20,7 @@ import typer
 
 from torve.application.manager import Board, NightReport, TaskView, awaited, stalled
 from torve.application.residency import IDLE_SECONDS, NightRefused
+from torve.cli.assembly import issues_leg as _issues_leg
 from torve.cli.console import (
     STYLE_DIM,
     Format,
@@ -51,10 +52,9 @@ if TYPE_CHECKING:
 
     from torve.adapters.vcs.git import GhScm
     from torve.application.eventlog import EventLog
-    from torve.application.intake import IntakeOutcome
     from torve.application.lane import LaneJudgment
-    from torve.application.ports import Agent, PrInfo
-    from torve.application.residency import Issues, Lane, Threads
+    from torve.application.ports import PrInfo
+    from torve.application.residency import Lane, Threads
     from torve.application.runstate import Escalation
     from torve.config.runconfig import RunnerConfig
     from torve.domain.events import EventRecord, HoldoutFile
@@ -550,82 +550,6 @@ def _thread_leg(
         )
 
     return threads
-
-
-# ....................... #
-
-
-def _issues_leg(
-    root: Path,
-    config: RunnerConfig,
-    records: Callable[[], Awaitable[Sequence[EventRecord]]] | None = None,
-) -> Issues:
-    """The pass's intake leg (S-0119/D-8): a labelled issue becomes drafts.
-
-    Always built, because the leg's own switch is the label: with
-    `intake.issue_label` empty it returns "issue intake off" and reads
-    nothing, so a planner tier that cannot be built never stops a pass with
-    the leg off (S-0119/D-1). The agent is built only when the label is set,
-    once for the leg rather than once per issue, and the leg's `draft` closes
-    over it, so `torve intake` and the pass start the same drafting run
-    (S-0119/D-7).
-
-    Everything is built inside the leg for S-0044/A-11's reason, as the
-    thread leg's is: `_leg` protects the call, so anything raised while
-    building one would take the whole pass down. An agent that cannot be
-    built is the leg's own answer, not an exception — the detail line names
-    it and the rest of the pass runs.
-    """
-
-    from torve.cli.assembly import build_tier_agent
-
-    agent: Agent | None = None
-    failure = ""
-
-    if config.intake.issue_label:
-        try:
-            agent = build_tier_agent(config, root, "planner")
-
-        except Exception as exc:
-            failure = str(exc)
-
-    async def issues() -> tuple[str, bool]:
-        # Built inside the leg for S-0044/A-11's reason: `_leg` protects the
-        # call, so a forge read or a drafting run that raises is recorded and
-        # the rest of the pass still runs.
-        from torve.adapters.broker import build_broker
-        from torve.adapters.vcs.git import GhScm
-        from torve.application.intake import draft_request
-        from torve.application.issues import issue_leg
-
-        if not config.intake.issue_label:
-            return "issue intake off", False
-
-        if agent is None:
-            return f"issue intake: no planner agent — {failure}", False
-
-        planner: Agent = agent
-
-        # The record's ids, beside the task directories, so a drafting run
-        # never takes a number the board already holds (S-0056/D-9).
-        taken = [one.subject_id for one in await records()] if records is not None else []
-        runtime = runtime_for(config, None)
-
-        def draft(request: str, source: str) -> IntakeOutcome:
-            return draft_request(
-                root,
-                request,
-                config,
-                planner,
-                source=source,
-                runtime=runtime,
-                taken=taken,
-                broker=build_broker(config.broker),
-            )
-
-        return issue_leg(root, config, GhScm(config.scm.repo, config.scm.token_env), draft)
-
-    return issues
 
 
 # ....................... #
