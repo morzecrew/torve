@@ -11,9 +11,11 @@ from exit codes and prepared inputs, never reported by a model.
 
 from __future__ import annotations
 
+import shlex
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 from typing import Any, cast
 
 from torve.base.clock import stamp
@@ -134,11 +136,25 @@ def row_gates(rows: Iterable[InheritedDecision]) -> list[Gate]:
 
 def _check_files(check: str) -> list[str]:
     """The files a check's command names, such as its test file: an edit to
-    one changes the check itself, so it runs the check."""
+    one changes the check itself, so it runs the check. A word is a file when
+    it is no option and carries a `/` or a suffix; a pytest node id counts as
+    its file, and a quoted `sh -c` body is read word by word as well."""
 
-    return [
-        word.split("::", 1)[0] for word in check.split() if "/" in word and not word.startswith("-")
-    ]
+    words = [part for word in _words(check) for part in (_words(word) if " " in word else [word])]
+    files = [word.split("::", 1)[0] for word in words if not word.startswith("-")]
+
+    return [word for word in files if "/" in word or PurePosixPath(word).suffix]
+
+
+def _words(command: str) -> list[str]:
+    """*command* split as a shell would, or on spaces when its quoting is
+    unbalanced."""
+
+    try:
+        return shlex.split(command)
+
+    except ValueError:
+        return command.split()
 
 
 def decision_gates(task: Task | None) -> list[Gate]:

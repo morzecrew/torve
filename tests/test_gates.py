@@ -665,10 +665,18 @@ def test_a_decision_gate_judges_its_rows_paths_and_its_checks_files():
         id="S-0009/D-2", grade="ASSUMED", text="y", check="uv run pytest tests/test_x.py"
     )
 
-    first, second = row_gates([scoped, everywhere])
+    quoted = scoped.model_copy(
+        update={
+            "id": "S-0009/D-3",
+            "check": "sh -c 'uv run pytest \"tests/test x.py\" test_root.py'",
+        }
+    )
+
+    first, second, third = row_gates([scoped, everywhere, quoted])
 
     assert first.paths == ["lib/issues.py", "tests/test_issues.py"]
     assert second.paths == []
+    assert third.paths == ["lib/issues.py", "tests/test x.py", "test_root.py"]
 
 
 def test_a_rename_out_of_a_gates_paths_reaches_the_gate(tmp_path):
