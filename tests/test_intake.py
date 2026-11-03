@@ -1027,6 +1027,25 @@ def test_a_configuration_hash_that_fails_leaves_no_task_or_worktree(seeded, monk
     assert len(worktrees.splitlines()) == 1
 
 
+def test_a_configured_base_that_names_no_ref_is_a_configuration_error(seeded):
+    """Nothing is minted before the base resolves, so a base that names no
+    ref is the configuration's error, which the leg and `torve intake` both
+    read as nothing drafted."""
+
+    with pytest.raises(ValueError, match="the configured base does not resolve"):
+        draft_request(
+            seeded.root,
+            "add a widget module",
+            RunnerConfig(base="no-such-branch"),
+            ScriptedAgent([]),
+            runtime=StubRuntime(),
+        )
+
+    assert not (seeded.root / ".torve" / "tasks").exists() or not any(
+        (seeded.root / ".torve" / "tasks").iterdir()
+    )
+
+
 def test_a_refusal_from_the_drafting_run_is_no_configuration_error(seeded, monkeypatch):
     """A `ValueError` the run raises, such as a state conflict, reaches the
     caller as a `RuntimeError`: `torve intake` reports a configuration error

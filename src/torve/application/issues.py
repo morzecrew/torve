@@ -253,17 +253,25 @@ def _draft(
     identifier = issue_source_id(issue.number)
     path = source_file(root, identifier)
 
+    created = False
+
     try:
+        text = _source_text(issue)
         path.parent.mkdir(parents=True, exist_ok=True)
 
         # Created exclusively: a pass that overlaps this one finds it filed.
         with path.open("x", encoding="utf-8") as handle:
-            handle.write(_source_text(issue))
+            created = True
+            handle.write(text)
 
     except FileExistsError:
         return _detail([f"#{issue.number} already filed as {identifier}"], skipped), False
 
     except (OSError, ValueError) as exc:  # a failed write, or a labelling S-0058/D-7 refuses
+        if created:
+            # A partial file would mark the issue filed with nothing drafted.
+            path.unlink(missing_ok=True)
+
         return _detail([f"could not file {identifier}: {exc}"], skipped), False
 
     try:

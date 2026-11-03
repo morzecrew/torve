@@ -473,6 +473,22 @@ def test_a_minted_run_that_fails_keeps_its_source_and_is_not_retried(tmp_path: P
     assert len(draft.calls) == 1
 
 
+def test_a_source_that_cannot_be_built_leaves_no_file(tmp_path: Path):
+    """The text is built before the file exists, so a labelling the source
+    refuses (S-0058/D-7) files nothing and blocks no later pass."""
+
+    from torve.application.issues import _draft
+
+    draft = FakeDraft()
+
+    detail, moved = _draft(tmp_path, issue(labelled_at="yesterday"), draft, [])
+
+    assert moved is False
+    assert "could not file operator/issue-142" in detail
+    assert not source_path(tmp_path).exists()
+    assert draft.calls == []
+
+
 def test_a_source_another_pass_filed_first_is_not_drafted_again(tmp_path: Path):
     """The source is created exclusively, so a pass that overlaps another and
     finds the file already there drafts nothing."""

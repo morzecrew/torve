@@ -2029,9 +2029,16 @@ def draft_request(
     it; the broker carries the provider credential, never the sandbox."""
 
     from torve.application.telemetry import config_hash
-    from torve.gates.context import resolve_base
+    from torve.gates.context import GitError, resolve_base
 
-    base_ref = resolve_base(root, config.base) or "HEAD"
+    try:
+        base_ref = resolve_base(root, config.base) or "HEAD"
+
+    except GitError as exc:
+        # A configured base that names no ref is the configuration's, and
+        # nothing has been minted yet.
+        raise ValueError(f"the configured base does not resolve: {exc}") from exc
+
     base = subprocess.run(
         ["git", "-C", str(root), "rev-parse", "--verify", f"{base_ref}^{{commit}}"],
         capture_output=True,
