@@ -2943,7 +2943,10 @@ the record as <code>torve plan S-NNNN --partition &lt;partition&gt; --no-dry-run
 writing no file. A refused plan is retried after each mint that succeeds, and
 one still refused when a pass mints nothing is recorded once per base commit
 and retried when the base moves. A document accepted only on another branch is
-never planned.</p>
+never planned.
+A checkout off the base branch, with uncommitted changes or that will not
+fast-forward plans nothing, and the record names why once per base commit: a
+<code>plan_refused</code> engine event whose <code>document</code> is <code>checkout</code>.</p>
 <p>A chain whose engine imports from the checkout it serves skips the
 fast-forward and the planning and says so once at the start (S-0117/D-6):
 moving that checkout would move the code the process is running.</p>
