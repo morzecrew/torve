@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import ast
 import shlex
+import string
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -231,12 +232,41 @@ _VALUE_OPTIONS = frozenset(
 )
 
 
+# The shell operators that end one simple command and start another, so a
+# path named to a second command's launcher is not read as the first's
+# argument (S-0119/D-12).
+_OPERATORS = frozenset({"&&", "||", ";", "|", "&"})
+
+
 def _argv(command: str) -> list[str]:
+    """The command's tokens, with the shell operators that chain one command
+    to the next kept as tokens of their own and every other punctuation left
+    inside the token it belongs to."""
+
     try:
-        return shlex.split(command)
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|")
+        lexer.wordchars += "".join(ch for ch in string.punctuation if ch not in ";&|'\"\\#")
+
+        return list(lexer)
 
     except ValueError:
         return command.split()
+
+
+def _segments(argv: list[str]) -> list[list[str]]:
+    """*argv* split into the simple commands a shell would chain, so each is
+    read for whether it launches the tests at all."""
+
+    segments: list[list[str]] = [[]]
+
+    for token in argv:
+        if token in _OPERATORS:
+            segments.append([])
+            continue
+
+        segments[-1].append(token)
+
+    return [segment for segment in segments if segment]
 
 
 def _launch_at(argv: list[str], launcher: str) -> int | None:
@@ -279,15 +309,22 @@ def acceptance_runs(command: str, test: str, launcher: str) -> bool:
     launch the tests — as `pytest`, `-m pytest`, or the manifest's
     `tests.run` in *launcher* — and either name *test*, name a directory above
     it, or name no path at all. `mypy` or `ruff` over the path mentions it and
-    runs nothing."""
+    runs nothing, and neither does the rest of a command chain past the
+    operator that ends the launching command."""
 
-    argv = _argv(command)
+    test = _tree_path(test.replace("\\", "/"))
+
+    return any(_segment_runs(segment, test, launcher) for segment in _segments(_argv(command)))
+
+
+def _segment_runs(argv: list[str], test: str, launcher: str) -> bool:
+    """One simple command: whether it launches the tests and names *test*."""
+
     start = _launch_at(argv, launcher)
 
     if start is None:
         return False
 
-    test = _tree_path(test.replace("\\", "/"))
     named_a_path = False
     skip = False
 

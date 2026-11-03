@@ -4246,7 +4246,10 @@ def test_the_issues_leg_builds_no_agent_while_the_label_is_empty(tmp_path, monke
     from torve.cli.manager import _issues_leg
     from torve.config.runconfig import RunnerConfig
 
+    calls: list[int] = []
+
     def explode(*_args, **_kwargs):
+        calls.append(1)
         raise AssertionError("no planner agent is built with the leg off")
 
     monkeypatch.setattr(assembly, "build_tier_agent", explode)
@@ -4254,6 +4257,9 @@ def test_the_issues_leg_builds_no_agent_while_the_label_is_empty(tmp_path, monke
     detail, moved = asyncio.run(_issues_leg(tmp_path, RunnerConfig())())
 
     assert (detail, moved) == ("issue intake off", False)
+    # The detail line alone passes even if the agent was built eagerly and
+    # the refusal swallowed, so what is asserted is the build itself.
+    assert calls == []
 
 
 def test_a_planner_agent_that_cannot_be_built_is_the_issues_legs_detail(tmp_path, monkeypatch):

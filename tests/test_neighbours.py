@@ -191,6 +191,24 @@ def test_acceptance_runs_strips_a_dot_slash_and_not_a_dot_prefix() -> None:
     assert not acceptance_runs("uv run pytest .hidden/t.py", "hidden/t.py", launcher)
 
 
+def test_acceptance_runs_stops_at_a_shell_operator() -> None:
+    """S-0119/D-12: a path named to a second command in a chain is not pytest's
+    argument, so a command that only mentions it runs nothing — and a pytest
+    after the operator still counts the path it names."""
+
+    launcher = "python3 -m pytest -q -p no:cacheprovider"
+
+    assert not acceptance_runs(
+        "uv run pytest tests/a.py && uv run mypy tests/b.py", "tests/b.py", launcher
+    )
+    assert acceptance_runs(
+        "uv run mypy tests/a.py && uv run pytest tests/b.py", "tests/b.py", launcher
+    )
+    assert not acceptance_runs(
+        "uv run pytest tests/a.py; uv run ruff check tests/b.py", "tests/b.py", launcher
+    )
+
+
 # ....................... #
 # S-0119/D-11
 

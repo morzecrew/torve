@@ -136,9 +136,9 @@ def _issues_leg(
     `intake.issue_label` empty it returns "issue intake off" and reads
     nothing, so no drafting agent is built and a planner tier that cannot be
     built never stops a root's pass (S-0119/D-1). With the label set the
-    agent is built once for the leg — and this root's pass rebuilds the leg,
-    so once per pass — and the leg's `draft` closes over it, so the issue
-    drafts the way `torve intake` drafts (S-0119/D-7). Built inside the
+    agent is built once for the leg — and the fleet keeps one leg for the
+    root, so once per serve — and the leg's `draft` closes over it, so the
+    issue drafts the way `torve intake` drafts (S-0119/D-7). Built inside the
     leg for S-0044/A-11's reason: `_leg` protects the call, so an error here
     is the leg's own detail line and the rest of the pass still runs.
     """
@@ -238,6 +238,13 @@ async def _serve_fleet(
     async with closing_module(module), runtime.scope():
         log = event_log(runtime.get_context())
 
+        # S-0119/D-8: one intake leg per repository for the whole serve, so the
+        # planner tier's agent is built once rather than once per pass, as the
+        # manager builds its one. The key is the manifest entry's root and
+        # partition, because the leg's record read is partition-scoped; a config
+        # that moves under the process moves every other leg, not this one.
+        issues_legs: dict[tuple[str, str], Issues] = {}
+
         async def run_pass(repo: FleetRepository, paused: bool) -> str | None:
             # Built per pass rather than cached: the root's own configuration
             # can change under a resident process, and the trust check the
@@ -255,6 +262,13 @@ async def _serve_fleet(
 
             async def records() -> list[EventRecord]:
                 return list(await log.of_subject_type(SubjectType.TASK, partition=repo.partition))
+
+            key = (repo.root, repo.partition)
+            leg = issues_legs.get(key)
+
+            if leg is None:
+                leg = _issues_leg(root, config, records=records)
+                issues_legs[key] = leg
 
             return await once(
                 log,
@@ -276,7 +290,7 @@ async def _serve_fleet(
                 ran=ran.__contains__,
                 paused=paused,
                 standing=standing,
-                issues=_issues_leg(root, config, records=records),
+                issues=leg,
             )
 
         async def boards() -> dict[str, Board]:
