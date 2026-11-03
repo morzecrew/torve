@@ -11,9 +11,11 @@ from exit codes and prepared inputs, never reported by a model.
 
 from __future__ import annotations
 
+import shlex
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 from typing import Any, cast
 
 from torve.base.clock import stamp
@@ -98,7 +100,15 @@ def row_gates(rows: Iterable[InheritedDecision]) -> list[Gate]:
     — `shadow` until an amendment promotes it (S-0054/D-4) — with the row's
     twin as its sabotage reference. One reader for a task's contract rows and
     a document's inherited ones (S-0106/D-2), so the two batteries judge a row
-    the same way."""
+    the same way.
+
+    The row's paths are the gate's, as an invariant's are (S-0106/D-2): a row
+    the diff does not reach is reported skipped. Every phase of a document
+    carries all its rows, so a row a later phase builds would otherwise fail
+    its check in each earlier phase and owe an entry there (#241); the phase
+    that builds it touches its paths, and the completion battery reads the
+    whole document's diff. The files the check names count too, and a row
+    with no paths runs on every diff."""
 
     gates: list[Gate] = []
 
@@ -116,10 +126,61 @@ def row_gates(rows: Iterable[InheritedDecision]) -> list[Gate]:
                 input="worktree",
                 timeout=SHELL_GATE_TIMEOUT,
                 sabotage=row.check_twin,
+                # A row with no paths runs on every diff, as before.
+                paths=[*row.paths, *_check_files(row.check)] if row.paths else [],
             )
         )
 
     return gates
+
+
+def _check_files(check: str) -> list[str]:
+    """Every operand a check's command names, as a path its gate also judges:
+    an edit to one changes what the check reads, so it runs the check. The
+    command is read as a shell reads it: comments dropped, operators split
+    off, an `sh -c` body read again, and a `cd` target applied to the
+    relative paths after it. A word that names no file only matches nothing,
+    so reading too much runs the check more often and never less."""
+
+    words = _words(check)
+    files: list[str] = []
+    cwd = ""
+
+    while words:
+        word = words.pop(0)
+
+        if word == "-c" and words:
+            words[0:1] = _words(words[0])
+            continue
+
+        if word == "cd" and words:
+            cwd = words.pop(0)
+            continue
+
+        if word.startswith("-") or not word.strip("();<>|&"):
+            continue
+
+        path = word.split("::", 1)[0]
+        path = str(PurePosixPath(cwd, path)) if cwd and not path.startswith("/") else path
+        # A word with no `/` would match at any depth; an operand is root-relative.
+        files.append(path if "/" in path else f"/{path}")
+
+    return files
+
+
+def _words(command: str) -> list[str]:
+    """*command* split as a shell would, comments dropped and operators their
+    own words, or on spaces when its quoting is unbalanced."""
+
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    lexer.commenters = "#"
+
+    try:
+        return list(lexer)
+
+    except ValueError:
+        return command.split()
 
 
 def decision_gates(task: Task | None) -> list[Gate]:
@@ -271,7 +332,10 @@ def _judges_anything(gate: Gate, ctx: GateContext) -> bool:
     a directory, and what is under a matched path matches with it.
     """
 
-    changed = [*ctx.changed_paths, *ctx.untracked]
+    # A rename or copy counts at both ends: a file moved out of the area is a
+    # change to the area.
+    moved = [entry.old_path for entry in ctx.diff if entry.old_path]
+    changed = [*ctx.changed_paths, *moved, *ctx.untracked]
 
     return any(matches(path, gate.paths) for path in changed)
 
@@ -376,6 +440,10 @@ def run_gates(
                     ),
                 )
             )
+
+            if gate.name.startswith(DECISION_PREFIX):
+                checks[gate.name[len(DECISION_PREFIX) :]] = "skipped"
+
             continue
 
         if progress is not None:
