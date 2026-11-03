@@ -2370,7 +2370,7 @@ A lane escalation's detail names its failing gates first and counts the passing 
 - Paths: `src/torve/application/lane.py` `tests/test_lane.py`
 - Consequence: a battery leaves the lane the moment it ends, so an error later in the pass cannot lose it
 
-### S-0119/D-1 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-1 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 `intake.issue_label` names the label the pass's intake leg drafts from. Empty, the default, turns the leg off and builds no drafting agent, so a planner tier that cannot be built never stops a pass with the leg off; the leg never reads an issue without the label past the listing.
 
@@ -2378,7 +2378,7 @@ A lane escalation's detail names its failing gates first and counts the passing 
 - Consequence: an adopter that sets nothing gets today's pass, and the label is the leg's one switch
 - Check: `uv run pytest tests/test_issues.py -k off` (shadow; runs as `decision:S-0119/D-1`, no log entry owed)
 
-### S-0119/D-2 — `LOCKED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-2 — `LOCKED` (Issues become drafts, and a phase sees its callers)
 
 The leg drafts a labelled issue only when the account behind the last event that applied the label holds triage, write, maintain or admin on the repository, and neither the title nor the body was edited after that event. Any other labelled issue is skipped, named in the leg's detail line, until someone labels it again.
 
@@ -2386,7 +2386,7 @@ The leg drafts a labelled issue only when the account behind the last event that
 - Consequence: an issue template that applies the label for its author, or an author who edits after a maintainer labelled, cannot put text in front of the drafter
 - Check: `uv run pytest tests/test_issues.py -k labelled` (shadow; runs as `decision:S-0119/D-2`, no log entry owed)
 
-### S-0119/D-3 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-3 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 The forge port reads, for each open issue carrying a label: its number, URL, title and body, the account and instant of the last event that applied the label, and the later of the body's last edit and the last title rename. It pages the issues until none is left, and a page it cannot read fails the whole read. An issue whose last labelling falls outside the window it reads is returned marked unreadable with the reason, never dropped. A second read answers whether one account holds triage or more, an account that is not a collaborator answering no, and the leg asks it only about the issue it would draft next. Both read through `gh` with `scm.repo` and `scm.token_env`, as every `GhScm` read does, and never write.
 
@@ -2394,7 +2394,7 @@ The forge port reads, for each open issue carrying a label: its number, URL, tit
 - Consequence: the credential is the host's: a sandbox never sees it, and a repository with no `scm.token_env` uses the host's own `gh` login
 - Check: `uv run pytest tests/test_forge.py -k labelled_issues` (shadow; runs as `decision:S-0119/D-3`, no log entry owed)
 
-### S-0119/D-4 — `LOCKED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-4 — `LOCKED` (Issues become drafts, and a phase sees its callers)
 
 The drafter's request is the issue's title, a blank line and its body, as read at the pass. The leg never reads comments or any other field into the request.
 
@@ -2402,7 +2402,7 @@ The drafter's request is the issue's title, a blank line and its body, as read a
 - Consequence: later discussion on the thread never reaches the drafts: a maintainer who wants it there edits the body and labels the issue again
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0119/D-5 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-5 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 An issue drafts once. Before the drafting run, the leg files `.torve/sources/operator/issue-<number>.yaml`: the issue's URL as `ref`, its title, the labelling instant as `at`, and its body as `summary`. The leg skips any issue whose source file the tree already holds.
 
@@ -2410,7 +2410,7 @@ An issue drafts once. Before the drafting run, the leg files `.torve/sources/ope
 - Consequence: the leg never retries a failed or escalated draft: the owner re-runs `torve intake --source operator/issue-<number>`, or deletes the file
 - Check: `uv run pytest tests/test_issues.py -k source` (shadow; runs as `decision:S-0119/D-5`, no log entry owed)
 
-### S-0119/D-6 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-6 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 Adoption commits the source file its drafting run names, with the contracts that cite it, when the tree holds that file untracked.
 
@@ -2418,7 +2418,7 @@ Adoption commits the source file its drafting run names, with the contracts that
 - Consequence: an adopted contract never names a source its base commit lacks; a draft nobody adopts leaves its source on the drafting host alone
 - Check: `uv run pytest tests/test_intake.py -k source` (shadow; runs as `decision:S-0119/D-6`, no log entry owed)
 
-### S-0119/D-7 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-7 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 `draft_request` in `src/torve/application/intake.py` takes the planner tier's agent from its caller, mints the drafting run, cuts its worktree at base, runs it and removes the worktree. `torve intake` and the intake leg both call it. Each caller builds the agent with `build_tier_agent` in the CLI layer, and the command keeps only parsing, that construction and rendering.
 
@@ -2426,7 +2426,7 @@ Adoption commits the source file its drafting run names, with the contracts that
 - Consequence: a request drafts the same way whichever surface it came from, and a change to drafting changes both
 - Check: `uv run pytest tests/test_intake.py -k draft_request` (shadow; runs as `decision:S-0119/D-7`, no log entry owed)
 
-### S-0119/D-8 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-8 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 The intake leg runs in the manager's and the fleet's pass after the standing leg and before the mint. A paused pass skips it. It starts at most one drafting run per pass, for the issue labelled earliest.
 
@@ -2434,7 +2434,7 @@ The intake leg runs in the manager's and the fleet's pass after the standing leg
 - Consequence: a pass that drafts dispatches after the drafting run returns, and a queue of labelled issues drains one per pass
 - Check: `uv run pytest tests/test_residency.py -k issue` (shadow; runs as `decision:S-0119/D-8`, no log entry owed)
 
-### S-0119/D-9 — `LOCKED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-9 — `LOCKED` (Issues become drafts, and a phase sees its callers)
 
 The intake leg never writes to the forge: no comment, no label change, no close. The pass's detail line names each drafted and skipped issue. The leg also writes `issue_drafted` and `issue_skipped` engine events for the ledger and the night report, and nothing decides on them.
 
@@ -2442,14 +2442,14 @@ The intake leg never writes to the forge: no comment, no label change, no close.
 - Consequence: the issue stays as the person left it, and closing it is the pull request's `fixes:` or a person's act
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0119/D-10 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-10 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 A drafting run the leg started that spends its budget escalates `budget_exhausted`, as one `torve intake` started does, and holds the pause like any escalation.
 
 - Paths: `src/torve/application/issues.py`
 - Consequence: one issue whose drafts never lint green stops the legs that grow the queue until the owner resolves it (Q-1)
 
-### S-0119/D-11 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-11 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 `torve spec check` warns for each phase of a document nothing has landed from. It lists the non-test Python files outside the phase's scope that import a file the scope matches: one line for those no phase owns, and one line per other phase that owns some. A further line lists the test files importing such a file that no acceptance command of the document runs. Each line names at most ten paths and the count, and is a warning, never a problem.
 
@@ -2457,7 +2457,7 @@ A drafting run the leg started that spends its budget escalates `budget_exhauste
 - Consequence: the author sees a phase's callers outside its scope, and which phase owns each, while an intent can still say to change them; a corpus with such a phase still checks green
 - Check: `uv run pytest tests/test_neighbours.py tests/test_cli_spec.py -k reach` (shadow; runs as `decision:S-0119/D-11`, no log entry owed)
 
-### S-0119/D-12 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-12 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 A test file counts as run by an acceptance command only when the command launches the tests, as `pytest`, `-m pytest` or the manifest's `tests.run`, and either names the file's path or a directory above it as an argument or names no path at all. A command that only mentions the path, such as `mypy` or `ruff` over it, does not count.
 
