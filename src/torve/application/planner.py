@@ -543,7 +543,12 @@ def standing_decisions(rfc_dir: Path, scope_allow: list[str]) -> list[InheritedD
     silence check). Rows without declared paths are never standing — they
     govern their own document's work only (S-0030/D-1). Draft, superseded and
     archived documents are never read: their decisions do not stand.
-    Deterministic: corpus order, then document order."""
+    Deterministic: corpus order, then document order.
+
+    A document nothing has landed from has not built what its rows' checks
+    select, so its rows are inherited without them: the rule still stands and
+    the silence check still reads its paths, but a check that can only fail
+    does not ride on another document's work (#241)."""
 
     standing: list[InheritedDecision] = []
 
@@ -551,9 +556,17 @@ def standing_decisions(rfc_dir: Path, scope_allow: list[str]) -> list[InheritedD
         if doc.superseded_by:
             continue
 
+        unbuilt = doc.implementation == "none"
+
         for row in inherit_decisions(doc):
             if row.paths and overlap(row.paths, scope_allow):
-                standing.append(row)
+                standing.append(
+                    row.model_copy(
+                        update={"check": None, "check_state": "shadow", "check_twin": None}
+                    )
+                    if unbuilt and row.check
+                    else row
+                )
 
     return standing
 

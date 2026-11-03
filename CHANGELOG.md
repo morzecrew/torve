@@ -62,6 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A contract that inherits rows from an accepted document nothing has landed from carries
+  them without their checks. Those checks select code that does not exist yet, so they
+  failed on every review round and draft that touched the row's paths.
+
 - `torve log land` run with no execution log on disk records the work commit's parent as
   the landing's base. It used to record the work commit as its own base.
 

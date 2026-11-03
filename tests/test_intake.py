@@ -1516,6 +1516,33 @@ def test_adopt_without_an_rfc_line_carries_intersecting_standing_rows(seeded):
         ]
 
 
+def test_an_unbuilt_documents_standing_rows_carry_no_check(tree: Path):
+    """#241: a document nothing has landed from has not built what its rows'
+    checks select. Its rows still stand, but their checks do not ride on an
+    adopted contract; a built document's rows keep theirs."""
+
+    from torve.application.planner import standing_decisions
+
+    for number, implementation in (("0098", "none"), ("0099", "complete")):
+        ident = f"S-{number}/D-1"
+        place(
+            tree / SPECS,
+            number,
+            spec_document(
+                number,
+                [(ident, "LOCKED", "The rule", "`src/**`")],
+                implementation=implementation,
+                details={ident: {"check": "uv run pytest tests/test_x.py"}},
+            ),
+        )
+
+    rows = {row.id: row for row in standing_decisions(tree / SPECS, ["src/app.py"])}
+
+    assert rows["S-0098/D-1"].check is None
+    assert rows["S-0098/D-1"].text == "The rule"
+    assert rows["S-0099/D-1"].check == "uv run pytest tests/test_x.py"
+
+
 def test_adopt_prefers_the_cited_documents_copy_over_standing(seeded):
     # Deduplicated by identifier, the cited copy wins (S-0030/D-1): 0097's
     # standing row is the same identifier as 0099's, and the request was
