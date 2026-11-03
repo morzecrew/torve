@@ -665,18 +665,33 @@ def test_a_decision_gate_judges_its_rows_paths_and_its_checks_files():
         id="S-0009/D-2", grade="ASSUMED", text="y", check="uv run pytest tests/test_x.py"
     )
 
-    quoted = scoped.model_copy(
-        update={
-            "id": "S-0009/D-3",
-            "check": "sh -c 'uv run pytest \"tests/test x.py\" test_root.py'",
-        }
-    )
+    first, second = row_gates([scoped, everywhere])
 
-    first, second, third = row_gates([scoped, everywhere, quoted])
-
-    assert first.paths == ["lib/issues.py", "tests/test_issues.py"]
+    assert first.paths[0] == "lib/issues.py"
+    assert "tests/test_issues.py" in first.paths
     assert second.paths == []
-    assert third.paths == ["lib/issues.py", "tests/test x.py", "test_root.py"]
+
+
+@pytest.mark.parametrize(
+    ("check", "named", "not_named"),
+    [
+        ("pytest tests/a.py # tests/b.py", "tests/a.py", "tests/b.py"),
+        ("pytest 'tests/test x.py'", "tests/test x.py", "tests/test"),
+        ("sh -c 'cd app && pytest tests/test_issue.py'", "app/tests/test_issue.py", None),
+        ("uv run pytest tests/test_issue.py;", "tests/test_issue.py", "tests/test_issue.py;"),
+        ("pytest tests", "/tests", "tests"),
+        ("sh -c 'uv run pytest \"tests/test x.py\" test_root.py'", "tests/test x.py", None),
+    ],
+)
+def test_a_checks_files_are_read_as_the_shell_reads_them(check, named, not_named):
+    """An edit to a file the check reads runs the check, so the gate's paths
+    take every operand the command names, read as a shell would."""
+    from torve.gates.runner import _check_files
+
+    files = _check_files(check)
+
+    assert named in files
+    assert not_named is None or not_named not in files
 
 
 def test_a_rename_out_of_a_gates_paths_reaches_the_gate(tmp_path):

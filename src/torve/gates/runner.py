@@ -135,23 +135,49 @@ def row_gates(rows: Iterable[InheritedDecision]) -> list[Gate]:
 
 
 def _check_files(check: str) -> list[str]:
-    """The files a check's command names, such as its test file: an edit to
-    one changes the check itself, so it runs the check. A word is a file when
-    it is no option and carries a `/` or a suffix; a pytest node id counts as
-    its file, and a quoted `sh -c` body is read word by word as well."""
+    """Every operand a check's command names, as a path its gate also judges:
+    an edit to one changes what the check reads, so it runs the check. The
+    command is read as a shell reads it: comments dropped, operators split
+    off, an `sh -c` body read again, and a `cd` target applied to the
+    relative paths after it. A word that names no file only matches nothing,
+    so reading too much runs the check more often and never less."""
 
-    words = [part for word in _words(check) for part in (_words(word) if " " in word else [word])]
-    files = [word.split("::", 1)[0] for word in words if not word.startswith("-")]
+    words = _words(check)
+    files: list[str] = []
+    cwd = ""
 
-    return [word for word in files if "/" in word or PurePosixPath(word).suffix]
+    while words:
+        word = words.pop(0)
+
+        if word == "-c" and words:
+            words[0:1] = _words(words[0])
+            continue
+
+        if word == "cd" and words:
+            cwd = words.pop(0)
+            continue
+
+        if word.startswith("-") or not word.strip("();<>|&"):
+            continue
+
+        path = word.split("::", 1)[0]
+        path = str(PurePosixPath(cwd, path)) if cwd and not path.startswith("/") else path
+        # A word with no `/` would match at any depth; an operand is root-relative.
+        files.append(path if "/" in path else f"/{path}")
+
+    return files
 
 
 def _words(command: str) -> list[str]:
-    """*command* split as a shell would, or on spaces when its quoting is
-    unbalanced."""
+    """*command* split as a shell would, comments dropped and operators their
+    own words, or on spaces when its quoting is unbalanced."""
+
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
+    lexer.commenters = "#"
 
     try:
-        return shlex.split(command)
+        return list(lexer)
 
     except ValueError:
         return command.split()
