@@ -2,7 +2,7 @@
 
 ## Decisions governing `skills/spec-writer/references/`
 
-### S-0119/D-13 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-13 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 The spec-writer skill tells an authoring session to search each phase's callers before acceptance, one delegated search per phase where the session can delegate. It then settles every reach line `torve spec check` prints, by moving the file into a scope, adding its test to an acceptance command, or saying in the phase's intent why it stays out.
 

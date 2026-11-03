@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- With `intake.issue_label` set, the manager's and the fleet's pass draft task contracts
+  from one labelled GitHub issue per pass, through the same drafting run `torve intake`
+  starts. The issue is filed as a source first, and torve never writes to it.
+
+- An issue is drafted only when the account that last applied its label holds triage or
+  more on the repository, and its title and body were not edited after that.
+
+- `torve spec check` warns, for each phase of a document nothing has landed from, about
+  the files outside the phase's scope that import what it changes, and about the tests
+  importing them that no acceptance command runs.
+
 - `torve manager serve <partition> --night --chain` runs nights back to back in one
   process. Between nights it fast-forwards a clean checkout on the base branch and plans
   every accepted, unimplemented document that has minted no task, except in the checkout

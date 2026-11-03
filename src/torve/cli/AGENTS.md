@@ -875,7 +875,7 @@ Every battery the lane runs, green or red, is recorded as a `lane.judged` event 
 - Consequence: a red re-gate's failing output and every lane battery's duration are in the record, so lane time is measured from the record and never from telemetry
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0119/D-7 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-7 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 `draft_request` in `src/torve/application/intake.py` takes the planner tier's agent from its caller, mints the drafting run, cuts its worktree at base, runs it and removes the worktree. `torve intake` and the intake leg both call it. Each caller builds the agent with `build_tier_agent` in the CLI layer, and the command keeps only parsing, that construction and rendering.
 
@@ -883,7 +883,7 @@ Every battery the lane runs, green or red, is recorded as a `lane.judged` event 
 - Consequence: a request drafts the same way whichever surface it came from, and a change to drafting changes both
 - Check: `uv run pytest tests/test_intake.py -k draft_request` (shadow; runs as `decision:S-0119/D-7`, no log entry owed)
 
-### S-0119/D-8 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-8 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 The intake leg runs in the manager's and the fleet's pass after the standing leg and before the mint. A paused pass skips it. It starts at most one drafting run per pass, for the issue labelled earliest.
 
@@ -891,7 +891,7 @@ The intake leg runs in the manager's and the fleet's pass after the standing leg
 - Consequence: a pass that drafts dispatches after the drafting run returns, and a queue of labelled issues drains one per pass
 - Check: `uv run pytest tests/test_residency.py -k issue` (shadow; runs as `decision:S-0119/D-8`, no log entry owed)
 
-### S-0119/D-11 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-11 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 `torve spec check` warns for each phase of a document nothing has landed from. It lists the non-test Python files outside the phase's scope that import a file the scope matches: one line for those no phase owns, and one line per other phase that owns some. A further line lists the test files importing such a file that no acceptance command of the document runs. Each line names at most ten paths and the count, and is a warning, never a problem.
 

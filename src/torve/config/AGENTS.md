@@ -786,7 +786,7 @@ A seat may name a `revision_variant`, a dotted tier. When the attempt about to r
 - Paths: `src/torve/config/runconfig.py` `src/torve/application/session.py`
 - Consequence: a blocker the executor seat could not clear gets its revision on the stronger seat inside the same run, worktree and critique, and only a blocker that survives that reaches a person
 
-### S-0119/D-1 — `ASSUMED` (Issues become drafts, and a phase sees its callers) — implementation: none
+### S-0119/D-1 — `ASSUMED` (Issues become drafts, and a phase sees its callers)
 
 `intake.issue_label` names the label the pass's intake leg drafts from. Empty, the default, turns the leg off and builds no drafting agent, so a planner tier that cannot be built never stops a pass with the leg off; the leg never reads an issue without the label past the listing.
 
