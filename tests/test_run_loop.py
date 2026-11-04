@@ -1159,6 +1159,36 @@ def test_a_finish_command_runs_after_the_agent_and_convicts_nothing(rig, monkeyp
     assert len(ran) == 1 and "ruff format ." in ran[0]
 
 
+def test_a_failed_finish_is_not_reported_on_a_later_attempt(rig, monkeypatch):
+    """`run.meta` is one dict for the whole run (T-0187): a finish that failed
+    on the first attempt must not show on the second, whose finish passed."""
+
+    from torve.application.ports import ExecResult
+
+    repo, deps, runtime, _, _ = rig
+    exits = [1, 0]
+    monkeypatch.setattr(
+        runtime,
+        "exec",
+        lambda h, command, t: ExecResult(exit_code=exits.pop(0), output="residue", duration_s=0.0),
+    )
+    seen: list[dict] = []
+    outcomes = [1, 0]
+
+    def scripted(run, _state):
+        seen.append(dict(run.meta))
+        return outcomes.pop(0), "scripted", "cafecafe1234", [], ""
+
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted)
+    config = RunnerConfig(
+        tiers={"executor": TierConfig(finish="ruff format ."), "planner": TierConfig()}
+    )
+
+    run_task(repo.root, task_for(repo), config, deps)
+
+    assert [("finish_output" in meta) for meta in seen] == [True, False]
+
+
 def test_a_seat_with_no_prepare_runs_nothing_extra(rig, monkeypatch):
     """Absent is the common case and costs an attempt nothing: no exec, no
     seconds recorded, no step in the record."""
