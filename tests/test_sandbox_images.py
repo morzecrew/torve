@@ -218,11 +218,10 @@ def test_sandbox_digest_refuses_an_unknown_definition(tmp_path):
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# name -> (npm package, version ARG): the three publishable definitions.
+# name -> (npm package, version ARG): the two publishable definitions.
 PUBLISHABLE = {
     "claude": ("@anthropic-ai/claude-code", "CLAUDE_VERSION"),
     "dsh": ("@deepseek-ai/dsh", "DSH_VERSION"),
-    "mimo": ("@mimo-ai/cli", "MIMO_VERSION"),
 }
 
 
@@ -294,8 +293,6 @@ TOOLKIT = {
         # this entry kept asking for them in the opt-in battery nobody ran.
         "symlinks": {},
     },
-    # mimo carries no toolkit utility, so nothing a profile depends on to
-    # protect — an empty contract here would be a vacuous pass.
 }
 
 
@@ -353,7 +350,6 @@ DOOR = {
         "--strict-mcp-config",
     ],
     "dsh": ["candidates: []", '--patch "$DOOR"'],
-    "mimo": [". /opt/torve/door.env", "MIMOCODE_DISABLE_AGENTS_SKILLS=1"],
 }
 
 
@@ -410,27 +406,6 @@ DOOR_PROBE = {
         "--strict-mcp-config",
         "--help",
     ],
-    # mimo's door is environment, which no harness refuses, so the probe asks
-    # the built harness what it loads: a skill under every root, the door's
-    # values from the same file `run` sources, and `mimo debug skill` must list
-    # the equipment root's skill and none of the others. The `--disable-root`
-    # flag this replaced passed a `--help` probe and did nothing.
-    "mimo": [
-        "sh",
-        "-c",
-        (
-            'cd "$(mktemp -d)" && git init -q . && '
-            "for root in .mimocode/skill .agents/skills .claude/skills .codex/skills "
-            ".opencode/skills; do "
-            'name="probe$(echo "$root" | tr -dc a-z)"; mkdir -p "$root/$name"; '
-            "printf -- '---\\nname: %s\\ndescription: probe\\n---\\n' \"$name\" "
-            '> "$root/$name/SKILL.md"; done && '
-            "set -a && . /opt/torve/door.env && set +a && "
-            "mimo debug skill > /tmp/skills.json 2>&1; "
-            "grep -q '\"probemimocodeskill\"' /tmp/skills.json && "
-            "! grep -qE '\"probe(agents|claude|codex|opencode)skills\"' /tmp/skills.json"
-        ),
-    ],
 }
 
 
@@ -466,12 +441,10 @@ def test_the_door_switches_are_accepted_by_the_built_harness(name: str) -> None:
 # hand the engine's last-JSON-line-wins rule a turn to parse as a result.
 
 # What each image's stream looks like in its own toolkit, and the file it is
-# spelled in. mimo already emitted `step_finish` lines above its envelope, so
-# its row pins what was true rather than describing a change.
+# spelled in.
 STREAM = {
     "claude": ("run", ["--output-format stream-json", "--verbose"]),
     "dsh": ("report-usage", ['"turn"', '"tool-call"', "for (const event of stream)"]),
-    "mimo": ("run", ["--format json"]),
 }
 
 
@@ -549,8 +522,8 @@ def test_the_stream_switches_are_accepted_by_the_built_harness() -> None:
 @builds_images
 @pytest.mark.timeout(1800)
 def test_the_engine_cli_answers_in_the_container_as_a_sandbox_uid():
-    tag = "mimo-cli-probe"
-    bake("mimo", tag)
+    tag = "dsh-cli-probe"
+    bake("dsh", tag)
 
     try:
         probe = subprocess.run(

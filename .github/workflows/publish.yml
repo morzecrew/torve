@@ -44,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        name: [claude, dsh, mimo]
+        name: [claude, dsh]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -84,7 +84,6 @@ jobs:
           case "${DEF_NAME}" in
             claude) arg=CLAUDE_VERSION ;;
             dsh) arg=DSH_VERSION ;;
-            mimo) arg=MIMO_VERSION ;;
             *)
               echo "::error::unknown definition ${DEF_NAME}" >&2
               exit 1

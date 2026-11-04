@@ -182,15 +182,6 @@ tiers:
     profile: claude-equipped
     model: claude-opus-5-5
     provider: anthropic
-  # A replay arm for the mimo harness: the same model, provider and dialect as
-  # `executor.dsh`, so a pair of replays differs in the harness alone. mimo
-  # reaches the model through a provider its image declares from these scalars
-  # (sandboxes/mimo/toolkit/provider_config.py); nothing lands from it.
-  executor.mimo:
-    harness: mimo
-    model: qwen3.8-flash
-    provider: modelstudio
-    dialect: openai
   # A replay arm, never a seat anything lands from: the same harness and the
   # same credential as `executor.dsh`, with the newer deepseek in place of qwen
   # and its reasoning asked for by name. `medium` is the middle of the seven the

@@ -124,8 +124,8 @@ torve manager note <partition> T-0001 "the flake in test_x is known"
 ## Sandbox images
 
 An agent seat runs in an image built from a definition under `sandboxes/`
-in this repository (`claude`, `codex`, `dsh`, `mimo`, `opencode`, and
-`battery`, the image this repository's own gates run in). No image is
+in this repository (`claude`, `dsh`, and `battery`, the image this
+repository's own gates run in). No image is
 published to a registry yet: build them
 from a checkout with Docker Buildx.
 

@@ -28,7 +28,7 @@ equipment:
 #                         it (S-0067/D-7), so an attempt cannot write one
 #   spec-writer           corpus authoring has no agent writer; it is declared
 #                         when a role exists that does the writing
-#   forze-skills          vendored, read by dsh and mimo on every attempt, and
+#   forze-skills          vendored, read by dsh on every attempt, and
 #                         wanted by no role — it enters by declaration or not
 #                         at all
 #

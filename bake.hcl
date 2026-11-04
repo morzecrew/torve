@@ -47,19 +47,7 @@ variable "CLAUDE_VERSION" {
   default = ""
 }
 
-variable "CODEX_VERSION" {
-  default = ""
-}
-
 variable "DSH_VERSION" {
-  default = ""
-}
-
-variable "MIMO_VERSION" {
-  default = ""
-}
-
-variable "OPENCODE_VERSION" {
   default = ""
 }
 
@@ -69,12 +57,12 @@ function "name" {
 }
 
 group "default" {
-  targets = ["base", "battery", "claude", "codex", "dsh", "mimo", "opencode"]
+  targets = ["base", "battery", "claude", "dsh"]
 }
 
 # Every agent image, without the gates-side one: `just images agents`.
 group "agents" {
-  targets = ["claude", "codex", "dsh", "mimo", "opencode"]
+  targets = ["claude", "dsh"]
 }
 
 # S-0112/D-5: the three labels every image carries.
@@ -118,30 +106,9 @@ target "claude" {
   labels     = { "io.morze.torve.harness.version" = CLAUDE_VERSION }
 }
 
-target "codex" {
-  inherits   = ["_definition"]
-  context    = "sandboxes/codex"
-  tags       = [name("codex-sandbox")]
-  labels     = { "io.morze.torve.harness.version" = CODEX_VERSION }
-}
-
 target "dsh" {
   inherits   = ["_definition"]
   context    = "sandboxes/dsh"
   tags       = [name("dsh-sandbox")]
   labels     = { "io.morze.torve.harness.version" = DSH_VERSION }
-}
-
-target "mimo" {
-  inherits   = ["_definition"]
-  context    = "sandboxes/mimo"
-  tags       = [name("mimo-sandbox")]
-  labels     = { "io.morze.torve.harness.version" = MIMO_VERSION }
-}
-
-target "opencode" {
-  inherits   = ["_definition"]
-  context    = "sandboxes/opencode"
-  tags       = [name("opencode-sandbox")]
-  labels     = { "io.morze.torve.harness.version" = OPENCODE_VERSION }
 }
