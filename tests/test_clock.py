@@ -25,7 +25,7 @@ def test_no_module_but_the_clock_spells_the_instant():
     spellings = [
         f"{path.relative_to(SRC)}:{number}"
         for path in sorted(SRC.rglob("*.py"))
-        if path != OWNER and "_web" not in path.parts
+        if path != OWNER
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
         if INSTANT in line
     ]

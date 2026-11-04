@@ -6,7 +6,6 @@ on:
     paths:
       - "src/**/*.py"
       - "tests/**/*.py"
-      - "web/src/**"
       - "sandboxes/**/*.js"
       - "pyproject.toml"
       - "uv.lock"
@@ -17,7 +16,6 @@ on:
     paths:
       - "src/**/*.py"
       - "tests/**/*.py"
-      - "web/src/**"
       - "sandboxes/**/*.js"
       - "pyproject.toml"
       - "uv.lock"
@@ -40,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The engine, and the dashboard and sandbox hooks written in JavaScript.
+        # The engine, and the sandbox hooks written in JavaScript.
         language: [python, javascript-typescript]
 
     steps:

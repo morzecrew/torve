@@ -43,7 +43,6 @@ from torve.cli import (
     review,
     run,
     sandbox,
-    serve,
     sources,
     spec,
     status,
@@ -120,7 +119,6 @@ app.command("lint-contract")(intake.lint_contract_cmd)
 app.command("brief")(brief.brief_cmd)
 app.command("context")(context.context_cmd)
 app.command("run")(run.run_cmd)
-app.command("serve")(serve.serve_cmd)
 app.command("cancel")(run.cancel)
 app.command("kill")(run.kill)
 app.command("mcp")(mcp.mcp_cmd)

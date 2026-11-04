@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.13, <3.15"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -1792,10 +1792,6 @@ opensandbox = [
 postgres = [
     { name = "forze", extra = ["postgres"] },
 ]
-serve = [
-    { name = "starlette" },
-    { name = "uvicorn" },
-]
 
 [package.dev-dependencies]
 dev = [
@@ -1814,7 +1810,6 @@ dev = [
     { name = "pytest-timeout" },
     { name = "pytest-xdist" },
     { name = "ruff" },
-    { name = "starlette" },
     { name = "types-pyyaml" },
     { name = "vulture" },
     { name = "yoyo-migrations" },
@@ -1838,12 +1833,10 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "rich", specifier = ">=13" },
-    { name = "starlette", marker = "extra == 'serve'", specifier = ">=1.0" },
     { name = "typer", specifier = ">=0.16" },
-    { name = "uvicorn", marker = "extra == 'serve'", specifier = ">=0.30" },
     { name = "yoyo-migrations", marker = "extra == 'migrate'", specifier = ">=9" },
 ]
-provides-extras = ["mcp", "migrate", "opensandbox", "postgres", "serve"]
+provides-extras = ["mcp", "migrate", "opensandbox", "postgres"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1862,7 +1855,6 @@ dev = [
     { name = "pytest-timeout", specifier = ">=2.3" },
     { name = "pytest-xdist", specifier = ">=3" },
     { name = "ruff", specifier = ">=0.6" },
-    { name = "starlette", specifier = ">=1.0" },
     { name = "types-pyyaml", specifier = ">=6.0.12" },
     { name = "vulture", specifier = ">=2.16" },
     { name = "yoyo-migrations", specifier = ">=9" },
