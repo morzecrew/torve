@@ -1841,6 +1841,34 @@ def _push_change(
     ).strip()
 
 
+def _move_change(tmp_path, old: str, new: str, message: str = "moved") -> str:
+    """Push one commit that moves *old* to *new* from the second clone, so the
+    sweep's fast-forward crosses a path that is gone from where it was.
+    Returns its sha."""
+
+    origin = tmp_path / "origin.git"
+    other = tmp_path / "elsewhere"
+
+    if not other.exists():
+        subprocess.run(["git", "clone", "-q", "-b", "main", str(origin), str(other)], check=True)
+        subprocess.run(["git", "-C", str(other), "config", "user.name", "Chain Human"], check=True)
+        subprocess.run(
+            ["git", "-C", str(other), "config", "user.email", "chain@example.invalid"],
+            check=True,
+        )
+
+    (other / new).parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "-C", str(other), "mv", old, new], check=True)
+    subprocess.run(
+        ["git", "-C", str(other), "commit", "-q", "--no-gpg-sign", "-m", message], check=True
+    )
+    subprocess.run(["git", "-C", str(other), "push", "-q", "origin", "main"], check=True)
+
+    return subprocess.check_output(
+        ["git", "-C", str(other), "rev-parse", "HEAD"], text=True
+    ).strip()
+
+
 def _engine_rows(root) -> list[dict]:
     """The engine rows the sweep wrote, in the order it wrote them."""
 
@@ -2252,6 +2280,41 @@ def test_engine_moved_carries_at_most_ten_sorted_paths_and_the_full_count(tmp_pa
     (event,) = [row for row in _engine_rows(repo.root) if row.get("event") == "chain_engine_moved"]
     assert event["paths"] == sorted(engine)[:10]
     assert event["count"] == 12
+
+
+def test_a_move_out_of_the_engine_paths_is_still_engine_moved(tmp_path):
+    """S-0120/D-2: a commit that moves an engine file somewhere the globs do
+    not match is still a change to the file the globs name, so the move is
+    reported. Rename detection would list only the destination and lose it,
+    and the chain would go on planning against the engine it is running."""
+
+    from torve.application.manager import project
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    repo.write("src/torve/engine.py", "moved = False\n")
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Accepted")
+    _publish(repo)
+    after = _move_change(tmp_path, "src/torve/engine.py", "tools/engine.py")
+    config = RunnerConfig(night=NightConfig(engine_paths=["src/torve/**"]))
+
+    async def scenario(log):
+        moved = await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=config, worker="w-1"
+        )
+
+        assert moved == ["src/torve/engine.py"]
+        # Planning is engine code too, so the sweep stops before it.
+        assert project(await log.since(partition=PARTITION)).tasks == {}
+
+    run(scenario)
+
+    assert _head(repo.root) == after
+
+    (event,) = [row for row in _engine_rows(repo.root) if row.get("event") == "chain_engine_moved"]
+    assert event["paths"] == ["src/torve/engine.py"]
+    assert event["count"] == 1
 
 
 def test_a_commit_that_misses_engine_paths_still_plans_and_reports_no_engine_moved(tmp_path):

@@ -728,7 +728,12 @@ def _engine_paths_moved(
     """The paths the fast-forward changed that *engine_paths* matches, sorted
     (S-0120/D-2). Empty when the range is empty, when no glob is configured or
     when nothing the range touched is the engine: the checkout a sweep did not
-    move has not moved its engine either."""
+    move has not moved its engine either.
+
+    A move is two paths, and the deleted side is the engine's: rename detection
+    would report only the destination, which usually sits outside the globs, so
+    the diff is read with renames off. The ledger and the lane read their diffs
+    the same way."""
 
     if not engine_paths or not before or not after or before == after:
         return []
@@ -739,7 +744,7 @@ def _engine_paths_moved(
     from torve.base.globs import matches
 
     proc = subprocess.run(
-        ["git", *NO_HOOKS, "-C", str(root), "diff", "--name-only", before, after],
+        ["git", *NO_HOOKS, "-C", str(root), "diff", "--no-renames", "--name-only", before, after],
         capture_output=True,
         text=True,
         check=False,
