@@ -95,6 +95,16 @@ def test_every_escalation_reason_has_an_exit_code():
     assert all(2 <= code <= 5 for code in EXIT_BY_REASON.values())
 
 
+def test_engine_moved_is_the_first_code_assigned_above_five():
+    """S-0120/D-4: the launcher's code sits above every escalation's, so no
+    reason changes its code to carry it and nothing reuses a reserved one."""
+
+    from torve.domain.states import EXIT_BY_REASON, EXIT_ENGINE_MOVED
+
+    assert EXIT_ENGINE_MOVED == 6
+    assert max(EXIT_BY_REASON.values()) < EXIT_ENGINE_MOVED
+
+
 def test_an_inherited_row_carries_its_consequence_and_check_with_shadow_defaults():
     """S-0054 S-0054/D-1, S-0054/D-4: the four new fields default so a contract
     minted before the document loads unchanged."""

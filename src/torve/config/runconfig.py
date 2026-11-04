@@ -1536,6 +1536,12 @@ class NightConfig(BaseModel):
     """Escalation classes that stop the night on their first occurrence; every other
     class escalates as it always did and the night carries on (S-0079/D-7). Each name
     must be one `EscalationReason` carries."""
+    engine_paths: list[str] = Field(default_factory=list)
+    """Globs, in the grammar a contract's scope uses, naming the files that make up
+    the engine. Empty, the default, turns the engine check off, so a repository that
+    names nothing serves exactly as before. When a chain's between-night fast-forward
+    crosses a change to one of them, the engine has moved and the chain ends so a
+    launcher can install the new one."""
 
     @model_validator(mode="after")
     def _the_night_can_end_and_its_stops_can_fire(self) -> NightConfig:

@@ -71,15 +71,20 @@ class EscalationReason(StrEnum):
 # ....................... #
 
 # The escalation vocabulary projected onto exit codes (S-0011/exit-codes, S-0011/D-4).
-# One taxonomy, two views: a new exit code requires a new escalation reason
-# and vice versa, so the projection lives here beside the enum it projects.
-# Codes above 5 stay unassigned — reserve, never reuse.
+# One taxonomy, two views: a new escalation reason requires a code here and
+# vice versa, so the projection lives beside the enum it projects. One code is
+# the exception — the launcher's, not an escalation — and it sits above them.
+# Codes above 5 stay unassigned except that one — reserve, never reuse.
 EXIT_OK = 0
 EXIT_GATES_RED = 1
 EXIT_ESCALATED = 2
 EXIT_CONFIG = 3
 EXIT_INFRASTRUCTURE = 4
 EXIT_EXHAUSTED = 5
+# The chain's between-night fast-forward moved the engine (S-0120/D-4): the
+# launcher installs the new one and starts the chain again. No escalation
+# carries this code, so nothing has to change its reason to read it.
+EXIT_ENGINE_MOVED = 6
 
 EXIT_BY_REASON: dict[EscalationReason, int] = {
     EscalationReason.BUDGET_EXHAUSTED: EXIT_EXHAUSTED,

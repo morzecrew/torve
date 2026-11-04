@@ -43,7 +43,7 @@ from torve.cli.options import (
     load_config,
     runtime_for,
 )
-from torve.domain.states import EXIT_CONFIG, EXIT_OK, TaskState
+from torve.domain.states import EXIT_CONFIG, EXIT_ENGINE_MOVED, EXIT_OK, TaskState
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable, Container, Sequence
@@ -64,6 +64,11 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 manager_app = typer.Typer(no_args_is_help=True, help="Run and read the engine's board.")
+
+
+#: The reason a chained `serve` returns when its between-night fast-forward moved
+#: the engine (S-0120/D-2); `serve_cmd` maps it to the launcher's own exit code.
+ENGINE_MOVED = "engine moved"
 
 
 # ....................... #
@@ -717,6 +722,38 @@ def _refusal_recorded(root: Path, *, base: str, document: str) -> bool:
 # ....................... #
 
 
+def _engine_paths_moved(
+    root: Path, before: str | None, after: str | None, engine_paths: Sequence[str]
+) -> list[str]:
+    """The paths the fast-forward changed that *engine_paths* matches, sorted
+    (S-0120/D-2). Empty when the range is empty, when no glob is configured or
+    when nothing the range touched is the engine: the checkout a sweep did not
+    move has not moved its engine either."""
+
+    if not engine_paths or not before or not after or before == after:
+        return []
+
+    import subprocess
+
+    from torve.adapters.vcs.git import NO_HOOKS
+    from torve.base.globs import matches
+
+    proc = subprocess.run(
+        ["git", *NO_HOOKS, "-C", str(root), "diff", "--name-only", before, after],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if proc.returncode != 0:
+        return []
+
+    return sorted(path for path in proc.stdout.splitlines() if matches(path, engine_paths))
+
+
+# ....................... #
+
+
 async def _sync_and_plan(
     root: Path,
     log: EventLog,
@@ -724,7 +761,7 @@ async def _sync_and_plan(
     *,
     config: RunnerConfig,
     worker: str,
-) -> None:
+) -> list[str]:
     """S-0117/D-5: between nights, bring the checkout to the remote's base and
     mint every accepted, unimplemented document the record has not planned
     yet, into the record and no file.
@@ -735,7 +772,12 @@ async def _sync_and_plan(
     branch is never planned. A refusal is retried after each mint that
     succeeds — its `after` target can carry a higher number — and one still
     refused when a pass mints nothing is recorded once per base commit
-    (S-0117/D-5, D-7)."""
+    (S-0117/D-5, D-7).
+
+    Returns the matched engine paths when the fast-forward moved the checkout
+    across a change to one of them (S-0120/D-2): the engine this process runs
+    is now older than its base, so nothing is planned and the chain ends. The
+    empty list is every other outcome, including a checkout it did not move."""
 
     from torve.adapters.vcs.git import GitLane
     from torve.application.manager import project
@@ -751,7 +793,7 @@ async def _sync_and_plan(
     board = project(await log.since(partition=partition))
 
     if board.in_flight():
-        return
+        return []
 
     lane = GitLane()
 
@@ -761,7 +803,7 @@ async def _sync_and_plan(
     except RuntimeError:
         # No remote to fetch: a checkout nothing can move is one the chain
         # plans nothing from, not a chain that dies at the first pass.
-        return
+        return []
 
     try:
         base_ref = resolve_base(root, config.base)
@@ -769,10 +811,10 @@ async def _sync_and_plan(
     except GitError:
         # A configured base the fetch just pruned waits for the next pass; it
         # does not end the chain.
-        return
+        return []
 
     if base_ref is None:
-        return
+        return []
 
     branch = (
         base_ref.removeprefix("refs/remotes/origin/")
@@ -782,7 +824,7 @@ async def _sync_and_plan(
     remote = lane.remote_tip(root, branch)
 
     if remote is None:
-        return
+        return []
 
     def left_alone(reason: str) -> None:
         # S-0117/D-7: a checkout the sweep cannot plan from says why, once per
@@ -796,23 +838,44 @@ async def _sync_and_plan(
 
     if current != branch:
         left_alone(f"the checkout is on {current or 'a detached HEAD'}, not {branch}")
-        return
+        return []
 
     if lane.dirty_paths(root):
         left_alone("the checkout's tree has uncommitted changes")
-        return
+        return []
 
-    if lane.tip(root, "HEAD") != remote:
+    head = lane.tip(root, "HEAD")
+
+    if head != remote:
         try:
             lane.merge_ff(root, f"origin/{branch}")
 
         except RuntimeError:
             left_alone(f"the checkout does not fast-forward to origin/{branch}")
-            return
+            return []
+
+        after = lane.tip(root, "HEAD")
+        moved = _engine_paths_moved(root, head, after, config.night.engine_paths)
+
+        if moved:
+            # S-0120/D-2: planning is engine code too, so nothing is planned
+            # against an engine the base has moved past. The event says which
+            # commits and which of its own files the launcher has to install.
+            engine_event(
+                root,
+                "chain_engine_moved",
+                {
+                    "from": head,
+                    "to": after,
+                    "paths": moved[:10],
+                    "count": len(moved),
+                },
+            )
+            return moved
 
     if lane.tip(root, "HEAD") != remote:
         left_alone(f"the checkout is not at origin/{branch} after the fast-forward")
-        return
+        return []
 
     rfc_dir = root / config.specs.path
     try:
@@ -826,7 +889,7 @@ async def _sync_and_plan(
                 root, "plan_refused", {"document": "corpus", "error": str(exc), "base": remote}
             )
 
-        return
+        return []
 
     refusals: dict[str, str] = {}
 
@@ -861,6 +924,8 @@ async def _sync_and_plan(
             continue
 
         engine_event(root, "plan_refused", {"document": document, "error": refusal, "base": remote})
+
+    return []
 
 
 # ....................... #
@@ -1304,7 +1369,13 @@ async def _serve(
             # The escalation pause forbids growing the queue (S-0048/D-4), and
             # minting is growing it.
             if planning and not await paused():
-                await _sync_and_plan(root, log, partition, config=config, worker=worker)
+                moved = await _sync_and_plan(root, log, partition, config=config, worker=worker)
+
+                if moved:
+                    # S-0120/D-2: the fast-forward moved the engine, so this
+                    # process is running code its base no longer carries. The
+                    # chain ends at the exit code; the launcher installs.
+                    return handled, ENGINE_MOVED
 
             remainder = await day_remainder(log, partition, config.night)
 
@@ -1682,7 +1753,10 @@ def serve_cmd(
     and opens the next night once something is startable and the UTC day
     has budget left, and returns when a night closes on a class the terms
     name. Each night's budget is the day's remainder, so the day's nights
-    together spend one day's allowance.
+    together spend one day's allowance. When the sweep between nights
+    fast-forwards across a change to a file the night's `engine_paths` names,
+    the chain ends and the command exits with its own code, so whatever
+    started it can install the new engine and start the chain again.
     """
 
     if chain and not night:
@@ -1723,6 +1797,11 @@ def serve_cmd(
         # S-0079/D-6, at the one moment somebody is there to read it.
         raise fail(f"night refused: {exc}", EXIT_CONFIG) from None
 
+    # The reason the chain ended is the launcher's signal: `engine moved` is
+    # the one the chain reports, so a launcher can install and start again
+    # (S-0120/D-4). Every other reason still exits success.
+    code = EXIT_ENGINE_MOVED if reason == ENGINE_MOVED else EXIT_OK
+
     if fmt is Format.JSON:
         emit_json(
             {
@@ -1733,7 +1812,7 @@ def serve_cmd(
                 "stopped_on": reason,
             }
         )
-        raise typer.Exit(EXIT_OK)
+        raise typer.Exit(code)
 
     console = out(fmt)
     closing(
@@ -1743,7 +1822,7 @@ def serve_cmd(
         else f"{handled} task(s) handled" + (f" · stopped on {reason}" if reason else ""),
         STYLE_DIM if interrupted or not handled else "",
     )
-    raise typer.Exit(EXIT_OK)
+    raise typer.Exit(code)
 
 
 # ....................... #

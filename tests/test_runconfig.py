@@ -929,6 +929,21 @@ def test_the_night_section_loads_its_terms_and_defaults_to_a_bounded_one(tmp_pat
     assert load(tmp_path, "schema_version: 1\n").night.budget_attempts > 0
 
 
+def test_night_engine_paths_defaults_to_empty_and_loads_the_globs_it_names(tmp_path):
+    """S-0120/D-1: the engine check is off unless a repository names the files
+    that make up its engine, so a configuration written before the key existed
+    serves exactly as it did, and one that names globs gets them verbatim."""
+
+    assert load(tmp_path, "schema_version: 1\n").night.engine_paths == []
+
+    config = load(
+        tmp_path,
+        "schema_version: 1\nnight:\n  engine_paths: [src/torve/**, pyproject.toml, uv.lock]\n",
+    )
+
+    assert config.night.engine_paths == ["src/torve/**", "pyproject.toml", "uv.lock"]
+
+
 # ....................... #
 
 

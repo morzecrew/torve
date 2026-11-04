@@ -326,6 +326,14 @@
           "title": "Budget Usd",
           "type": "number"
         },
+        "engine_paths": {
+          "description": "Globs, in the grammar a contract's scope uses, naming the files that make up\nthe engine. Empty, the default, turns the engine check off, so a repository that\nnames nothing serves exactly as before. When a chain's between-night fast-forward\ncrosses a change to one of them, the engine has moved and the chain ends so a\nlauncher can install the new one.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Engine Paths",
+          "type": "array"
+        },
         "minutes": {
           "default": 480,
           "description": "The wall-clock end, measured from the open. A soft bound: an attempt in flight\nis never interrupted by it (S-0079/D-12).",

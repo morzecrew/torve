@@ -1808,6 +1808,58 @@ def _publish(repo) -> None:
     repo.git("push", "-q", "-u", "origin", "main")
 
 
+def _push_change(
+    tmp_path, path: str, text: str, message: str = "move", *, also: tuple[str, ...] = ()
+) -> str:
+    """Push one commit to the local origin from a second clone, so the sweep's
+    fast-forward has a real commit to move the checkout to. *also* names more
+    paths the same commit writes *text* to. Returns its sha."""
+
+    origin = tmp_path / "origin.git"
+    other = tmp_path / "elsewhere"
+
+    if not other.exists():
+        subprocess.run(["git", "clone", "-q", "-b", "main", str(origin), str(other)], check=True)
+        subprocess.run(["git", "-C", str(other), "config", "user.name", "Chain Human"], check=True)
+        subprocess.run(
+            ["git", "-C", str(other), "config", "user.email", "chain@example.invalid"],
+            check=True,
+        )
+
+    for each in (path, *also):
+        target = other / each
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    subprocess.run(["git", "-C", str(other), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(other), "commit", "-q", "--no-gpg-sign", "-m", message], check=True
+    )
+    subprocess.run(["git", "-C", str(other), "push", "-q", "origin", "main"], check=True)
+
+    return subprocess.check_output(
+        ["git", "-C", str(other), "rev-parse", "HEAD"], text=True
+    ).strip()
+
+
+def _engine_rows(root) -> list[dict]:
+    """The engine rows the sweep wrote, in the order it wrote them."""
+
+    telemetry = root / ".torve" / "telemetry.jsonl"
+
+    if not telemetry.is_file():
+        return []
+
+    rows: list[dict] = []
+
+    for line in telemetry.read_text(encoding="utf-8").splitlines():
+        row = json.loads(line)
+
+        if row.get("kind") == "engine":
+            rows.append(row)
+
+    return rows
+
+
 def _after(root, number, *ids) -> None:
     path = root / ".torve" / "specs" / f"S-{number}" / "phasing.yaml"
     head, _, rest = path.read_text(encoding="utf-8").partition("\n")
@@ -2124,6 +2176,232 @@ def test_a_refusal_is_recorded_again_after_the_base_moves(tmp_path):
 
     assert len(refused) == 2
     assert len({row["base"] for row in refused}) == 2
+
+
+# ....................... #
+# The engine check (S-0120/D-2, S-0120/D-4): the sweep reports a fast-forward
+# across the engine's own files, and the chain ends on a code a launcher reads.
+
+
+def _head(root) -> str:
+    return subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+
+
+def test_the_sweep_reports_engine_moved_and_mints_nothing(tmp_path):
+    """S-0120/D-2: a fast-forward that crosses a change to a file the night's
+    `engine_paths` names is an engine move. Nothing is planned against the
+    engine this process is still running, and the event says which commits and
+    which paths the launcher has to install."""
+
+    from torve.application.manager import project
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Accepted")
+    _publish(repo)
+    before = _head(repo.root)
+    after = _push_change(tmp_path, "src/torve/engine.py", "moved = True\n", "engine moved")
+    config = RunnerConfig(night=NightConfig(engine_paths=["src/torve/**"]))
+
+    async def scenario(log):
+        moved = await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=config, worker="w-1"
+        )
+
+        assert moved == ["src/torve/engine.py"]
+        # Planning is engine code too, so the sweep stops before it.
+        assert project(await log.since(partition=PARTITION)).tasks == {}
+
+    run(scenario)
+
+    assert _head(repo.root) == after
+
+    (event,) = [row for row in _engine_rows(repo.root) if row.get("event") == "chain_engine_moved"]
+    assert event["from"] == before
+    assert event["to"] == after
+    assert event["paths"] == ["src/torve/engine.py"]
+    assert event["count"] == 1
+
+
+def test_engine_moved_carries_at_most_ten_sorted_paths_and_the_full_count(tmp_path):
+    """S-0120/D-2: the event carries up to ten matched paths, sorted, and the
+    count of every one matched, so a wide engine change stays a bounded row
+    without losing how wide it was. Paths the globs do not match are neither
+    listed nor counted."""
+
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Accepted")
+    _publish(repo)
+    engine = [f"src/torve/m{n:02d}.py" for n in range(12, 0, -1)]
+    _push_change(tmp_path, "docs/notes.md", "x = 1\n", "wide", also=tuple(engine))
+    config = RunnerConfig(night=NightConfig(engine_paths=["src/torve/**"]))
+
+    async def scenario(log):
+        moved = await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=config, worker="w-1"
+        )
+
+        assert moved == sorted(engine)
+
+    run(scenario)
+
+    (event,) = [row for row in _engine_rows(repo.root) if row.get("event") == "chain_engine_moved"]
+    assert event["paths"] == sorted(engine)[:10]
+    assert event["count"] == 12
+
+
+def test_a_commit_that_misses_engine_paths_still_plans_and_reports_no_engine_moved(tmp_path):
+    """S-0120/D-2: the engine check reads the changed files, not the fact that
+    the base moved. A commit touching no configured path is an ordinary night
+    boundary, and the sweep plans as it always did."""
+
+    from torve.application.manager import project
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Accepted")
+    _publish(repo)
+    _push_change(tmp_path, "docs/notes.md", "notes\n", "docs")
+    config = RunnerConfig(night=NightConfig(engine_paths=["src/torve/**"]))
+
+    async def scenario(log):
+        moved = await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=config, worker="w-1"
+        )
+
+        assert moved == []
+        assert sorted(project(await log.since(partition=PARTITION)).tasks) == ["T-0001"]
+
+    run(scenario)
+
+    assert [
+        row for row in _engine_rows(repo.root) if row.get("event") == "chain_engine_moved"
+    ] == []
+
+
+def test_an_empty_engine_paths_never_reports_engine_moved(tmp_path):
+    """S-0120/D-1, D-2: the empty list is the default and means off. A
+    repository that names nothing serves exactly as before, even when its
+    fast-forward crosses the package torve happens to live in."""
+
+    from torve.application.manager import project
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Accepted")
+    _publish(repo)
+    _push_change(tmp_path, "src/torve/engine.py", "moved = True\n", "engine moved")
+
+    async def scenario(log):
+        moved = await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+        )
+
+        assert moved == []
+        assert sorted(project(await log.since(partition=PARTITION)).tasks) == ["T-0001"]
+
+    run(scenario)
+
+    assert [
+        row for row in _engine_rows(repo.root) if row.get("event") == "chain_engine_moved"
+    ] == []
+
+
+def test_a_checkout_the_fast_forward_did_not_move_reports_no_engine_moved(tmp_path):
+    """S-0120/D-2: a checkout already at the remote's tip has not moved, so it
+    has not moved its engine either. The sweep plans from it and reports none."""
+
+    from torve.application.manager import project
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Accepted")
+    _publish(repo)
+    config = RunnerConfig(night=NightConfig(engine_paths=["src/torve/**"]))
+
+    async def scenario(log):
+        moved = await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=config, worker="w-1"
+        )
+
+        assert moved == []
+        assert sorted(project(await log.since(partition=PARTITION)).tasks) == ["T-0001"]
+
+    run(scenario)
+
+    assert [
+        row for row in _engine_rows(repo.root) if row.get("event") == "chain_engine_moved"
+    ] == []
+
+
+def test_a_chain_ends_with_the_reason_engine_moved_after_recording_the_event(tmp_path, monkeypatch):
+    """S-0120/D-2, D-4: the chain's own sweep is where the move is seen. The
+    chain opens no night after it, returns the reason, and the event is on the
+    stream for the launcher and for a person reading the morning."""
+
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Accepted")
+    _publish(repo)
+    before = _head(repo.root)
+    after = _push_change(tmp_path, "src/torve/engine.py", "moved = True\n", "engine moved")
+    config = RunnerConfig(night=NightConfig(engine_paths=["src/torve/**"]))
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: config)
+
+    handled, reason = _chain_serve(repo.root)
+
+    assert (handled, reason) == (0, "engine moved")
+
+    (event,) = [row for row in _engine_rows(repo.root) if row.get("event") == "chain_engine_moved"]
+    assert (event["from"], event["to"]) == (before, after)
+    assert event["count"] == 1
+
+
+@pytest.mark.parametrize(
+    "reason",
+    ["engine moved", "", "drained", "passes", "escalation:killed", "escalation:locked_conflict"],
+)
+@pytest.mark.parametrize("fmt", ["text", "json"])
+def test_serve_cmd_exits_engine_moved_for_that_reason_and_ok_for_every_other(
+    tmp_path, monkeypatch, reason, fmt
+):
+    """S-0120/D-4: the exit status is the one channel a launcher reads. The
+    move is code 6 in text and in JSON; every other reason keeps the success
+    code it has always had, so no existing launcher's reading changes."""
+
+    from typer.testing import CliRunner
+
+    from torve.cli import manager as manager_cli
+    from torve.cli.main import app
+    from torve.domain.states import EXIT_ENGINE_MOVED
+
+    async def fake_serve(*args, **kwargs):
+        return 0, reason
+
+    monkeypatch.setattr(manager_cli, "_serve", fake_serve)
+    (tmp_path / ".torve").mkdir(exist_ok=True)
+
+    args = ["manager", "serve", PARTITION, "--root", str(tmp_path)]
+
+    if fmt == "json":
+        args += ["--format", "json"]
+
+    result = CliRunner().invoke(app, args)
+
+    expected = EXIT_ENGINE_MOVED if reason == "engine moved" else 0
+    assert result.exit_code == expected, result.output
+
+    if fmt == "json":
+        assert json.loads(result.stdout)["stopped_on"] == reason
 
 
 @pytest.mark.parametrize(
