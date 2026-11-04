@@ -30,7 +30,7 @@ The torve skill's night and escalations references and the operating page descri
 - Paths: `skills/torve/references/night.md` `skills/torve/references/escalations.md` `pages/docs/operating.md`
 - Consequence: an adopter configures the owner-free run from the guide, and a session operating torve reads that a blocker reaching it has already survived the stronger seat
 
-### S-0120/D-5 — `ASSUMED` (The chain runs the engine its base carries) — implementation: none
+### S-0120/D-5 — `ASSUMED` (The chain runs the engine its base carries)
 
 The operating guide and the night reference say that a chain plans from its own checkout only when it runs an installed engine, and ship the launcher loop. For torve's own chain, that loop installs into a virtualenv of its own, apart from the host's shared tool install, and relaunches on exit 6.
 
