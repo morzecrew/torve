@@ -408,6 +408,14 @@ Every battery the lane runs, green or red, is recorded as a `lane.judged` event 
 - Consequence: a red re-gate's failing output and every lane battery's duration are in the record, so lane time is measured from the record and never from telemetry
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
+### S-0120/D-4 — `ASSUMED` (The chain runs the engine its base carries) — implementation: none
+
+`EXIT_ENGINE_MOVED = 6` is the first code assigned above 5. `torve manager serve` exits with it for the reason `engine moved`, in text and in `--format json`, and with `EXIT_OK` for every other reason as before.
+
+- Paths: `src/torve/domain/states.py` `src/torve/cli/manager.py`
+- Consequence: a launcher loops on one documented code, and every launcher that treats a non-zero exit as a failure keeps working, because no other reason changes its code
+- Check: `uv run pytest tests/test_manager.py -k engine_moved` (shadow; runs as `decision:S-0120/D-4`, no log entry owed)
+
 ## Invariants holding over `src/torve/domain/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description

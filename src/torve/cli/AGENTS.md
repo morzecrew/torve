@@ -899,6 +899,30 @@ The intake leg runs in the manager's and the fleet's pass after the standing leg
 - Consequence: the author sees a phase's callers outside its scope, and which phase owns each, while an intent can still say to change them; a corpus with such a phase still checks green
 - Check: `uv run pytest tests/test_neighbours.py tests/test_cli_spec.py -k reach` (shadow; runs as `decision:S-0119/D-11`, no log entry owed)
 
+### S-0120/D-2 — `ASSUMED` (The chain runs the engine its base carries) — implementation: none
+
+Between nights, when the chain's fast-forward (S-0117/D-5) moves the checkout across a change to a file `night.engine_paths` matches, the chain mints nothing and ends with the reason `engine moved` after recording a `chain_engine_moved` engine event carrying the commit before, the commit after and up to ten matched paths with their count. A checkout the fast-forward did not move reports no move.
+
+- Paths: `src/torve/cli/manager.py`
+- Consequence: an engine change merged on the base reaches the chain at the next night boundary, never mid-night and never mid-attempt
+- Check: `uv run pytest tests/test_manager.py -k engine_moved` (shadow; runs as `decision:S-0120/D-2`, no log entry owed)
+
+### S-0120/D-3 — `LOCKED` (The chain runs the engine its base carries) — implementation: none
+
+The engine never installs, upgrades or re-executes itself: the chain's part ends at the exit code, and installing the new engine is the launcher's.
+
+- Paths: `src/torve/cli/manager.py`
+- Consequence: a failed install leaves the previous engine in place and fails outside the engine, where the operator sees it; nothing in torve writes its own installation
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0120/D-4 — `ASSUMED` (The chain runs the engine its base carries) — implementation: none
+
+`EXIT_ENGINE_MOVED = 6` is the first code assigned above 5. `torve manager serve` exits with it for the reason `engine moved`, in text and in `--format json`, and with `EXIT_OK` for every other reason as before.
+
+- Paths: `src/torve/domain/states.py` `src/torve/cli/manager.py`
+- Consequence: a launcher loops on one documented code, and every launcher that treats a non-zero exit as a failure keeps working, because no other reason changes its code
+- Check: `uv run pytest tests/test_manager.py -k engine_moved` (shadow; runs as `decision:S-0120/D-4`, no log entry owed)
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

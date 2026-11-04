@@ -5,7 +5,7 @@ kind: design
 change:
   type: feat
   scope: manager
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0117]
 informed_by: [S-0079, S-0119]
