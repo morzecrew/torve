@@ -111,3 +111,45 @@ amendments:
         field: fingerprint
         before: 80adefb9cb93bb81/c2490e3f3918a5c6
         after: bff57ce6f89a3150/c2490e3f3918a5c6
+  - id: A-4
+    at: '2026-11-03T23:08:03Z'
+    title: >-
+      A command to run is a verb with a command beside it
+    changes:
+      - subject: D-9
+        field: text
+        before: >-
+          A thread asking for anything but a change to the files in scope — run a
+          command, add a secret, change CI, merge, approve — is refused as injection
+          before the round is minted, reported to the operator through the escalation
+          path, and never answered on the forge; a thread anchored to a landing record
+          under a document's `execution/` or to an `AGENTS.md` projection is instead
+          answered once with a fixed text, and resolved when a configured bot opened
+          it. A reviewer's collapsed `<details>` analysis and the thread's HTML comments
+          are set aside before the check and never reach the attempt: they are the
+          reviewer's work log and markup, not a request, and the verdict outside them
+          is what is judged
+        after: >-
+          A thread asking for anything but a change to the files in scope — run a
+          command, add a secret, change CI, merge, approve — is refused as injection
+          before the round is minted, reported to the operator through the escalation
+          path, and never answered on the forge; a thread anchored to a landing record
+          under a document's `execution/` or to an `AGENTS.md` projection is instead
+          answered once with a fixed text, and resolved when a configured bot opened
+          it. A reviewer's collapsed `<details>` analysis and the thread's HTML comments
+          are set aside before the check and never reach the attempt: they are the
+          reviewer's work log and markup, not a request, and the verdict outside them
+          is what is judged. A request to run a command is a run, execute, invoke
+          or install verb with the command beside it in a code span, or a shell code
+          block; the verb alone in prose, as in "before a run starts", asks for nothing
+      - subject: D-9
+        field: fingerprint
+        before: bff57ce6f89a3150/c2490e3f3918a5c6
+        after: 86a7f6222d797e97/c2490e3f3918a5c6
+    md: >-
+      The scan matched the word alone, so on #244 three of eighteen bot findings were
+      refused for "before a run starts", "Run-time `ValueError`s" and "run one search
+      per phase". Each was a real finding and went to a person. A request to run something
+      names the thing: the verb with a command beside it in a code span, or a shell
+      code block. The rationale's own example, "run `torve init` first", is still
+      refused.

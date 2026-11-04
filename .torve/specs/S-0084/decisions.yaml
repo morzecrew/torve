@@ -143,7 +143,10 @@ decisions:
       fixed text, and resolved when a configured bot opened it. A reviewer's collapsed
       `<details>` analysis and the thread's HTML comments are set aside before the
       check and never reach the attempt: they are the reviewer's work log and markup,
-      not a request, and the verdict outside them is what is judged
+      not a request, and the verdict outside them is what is judged. A request to
+      run a command is a run, execute, invoke or install verb with the command beside
+      it in a code span, or a shell code block; the verb alone in prose, as in "before
+      a run starts", asks for nothing
     paths: [src/torve/application/reviewleg.py]
     consequence: >-
       whoever wrote it learns nothing about whether the channel works, and the refusal
@@ -155,7 +158,7 @@ decisions:
       error costs a command run because a comment asked
     check: >-
       uv run pytest tests/test_reviewleg.py -k injection
-    fingerprint: bff57ce6f89a3150/c2490e3f3918a5c6
+    fingerprint: 86a7f6222d797e97/c2490e3f3918a5c6
   - id: D-10
     grade: LOCKED
     text: >-
