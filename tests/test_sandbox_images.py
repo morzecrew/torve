@@ -623,6 +623,18 @@ def test_report_usage_reads_the_v4_log_into_what_the_parsers_take(
     assert (burn.turns, burn.tool_calls) == (3, 3)
     assert [fact["name"] for fact in parse_tool_calls(trace)] == ["bash", "read", "bash"]
 
+    # Priced, a cache write bills as input: (1100 + 30) in at 1, 66 out at 2,
+    # 1100 cache reads at 0.1.
+    priced = subprocess.run(
+        ["node", str(reporter)],
+        env={**env, "DSH_PRICE_IN": "1", "DSH_PRICE_OUT": "2", "DSH_PRICE_CACHE": "0.1"},
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+    assert json.loads(priced.splitlines()[-1])["total_cost_usd"] == 0.001372
+
     # No session at all is no output and a clean exit, never an invented zero.
     empty = subprocess.run(
         ["node", str(reporter)],

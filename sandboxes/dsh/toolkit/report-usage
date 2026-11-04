@@ -113,7 +113,11 @@ const priceOut = parseFloat(process.env.DSH_PRICE_OUT || "");
 const priceCache = parseFloat(process.env.DSH_PRICE_CACHE || "");
 let cost = null;
 if (!Number.isNaN(priceIn) && !Number.isNaN(priceOut)) {
-  cost = (totals.inputTokens * priceIn + totals.outputTokens * priceOut) / 1e6;
+  // A cache write is billed as input: `inputTokens` is the uncached part only,
+  // and neither DeepSeek nor ModelStudio prices a write apart from a miss.
+  cost =
+    ((totals.inputTokens + totals.cacheCreationTokens) * priceIn + totals.outputTokens * priceOut) /
+    1e6;
   if (!Number.isNaN(priceCache)) cost += (totals.cacheReadTokens * priceCache) / 1e6;
   cost = Math.round(cost * 1e6) / 1e6;
 }
