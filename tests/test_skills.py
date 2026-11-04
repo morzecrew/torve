@@ -2,14 +2,12 @@
 set into the sandbox and the specialisation is visible. The corpus-validator
 breakage cases moved to tests/test_rfc_check.py when validation moved into
 the package (S-0007/format-validation, S-0007/D-12). The corpus-bootstrap fixture (S-0031 phase
-2) rides here too: the sample survey report in, the checkable output shape
-out — the shape the operator skill's adopting reference teaches (S-0100/D-9),
-pinned against the package's own parsers.
+2) rides here too: the checkable output shape the operator skill's adopting
+reference teaches (S-0100/D-9), pinned against the package's own parsers.
 """
 
 from __future__ import annotations
 
-import json
 import shutil
 import subprocess
 import zipfile
@@ -25,23 +23,16 @@ BOOTSTRAP = Path(__file__).resolve().parent / "fixtures" / "corpus-bootstrap"
 
 
 def test_torve_ships_five_skills_each_for_one_audience():
-    """S-0100/D-1, extended by S-0116/D-6: the operator's, the author's, the two
-    an executing agent reads, and the verifier's — nothing else ships."""
+    """S-0100/D-1: the operator's, the author's and the two an executing agent
+    reads — nothing else ships."""
 
-    assert set(available()) == {
-        "torve",
-        "spec-writer",
-        "working-rules",
-        "flag-dont-flip",
-        "verifier",
-    }
+    assert set(available()) == {"torve", "spec-writer", "working-rules", "flag-dont-flip"}
 
 
 # Torve's own skills, written here rather than specialised from upstream, so
 # the specialisation header and the gate below say nothing about them
-# (S-0067/D-3: the working rules live once, and their source is this repository;
-# the verifier's brief is authored here too, S-0116/D-6).
-NATIVE = ("working-rules", "torve", "verifier")
+# (S-0067/D-3: the working rules live once, and their source is this repository).
+NATIVE = ("working-rules", "torve")
 
 
 def test_every_shipped_skill_carries_the_specialisation_header_and_a_gate():
@@ -199,56 +190,9 @@ def test_materialize_refuses_an_unknown_skill(tmp_path):
 
 # ....................... #
 # corpus-bootstrap (S-0031 phase 2), now the operator skill's adopting reference
-# (S-0100/D-9): the fixture — a sample survey
-# report in, the checkable output shape out. The extraction doctrine's
+# (S-0100/D-9): the fixture is the checkable output shape. The extraction doctrine's
 # properties (paths on every row, no phasing, mostly ASSUMED, the recorded
 # shape) are pinned against the fixture with the package's own parsers.
-
-
-def test_the_bootstrap_fixture_survey_report_is_a_wellformed_survey():
-    """The input fixture is a genuine survey report in the exact shape the
-    survey emits — the extraction's evidence base cannot be a lookalike, or
-    the doctrine teaches reading a shape the engine never writes."""
-
-    doc = json.loads((BOOTSTRAP / "survey-report.json").read_text(encoding="utf-8"))
-    assert set(doc) == {
-        "schema_version",
-        "kind",
-        "branch",
-        "last",
-        "manifest",
-        "landings",
-        "summary",
-    }
-    assert doc["kind"] == "survey"
-    assert doc["schema_version"] == 1
-
-    for landing in doc["landings"]:
-        assert set(landing) == {"sha", "short", "subject", "parent", "gates"}
-        assert landing["short"] == landing["sha"][:7]
-        assert landing["parent"] is None or len(landing["parent"]) == 40
-
-        for gate in landing["gates"]:
-            assert set(gate) == {
-                "name",
-                "outcome",
-                "state",
-                "duration_s",
-                "exit_code",
-                "output",
-                "no_corpus",
-            }
-
-    summary = doc["summary"]
-    assert set(summary) == {"landings", "by_gate", "corpus_adds"}
-    assert summary["landings"] == doc["last"]
-
-    for counts in summary["by_gate"].values():
-        assert set(counts) == {"fired", "clean", "skipped"}
-
-    # The pitch: the report names the gates whose silence is the corpus's
-    # absence — every one becomes a candidate row in the draft.
-    assert summary["corpus_adds"]
 
 
 def test_the_bootstrap_fixture_draft_is_a_checkable_corpus_document():
@@ -276,30 +220,6 @@ def test_the_bootstrap_fixture_draft_is_a_checkable_corpus_document():
     assert grades.count("ASSUMED") > grades.count("LOCKED")
     assert "LOCKED" in grades
     assert doc.phasing == []
-
-
-def test_the_bootstrap_fixture_ties_the_survey_to_the_draft():
-    """The extraction the skill teaches maps the sample report to the sample
-    draft: the report's corpus gaps and its fired gates both appear in the
-    draft — the input fixture and the output fixture tell the same story."""
-
-    report = json.loads((BOOTSTRAP / "survey-report.json").read_text(encoding="utf-8"))
-    draft = "".join(
-        one.read_text(encoding="utf-8") for one in sorted((BOOTSTRAP / "S-0001").iterdir())
-    )
-
-    for gate in report["summary"]["corpus_adds"]:
-        assert gate in draft, f"draft does not address corpus gap {gate}"
-
-    fired = {
-        gate["name"]
-        for landing in report["landings"]
-        for gate in landing["gates"]
-        if gate["outcome"] in {"fail", "error", "bypassed"}
-    }
-    assert fired
-    for gate in fired:
-        assert gate in draft, f"draft does not address fired gate {gate}"
 
 
 def test_the_bootstrap_skill_records_the_shape_it_chose():
@@ -386,21 +306,6 @@ def test_the_built_wheel_carries_no_projection(tmp_path):
     ]
 
 
-def test_the_night_reference_covers_the_verify_pilot():
-    """S-0116/D-13: the reference an operator reads during a night says what
-    changes when the pilot is on, how a held-out failure is read, and how a
-    disputed verifier test arrives."""
-
-    raw = (skills_root() / "torve" / "references" / "night.md").read_text(encoding="utf-8")
-    text = " ".join(raw.split())
-
-    assert "verify.enabled" in text
-    assert "held-out" in text
-    assert "the failing test's identifier, its message and the rows it cites" in text
-    assert "naming the test and the row it claims to decide" in text
-    assert "underspecified" in text
-
-
 def test_the_night_reference_ships_the_engine_launcher():
     """S-0120/D-5: the reference an operator reads during a night says a chain
     fast-forwards and plans only when it runs an installed engine, names
@@ -436,9 +341,9 @@ def test_the_night_reference_ships_the_engine_launcher():
 
 
 def test_the_spec_writer_asks_a_phase_intent_to_name_the_public_surface():
-    """S-0116/D-13: a phase written for a verifier names what to test, so the
-    verifier does not invent an API — the skill and the template it points at
-    both say the intent carries the surface the phase's tests drive."""
+    """S-0116/D-13: a phase names what its tests drive, so whoever writes them
+    does not invent an API — the skill and the template it points at both say
+    the intent carries the surface the phase's tests drive."""
 
     raw = (skills_root() / "spec-writer" / "SKILL.md").read_text(encoding="utf-8")
     skill = " ".join(raw.split())
@@ -448,37 +353,6 @@ def test_the_spec_writer_asks_a_phase_intent_to_name_the_public_surface():
 
     assert "The intent names the public surface the phase's tests drive" in skill
     assert "the public surface its" in template
-
-
-def test_the_verifier_skill_briefs_an_independent_test():
-    """S-0116/D-6: the verify role learns in one place what makes its tests
-    independent — the rows and the intent alone, a test per settled row citing
-    it, the import inside the test body, a property where a row is quantified
-    over inputs, held-out properties under `.torve/tmp/holdout/`, no
-    implementation, and a halt when the intent names no public surface. Each
-    line here is one of the rules only this text carries."""
-
-    raw = (skills_root() / "verifier" / "SKILL.md").read_text(encoding="utf-8")
-    text = " ".join(raw.split())
-
-    assert "verifier" in available()
-    # From the rows and the intent alone.
-    assert "the task's inherited rows and its intent" in text
-    assert "There is no implementation to read yet" in text
-    # A test per settled row, citing it.
-    assert "Every row the entry settles gets at least one test" in text
-    # The import lives inside the test body.
-    assert "The import lives inside the test body" in text
-    # A property where a row is quantified over inputs.
-    assert "A row over inputs gets a property" in text
-    # Held-out properties, and where they go.
-    assert "Held-out properties live under" in text
-    assert "holdout/" in text
-    # No implementation of the verifier's own.
-    assert "Never write, stub or scaffold the code the tests drive" in text
-    # A halt when the intent names no public surface.
-    assert "When the intent names no public surface" in text
-    assert "halted" in text and "spec-gap" in text
 
 
 # ....................... #
@@ -493,7 +367,6 @@ def test_every_shipped_skill_opens_its_description_with_its_audience():
     assert description("spec-writer").startswith("When writing a torve specification")
     for name in ("working-rules", "flag-dont-flip"):
         assert description(name).startswith("When executing a torve task contract"), name
-    assert description("verifier").startswith("When verifying a torve task change")
 
 
 def test_no_shipped_skill_cites_torve_s_own_corpus():
@@ -519,20 +392,6 @@ def test_the_divergence_mechanics_live_in_working_rules_alone():
 
     assert "torve log divergence" not in text
     assert "torve log owed" not in text
-
-
-def test_flag_dont_flip_sends_a_disputed_verifier_test_to_a_halt():
-    """S-0116/D-8: a verifier's test an implementer disputes is never edited —
-    the implementer halts with an entry naming the test and the row it claims
-    to decide, and a person decides whether the test or the row is wrong."""
-
-    raw = (skills_root() / "flag-dont-flip" / "SKILL.md").read_text(encoding="utf-8")
-    text = " ".join(raw.split())
-
-    assert "A verifier test you dispute" in text
-    assert "naming the test and the row it claims to decide" in text
-    assert "Never edit the file" in text
-    assert "underspecified" in text
 
 
 def test_the_operator_skill_states_the_rails_and_ships_its_references():

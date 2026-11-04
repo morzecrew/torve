@@ -56,49 +56,6 @@ def _verify_repo(tmp_path: Path, config: dict) -> Path:
     return root
 
 
-def test_doctor_reds_a_verifier_on_the_executors_own_model(tmp_path: Path):
-    # S-0116/D-3: an independent check on the executor's own model proves
-    # nothing the executor would not — red, not a warning.
-    from torve.cli.doctor import _verify_check
-
-    root = _verify_repo(
-        tmp_path,
-        {
-            "verify": {"enabled": True},
-            "tiers": {
-                "executor": {"harness": "h", "provider": "p", "model": "m-1"},
-                "executor.verify": {"harness": "h", "provider": "p", "model": "m-1"},
-            },
-        },
-    )
-
-    checks = _verify_check(root, None)
-
-    assert len(checks) == 1
-    name, ok, detail = checks[0]
-    assert name == "verify" and ok is False
-    assert "own model" in detail
-
-
-def test_the_verify_check_is_silent_with_the_pilot_off_or_a_different_model(tmp_path: Path):
-    from torve.cli.doctor import _verify_check
-
-    off = _verify_repo(tmp_path / "off", {"tiers": {}})
-    assert _verify_check(off, None) == []
-
-    apart = _verify_repo(
-        tmp_path / "apart",
-        {
-            "verify": {"enabled": True},
-            "tiers": {
-                "executor": {"harness": "h", "provider": "p", "model": "m-1"},
-                "executor.verify": {"harness": "h", "provider": "q", "model": "m-2"},
-            },
-        },
-    )
-    assert _verify_check(apart, None) == []
-
-
 def _threads_repo(tmp_path: Path, enabled: bool, commands: list[str]) -> Path:
     import yaml
 

@@ -146,10 +146,7 @@ def _sweep_worktrees(
 def _lane_input(root: Path, state: RunState, landed: LandedOracle | None) -> bool:
     """S-0019/D-10 (S-0019/A-2, narrowing S-0003/D-23): a READY implement or revert run
     whose task has not landed on the base is the lane's input, not debris —
-    its state file survives the sweep. A verify run is kept the same way
-    (S-0116/D-1): its worktree and state are the lane's input exactly as an
-    implement run's, because a verify task lands like any other. Without a
-    landed oracle the answer is conservative: keep. Review-role READY states
+    its state file survives the sweep. Without a landed oracle the answer is conservative: keep. Review-role READY states
     never land and stay sweepable; so does a READY state with no contract to
     land. A READY draft run is kept unconditionally (S-0020, S-0020/D-10): its
     landing is adoption, which disposes of the state itself — the lab's first
@@ -175,7 +172,7 @@ def _lane_input(root: Path, state: RunState, landed: LandedOracle | None) -> boo
     if role == "draft":
         return True
 
-    if role not in ("implement", "revert", "verify"):
+    if role not in ("implement", "revert"):
         return False
 
     return landed is None or not landed(state.task_id)

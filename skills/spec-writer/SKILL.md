@@ -146,11 +146,8 @@ arrives first, invisibly.
    acceptance commands, the phases it waits on — not prose about sequence.
    If `torve plan` cannot derive a task from an entry, the entry was written
    wrong. **The intent names the public surface the phase's tests drive** —
-   the functions, types or commands the phase introduces or changes. Where
-   the verify pilot is on, a verifier writes that phase's tests from the rows
-   and the intent alone, before any implementation exists; an intent naming
-   only a file leaves it to invent an API, and a phase written for a verifier
-   names what to test. A phase's clock and model are its seat's: a phase that
+   the functions, types or commands the phase introduces or changes. A
+   phase's clock and model are its seat's: a phase that
    needs more time than the repository's `agent_timeout`, or the stronger
    model, names a `tier_variant` the operator configures with its own
    `agent_timeout` and `sandbox_timeout`, or a `character` the seat's

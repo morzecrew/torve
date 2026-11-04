@@ -28,7 +28,7 @@ import subprocess
 import time
 from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, cast
 
 from torve.application.feedback import capture_feedback
@@ -49,7 +49,6 @@ from torve.base.clock import stamp
 from torve.config import layout
 from torve.config.spec import write_tracked_files
 from torve.domain.attempt import GateResult
-from torve.domain.events import EventKind, EventRecord, HoldoutFile, VerifyHoldout
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import Task
 
@@ -106,12 +105,6 @@ class GateSandbox(Protocol):
 # rebased worktree on the host, as a direct call always has.
 SandboxFactory = Callable[[Path, str], GateSandbox]
 
-# The recorded held-out properties of a task, read by the caller from the store
-# the lane does not open (S-0116/D-14): task id -> the files of its latest
-# `verify.holdout` event. `torve merge` and the manager's lane leg fold one read
-# of the log into this and hand `process_lane` the reader over it. A direct
-# caller hands none, and then a completion commits nothing.
-HoldoutReader = Callable[[str], list[HoldoutFile]]
 
 # S-0101/D-8: a candidate the lane keeps finding red at the same base tip and
 # the same head is not regated for ever — the second red escalates. With a forge
@@ -1374,163 +1367,18 @@ def _completes(root: Path, task_id: str, document: str) -> bool:
     return document_complete(document.rsplit("/", 1)[-1], landings, root)
 
 
-def recorded_holdouts(records: Iterable[EventRecord]) -> dict[str, list[HoldoutFile]]:
-    """The held-out properties the record holds, per task (S-0116/D-9, D-14):
-    for each task, the files of its latest `verify.holdout` event, which
-    replaces every earlier one. `torve merge` and the manager's lane leg fold
-    one read of the log into this and hand the lane the reader over it — the
-    lane opens no store of its own."""
-
-    latest: dict[str, list[HoldoutFile]] = {}
-
-    for record in records:
-        if record.kind is EventKind.VERIFY_HOLDOUT:
-            latest[record.subject_id] = VerifyHoldout.model_validate(record.payload).files
-
-    return latest
-
-
-def _holdout_targets(root: Path, document: str, reader: HoldoutReader) -> dict[str, str]:
-    """The path -> text of every held-out file the document's tasks recorded
-    (S-0116/D-14), each named for its document, phase and entry: the stem of
-    the verifier's file the implement task denies, under the same `tests_dir`
-    as a `holdout/` sibling, and `_<m>` for a task that recorded several."""
-
-    from torve.gates.context import load_task
-
-    targets: dict[str, str] = {}
-    taken: set[str] = set()
-
-    for task_id in sorted(carried_tasks(root, document)):
-        files = reader(task_id)
-
-        if not files:
-            continue
-
-        try:
-            task = load_task(contract_file(root, task_id))
-
-        except (OSError, ValueError):
-            continue
-
-        if not task.scope.deny:
-            continue
-
-        parent, _, leaf = task.scope.deny[0].lstrip("/").rpartition("/")
-        stem = leaf.rsplit(".", 1)[0]
-        directory = f"{parent}/holdout" if parent else "holdout"
-
-        for index, one in enumerate(files):
-            # The recorded file keeps its suffix: a data file renamed to `.py`
-            # under a `test_` stem would be collected as a test module.
-            suffix = PurePosixPath(one.name).suffix
-            path = (
-                f"{directory}/{stem}{suffix}"
-                if index == 0
-                else f"{directory}/{stem}_{index + 1}{suffix}"
-            )
-
-            while path in taken:
-                index += 1
-                path = f"{directory}/{stem}_{index + 1}{suffix}"
-
-            taken.add(path)
-            targets[path] = one.text
-
-    return targets
-
-
-def _unplaced_holdouts(root: Path, document: str, reader: HoldoutReader) -> list[str]:
-    """The carried tasks that recorded held-out files `_holdout_targets` cannot
-    place: it reads where they go from the stem of the contract's first
-    `scope.deny` entry, and skips a task whose contract is missing, does not
-    load, or denies nothing. A task minted into the record has no contract
-    file once its worktree is reaped. The battery refuses rather than judge
-    the document without them (S-0116/D-14)."""
-
-    from torve.gates.context import load_task
-
-    unplaced: list[str] = []
-
-    for task_id in sorted(carried_tasks(root, document)):
-        if not reader(task_id):
-            continue
-
-        try:
-            task = load_task(contract_file(root, task_id))
-
-        except (OSError, ValueError):
-            unplaced.append(task_id)
-            continue
-
-        if not task.scope.deny:
-            unplaced.append(task_id)
-
-    return unplaced
-
-
-def _commit_holdouts(root: Path, workdir: Path, document: str, reader: HoldoutReader) -> str | None:
-    """Commit the held-out properties the document's tasks recorded onto the
-    branch *workdir* stands on (S-0116/D-14), and return its new tip — or None
-    when the document recorded none, or its tip already carries them."""
-
-    targets = _holdout_targets(root, document, reader)
-
-    if not targets:
-        return None
-
-    for path, text in targets.items():
-        target = workdir / path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(text, encoding="utf-8")
-
-    def git(*args: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            ["git", *NO_HOOKS, "-C", str(workdir), *args],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-    git("add", "--", *targets)
-
-    if not git("diff", "--cached", "--name-only").stdout.strip():
-        return None
-
-    commit = git(
-        "-c",
-        "user.name=Torve",
-        "-c",
-        "user.email=torve@local",
-        "commit",
-        "--no-gpg-sign",
-        "-m",
-        f"torve({document.rsplit('/', 1)[-1]}): the held-out properties of its tasks",
-    )
-
-    if commit.returncode != 0:
-        raise RuntimeError(commit.stderr.strip() or "could not commit the held-out properties")
-
-    return git("rev-parse", "HEAD").stdout.strip()
-
-
 def _completion_battery(
     root: Path,
     vcs: LaneVcs,
     document: str,
     gates: SandboxFactory | None = None,
-    holdout: HoldoutReader | None = None,
 ) -> tuple[str, str | None]:
     """The fallback battery over the document branch tip (S-0093/D-1,
-    S-0093/D-5): the tip it judged — the held-out commit moves it — and the
-    red summary, or None when the battery is green.
+    S-0093/D-5): the tip it judged and the red summary, or None when the
+    battery is green.
 
     Judged under no one task's contract, as the rebase regate judges a
-    document, so the manifest's fallback runs under its own cap.
-
-    A `holdout` reader commits the held-out properties the document's tasks
-    recorded onto the branch before the battery runs (S-0116/D-14), so from
-    then on they are ordinary tests and the coalesced suite judges them."""
+    document, so the manifest's fallback runs under its own cap."""
 
     from torve.gates.context import resolve_base
 
@@ -1544,21 +1392,6 @@ def _completion_battery(
     outcome: object = ()
 
     try:
-        if holdout is not None:
-            unplaced = _unplaced_holdouts(root, document, holdout)
-
-            if unplaced:
-                return tip, (
-                    f"the held-out properties of {', '.join(unplaced)} cannot be placed: "
-                    "no loadable contract in this checkout denies the verifier's file "
-                    "they sit beside"
-                )
-
-            committed = _commit_holdouts(root, workdir, document, holdout)
-
-            if committed is not None:
-                tip = committed
-
         # S-0118/D-12: a completion battery is the other leg the record names.
         token = _LEG.set("completion")
         branch_token = _BRANCH.set(document)
@@ -1731,7 +1564,6 @@ def _land_document(
     status: StatusScm | None = None,
     resolved: Collection[str] = (),
     gates: SandboxFactory | None = None,
-    holdout: HoldoutReader | None = None,
 ) -> None:
     """`unit: document`'s landing act (S-0083/D-5, S-0083/D-6, S-0083/D-7).
 
@@ -1776,10 +1608,7 @@ def _land_document(
     red = None
 
     if complete:
-        # S-0116/D-14: the held-out properties the document's tasks recorded
-        # are committed to its branch before the whole-document battery, so
-        # the battery judges them as the ordinary tests they now are.
-        tip, red = _completion_battery(root, vcs, document, gates, holdout)
+        tip, red = _completion_battery(root, vcs, document, gates)
 
     if red is not None:
         # A red completion is published all the same, with the pull request
@@ -2555,7 +2384,6 @@ def _complete_by_hand(
     results: list[LaneResult],
     status: StatusScm,
     gates: SandboxFactory | None = None,
-    holdout: HoldoutReader | None = None,
 ) -> None:
     """The lane's completion for a document a phase finished by hand
     completed, minus the landing no lane made: the battery judges the tip, the
@@ -2565,7 +2393,7 @@ def _complete_by_hand(
     checks — they finished the phase — so no round is minted for it."""
 
     before = vcs.tip(root, branch)
-    tip, red = _completion_battery(root, vcs, branch, gates, holdout)
+    tip, red = _completion_battery(root, vcs, branch, gates)
     reference = _publish(root, publish, task_id, branch, tip, results)
 
     if reference is None:
@@ -2647,7 +2475,6 @@ def _rebase_document(
     resolved: Collection[str] = (),
     status: StatusScm | None = None,
     gates: SandboxFactory | None = None,
-    holdout: HoldoutReader | None = None,
     draft: bool = False,
 ) -> None:
     """A pull request still open (S-0083/D-13). Against an unmoved base it
@@ -2727,9 +2554,7 @@ def _rebase_document(
             verdict = _status_at(status, branch_tip, COMPLETION_CONTEXT)
 
             if verdict is None:
-                _complete_by_hand(
-                    root, vcs, publish, branch, tasks[-1], results, status, gates, holdout
-                )
+                _complete_by_hand(root, vcs, publish, branch, tasks[-1], results, status, gates)
 
                 return
 
@@ -2868,7 +2693,6 @@ def _document_verdicts(
     named: dict[str, list[str]] | None = None,
     status: StatusScm | None = None,
     gates: SandboxFactory | None = None,
-    holdout: HoldoutReader | None = None,
 ) -> tuple[dict[str, tuple[str, str]], set[str]]:
     """The later pass's read-back at the document unit (S-0083/P-3, S-0099/D-3).
 
@@ -3028,7 +2852,6 @@ def _document_verdicts(
                 resolved,
                 status,
                 gates,
-                holdout,
                 info.draft,
             )
 
@@ -3201,7 +3024,6 @@ def _land_fast_forward(
     resolved: Collection[str] = (),
     specs: str = layout.SPECS_DIR,
     gates: SandboxFactory | None = None,
-    holdout: HoldoutReader | None = None,
 ) -> None:
     if dry_run:
         if publish is not None:
@@ -3231,7 +3053,6 @@ def _land_fast_forward(
                 status,
                 resolved,
                 gates,
-                holdout,
             )
         else:
             _open_pull_request(
@@ -3336,7 +3157,6 @@ def _land_rebased(
     status: StatusScm | None = None,
     resolved: Collection[str] = (),
     gates: SandboxFactory | None = None,
-    holdout: HoldoutReader | None = None,
 ) -> None:
     engine_wt = root / naming.WORKTREE_DIR / task_id
 
@@ -3444,7 +3264,6 @@ def _land_rebased(
                 status,
                 resolved,
                 gates,
-                holdout,
             )
         else:
             _open_pull_request(
@@ -3493,7 +3312,6 @@ def _land_candidate(
     resolved: Collection[str] = (),
     specs: str = layout.SPECS_DIR,
     gates: SandboxFactory | None = None,
-    holdout: HoldoutReader | None = None,
 ) -> None:
     base_tip = vcs.tip(root, base) or base
 
@@ -3518,7 +3336,6 @@ def _land_candidate(
             resolved,
             specs,
             gates,
-            holdout,
         )
         return
 
@@ -3547,7 +3364,6 @@ def _land_candidate(
         status,
         resolved,
         gates,
-        holdout,
     )
 
 
@@ -3644,7 +3460,6 @@ def process_lane(
     resolved: Collection[str] = (),
     specs: str = layout.SPECS_DIR,
     gates: SandboxFactory | None = None,
-    holdout: HoldoutReader | None = None,
     on_judged: Callable[[LaneJudgment], None] | None = None,
 ) -> list[LaneResult]:
     """One pass of the lane. A `publish` is `pull_request` mode (S-0080/D-3):
@@ -3683,12 +3498,6 @@ def process_lane(
     runs a candidate's code on the host. It is built from the configuration's
     runtime by `torve merge` and the manager's lane leg; a direct caller
     handing none runs the battery on the host as before.
-
-    `holdout` reads the held-out properties a task's verifier recorded
-    (S-0116/D-14): a document's completion commits the ones its tasks recorded
-    to its branch before the whole-document battery. The caller opens the
-    store and hands the reader; a direct caller hands none, and then a
-    completion commits nothing.
 
     `on_judged` observes every battery the pass runs, green or red
     (S-0118/D-12): `_regate` hands it the judgment as it returns, before the
@@ -3745,7 +3554,7 @@ def process_lane(
                     named.setdefault(document_branch, []).append(state.task_id)
 
         carried, merged_documents = _document_verdicts(
-            root, vcs, forge, publish, results, resolved, named, status, gates, holdout
+            root, vcs, forge, publish, results, resolved, named, status, gates
         )
 
     for state in ready_candidates(root):
@@ -3881,7 +3690,6 @@ def process_lane(
             resolved,
             specs,
             gates,
-            holdout,
         )
 
     return results
