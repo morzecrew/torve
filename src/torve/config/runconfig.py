@@ -3,15 +3,15 @@ but on its own cadence (S-0003/D-7; one location, no fallback, per S-0013 S-0013
 Read from where the runner was launched, never from the repository under work
 (S-0013/D-3). The tier mapping and provider policy are S-0004's.
 
-The OpenSandbox section carries the name of the environment variable holding
-the API key, never the key itself — configuration is committed, credentials
-are not (S-0001/D-13 in spirit at the operator level too).
+A key a release removed still loads for one release (S-0122/D-17): the loader
+drops it and warns, naming the key and the release that removed it.
 """
 
 from __future__ import annotations
 
 import hashlib
 import re
+import warnings
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlsplit
@@ -20,7 +20,6 @@ import yaml
 from pydantic import (
     BaseModel,
     Field,
-    PrivateAttr,
     ValidationError,
     field_validator,
     model_validator,
@@ -574,48 +573,6 @@ def check_engine(engine: str, version: str | None = None) -> None:
 # ....................... #
 
 
-class OpenSandboxConfig(BaseModel):
-    """The OpenSandbox server the runtime talks to. The advertised broker
-    proxy is not a configured key here (extra="forbid" refuses it in the
-    yaml): `RunnerConfig` resolves it once at load from `broker.bind` /
-    `broker.advertise` and publishes it on this instance — one location for
-    the address, the broker block, and one derived read, the runtime's
-    proxy-env composition (S-0041/D-6: two adapters, no channel, one fact)."""
-
-    model_config = STRICT
-
-    domain: str = "localhost:5266"
-    """The host:port of the OpenSandbox server the runtime adapter builds its client
-    against."""
-    api_key_env: str = "OPENSANDBOX_API_KEY"
-    """The name of the environment variable holding the server's API key — the name, never
-    the key itself: configuration is committed, credentials are not."""
-
-    _remote_broker_proxy: str = PrivateAttr(default="")
-
-    # ....................... #
-
-    @property
-    def remote_broker_proxy(self) -> str:
-        """The URL of the run's broker at its advertised address in remote
-        endpoint mode — the address the sandbox's proxy env is composed
-        from; empty when the broker derives its address from the Docker
-        gateway as before."""
-
-        return self._remote_broker_proxy
-
-    # ....................... #
-
-    def publish_remote_broker_proxy(self, url: str) -> None:
-        """The load-time injection point, called by the `RunnerConfig`
-        validator; never a channel an operator writes through."""
-
-        self._remote_broker_proxy = url
-
-
-# ....................... #
-
-
 def split_host_port(authority: str) -> tuple[str, int | None]:
     """``'host'``, ``'host:port'``, ``'[v6]'`` or ``'[v6]:port'`` to
     ``(host, port)``. Shared by the sealed broker (matching CONNECT
@@ -699,10 +656,9 @@ def remote_broker_proxy(broker: BrokerConfig) -> str:
     `broker.advertise` host — falling back to `broker.bind`'s — and the
     advertised port, falling back to bind's. This replaces the
     Docker-gateway derivation for runs whose sandboxes are elsewhere: the
-    broker binds this address and the opensandbox runtime composes the
-    sandbox's proxy env from it — the sealed doctrine with the configured
-    address standing in for the two network facts (the adapters share this
-    function, never a channel). Empty string is no remote endpoint: an
+    broker binds this address and publishes its routes at it — the sealed
+    doctrine with the configured address standing in for the two network
+    facts. Empty string is no remote endpoint: an
     unconfigured bind keeps today's loopback/bridge behaviour, and a bind
     without a usable port is a configuration the validators never admit,
     answered here as no remote endpoint rather than a fabricated address.
@@ -809,36 +765,6 @@ class BrokerProvider(BaseModel):
 # ....................... #
 
 
-class NotifyConfig(BaseModel):
-    """Where an interrupt-class escalation is delivered (S-0051).
-
-    `none` by default and explicitly (S-0051/D-4): a repository that has not
-    chosen a destination sends nothing because somebody decided that, the
-    same shape the broker's `none` adapter takes.
-
-    The URL is the destination itself, not a credential — a webhook URL is
-    a bearer secret in practice, so it names an environment variable rather
-    than carrying a value into a committed file (S-0001/D-13).
-    """
-
-    model_config = STRICT
-
-    adapter: str = "none"
-    """Which notify adapter is in force: none or webhook."""
-    url_env: str = "TORVE_NOTIFY_URL"
-    """The name of the environment variable holding the webhook URL the relay posts to —
-    the URL is a bearer secret in practice, so it is named, never carried here
-    (S-0001/D-13)."""
-    attempts: int = 5
-    """How many deliveries one escalation earns before the relay parks it (S-0051/D-7). A
-    queue that retries forever is a queue that never drains."""
-    timeout_s: float = 10.0
-    """How long one delivery attempt may take, in seconds."""
-
-
-# ....................... #
-
-
 class BrokerConfig(BaseModel):
     """The egress broker (S-0021/the-port): which adapter is in force and what
     it is fed. `none` is today's behaviour named explicitly — keys pass
@@ -857,9 +783,8 @@ class BrokerConfig(BaseModel):
     provisioning (`runtime`) are two views of one fact, and the runner
     validator refuses them to disagree (S-0021/D-11).
 
-    An endpoint whose sandboxes are remote — an OpenSandbox server on
-    another machine — configures `bind` and, across a NAT or a hostname
-    split, `advertise`: the loopback/bridge derivation reaches nobody out
+    An endpoint whose sandboxes are remote configures `bind` and, across a
+    NAT or a hostname split, `advertise`: the loopback/bridge derivation reaches nobody out
     there, and the remote broker answers non-provider requests only with
     a refusal naming the destination — the pass-through leg is a
     sealed-mode mechanism, authenticated by a topology a remote run does
@@ -867,7 +792,7 @@ class BrokerConfig(BaseModel):
 
     model_config = STRICT
 
-    adapter: Literal["none", "local", "opensandbox"] = "none"
+    adapter: Literal["none", "local"] = "none"
     """Which broker adapter is in force: `none` is today's behaviour named explicitly —
     keys pass through, no metering, no wire routing (S-0021/D-9)."""
     mode: Literal["endpoint", "sealed"] = "endpoint"
@@ -908,12 +833,6 @@ class BrokerConfig(BaseModel):
 
     @model_validator(mode="after")
     def _this_phase_supports_only_what_is_built(self) -> BrokerConfig:
-        if self.adapter == "opensandbox":
-            raise ValueError(
-                "broker adapter 'opensandbox' is not built — it is condition-gated "
-                "on a live server and arrives as an adapter, never a prerequisite (S-0021/D-2)"
-            )
-
         if self.mode == "sealed":
             if self.adapter == "none":
                 raise ValueError(
@@ -1075,8 +994,8 @@ class NestedConfig(BaseModel):
 class RuntimeConfig(BaseModel):
     model_config = STRICT
 
-    adapter: str = "docker"
-    """Which runtime adapter creates the run's sandboxes: docker or opensandbox."""
+    adapter: Literal["docker"] = "docker"
+    """Which runtime adapter creates the run's sandboxes: docker, the one there is."""
     image: str = "python:3.13-slim"
     """The sandbox image every tier that names none of its own runs in (`image_for`)."""
     sandbox_timeout: float = 1800
@@ -1114,8 +1033,7 @@ class RuntimeConfig(BaseModel):
     """Docker network mode ("" = the daemon's default bridge). "host" shares the host's
     network stack, which is what lets a sandbox reach a proxy or VPN listening on the
     host's loopback — the operator trades network isolation for the host's egress path,
-    knowingly. Docker-only; the OpenSandbox server owns its own egress model
-    (S-0003/runtime)."""
+    knowingly (S-0003/runtime)."""
     docker: Literal["", "socket", "nested"] = ""
     """Docker inside the sandbox (S-0017/docker-inside-the-sandbox, S-0017/D-9). "socket"
     mounts the host daemon's socket into every sandbox of the run — attempt and gates
@@ -1123,13 +1041,11 @@ class RuntimeConfig(BaseModel):
     knowingly per repository (S-0017/D-10): a container started over the host socket can
     mount any host path. "nested" (S-0111/D-1) starts a privileged side container running
     its own daemon and joins each sandbox of a role in `nested.roles` to it — a task's own
-    containers, ports and volumes. The review role is refused, and so are OpenSandbox and
-    sealed broker mode. OpenSandbox refuses any value here."""
+    containers, ports and volumes. The review role is refused, and so is sealed broker
+    mode."""
     nested: NestedConfig = Field(default_factory=NestedConfig)
     """The privileged side container a `nested` sandbox shares a network namespace with
     (S-0111/D-1): its image, volume, mirrors, roles and readiness clock."""
-    opensandbox: OpenSandboxConfig = Field(default_factory=OpenSandboxConfig)
-    """The OpenSandbox server the runtime talks to when the adapter is opensandbox."""
 
     # ....................... #
 
@@ -1141,21 +1057,6 @@ class RuntimeConfig(BaseModel):
         return self.docker == "nested" and role in self.nested.roles
 
     # ....................... #
-
-    @model_validator(mode="after")
-    def _nested_is_the_docker_runtime_only(self) -> RuntimeConfig:
-        """S-0111/D-4: a nested daemon is a side container on the host daemon, which
-        only the docker runtime has a place for. OpenSandbox's server owns its own
-        egress and lifecycle, and refuses docker access in any mode."""
-
-        if self.docker == "nested" and self.adapter != "docker":
-            raise ValueError(
-                "runtime.docker: nested needs the docker runtime — the opensandbox "
-                "runtime has no host daemon to run a side container beside, and "
-                "refuses docker access in any mode (S-0111/D-4)"
-            )
-
-        return self
 
 
 # ....................... #
@@ -1507,9 +1408,6 @@ class LoopConfig(BaseModel):
     both carriers (S-0048/D-5). The queue may drain during a pause; it may not grow."""
     tick_budget: int = 3600
     """Seconds; an adoption lock older than this is stale and broken loudly."""
-    standing_max_per_tick: int = 1
-    """S-0023 S-0023/D-6: instantiations across every standing job in one pass, so spend
-    per unit time stays cadence times a known bound."""
 
 
 # ....................... #
@@ -1623,37 +1521,6 @@ class IntakeConfig(BaseModel):
         with a label nobody set (S-0119/D-1)."""
 
         return value.strip()
-
-
-# ....................... #
-
-
-class VerifyConfig(BaseModel):
-    """The verify pilot's terms (S-0116/D-2): off by default, so an adopter
-    that never sets the block mints exactly the tasks it minted before.
-
-    `variant` names the seat under `executor` the verify role runs on, and a
-    configuration that turns the pilot on without that seat refuses at load —
-    while a person is still at the terminal, not at the first dispatch of a
-    verify task. `types` and `tests_dir` are what the planner reads when it
-    mints a verifier; they carry the defaults the decision names.
-    """
-
-    model_config = STRICT
-
-    enabled: bool = False
-    """Whether the planner mints verify tasks ahead of phasing entries (S-0116/D-2)."""
-    variant: str = "verify"
-    """The dotted variant under `executor` the verify role runs on: the seat is
-    `executor.<variant>`, and a configuration with `enabled` and no such tier is
-    refused at load."""
-    types: list[str] = Field(default_factory=lambda: ["feat", "fix"])
-    """The document `change.type` values that earn a verifier (S-0116/D-4)."""
-    tests_dir: str = "tests/verify"
-    """Where a verifier writes the tests it mints (S-0116/D-4)."""
-
-
-# ....................... #
 
 
 # ....................... #
@@ -1871,26 +1738,14 @@ class RunnerConfig(BaseModel):
     model roster. `providers` above is the policy over these; this is the facts."""
     broker: BrokerConfig = Field(default_factory=BrokerConfig)
     """The egress broker: which adapter is in force and what it is fed (S-0021/the-port)."""
-    notify: NotifyConfig = Field(default_factory=NotifyConfig)
-    """Where an interrupt-class escalation is delivered (S-0051)."""
     loop: LoopConfig = Field(default_factory=LoopConfig)
     """The manager pass's knobs (S-0019/A-8)."""
     night: NightConfig = Field(default_factory=NightConfig)
     """The terms a served night runs under (S-0079/D-5)."""
     intake: IntakeConfig = Field(default_factory=IntakeConfig)
     """The drafting run's knobs (S-0020)."""
-    verify: VerifyConfig = Field(default_factory=VerifyConfig)
-    """The verify pilot's terms (S-0116/D-2), off by default."""
     worker_slot: int = 0
     """Names this worker's auth volume (S-0004/D-2); slots are stable, tasks are not."""
-
-    unmeasured_images: Literal["refuse", "allow"] = "refuse"
-    """Whether a tier may dispatch under an image no paired replay verdict has measured
-    (S-0027 S-0027/D-7, as amended). `refuse` is the rule as written: a definition edit
-    must not quietly change what a seat runs under. `allow` is for a repository rebuilding
-    its own engine, where the images change faster than verdicts can be recorded — the
-    dispatch still records the unmeasured digest as an engine event, so the reading stays
-    honest and the measurement stays owed."""
 
     # ....................... #
 
@@ -2001,30 +1856,6 @@ class RunnerConfig(BaseModel):
     # ....................... #
 
     @model_validator(mode="after")
-    def _the_verify_seat_is_configured(self) -> RunnerConfig:
-        """S-0116/D-2: turning the pilot on without a seat for the verify role
-        is a configuration error at load, not a dispatch-time surprise — the
-        same rung `retry_variant` and `character_routing` already stand on.
-        The seat is `executor.<variant>`, so the refusal names the exact tier
-        the planner would route a verify task to and that nothing configures.
-        """
-
-        if not self.verify.enabled:
-            return self
-
-        seat = f"executor.{self.verify.variant}"
-
-        if seat not in self.tiers:
-            raise ValueError(
-                f"verify.enabled names no configured tier: {seat} — add it under "
-                "tiers, or set verify.enabled: false"
-            )
-
-        return self
-
-    # ....................... #
-
-    @model_validator(mode="after")
     def _the_thread_leg_has_a_pull_request_to_read(self) -> RunnerConfig:
         """The leg reads the unresolved threads of a document's pull request
         (S-0084/D-5), so a configuration turning it on without one could only
@@ -2056,21 +1887,13 @@ class RunnerConfig(BaseModel):
         """S-0021/D-3's containment is a property of the run's wiring, so the
         two halves must agree: the sandbox joins the internal network the
         broker attaches to (S-0021/D-11 — egress policy in the broker block,
-        sandbox provisioning in runtime, one fact). Sealed mode also needs
-        the one runtime that has user-defined internal networks, and
+        sandbox provisioning in runtime, one fact). Sealed mode also
         refuses the host daemon socket — a socket is host-equivalent
         capability (S-0017/D-10), which is exactly the trust sealed mode is
         for removing."""
 
         if self.broker.mode != "sealed":
             return self
-
-        if self.runtime.adapter != "docker":
-            raise ValueError(
-                "broker mode 'sealed' needs the docker runtime — only Docker has "
-                "user-defined internal networks; the opensandbox runtime owns its "
-                "own egress model"
-            )
 
         if self.runtime.docker:
             raise ValueError(
@@ -2086,22 +1909,6 @@ class RunnerConfig(BaseModel):
                 f"({self.runtime.network!r}) and broker.network "
                 f"({self.broker.network!r}) must name the same network"
             )
-
-        return self
-
-    # ....................... #
-
-    @model_validator(mode="after")
-    def _remote_broker_shares_its_advertised_address(self) -> RunnerConfig:
-        """The one resolution point for remote endpoint mode: the address
-        `broker.bind`/`broker.advertise` name is decided once here and
-        published on the opensandbox config the composition hands the
-        runtime, which composes the sandbox's proxy env from it — the
-        broker thread and the runtime never talk, they read the one
-        resolved fact (the sealed name-derived-port doctrine with a
-        configured address in place of the gateway)."""
-
-        self.runtime.opensandbox.publish_remote_broker_proxy(remote_broker_proxy(self.broker))
 
         return self
 
@@ -2167,6 +1974,57 @@ def _wire_facts(record: Provider, dialect: str) -> dict[str, Any]:
 # ....................... #
 
 
+# S-0122/D-17: the keys 0.9.0 removed, as paths from the file's top, and the
+# harnesses whose sandbox definitions it removed. For one release each still
+# loads: dropped, and named in a warning.
+REMOVED_KEYS = (
+    ("notify",),
+    ("verify",),
+    ("unmeasured_images",),
+    ("runtime", "opensandbox"),
+    ("loop", "standing_max_per_tick"),
+)
+REMOVED_HARNESSES = frozenset({"mimo", "codex", "opencode"})
+
+
+def _drop_removed(config: dict[str, Any], root: Path, source: Path) -> None:
+    """Drop from *config*, in place, every key 0.9.0 removed and every seat on
+    a harness it removed that the root no longer declares, with one warning
+    naming them, so a configuration written for 0.8 still loads."""
+
+    dropped: list[str] = []
+
+    for *parents, key in REMOVED_KEYS:
+        block: Any = config
+
+        for parent in parents:
+            block = block.get(parent) if isinstance(block, dict) else None
+
+        if isinstance(block, dict) and key in block:
+            del block[key]
+            dropped.append(".".join([*parents, key]))
+
+    tiers = config.get("tiers")
+
+    if isinstance(tiers, dict):
+        seats = cast("dict[str, Any]", tiers)
+
+        for seat, tier in list(seats.items()):
+            harness = tier.get("harness") if isinstance(tier, dict) else None
+
+            if harness in REMOVED_HARNESSES and harness not in all_harnesses(root):
+                del seats[seat]
+                dropped.append(f"tiers.{seat} (harness {harness})")
+
+    if dropped:
+        warnings.warn(
+            f"{source}: {', '.join(dropped)} removed in 0.9.0 and ignored — "
+            "delete them from the configuration",
+            FutureWarning,
+            stacklevel=3,
+        )
+
+
 def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
     """Explicit `path` is a flag-level override (S-0013/D-4); otherwise the file
     is `.torve/config.yaml` and nowhere else. A missing default file means
@@ -2189,6 +2047,7 @@ def load_runner_config(root: Path, path: Path | None = None) -> RunnerConfig:
         raise ValueError(f"{resolved}: runner configuration must be a mapping")
 
     config = cast("dict[str, Any]", raw)
+    _drop_removed(config, root, resolved)
     tiers = config.get("tiers")
     named: dict[str, tuple[str, str]] = {}
 

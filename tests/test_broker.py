@@ -146,11 +146,11 @@ def test_a_brokered_seat_is_handed_no_provider_key():
     assert credential_names(direct, tier) == (KEY_ENV,)
 
 
-def test_opensandbox_adapter_is_refused_until_a_server_exists():
-    # S-0021/D-2 / S-0021/out-of-scope: the adapter is named and deliberately unbuilt —
-    # condition-gated on a live server, never a prerequisite.
+def test_a_broker_adapter_that_is_not_built_is_refused():
+    # S-0021/D-2: the roster is `none` and `local`; the opensandbox adapter
+    # never got its server and left with the runtime (S-0122/D-17).
     with pytest.raises(ValidationError, match="opensandbox"):
-        BrokerConfig(adapter="opensandbox")
+        BrokerConfig(adapter="opensandbox")  # type: ignore[arg-type]
 
 
 def test_sealed_mode_requires_a_named_internal_network():
