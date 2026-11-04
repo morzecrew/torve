@@ -1,0 +1,387 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0755
+base: d479f8eca1834622872703a66412e8243e8fa52b
+commit: 0133f3244487f5b796a31428ef06f3e70ba4c7e7
+at: '2026-11-04T12:57:41Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: S-0054/D-14
+    grade: ASSUMED
+  - id: S-0055/D-1
+    grade: LOCKED
+  - id: S-0055/D-4
+    grade: LOCKED
+  - id: S-0055/D-5
+    grade: LOCKED
+  - id: S-0055/D-6
+    grade: ASSUMED
+  - id: S-0055/D-18
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-30
+    grade: ASSUMED
+  - id: S-0055/D-31
+    grade: ASSUMED
+  - id: S-0055/D-32
+    grade: ASSUMED
+  - id: S-0055/D-33
+    grade: ASSUMED
+  - id: S-0055/D-34
+    grade: ASSUMED
+  - id: S-0055/D-56
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-6
+    grade: LOCKED
+  - id: S-0056/D-10
+    grade: LOCKED
+  - id: S-0057/D-3
+    grade: LOCKED
+  - id: S-0057/D-5
+    grade: LOCKED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-5
+    grade: LOCKED
+  - id: S-0059/D-6
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+  - id: S-0060/D-1
+    grade: LOCKED
+  - id: S-0061/D-3
+    grade: LOCKED
+  - id: S-0061/D-9
+    grade: ASSUMED
+  - id: S-0061/D-11
+    grade: ASSUMED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0064/D-1
+    grade: LOCKED
+  - id: S-0064/D-4
+    grade: LOCKED
+  - id: S-0064/D-5
+    grade: ASSUMED
+  - id: S-0064/D-6
+    grade: LOCKED
+  - id: S-0068/D-1
+    grade: ASSUMED
+  - id: S-0071/D-1
+    grade: ASSUMED
+  - id: S-0071/D-2
+    grade: ASSUMED
+  - id: S-0079/D-5
+    grade: ASSUMED
+  - id: S-0079/D-10
+    grade: ASSUMED
+  - id: S-0080/D-1
+    grade: ASSUMED
+  - id: S-0080/D-2
+    grade: ASSUMED
+  - id: S-0083/D-1
+    grade: ASSUMED
+  - id: S-0083/D-2
+    grade: ASSUMED
+  - id: S-0083/D-15
+    grade: ASSUMED
+  - id: S-0084/D-5
+    grade: ASSUMED
+  - id: S-0084/D-16
+    grade: ASSUMED
+  - id: S-0085/D-1
+    grade: ASSUMED
+  - id: S-0085/D-4
+    grade: ASSUMED
+  - id: S-0086/D-6
+    grade: ASSUMED
+  - id: S-0087/D-1
+    grade: ASSUMED
+  - id: S-0089/D-1
+    grade: ASSUMED
+  - id: S-0089/D-2
+    grade: ASSUMED
+  - id: S-0091/D-1
+    grade: ASSUMED
+  - id: S-0091/D-3
+    grade: ASSUMED
+  - id: S-0092/D-4
+    grade: ASSUMED
+  - id: S-0094/D-1
+    grade: ASSUMED
+  - id: S-0094/D-3
+    grade: ASSUMED
+  - id: S-0094/D-4
+    grade: ASSUMED
+  - id: S-0094/D-5
+    grade: ASSUMED
+  - id: S-0095/D-1
+    grade: ASSUMED
+  - id: S-0095/D-2
+    grade: ASSUMED
+  - id: S-0095/D-5
+    grade: ASSUMED
+  - id: S-0095/D-6
+    grade: ASSUMED
+  - id: S-0096/D-2
+    grade: ASSUMED
+  - id: S-0096/D-3
+    grade: ASSUMED
+  - id: S-0097/D-4
+    grade: ASSUMED
+  - id: S-0097/D-5
+    grade: ASSUMED
+  - id: S-0097/D-7
+    grade: ASSUMED
+  - id: S-0099/D-1
+    grade: ASSUMED
+  - id: S-0099/D-5
+    grade: ASSUMED
+  - id: S-0099/D-9
+    grade: ASSUMED
+  - id: S-0100/D-7
+    grade: ASSUMED
+  - id: S-0100/D-9
+    grade: ASSUMED
+  - id: S-0100/D-12
+    grade: ASSUMED
+  - id: S-0101/D-2
+    grade: ASSUMED
+  - id: S-0102/D-4
+    grade: ASSUMED
+  - id: S-0103/D-4
+    grade: ASSUMED
+  - id: S-0106/D-4
+    grade: ASSUMED
+  - id: S-0108/D-1
+    grade: ASSUMED
+  - id: S-0109/D-1
+    grade: ASSUMED
+  - id: S-0110/D-1
+    grade: ASSUMED
+  - id: S-0110/D-2
+    grade: ASSUMED
+  - id: S-0110/D-4
+    grade: ASSUMED
+  - id: S-0110/D-8
+    grade: ASSUMED
+  - id: S-0110/D-11
+    grade: ASSUMED
+  - id: S-0110/D-13
+    grade: ASSUMED
+  - id: S-0111/D-1
+    grade: ASSUMED
+  - id: S-0111/D-4
+    grade: ASSUMED
+  - id: S-0112/D-2
+    grade: ASSUMED
+  - id: S-0112/D-3
+    grade: ASSUMED
+  - id: S-0112/D-5
+    grade: ASSUMED
+  - id: S-0113/D-4
+    grade: ASSUMED
+  - id: S-0113/D-5
+    grade: ASSUMED
+  - id: S-0114/D-3
+    grade: ASSUMED
+  - id: S-0116/D-2
+    grade: ASSUMED
+  - id: S-0116/D-14
+    grade: ASSUMED
+  - id: S-0117/D-1
+    grade: ASSUMED
+  - id: S-0117/D-3
+    grade: ASSUMED
+  - id: S-0117/D-5
+    grade: ASSUMED
+  - id: S-0117/D-6
+    grade: LOCKED
+  - id: S-0117/D-7
+    grade: OPEN
+  - id: S-0118/D-9
+    grade: LOCKED
+  - id: S-0119/D-1
+    grade: ASSUMED
+  - id: S-0119/D-8
+    grade: ASSUMED
+entries:
+  - decision: D-2
+    grade: ASSUMED
+    at: '2026-11-04T12:46:53Z'
+    claim: >-
+      The review claim holds: the sweep read its range with git's rename detection
+      on, so a commit that moved an engine file outside the globs reported only the
+      destination and the engine move went undetected. The diff now reads with --no-renames,
+      so the deleted engine path is listed and matched, and a test pins a move out
+      of the globs.
+    evidence: >-
+      src/torve/cli/manager.py:741-751 — the sweep's diff is read with --no-renames
+      before the globs are matched; with the flag removed the new test fails as moved
+      == [] against ['src/torve/engine.py'], and with it the sweep returns the deleted
+      path and writes the chain_engine_moved event.
+    action: decided
+    proposal: >-
+      No specification change: S-0120/D-2 says the change to a file the globs match
+      is what the move is, and a moved file's deletion is that change; the row already
+      reads correctly, and the code now reads the range the way the ledger and the
+      lane do.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-04T12:46:53Z'
+    claim: >-
+      The review claim that the row's check never exercises the ten-path clause does
+      not hold: the check also selects test_engine_moved_carries_at_most_ten_sorted_paths_and_the_full_count,
+      which pushes twelve matched engine paths in one commit and asserts the event's
+      paths are exactly the sorted ten and its count is twelve, so an uncapped list
+      or a count derived from the truncated list fails it.
+    evidence: >-
+      tests/test_manager.py:2227-2254 — twelve sorted engine paths are pushed, event['paths']
+      must equal sorted(engine)[:10] and event['count'] must equal 12; the row's own
+      -k engine_moved collects that test, and after this task's addition it collects
+      nineteen tests including it.
+    action: decided
+    proposal: >-
+      No change: S-0120/D-2's cap and full count stand as written, and the check that
+      names the row already fails both an uncapped list and a count taken from the
+      truncated one.
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-11-04T12:46:53Z'
+    claim: >-
+      The engine still installs, upgrades and re-executes nothing: the change only
+      widens what the sweep matches in the range's diff, and the chain's part still
+      ends at the exit code while the launcher installs.
+    evidence: >-
+      src/torve/cli/manager.py:1379-1383 — the chain returns the engine-moved reason
+      and its exit code when the sweep reports the move, and no code in the changed
+      function or this caller installs, upgrades or re-executes the engine.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0055/D-22
+    grade: LOCKED
+    at: '2026-11-04T12:46:53Z'
+    claim: >-
+      No user-facing string was added or changed: the new prose is the function's
+      docstring, which no command prints, and the moved-path event payload is unchanged
+      in shape.
+    evidence: >-
+      src/torve/cli/manager.py:728-736 — the added text is the docstring of the internal
+      helper, and the changed call passes a git flag rather than any rendered string.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-11-04T12:46:53Z'
+    claim: >-
+      No new edge crosses a layer: the helper keeps its function-local imports of
+      subprocess, the vcs adapter's flag tuple and base's glob matcher, and the test
+      imports only what its neighbours do.
+    evidence: >-
+      src/torve/cli/manager.py:736-739 — the imports are the three the function already
+      carried, unchanged by this edit.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-11-04T12:46:53Z'
+    claim: >-
+      Identifiers keep the one grammar: the added prose cites S-0120/D-2 as a whole
+      token and introduces no legacy shape, and the test's docstring does the same.
+    evidence: >-
+      src/torve/cli/manager.py:728-730 — the docstring's citation is the current identifier
+      form, and the new test cites the same row in its own docstring.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0059/D-1
+    grade: LOCKED
+    at: '2026-11-04T12:46:53Z'
+    claim: >-
+      Nothing about the contract's document key moves: the change writes no contract,
+      names no document, and leaves the schema version and the spec key untouched.
+    evidence: >-
+      src/torve/cli/manager.py:741-751 — the function reads git output and returns
+      paths; no contract field, file or schema is read or written.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0059/D-12
+    grade: LOCKED
+    at: '2026-11-04T12:46:53Z'
+    claim: >-
+      No landing reader was added or changed: the sweep's new output is still the
+      matched path list its caller turns into an engine event, and every landing reader
+      keeps reading through landings and landed_commits.
+    evidence: >-
+      src/torve/cli/manager.py:751 — the returned value is the sorted matched paths,
+      and no git subprocess here reads a trailer or a subject.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0117/D-6
+    grade: LOCKED
+    at: '2026-11-04T12:46:53Z'
+    claim: >-
+      The chain still never fast-forwards the checkout its own engine imports from:
+      the changed function is inside the sweep, which the chain reaches only when
+      the engine does not resolve under the repository root.
+    evidence: >-
+      src/torve/cli/manager.py:1358 — planning is set from _engine_imports_under(root),
+      and the sweep is called only inside a pass that planning permits.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
+  - decision: S-0118/D-9
+    grade: LOCKED
+    at: '2026-11-04T12:46:53Z'
+    claim: >-
+      No lane battery record changes: the edit is in the between-night sweep and its
+      test, which write no lane.judged event and call no process_lane.
+    evidence: >-
+      tests/test_manager.py:2285-2313 — the new test asserts the sweep's returned
+      paths and the chain_engine_moved event; process_lane and its on_judged caller
+      are untouched.
+    action: decided
+    proposal: >-
+      No specification change: the row's rule is undisturbed and the changed code
+      complies.
