@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0751
+phase: 1
+attempt: 2
+base: 9a59bf8fcc36c90e1e55df1e23ee6dcb724c0661
+commit: 06d0147740a1ca64d5a8f144739a5c732a9a4323
+at: '2026-11-04T12:27:34Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-11-04T12:00:59Z'
+    claim: >-
+      S-0120 phase 1 builds the chain's part and stops it at the exit code: the chain
+      returns the reason engine moved and serve_cmd maps it to EXIT_ENGINE_MOVED,
+      and nothing in torve installs, upgrades or re-executes the engine — installing
+      the new engine is the launcher's, so the lock holds untouched.
+    evidence: >-
+      src/torve/cli/manager.py:1378 — the chain returns the engine-moved reason after
+      the sweep, and src/torve/cli/manager.py:1803 maps that reason to EXIT_ENGINE_MOVED
+      for a launcher; no install command is run anywhere in the change.
+    action: decided
