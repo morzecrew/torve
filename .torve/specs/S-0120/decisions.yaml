@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      `night.engine_paths` is a list of globs in the scope grammar naming the files
+      that make up the engine; empty, the default, turns the engine check off.
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      a repository that names nothing serves exactly as before, and torve's own night
+      names its sources, its manifest and its lock
+    rationale: >-
+      the operator knows which files are the engine; the engine cannot tell its own
+      sources from the rest of a repository it happens to live in
+    check: >-
+      uv run pytest tests/test_runconfig.py -k engine_paths
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Between nights, when the chain's fast-forward (S-0117/D-5) moves the checkout
+      across a change to a file `night.engine_paths` matches, the chain mints nothing
+      and ends with the reason `engine moved` after recording a `chain_engine_moved`
+      engine event carrying the commit before, the commit after and up to ten matched
+      paths with their count. A checkout the fast-forward did not move reports no
+      move.
+    paths: [src/torve/cli/manager.py]
+    consequence: >-
+      an engine change merged on the base reaches the chain at the next night boundary,
+      never mid-night and never mid-attempt
+    rationale: >-
+      the fast-forward already runs only with nothing in flight, so stopping there
+      cuts no attempt, leaves no lease and no stale state file; planning waits because
+      planning is engine code too
+    cites: [S-0117/D-5]
+    check: >-
+      uv run pytest tests/test_manager.py -k engine_moved
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      The engine never installs, upgrades or re-executes itself: the chain's part
+      ends at the exit code, and installing the new engine is the launcher's.
+    paths: [src/torve/cli/manager.py]
+    consequence: >-
+      a failed install leaves the previous engine in place and fails outside the engine,
+      where the operator sees it; nothing in torve writes its own installation
+    rationale: >-
+      an engine replacing its own code under a running process is the hazard S-0117/D-6
+      refuses for the checkout, and a half-done install inside the night would leave
+      neither engine runnable
+    cites: [S-0117/D-6]
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `EXIT_ENGINE_MOVED = 6` is the first code assigned above 5. `torve manager serve`
+      exits with it for the reason `engine moved`, in text and in `--format json`,
+      and with `EXIT_OK` for every other reason as before.
+    paths: [src/torve/domain/states.py, src/torve/cli/manager.py]
+    consequence: >-
+      a launcher loops on one documented code, and every launcher that treats a non-zero
+      exit as a failure keeps working, because no other reason changes its code
+    rationale: >-
+      the exit status is the one channel a shell loop reads without parsing output
+    check: >-
+      uv run pytest tests/test_manager.py -k engine_moved
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The operating guide and the night reference say that a chain plans from its
+      own checkout only when it runs an installed engine, and ship the launcher loop.
+      For torve's own chain, that loop installs into a virtualenv of its own, apart
+      from the host's shared tool install, and relaunches on exit 6.
+    paths: [pages/docs/operating.md, skills/torve/references/night.md]
+    consequence: >-
+      torve's own night stops importing from its checkout, so S-0117/D-6 no longer
+      stops it planning, and the shared install the other nights run is never reinstalled
+      under them
+    rationale: >-
+      the shared `~/.local/bin/torve` serves every night on the host, so reinstalling
+      it when torve's base moves would replace files under nights whose base did not

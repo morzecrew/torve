@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: >-
+      The chain ends when its fast-forward moves the engine
+    intent: >-
+      Add `engine_paths: list[str] = []` to `NightConfig` in `src/torve/config/runconfig.py`
+      and regenerate `.torve/schemas/` with `torve init`. Add `EXIT_ENGINE_MOVED =
+      6` to `src/torve/domain/states.py`. Change `_sync_and_plan` in `src/torve/cli/manager.py`
+      to return the matched engine paths of its fast-forward: read `HEAD` before and
+      after `merge_ff`, and when they differ and `config.night.engine_paths` is non-empty,
+      take `git diff --name-only <before> <after>` matched through `torve.base.globs.matches`.
+      When any path matches, it records a `chain_engine_moved` engine event with `from`,
+      `to`, `paths` (at most ten, sorted) and `count`, and returns before planning.
+      In `_serve`'s chain loop a non-empty return ends the chain with the reason `engine
+      moved`, and `serve_cmd` exits `EXIT_ENGINE_MOVED` for that reason in text and
+      `--format json`. Tests: the move, the commit that touches no engine path and
+      still plans, the empty list, and the checkout the fast-forward did not move,
+      against a local origin (`tests/test_manager.py`); the exit code for the reason
+      and for every other one (`tests/test_manager.py`); the key and its schema (`tests/test_runconfig.py`,
+      `tests/test_cli.py`). S-0117/D-6 stays as it is: a chain whose engine imports
+      from its checkout still neither fast-forwards nor plans, so it never reaches
+      this check. `runconfig.py` and `states.py` change additively (a defaulted field
+      and a new constant), so their many importers and those importers' tests stay
+      out of scope; the battery's `suite` gate runs the whole suite. Settles D-1,
+      D-2, D-3 and D-4.
+    scope:
+      - src/torve/config/runconfig.py
+      - src/torve/domain/states.py
+      - src/torve/cli/manager.py
+      - .torve/schemas/*.json
+      - tests/test_runconfig.py
+      - tests/test_domain.py
+      - tests/test_manager.py
+      - tests/test_cli.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_manager.py tests/test_runconfig.py tests/test_cli.py
+        tests/test_domain.py
+      - uv run mypy src
+      - uv run torve spec check
+    character: structural
+  - phase: 2
+    title: The guide runs torve's chain from its own engine
+    intent: >-
+      In `pages/docs/operating.md`, in the chain section beside S-0117's, and in `skills/torve/references/night.md`:
+      a chain fast-forwards and plans from its own checkout only when it runs an installed
+      engine; `night.engine_paths` names the engine's files; the chain exits 6 when
+      its fast-forward moves them. Ship the launcher loop that installs into its own
+      virtualenv from the checkout and relaunches on 6, and say why torve's own chain
+      must not reinstall the host's shared tool install. The skill names no corpus
+      identifier. Tests: whatever `tests/test_docs.py` and `tests/test_skills.py`
+      assert over these files. Settles D-5.
+    scope:
+      - pages/docs/operating.md
+      - skills/torve/references/night.md
+      - tests/test_docs.py
+      - tests/test_skills.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_docs.py tests/test_skills.py
+      - uv run torve spec check
+    depends_on:
+      - 1
+    character: routine
