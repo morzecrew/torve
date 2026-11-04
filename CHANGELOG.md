@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `night.engine_paths` names the files that make up the engine. When a chained night's
+  fast-forward between nights changes one of them, the chain plans nothing, records
+  `chain_engine_moved` and exits with code 6, so a launcher loop can install the new engine
+  and start the chain again. The operating guide ships that loop.
+
 - With `intake.issue_label` set, the manager's and the fleet's pass draft task contracts
   from one labelled GitHub issue per pass, through the same drafting run `torve intake`
   starts. The issue is filed as a source first, and torve never writes to it.

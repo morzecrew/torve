@@ -794,7 +794,7 @@ A seat may name a `revision_variant`, a dotted tier. When the attempt about to r
 - Consequence: an adopter that sets nothing gets today's pass, and the label is the leg's one switch
 - Check: `uv run pytest tests/test_issues.py -k off` (shadow; runs as `decision:S-0119/D-1`, no log entry owed)
 
-### S-0120/D-1 — `ASSUMED` (The chain runs the engine its base carries) — implementation: none
+### S-0120/D-1 — `ASSUMED` (The chain runs the engine its base carries)
 
 `night.engine_paths` is a list of globs in the scope grammar naming the files that make up the engine; empty, the default, turns the engine check off.
 
