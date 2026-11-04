@@ -1,0 +1,264 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+phasing:
+  - phase: 1
+    title: The thin battery
+    intent: >-
+      The attempt battery judges code only. `.torve/gates.yaml` keeps `secrets`, `scope`,
+      `suite`, `layering`, `no-test-tampering` and `acceptance`, adds a `mypy` gate
+      that convicts new errors only, and drops every bookkeeping gate. `run_gate_pass`
+      reads the manifest at the merge base and the contract from the root store, never
+      from the worktree; the gates sandbox gets a throwaway, read-only cache; the
+      session runs `ruff format` and `ruff check --fix` before the snapshot; the poison
+      ceiling counts over the task's life; and the first blocker revision goes to
+      the configured revision seat.
+    scope:
+      - /.torve/gates.yaml
+      - src/torve/gates/runner.py
+      - src/torve/gates/context.py
+      - src/torve/gates/acceptance.py
+      - src/torve/gates/scope.py
+      - src/torve/gates/no_test_tampering.py
+      - src/torve/application/runner.py
+      - src/torve/application/session.py
+      - /pyproject.toml
+      - tests/test_gates.py
+      - tests/test_runner.py
+      - tests/test_session.py
+      - tests/test_run_loop.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_gates.py tests/test_runner.py tests/test_session.py
+        tests/test_run_loop.py
+      - uv run torve gates check
+  - phase: 2
+    title: Dead code out
+    intent: >-
+      Delete the machinery no night uses and the gates that convicted nothing real:
+      evals, shadow arms, fleet, standing, notify, the opensandbox runtime, serve
+      and `web/`, survey, the verify role, the evidence matrix, and the mutation,
+      held-out, verify-tests, decisions-reported, self-audit, user-facing-text, source-layout,
+      red-on-base and row-evidence gates with their tests, CLI verbs, configuration
+      models and sabotage cases. Removed configuration keys load with a deprecation
+      warning. The import-linter independence contract gains the broker and event-store
+      adapters.
+    scope:
+      - src/torve/application/**
+      - src/torve/gates/**
+      - src/torve/config/**
+      - src/torve/cli/**
+      - src/torve/adapters/runtime/**
+      - src/torve/adapters/notify/**
+      - src/torve/_web/**
+      - /web/**
+      - sandboxes/mimo/**
+      - sandboxes/codex/**
+      - sandboxes/opencode/**
+      - skills/verifier/**
+      - /bake.hcl
+      - /pyproject.toml
+      - /uv.lock
+      - tests/**
+    acceptance:
+      - uv run pytest
+      - uv run lint-imports
+      - uv run torve gates check
+    depends_on:
+      - 1
+  - phase: 3
+    title: The executor is told what to change
+    intent: >-
+      The context pack puts the task's target files and their tests first and whole,
+      names contingent files by path only, and drops coverage counts, `gates.json`,
+      shadow reds and attestation instructions. `build_prompt` and the working rules
+      carry the anti-gaming paragraph and `torve abort`; `torve log owed` and the
+      finish hook's owed and drift checks go; the divergence log keeps `halted` and
+      `departed` only.
+    scope:
+      - src/torve/application/contextpack.py
+      - src/torve/application/colocation.py
+      - src/torve/application/divergence.py
+      - src/torve/adapters/agent/harness.py
+      - src/torve/cli/log.py
+      - skills/working-rules/**
+      - skills/flag-dont-flip/**
+      - skills/hooks/implement/**
+      - .torve/agents/**
+      - tests/test_contextpack.py
+      - tests/test_divergence.py
+      - tests/test_log.py
+      - tests/test_agents.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_contextpack.py tests/test_divergence.py tests/test_log.py
+        tests/test_agents.py
+    depends_on:
+      - 2
+  - phase: 4
+    title: The dsh seat
+    intent: >-
+      The dsh image moves to `@deepseek-ai/dsh@0.2.1-rc.5` with a `torve-exec` profile
+      built on `sdk-minimal`, the door patches the keys dsh reads, every patch carries
+      a `--dump-config` boot assertion in the smoke check, and `run` sets `DSH_PERMISSION_MODE=danger-full-access`,
+      telemetry off, a per-attempt `DSH_HOME`, an empty `DSH_AGENTS_HOME` and a 900
+      s bash timeout. A `torve-guard` plugin replaces `scope-guard-policy`. The seat's
+      model becomes `deepseek-v4.1-flash-1017` and usage is read from headless `--json`
+      events.
+    scope:
+      - sandboxes/dsh/**
+      - .torve/harnesses/dsh.yaml
+      - .torve/providers/modelstudio.yaml
+      - tests/test_sandbox_defs.py
+      - tests/test_sandbox_images.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_sandbox_defs.py tests/test_sandbox_images.py
+    depends_on:
+      - 3
+  - phase: 5
+    title: The critic judges evidence
+    intent: >-
+      `gates/evidence_package.py` builds `.torve/review/evidence.yaml` per candidate
+      from host and gates-sandbox runs. `application/critic.py` judges one candidate
+      per call with the frozen `critic/v1` prompt and returns `torve.critic/v1`; the
+      engine derives block or pass from its findings. `review_step` calls the critic;
+      earlier findings no longer reach it. A `review.mode: classic | critic` switch
+      keeps the old reviewer for one release, and the review corpus grows to include
+      the sampled blocking findings.
+    scope:
+      - src/torve/gates/evidence_package.py
+      - src/torve/gates/evidence.py
+      - src/torve/application/critic.py
+      - src/torve/application/review.py
+      - src/torve/application/feedback.py
+      - src/torve/config/runconfig.py
+      - .torve/review-corpus/**
+      - tests/test_review_role.py
+      - tests/test_review_run.py
+      - tests/test_feedback.py
+      - tests/test_critic.py
+      - tests/test_evidence_package.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_review_role.py tests/test_review_run.py tests/test_feedback.py
+        tests/test_critic.py tests/test_evidence_package.py
+    depends_on:
+      - 4
+  - phase: 6
+    title: The dsh session driver
+    intent: >-
+      `adapters/agent/dsh_session.py` runs a dsh session through headless `--json`,
+      continues it with `--session-id`, maps its events to the facts `parse_tool_calls`
+      emits, and kills a session at its timeout. `Runtime.spawn` runs a process in
+      a live sandbox. The session's `follow_up` gives a gate-red candidate one repair
+      turn, and the trace is kept.
+    scope:
+      - src/torve/adapters/agent/dsh_session.py
+      - src/torve/adapters/agent/harness.py
+      - src/torve/adapters/runtime/docker.py
+      - src/torve/application/ports.py
+      - src/torve/application/session.py
+      - tests/test_dsh_session.py
+      - tests/test_session.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_dsh_session.py tests/test_session.py
+    depends_on:
+      - 5
+  - phase: 7
+    title: Larger units
+    intent: >-
+      Contract v3 splits scope into `files`, `tests`, `fence` and `contingent`; the
+      planner licenses paired tests, the scope gate convicts only the fence, and a
+      v2 contract loads mapped. `phasing.unit: document` mints one contract per small
+      document. The spec-writer and operator skills say how to size a phase by component.
+    scope:
+      - src/torve/domain/task.py
+      - src/torve/domain/spec.py
+      - src/torve/application/planner.py
+      - src/torve/application/neighbours.py
+      - src/torve/application/manager.py
+      - .torve/schemas/**
+      - .claude/skills/spec-writer/**
+      - skills/torve/**
+      - tests/test_plan.py
+      - tests/test_neighbours.py
+      - tests/test_manager.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_plan.py tests/test_neighbours.py tests/test_manager.py
+      - uv run torve spec check
+    depends_on:
+      - 6
+  - phase: 8
+    title: Several candidates
+    intent: >-
+      `application/selection.py` launches a unit's candidates in their own `T-NNNN~k`
+      worktrees, cuts stragglers, builds each package, pre-ranks, asks the critic
+      in rank order and promotes the winner, inside the runner's attempt hook so the
+      simulation drives it. Telemetry writes one `unit.closed` record; `torve why`
+      and `night show` show candidates and critic verdicts; the reaper cleans candidate
+      worktrees.
+    scope:
+      - src/torve/application/selection.py
+      - src/torve/application/runner.py
+      - src/torve/application/telemetry.py
+      - src/torve/application/projections.py
+      - src/torve/application/reaper.py
+      - src/torve/adapters/workspace/git.py
+      - src/torve/cli/why.py
+      - src/torve/cli/night.py
+      - tests/test_selection.py
+      - tests/test_dst.py
+      - tests/test_reaper.py
+      - tests/test_projections.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_selection.py tests/test_dst.py tests/test_reaper.py
+        tests/test_projections.py
+    depends_on:
+      - 7
+  - phase: 9
+    title: Thread triage
+    intent: >-
+      The review leg makes one critic call per pull-request head that sorts every
+      unresolved bot thread, turns the valid ones into one revision whose acceptance
+      is the touched modules' tests plus mypy, and replies from the critic's evidence.
+    scope:
+      - src/torve/application/reviewleg.py
+      - src/torve/application/threads.py
+      - tests/test_reviewleg.py
+    acceptance:
+      - uv run pytest tests/test_reviewleg.py
+    depends_on:
+      - 8
+  - phase: 10
+    title: The lane slimmed
+    intent: >-
+      The lane, residency and manager lose the holdout commits, the evidence table
+      and the legs of deleted machinery; row checks run at document completion only.
+    scope:
+      - src/torve/application/lane.py
+      - src/torve/application/residency.py
+      - src/torve/cli/manager.py
+      - tests/test_lane.py
+      - tests/test_residency.py
+      - tests/test_manager_e2e.py
+    acceptance:
+      - >-
+        uv run pytest tests/test_lane.py tests/test_residency.py tests/test_manager_e2e.py
+    depends_on:
+      - 9
+  - phase: 11
+    title: The measurement harness
+    intent: >-
+      `scripts/measure/` replays past documents at their base commits against hidden
+      behavioural checks kept outside the repository, across a bare Opus session,
+      a bare dsh session, torve at width one and torve with selection, and reports
+      pass@1, pass^3, blind pairwise review, cost, wall time and owner minutes. It
+      runs only after the release.
+    scope: [scripts/measure/**]
+    acceptance:
+      - >-
+        uv run python -m py_compile scripts/measure/__init__.py
+    depends_on:
+      - 10

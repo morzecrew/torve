@@ -1,0 +1,239 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0122
+title: Judge-and-select rebuild
+kind: design
+change:
+  type: feat
+  scope: engine
+status: accepted
+implementation: none
+depends_on: [S-0121]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: misery7100
+schema_version: 4
+summary: |
+  torve becomes a judge-and-select engine around a thin dsh executor: one to three cheap
+  DeepSeek candidates per unit, a thin battery that judges code, an evidence package the host
+  builds by running each candidate against its base, a pointwise Opus critic that alone can
+  block, and Opus revisions. The rebuild is built in a session, not by the engine, as eleven
+  phases that land as pull requests, and ships once as 0.9.0.
+motivation: |
+  The teardown of 2026-11-04 measured where the engine's value came from. The Opus reviewer
+  blocked 46% of first reviews, and 10 of 16 sampled blocks were real bugs with none spurious.
+  The rest of the machinery mostly judged its own bookkeeping: 55% of red attempts were red
+  only on bookkeeping gates, attestation entries were 67% of the divergence log and changed no
+  outcome, the evidence gate was red on 57 of 58 attempts because it judged every row of a
+  document, and the coverage-delta gate was the largest time sink of the battery at 17,663 s
+  over 173 runs. The executor's prompt was about 5% signal and could cut the very files a task
+  edits. The published state of the art agrees on the shape that works: a minimal executor,
+  value from verification and selection, a judge separate from the writer, and defences
+  against tests being gamed.
+current_state: |
+  Verified in the code at the 0.8.0 release:
+
+  - The battery reads its gate manifest and the task's contract from the agent's worktree, so a
+    candidate can edit its own judge (S-0121/D-3 states the rule this breaks).
+  - The gates sandbox mounts the attempt's writable cache volume, a route from candidate code
+    to the next attempt.
+  - The context pack lists the task's files alphabetically before its 60 KB outline cut, so the
+    files a task edits can be cut from its prompt.
+  - The poison ceiling counts per dispatch, so a requeued task restarts its count.
+  - The dsh image's door patches `candidates` and `roots`, keys dsh 0.1.2-rc.1 does not have
+    (the real ones are `instructionFileCandidates`, `customSkillDirs` and
+    `includeDefaultRoots`), so the repository's instruction files and default skill roots
+    reach that seat (S-0121/D-10).
+  - ModelStudio maps the configured reasoning level `medium` to `high`.
+  - The reviewer is given earlier reviews' findings, which anchors it, and its verdict is one
+    call per attempt with no notion of candidates.
+goals: |
+  - A battery that judges code only, reading nothing a candidate wrote.
+  - An evidence package the host builds, scoped to the rows a unit owns.
+  - An Opus critic whose findings, not its stated verdict, decide block or pass.
+  - Width: one to three candidates per unit, selected by a deterministic pre-rank and the
+    critic.
+  - dsh as the executor substrate on its Minimal profile, driven turn by turn, with full
+    traces.
+  - Units sized by component, with paired tests licensed, so scope amendments stop.
+  - One record per unit from which pass@1, selection win rate, critic precision, cost per
+    landed unit and owner minutes are computed.
+  - About 12k fewer lines of engine code.
+non_goals: |
+  - No comparison of the engine against a bare session before the release. The measurement
+    harness is built last and runs after 0.9.0.
+  - No hidden checks in this document. They come after selection works, written and run on
+    the host only.
+  - No change to the landing route, the lane's role, the event store or the broker beyond
+    what the phases name. S-0121 holds those.
+  - The engine does not build this rebuild; the torve night stays off until the release.
+design:
+  - key: how-it-is-built
+    md: |
+      A session builds every phase and opens one pull request per phase, in order, each green on
+      the suite. The installed 0.8.0 reviewer (`torve review pr`) and the bots review each pull
+      request beside the owner. The torve night stays off: after every merge its S-0120 loop
+      would reinstall a half-built engine. Images are built locally while the rebuild runs, one
+      real run on a scratch repository precedes the tag, and 0.9.0 is the only release.
+      Consumers stay on 0.8.0 until their pins are bumped.
+  - key: the-thin-battery
+    md: |
+      The attempt battery keeps six gates that judge code: `secrets`, `scope` (blocking only on
+      the fence), `suite` with head and base attribution, `mypy` (new errors only, matched on
+      path, code and message, ignoring the line), `layering`, and protected-test tampering. The
+      engine runs `ruff format` and `ruff check --fix` in the sandbox before the snapshot.
+      Everything else leaves the attempt battery: bookkeeping gates are deleted, the spec gates
+      move to CI and document completion, and a row's `check` runs at completion and in the
+      evidence package. The manifest is read at the merge base and the contract from the root
+      store. A red gate removes a candidate from selection; its package is still built.
+  - key: the-evidence-package
+    md: |
+      The host and a throwaway gates sandbox build `.torve/review/evidence.yaml` for each
+      candidate. It holds the base and head sha, diff statistics, edits outside the unit's files
+      and tests (advisory), fence breaches (blocking), every gate result with the suite's
+      convicted, inherited and flaky test ids, and the changed and added tests run on base and
+      head. Each owned row gets a status: `proved` (red on base, green on head), `held`,
+      `broken`, `failing`, `unlinked` or `not_run`. Acceptance commands the battery does not
+      already run are listed with exit code and output tail. An AST diff of existing tests flags
+      removed asserts, added skips and loosened assertions; greps flag text addressed to a
+      reviewer and code that branches on running under test. The executor's one channel is a
+      `torve abort` record, shown as the author's claim. The package is capped at 24 KB, and
+      `held` checks are dropped first.
+  - key: the-critic
+    md: |
+      The critic gets a disposable copy of the candidate tree, the base tree, the diff, the
+      package, the owned rows and the intent. It may run anything, without network, for 300 s,
+      and may write probes; a probe is kept only when a finding names it as its repro. It never
+      sees the executor's trace, commit message, pull-request text, log entries, other
+      candidates' diffs or earlier reviews' findings. It returns `torve.critic/v1`: a verdict per
+      owned row (`holds`, `violated`, `unknown`) with located evidence, and findings with
+      severity, kind, evidence and repro. The engine blocks when a located finding is at or
+      above `review.blocks_at`, or an owned row is `violated` with located evidence. The prompt
+      is frozen and versioned; a change is tested first on 30 labelled past reviews.
+  - key: selection-and-revision
+    md: |
+      A unit's class sets its width: S (docs or config, 40 source lines or fewer in one file, a
+      revision or a bot-thread batch) runs one candidate, M runs two, L (a new module, three or
+      more source files, or a unit that escalated once) runs three. Candidates start from one
+      base sha in their own worktrees. Stragglers are cut at 1.5 times the first green
+      finisher's wall time, capped at 15 minutes. Candidates with a red blocking gate or a
+      protected-test edit drop out; identical normalised diffs collapse. A deterministic
+      pre-rank orders the rest by failing checks, flags, source lines changed, contingent paths
+      widened and a seeded draw. The critic reviews in rank order and the first clean candidate
+      lands.
+
+      A gate-red candidate with three or fewer convicted tests, or only mypy errors, gets one
+      follow-up turn in its own dsh session with the gate output. A critic block goes to a
+      fresh Opus session on the selected tree with the blocking findings and their repros, at
+      most two rounds. A unit stops at five critic calls, $3 notional spend or 90 minutes.
+  - key: the-dsh-seat
+    md: |
+      The seat pins `@deepseek-ai/dsh@0.2.1-rc.5` and the model snapshot
+      `deepseek-v4.1-flash-1017`. Its profile, `torve-exec`, builds on `sdk-minimal`: persistent
+      bash, `read_image` and `working_directory`. A Standard-lite variant stays configurable,
+      and selection telemetry shows which wins. Inside the container dsh runs with
+      `DSH_PERMISSION_MODE=danger-full-access`; isolation is the container's job (non-root, egress
+      to the model endpoint only). Telemetry is off, `DSH_HOME` is per attempt,
+      `DSH_AGENTS_HOME` is empty, and the bash timeout is 900 s. The door patches the real keys,
+      and every patch carries a `--dump-config` boot assertion, because dsh disables a refused
+      plugin and ignores an unknown key without an error. The engine drives a session through
+      headless `--json` and continues it with `--session-id`; the NDJSON events give tool calls,
+      results and per-step usage. A `torve-guard` plugin replaces `scope-guard-policy`: it
+      refuses fenced writes, adds an `abort_task` tool, and runs the finish check once at turn
+      stop.
+  - key: units-and-contracts
+    md: |
+      Contract v3 splits scope into `files` (owned, the disjointness key), `tests` (paired tests
+      derived at mint and licensed), `fence` (the manifest's deny list plus the engine's own
+      paths) and `contingent` (names only). Edits outside `files` and `tests` become evidence;
+      only the fence convicts. A v2 contract loads mapped for one release. A new phasing key,
+      `unit: phase | document`, mints one contract for a whole small document, and is the
+      default when a document has three phases or fewer. A contract carries its own document's
+      rows plus at most ten LOCKED rows of other documents whose paths it touches.
+  - key: what-goes
+    md: |
+      Deleted: evals and arms, shadow arms, fleet, standing work, notify, the opensandbox
+      runtime, serve and the web dashboard, survey, the verify role with held-out and
+      verify-tests, mutation, coverage-delta, decisions-reported, self-audit, user-facing-text,
+      source-layout, red-on-base, row-evidence, the evidence matrix, and the mimo, codex and
+      opencode sandboxes. The divergence log keeps `halted` (written by `torve abort`) and
+      `departed`; the `decided` and `resolved` attestations, `torve log owed` and the silence
+      check go. The issue intake leg stays. A removed configuration key is accepted with a
+      deprecation warning for one release.
+  - key: the-record
+    md: |
+      Every unit writes one `unit.closed` record: its base, class and width; the executor and
+      critic prompt shas; per candidate the seat, wall time, cost, tokens, gate outcome, flags,
+      rank and the critic's verdict; the selected candidate, the critic calls and the revisions;
+      the outcome; and the owner's minutes and hand commits. A nightly job adds a 30-day
+      follow-up of fix commits and reverts touching the unit's lines. Findings are labelled
+      `acted`, `rebutted` or `ignored`, and the owner audits 8 findings and 4 clean verdicts a
+      week. Telemetry moves to schema 2; the v1 file is kept read-only.
+  - key: measurement
+    md: |
+      The measurement harness lives outside the engine, under `scripts/measure/`, with a private
+      task set: past documents at their base commits, each with a behavioural check kept outside
+      the repository. Its arms are a bare Opus session, a bare dsh session, torve at width one
+      and torve with selection. It reports pass@1, pass^3, blind pairwise review, cost, wall
+      time, owner minutes, cheating caught and 30-day follow-ups. About 60 paired tasks detect a
+      20-point difference. It runs only after 0.9.0.
+tests: |
+  Each phase lands with its own tests beside the code and keeps the full suite green. The
+  deterministic simulation (`tests/test_dst.py`) drives selection through a fake two-candidate
+  wave. The critic is checked by replaying `.torve/review-corpus`, grown to include the 16
+  sampled blocking findings, and it must flag the seeded defects with no lower recall than the
+  classic reviewer before its switch flips. The dsh seat is checked by its image smoke test
+  with the boot assertions, and by three replays of past routine phases by hand. Before the
+  release, one real run on a scratch repository exercises the whole loop. Not tested: whether
+  the engine beats a bare session; that is the measurement, after the release.
+docs: ''
+out_of_scope: ''
+risks: |
+  - The cost and escalation model rests on an Opus revision clear rate measured on six
+    revisions; the first nights after the release replace it with `unit.closed` records.
+  - dsh is a developer preview with breaking changes in every release candidate, and its
+    headless and SDK surfaces have no version negotiation.
+  - Candidate code runs in the same process as pytest and can forge results; the defences
+    detect cheating rather than prevent it.
+  - Opus judging Opus revisions favours its own work; the shadow critic gives a second
+    opinion.
+  - On a subscription seat, rate limits on parallel critics bind before dollars do.
+  - The first night on the rebuilt engine refuses a configuration that still names removed
+    keys, unless the shims hold; `config.night.yaml` is edited before that night.
+alternatives:
+  - option: >-
+      One critic call that ranks all candidates at once
+    rejected_because: >-
+      Judges shift with candidate order (up to 14% in CodeJudgeBench); pointwise verdicts
+      are also the per-candidate labels calibration needs
+  - option: DeepSeek V4-Pro as the critic or the first pass
+    rejected_because: >-
+      It costs about 4.4 times V4.1-Flash and scores lower on agentic coding; V4.1-Flash-1017
+      runs as a non-blocking shadow critic instead
+  - option: >-
+      Thirteen documents built by the engine itself, released three times
+    rejected_because: >-
+      The engine judging changes to its own gates is circular, phase bookkeeping was
+      the slow part, and intermediate images have no user while the night is off
+  - option: >-
+      The dsh SDK's JSON-RPC client as the first driver
+    rejected_because: >-
+      Headless `--json` with `--session-id` already continues a session and reports
+      tool calls and usage on today's runtime; the SDK client is written only if live
+      events are needed
+  - option: Deleting S-0001 to S-0120 outright
+    rejected_because: >-
+      `torve spec check` refuses every unresolved citation, and the source carries
+      4,288 of them; the archive keeps them resolving until the code that cites them
+      is gone
+questions:
+  - id: Q-1
+    text: >-
+      Should a hidden-check failure on an owned row ever block on its own when the
+      critic calls the test wrong, or escalate as a verifier dispute? Settled when
+      hidden checks are added.
+  - id: Q-2
+    text: >-
+      Which provider serves the executor once the ModelStudio quota ends: ModelStudio
+      at list price, or DeepSeek direct with session-log upload turned off? The owner
+      settles it.
