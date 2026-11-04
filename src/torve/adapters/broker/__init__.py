@@ -1,9 +1,7 @@
 """The egress broker's adapters (S-0021/the-port, S-0021/D-2): `local` is a
 reverse proxy the runner starts on loopback for the life of the run and
 holds the real provider keys in its own environment; `none` is today's
-behaviour named explicitly and stays the phase-1 default; `opensandbox`
-arrives with its server — the port exists so that work is an adapter, never
-a prerequisite (the config refuses it until then).
+behaviour named explicitly and stays the phase-1 default.
 """
 
 from __future__ import annotations
@@ -21,8 +19,7 @@ from torve.adapters.broker.none import NoneBroker
 
 
 def build_broker(config: BrokerConfig) -> Broker:
-    """The configured adapter. `opensandbox` is refused at configuration
-    load, so this factory never sees it."""
+    """The configured adapter: the configuration admits no other."""
 
     if config.adapter == "none":
         return NoneBroker()

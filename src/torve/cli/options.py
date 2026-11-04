@@ -38,7 +38,6 @@ from torve.domain.states import EXIT_CONFIG
 
 class RuntimeName(StrEnum):
     DOCKER = "docker"
-    OPENSANDBOX = "opensandbox"
 
 
 # ....................... #
@@ -132,19 +131,11 @@ def load_config(root: Path, config_path: Path | None) -> RunnerConfig:
 
 def runtime_for(config: RunnerConfig, override: RuntimeName | None) -> Runtime:
     from torve.adapters.runtime.docker import DockerRuntime
-    from torve.adapters.runtime.opensandbox import OpenSandboxRuntime
 
     adapter = override.value if override else config.runtime.adapter
 
     if adapter == "docker":
         return DockerRuntime(network=config.runtime.network, docker_mode=config.runtime.docker)
-
-    if adapter == "opensandbox":
-        try:
-            return OpenSandboxRuntime(config.runtime.opensandbox, docker_mode=config.runtime.docker)
-
-        except ValueError as exc:
-            raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
     raise fail(f"configuration error: unknown runtime adapter {adapter!r}", EXIT_CONFIG)
 

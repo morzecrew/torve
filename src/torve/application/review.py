@@ -380,8 +380,7 @@ def stage_review_copy(worktree: Path, copy: Path) -> Path:
     Staged only once the review's whole input exists, so nothing read into the
     judgment can be something the reviewer then wrote. And `.git` does not
     travel with the copy: a worktree's gitfile is a pointer into the host's
-    repository — the same pointer the OpenSandbox adapter strips from its
-    workspace tar, and for the same reason — so a copy that carried it could
+    repository, so a copy that carried it could
     write through the pointer into the very history the review exists to
     leave alone. The tree travels; the repository does not.
     """

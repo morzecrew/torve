@@ -273,8 +273,11 @@ def _doctor_repo(tmp_path, config):
     return root
 
 
-def test_doctor_names_the_mock_store_as_test_only(tmp_path):
-    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "opensandbox"}})
+def test_doctor_names_the_mock_store_as_test_only(tmp_path, monkeypatch):
+    root = _doctor_repo(tmp_path, {})
+    monkeypatch.setattr(
+        "torve.cli.options.runtime_for", _fake_docker_runtime("sha256:" + "ab" * 32)
+    )
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
     checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
     assert checks["store"]["ok"] is True
@@ -283,8 +286,9 @@ def test_doctor_names_the_mock_store_as_test_only(tmp_path):
 
 def test_doctor_reds_on_a_postgres_store_with_no_dsn(tmp_path, monkeypatch):
     monkeypatch.delenv("TORVE_PG_DSN", raising=False)
-    root = _doctor_repo(
-        tmp_path, {"runtime": {"adapter": "opensandbox"}, "store": {"adapter": "postgres"}}
+    root = _doctor_repo(tmp_path, {"store": {"adapter": "postgres"}})
+    monkeypatch.setattr(
+        "torve.cli.options.runtime_for", _fake_docker_runtime("sha256:" + "ab" * 32)
     )
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
     assert result.exit_code == 3
@@ -299,8 +303,9 @@ def test_doctor_reds_on_a_postgres_store_that_does_not_answer(tmp_path, monkeypa
     monkeypatch.setenv(
         "TORVE_PG_DSN", "postgresql://nobody:nothing@127.0.0.1:1/none?connect_timeout=1"
     )
-    root = _doctor_repo(
-        tmp_path, {"runtime": {"adapter": "opensandbox"}, "store": {"adapter": "postgres"}}
+    root = _doctor_repo(tmp_path, {"store": {"adapter": "postgres"}})
+    monkeypatch.setattr(
+        "torve.cli.options.runtime_for", _fake_docker_runtime("sha256:" + "ab" * 32)
     )
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
     assert result.exit_code == 3
@@ -317,7 +322,7 @@ def _fake_docker_runtime(digest):
     return lambda config, override: _FakeRuntime()
 
 
-def test_doctor_image_check_is_unchanged_with_no_eval_ledger(tmp_path, monkeypatch):
+def test_doctor_image_check_prints_the_runtime_digest(tmp_path, monkeypatch):
     root = _doctor_repo(tmp_path, {"runtime": {"adapter": "docker"}})
     digest = "sha256:" + "ab" * 32
     monkeypatch.setattr("torve.cli.options.runtime_for", _fake_docker_runtime(digest))
@@ -386,38 +391,6 @@ def test_doctor_keeps_the_runtime_red_when_the_registry_cannot_resolve(tmp_path,
         "ghcr.io/morzecrew/torve-agent:0.1.1: not present in the runtime — "
         "build it (just images) or pull it"
     )
-
-
-def test_doctor_prints_the_registry_digest_under_opensandbox(tmp_path, monkeypatch):
-    # The digest rule is runtime-independent (S-0017/the-image-is-an-input-not-an-environment): under the
-    # opensandbox runtime — whose server pulls from a registry — a
-    # registry reference gets the same line, resolved from the registry.
-    root = _doctor_repo(
-        tmp_path,
-        {"runtime": {"adapter": "opensandbox", "image": "ghcr.io/morzecrew/torve-agent:0.1.1"}},
-    )
-    digest = "sha256:" + "ab" * 32
-    monkeypatch.setattr("torve.cli.doctor._registry_digest", lambda image: digest)
-
-    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
-    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
-    image_check = checks["image ghcr.io/morzecrew/torve-agent:0.1.1"]
-    assert image_check["ok"] is True
-    assert image_check["detail"] == f"ghcr.io/morzecrew/torve-agent:0.1.1 = {digest[:19]}"
-
-
-def test_doctor_opensandbox_stays_silent_when_the_registry_cannot_resolve(tmp_path, monkeypatch):
-    # No new failure mode under opensandbox: an unresolved reference gets
-    # no image line at all, never a red doctor.
-    root = _doctor_repo(
-        tmp_path,
-        {"runtime": {"adapter": "opensandbox", "image": "ghcr.io/morzecrew/torve-agent:0.1.1"}},
-    )
-    monkeypatch.setattr("torve.cli.doctor._registry_digest", lambda image: None)
-
-    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
-    names = [c["name"] for c in json.loads(result.stdout)["checks"]]
-    assert not any(name.startswith("image ") for name in names)
 
 
 def test_registry_digest_only_queries_explicit_registry_hosts(monkeypatch):

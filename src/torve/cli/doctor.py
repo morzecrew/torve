@@ -38,9 +38,8 @@ that the runtime cannot resolve asks the registry itself for the digest,
 anonymously and best-effort, and prints the same line a local image
 gets, so "what exactly will run" has one answer for both kinds of
 reference. The registry leg is informational: an unreachable registry or
-unknown reference keeps the runtime's existing answer (the docker red,
-or silence under the opensandbox runtime, whose server pulls from the
-registry), because resolution failure already fails dispatch loudly.
+unknown reference keeps the runtime's existing answer (the docker red),
+because resolution failure already fails dispatch loudly.
 """
 
 from __future__ import annotations
@@ -447,8 +446,6 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 
     try:
         # The runtime's word covers local images (docker daemon, S-0017/D-2).
-        # The opensandbox runtime sees no local images — its server pulls
-        # from a registry — so only the registry leg speaks for it.
         runtime = runtime_for(config, None) if config.runtime.adapter == "docker" else None
 
         for image in configured_images(config):

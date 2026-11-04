@@ -463,14 +463,13 @@ class Broker(Protocol):
     credential the run needs, exposes one loopback route per routed
     provider, injects the key and meters at the wire, and refuses requests
     past the run's budget. Adapters: `local` (a reverse proxy the runner
-    starts on loopback for the life of the run), `opensandbox` (the server's
-    vault and egress control behind the same port, when a server exists),
-    `none` (today's behaviour, named explicitly).
+    starts on loopback for the life of the run) and `none` (today's
+    behaviour, named explicitly).
 
     The handle's fields reach the sandbox through the tier command — the
     channel S-0017/configuration-routes-by-nature assigns to operator non-secret knobs."""
 
-    name: str  # "local" | "opensandbox" | "none"
+    name: str  # "local" | "none"
 
     def open(
         self,

@@ -1435,7 +1435,7 @@ def test_intake_exits_as_infrastructure_when_its_runtime_cannot_be_built(seeded,
     from torve.domain.states import EXIT_INFRASTRUCTURE
 
     def no_runtime(config, override):
-        raise RuntimeError("the opensandbox runtime is not installed")
+        raise RuntimeError("the docker runtime is not installed")
 
     monkeypatch.setattr("torve.cli.intake.runtime_for", no_runtime)
 

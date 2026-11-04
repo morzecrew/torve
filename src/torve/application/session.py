@@ -525,9 +525,9 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
 
     attempt_started_at = stamp()
     attempt_clock = time.monotonic()
-    # S-0113/D-2: a sandbox's git may not answer — OpenSandbox ships no
-    # `.git` — so the host leaves the worktree's tracked files where the
-    # citation scan reads them, before the sandbox starts.
+    # S-0113/D-2: a sandbox's git may not answer, so the host leaves the
+    # worktree's tracked files where the citation scan reads them, before the
+    # sandbox starts.
     write_tracked_files(worktree)
     handle = deps.runtime.create(spec, worktree)
     state.sandbox_id = handle.id

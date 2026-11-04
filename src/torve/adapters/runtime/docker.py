@@ -1,5 +1,4 @@
-"""Runtime port over Docker — the sanctioned fallback beside OpenSandbox
-(S-0003/D-3). The container is the unit of lifecycle: destroying it kills
+"""Runtime port over Docker (S-0003/D-3). The container is the unit of lifecycle: destroying it kills
 everything inside, including grandchildren that called setsid (S-0001/D-12).
 
 The workspace is bind-mounted at the spec's workdir, so `sync_out` is a

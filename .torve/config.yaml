@@ -6,7 +6,7 @@
 schema_version: 1
 
 runtime:
-  adapter: docker            # docker | opensandbox
+  adapter: docker
   image: python:3.13-slim
   # Strictly outside `agent_timeout`, and refused otherwise: T-0361 died at
   # 1800.2s as an infrastructure failure while the agent clock said 2200,
@@ -22,9 +22,6 @@ runtime:
                              # forwards the standard proxy env (http_proxy et
                              # al., names only). "" = docker's default bridge,
                              # which is region-blocked from here.
-  opensandbox:
-    domain: localhost:5266
-    api_key_env: OPENSANDBOX_API_KEY   # the name of the variable, never the key
 
 store:
   adapter: postgres          # mock | postgres — postgres for real cross-process runs (D-3.6)

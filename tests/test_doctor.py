@@ -167,11 +167,10 @@ def test_equipment_check_is_silent_with_no_override(tmp_path: Path):
     assert _equipment_checks(root, None) == []
 
 
-def test_doctor_json_carries_the_seat_line_and_stays_green(tmp_path: Path):
+def test_doctor_json_carries_the_seat_line_and_stays_green(tmp_path: Path, docker_free):
     root = _seat_repo(
         tmp_path,
         {
-            "runtime": {"adapter": "opensandbox"},
             "tiers": {"executor": {"harness": "fake", "profile": "careful"}},
         },
         careful="equipment: [{kind: skill, source: torve:flag-dont-flip}]\n",
@@ -286,11 +285,10 @@ def test_promotion_line_separates_the_armed_criteria_from_the_unarmed(tmp_path: 
     assert "armed: require_review, approvals" in detail
 
 
-def test_doctor_json_carries_the_promotion_statement_and_stays_green(tmp_path: Path):
+def test_doctor_json_carries_the_promotion_statement_and_stays_green(tmp_path: Path, docker_free):
     root = _seat_repo(
         tmp_path,
         {
-            "runtime": {"adapter": "opensandbox"},
             "promotion": {"auto_merge": True, "approvals": 1},
             "tiers": {"executor": {"harness": "fake"}},
         },
