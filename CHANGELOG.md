@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-04
+
 ### Added
 
 - `night.engine_paths` names the files that make up the engine. When a chained night's
@@ -55,6 +57,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   pull request shows each row's proving tests, check, survivors and findings, and the
   reviewer asks whether each proving test exercises its row.
   
+
+- **Upgrade:** upgrade every host that shares a store together: 0.7.0 cannot read the
+  `lane.judged` record a 0.8.0 battery writes.
+
+- **Upgrade:** `torve init` refreshes `.torve/schemas/` for `revision_variant`,
+  `intake.issue_label`, `night.engine_paths`, a document's `fixes` and `@suite`. A seat
+  whose harness image names `{torve}` runs the 0.8.0 images the tag's publish workflow builds.
+
 ### Changed
 
 - The review-thread leg refuses a thread as asking for a command only when it names one:
@@ -2670,7 +2680,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   src+tests pythonpath). `uv run mypy src` joins CI and the acceptance
   fallback in `gates.yaml`.
 
-[Unreleased]: https://github.com/morzecrew/torve/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/morzecrew/torve/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/morzecrew/torve/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/morzecrew/torve/compare/v0.6.4...v0.7.0
 [0.6.4]: https://github.com/morzecrew/torve/compare/v0.6.3...v0.6.4
 [0.6.3]: https://github.com/morzecrew/torve/compare/v0.6.2...v0.6.3
