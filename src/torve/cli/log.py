@@ -4,7 +4,7 @@ only (S-0015/D-6); the checking, the serialization and the staging are
 `torve.application.divergence`. The entry travels through the run's live
 channel when it has one and into the worktree's log when it does not, and
 the notes verb reads the other direction of that channel (S-0045/the-intake-route,
-§5.3).
+§5.3). `torve abort` is the same intake, writing a halt (S-0122/D-14).
 """
 
 from __future__ import annotations
@@ -13,17 +13,10 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from rich.text import Text
 
 from torve.application.channel import ChannelRefused, open_channel
-from torve.application.divergence import (
-    IntakeRefused,
-    append,
-    compose,
-    open_log,
-    payload_of,
-)
-from torve.cli.console import STYLE_DIM, Format, closing, emit_json, err, fail, make_table, out
+from torve.application.divergence import IntakeRefused, append, compose, current, halts, payload_of
+from torve.cli.console import Format, closing, emit_json, err, fail, make_table, out
 from torve.cli.options import ConfigOption, DsnOption, FormatOption, PartitionOption, RootOption
 from torve.config import layout
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
@@ -83,12 +76,12 @@ def divergence_cmd(
         ),
     ] = None,
     action: Annotated[
-        list[str] | None, typer.Option("--action", help="halted, departed or decided.")
+        list[str] | None, typer.Option("--action", help="halted or departed.")
     ] = None,
     attempt: Annotated[int, typer.Option("--attempt", min=1, help="Which attempt this is.")] = 1,
     kind: Annotated[
         list[str] | None,
-        typer.Option("--kind", help="contradicted, departed, resolved or blocked."),
+        typer.Option("--kind", help="contradicted, departed or blocked."),
     ] = None,
     klass: Annotated[
         list[str] | None,
@@ -179,6 +172,15 @@ def divergence_cmd(
     if problems:
         raise _refuse(problems, rows, fmt, "the log is unchanged")
 
+    _deliver(root, task_id, entries, fmt)
+
+
+def _deliver(root: Path, task_id: str, entries: list[dict[str, Any]], fmt: Format) -> None:
+    """Send checked entries the one way an agent writes the record (S-0121/D-4):
+    `divergence.recorded` through the run's channel, or into the worktree's
+    log when the run has none. Ends the command either way."""
+
+    rows = len(entries)
     channel = open_channel(root)
 
     if channel is not None:
@@ -229,6 +231,70 @@ def divergence_cmd(
         + (" and staged" if staged else " — the engine stages it host-side"),
     )
     raise typer.Exit(EXIT_OK)
+
+
+# ....................... #
+
+
+def abort_cmd(
+    claim: Annotated[
+        str,
+        typer.Option("--claim", help="What cannot hold, and why, in one paragraph."),
+    ],
+    evidence: Annotated[
+        str,
+        typer.Option(
+            "--evidence",
+            help="One leading 'path:line - one sentence' citation, or a backticked "
+            "command with its output.",
+        ),
+    ],
+    row: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--row",
+            help="A contract row the task contradicts, by its id; repeat for each. "
+            "None when the task is impossible or underspecified as a whole.",
+        ),
+    ] = None,
+    root: RootOption = Path("."),
+    fmt: FormatOption = Format.TEXT,
+) -> None:
+    """Stop this task: its rows, its intent and its tests cannot all hold.
+
+    Writes one halted entry per row named, or one for the task when none is,
+    for the task and attempt this worktree is running. A halt on a LOCKED row
+    goes to the owner; any other goes back to the author as underspecified.
+    A justified abort is a successful attempt: stop working once it is
+    recorded.
+
+    Checked before anything is written, like every log entry: a refusal says
+    what to repair.
+    """
+    # S-0122/D-14, S-0121/D-4: a halt is a `divergence.recorded` like any
+    # other entry, through the same channel; the escalation is the session's
+    # reading of it (`_halt_reason`), never this verb's.
+
+    from torve.gates.context import load_task
+
+    root = root.resolve()
+    rows = row or []
+
+    try:
+        task_id, attempt = current(root)
+        contract = layout.task_file(root, task_id)
+
+        try:
+            task = load_task(contract)
+        except (OSError, ValueError) as exc:
+            raise IntakeRefused([f"no readable contract for {task_id}: {exc}"]) from exc
+
+        entries = halts(root, task, rows, claim=claim, evidence=evidence, attempt=attempt)
+
+    except IntakeRefused as refused:
+        raise _refuse(refused.problems, max(len(rows), 1), fmt, "nothing was halted") from None
+
+    _deliver(root, task_id, entries, fmt)
 
 
 # ....................... #
@@ -286,77 +352,6 @@ def notes_cmd(
         )
 
     console.print(table)
-    raise typer.Exit(EXIT_OK)
-
-
-# ....................... #
-
-
-@log_app.command("owed")
-def owed_cmd(
-    task_id: Annotated[str, typer.Argument(help="The task whose log to check.")],
-    touched: Annotated[
-        list[str] | None,
-        typer.Option("--touched", help="A file this attempt changed; repeat for each."),
-    ] = None,
-    root: RootOption = Path("."),
-    fmt: FormatOption = Format.TEXT,
-) -> None:
-    """What this attempt's log still owes, before a gate says so.
-
-    Name the files you changed; this answers which LOCKED decisions govern
-    them with no entry citing them yet. It is the same check the
-    `decisions-reported` gate performs on the diff — the same code, so a
-    green answer here and a conviction later cannot disagree.
-
-    Nothing is written. A run with a channel is asked what it has recorded;
-    a run without one reads the worktree's log.
-    """
-
-    from torve.application.channel import ChannelRefused, open_channel
-    from torve.gates.context import load_task
-    from torve.gates.log_entry import owed
-
-    root = root.resolve()
-    contract = layout.task_file(root, task_id)
-
-    if not contract.is_file():
-        raise fail(f"configuration error: no task contract at {contract}", EXIT_CONFIG)
-
-    channel = open_channel(root)
-    cited: list[str] = []
-
-    if channel is not None:
-        try:
-            cited = [str(one.get("decision_id") or "") for one in channel.records()]
-
-        except ChannelRefused as refused:
-            raise fail(f"configuration error: {refused}", EXIT_CONFIG) from refused
-
-    else:
-        cited = [str(one.get("decision") or "") for one in open_log(root, task_id)["entries"]]
-
-    problems, skipped = owed(load_task(contract).decisions, touched or [], cited)
-
-    if fmt is Format.JSON:
-        emit_json({"task": task_id, "owed": problems, "skipped": skipped})
-        raise typer.Exit(EXIT_OK)
-
-    console = out(fmt)
-
-    for one in skipped:
-        console.print(Text(f"  {one}", STYLE_DIM))
-
-    if not problems:
-        closing(console, "nothing owed — every LOCKED decision your changes touch has an entry")
-        raise typer.Exit(EXIT_OK)
-
-    console.print("these decisions govern what you changed and have no entry yet:")
-
-    for problem in problems:
-        console.print(f"  {problem}")
-
-    closing(console, "record one entry per decision with `torve log divergence`")
     raise typer.Exit(EXIT_OK)
 
 

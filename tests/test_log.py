@@ -1,4 +1,6 @@
-"""`torve log divergence` taking several rows in one call (S-0073/D-7).
+"""`torve log divergence` taking several rows in one call (S-0073/D-7), and
+`torve abort`, the halt an executor writes when its task cannot hold
+(S-0122/D-14).
 
 The bookkeeping tail measured four to fourteen calls per attempt, one
 `log divergence` per governed row. The rows arrive together here, and the
@@ -30,11 +32,11 @@ def row(decision, evidence=HOSTILE, **overrides):
     fields = {
         "--decision": decision,
         "--grade": "ASSUMED",
-        "--kind": "resolved",
+        "--kind": "departed",
         "--class": "discovery",
         "--claim": f"what reality says about {decision}",
         "--evidence": evidence,
-        "--action": "decided",
+        "--action": "departed",
     }
     fields.update(overrides)
 
@@ -139,3 +141,120 @@ def test_a_single_row_behaves_exactly_as_it_did(worktree):
     assert result.exit_code == EXIT_OK
     assert len(entries(worktree)) == 1
     assert "entry 1 recorded" in result.output
+
+
+# ----------------------- #
+# `torve abort` (S-0122/D-14): one halted entry per row cited, through the
+# same intake and the same channel as every other entry (S-0121/D-4).
+
+
+def abort(worktree, *args):
+    return CliRunner().invoke(app, ["abort", "--root", str(worktree.root), *args])
+
+
+def test_abort_on_a_locked_row_writes_a_halt_the_session_escalates_to_the_owner(worktree):
+    """S-0122/D-14: the halt carries the row's grade from the contract, so a
+    LOCKED row escalates as `locked_conflict` — the existing reading, kept."""
+
+    from torve.application.session import _halt_reason
+    from torve.domain.states import EscalationReason
+
+    result = abort(
+        worktree,
+        "--row",
+        "D-1",
+        "--claim",
+        "the layout the row settles leaves no place for the new module",
+        "--evidence",
+        "src/app.py:1 — the only module the layout allows",
+    )
+
+    assert result.exit_code == EXIT_OK, result.output
+    (halt,) = entries(worktree)
+    assert {key: halt[key] for key in ("decision", "grade", "kind", "action", "attempt")} == {
+        "decision": "S-0001/D-1",
+        "grade": "LOCKED",
+        "kind": "contradicted",
+        "action": "halted",
+        "attempt": 1,
+    }
+    assert _halt_reason(worktree.root, TASK_ID, 1) is EscalationReason.LOCKED_CONFLICT
+
+
+def test_abort_naming_no_row_halts_the_task_as_underspecified(worktree):
+    """S-0122/D-14: an impossible task cites no row; its halt is `unlisted`,
+    owes no proposal, and goes back to the author as `underspecified`."""
+
+    from torve.application.session import _halt_reason
+    from torve.domain.states import EscalationReason
+
+    result = abort(
+        worktree,
+        "--claim",
+        "the intent asks for a retry the transport cannot express",
+        "--evidence",
+        "src/app.py:1 — the call that has no retry",
+    )
+
+    assert result.exit_code == EXIT_OK, result.output
+    (halt,) = entries(worktree)
+    assert (halt["decision"], halt["grade"], halt["kind"]) == ("unlisted", "UNLISTED", "blocked")
+    assert _halt_reason(worktree.root, TASK_ID, 1) is EscalationReason.UNDERSPECIFIED
+
+
+def test_abort_writes_the_attempt_the_engine_pinned(worktree):
+    """A halt counts only against its own attempt's entries, and nothing in
+    the sandbox knows which attempt it is: the engine's pin says."""
+
+    from torve.application.divergence import seed
+
+    seed(worktree.root, TASK_ID, base="0" * 40, attempt=3)
+    result = abort(worktree, "--claim", "c", "--evidence", "src/app.py:1 — the line")
+
+    assert result.exit_code == EXIT_OK, result.output
+    assert [one["attempt"] for one in entries(worktree)] == [3]
+
+
+def test_abort_refuses_a_row_the_contract_does_not_carry_and_writes_nothing(worktree):
+    result = abort(
+        worktree, "--row", "S-0009/D-7", "--claim", "c", "--evidence", "src/app.py:1 — the line"
+    )
+
+    assert result.exit_code == EXIT_CONFIG
+    assert "S-0009/D-7" in result.output and "S-0001/D-1" in result.output
+    assert not layout.log_file(worktree.root, TASK_ID).exists()
+
+
+def test_abort_refuses_evidence_nobody_can_locate(worktree):
+    result = abort(worktree, "--claim", "c", "--evidence", "it just cannot work")
+
+    assert result.exit_code == EXIT_CONFIG
+    assert "not locatable" in result.output
+    assert not layout.log_file(worktree.root, TASK_ID).exists()
+
+
+def test_abort_goes_through_the_runs_channel_when_it_has_one(worktree, monkeypatch):
+    """S-0121/D-4: an agent writes only `divergence.recorded`, through the
+    broker route; abort is no new kind and no new route."""
+
+    sent: list[tuple[str, dict]] = []
+
+    class Recorder:
+        def record(self, kind, payload):
+            sent.append((kind, payload))
+
+    monkeypatch.setattr("torve.cli.log.open_channel", lambda root: Recorder())
+
+    result = abort(
+        worktree, "--row", "S-0001/D-1", "--claim", "c", "--evidence", "src/app.py:1 — the line"
+    )
+
+    assert result.exit_code == EXIT_OK, result.output
+    ((kind, payload),) = sent
+    assert kind == "divergence.recorded"
+    assert (payload["action"], payload["grade"], payload["entry_kind"]) == (
+        "halted",
+        "LOCKED",
+        "contradicted",
+    )
+    assert not layout.log_file(worktree.root, TASK_ID).exists()

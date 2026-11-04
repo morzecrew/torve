@@ -3,14 +3,18 @@ amended by S-0001/A-1: `logs/<task-id>.yaml`, one `entries:` list, YAML only).
 
 What the retired `decisions-reported` gate applied to a log, kept for the
 callers that still read one: the halt and departure intake refuses an entry
-before it writes (`check_entry`, `check_pin`), `torve log owed` asks which
-LOCKED rows a change owes an entry (`owed`), and the reports parse a log the
+before it writes (`check_entry`, `check_pin`), and the reports parse a log the
 same way (`parse_log`, `ACTIONS`). No gate convicts on any of it (S-0122/D-17).
 
 Checks: schema (required fields, vocabularies, UTC timestamp, positive
 attempt, kind or class present), legality (the action the grade licenses,
-both ways, with the S-0001/D-26 close-out exemptions), and evidence (locatable
-file ranges or commands carrying output).
+both ways), and evidence (locatable file ranges or commands carrying output).
+
+A new entry is a halt or a departure, nothing else (S-0122/D-14). The
+`decided` action and the `resolved` kind stay in the vocabulary because the
+logs, landings and records written before carry them and must still read;
+the intake refuses them, because an attestation of compliance was two
+thirds of every log and changed no outcome.
 """
 
 from __future__ import annotations
@@ -18,18 +22,12 @@ from __future__ import annotations
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import yaml
 
 from torve.domain.vocabulary import ENTRY_ACTIONS, ENTRY_CLASSES, ENTRY_GRADES, ENTRY_KINDS
-from torve.gates.contract import spec
 from torve.gates.evidence import BACKTICKED, CITATION, locate
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable
-
-    from torve.domain.task import InheritedDecision
 
 # ----------------------- #
 
@@ -44,7 +42,11 @@ GRADES = frozenset(ENTRY_GRADES)
 KINDS = frozenset(ENTRY_KINDS)
 CLASSES = frozenset(ENTRY_CLASSES)
 ACTIONS = frozenset(ENTRY_ACTIONS)
-LEGAL = {"LOCKED": "halted", "ASSUMED": "departed", "OPEN": "decided", "UNLISTED": "decided"}
+# A LOCKED row is never departed from, only halted on; every other grade is
+# licensed to depart, with the departure stated (S-0122/D-14).
+LEGAL = {"LOCKED": "halted", "ASSUMED": "departed", "OPEN": "departed", "UNLISTED": "departed"}
+# Read in an old log, refused in a new entry (S-0122/D-14).
+RETIRED = {("action", "decided"), ("kind", "resolved")}
 
 
 # ....................... #
@@ -135,7 +137,13 @@ def _check_schema(index: int, entry: dict[str, Any]) -> list[str]:
     if attempt is not None and (not isinstance(attempt, int) or attempt < 1):
         problems.append(f"{where}: attempt {attempt!r} is not a positive integer")
 
-    if _norm(entry.get("decision")) == "unlisted" and not _norm(entry.get("proposal")).strip():
+    # A departure from no listed row puts one back; a halt states its gap in
+    # the claim, and `torve abort` asks for nothing else.
+    if (
+        _norm(entry.get("decision")) == "unlisted"
+        and _norm(entry.get("action")) != "halted"
+        and not _norm(entry.get("proposal")).strip()
+    ):
         problems.append(f"{where}: decision is unlisted, which owes a proposal")
 
     return problems
@@ -147,16 +155,20 @@ def _check_schema(index: int, entry: dict[str, Any]) -> list[str]:
 def _check_legality(index: int, entry: dict[str, Any]) -> list[str]:
     grade, action = _norm(entry.get("grade")), _norm(entry.get("action"))
     kind = _norm(entry.get("kind"))
+    retired = [
+        f"entry {index + 1}: {key} {value!r} is no longer recorded — the log holds halts "
+        "(`torve abort`) and departures only; work that keeps to its rows needs no entry"
+        for key, value in sorted(RETIRED)
+        if _norm(entry.get(key)) == value
+    ]
+
+    if retired:
+        return retired
 
     if grade not in GRADES or action not in ACTIONS:
         return []  # already reported by the schema check
 
-    if kind == "resolved":
-        legal = {"decided", "departed"}  # a close-out attests, it does not contradict
-    elif kind == "blocked":
-        legal = {"halted"}
-    else:
-        legal = {LEGAL[grade]}
+    legal = {"halted"} if kind == "blocked" else {LEGAL[grade]}
 
     if action in legal:
         return []
@@ -263,88 +275,6 @@ def check_entry(entry: dict[str, Any], root: Path, *, index: int = 0) -> list[st
         + _check_legality(index, entry)
         + _check_evidence(index, entry, root)
     )
-
-
-# ....................... #
-
-
-#: A check's verdicts that cover its row: a green run, a flaky one whose
-#: re-run passed, or a bypass a human signed. Anything else — a fail, an
-#: error, a check that selected nothing — leaves the row owed (S-0106/D-1).
-PASSING = frozenset({"pass", "flaky", "bypassed"})
-
-
-def owed(
-    decisions: Iterable[InheritedDecision],
-    changed: Iterable[str],
-    logged: Iterable[str],
-    checks: dict[str, str] | None = None,
-) -> tuple[list[str], list[str]]:
-    """(problems, skipped) — the silence check, over inputs: the agent-facing
-    `owed` verb asks it of the files an attempt says it touched.
-
-    `checks` maps a row id to its `decision:<id>` gate's verdict. A row whose
-    check ran and passed is covered (S-0054/D-3); one whose check failed — or
-    selected nothing — is owed an entry (S-0106/D-1); one the battery skipped,
-    because the diff does not reach its paths, is not.
-    `None` means no verdicts are in hand (the pre-check, or a pass that ran
-    without the checks), and a check stands for its row as before.
-    """
-
-    problems: list[str] = []
-    skipped: list[str] = []
-    cited = {_norm(one) for one in logged}
-    touched = list(changed)
-
-    for decision in decisions:
-        if decision.grade != "LOCKED":
-            continue
-
-        # An entry may name the row as the contract spells it (`S-0012/D-2`)
-        # or as the document's own prose does (`D-2`): the log is the task's,
-        # so a bare id in it is local to the task's document (bloomery
-        # T-0007, convicted for entries it had written).
-        local = decision.id.rsplit("/", 1)[-1]
-
-        if decision.check:
-            outcome = None if checks is None else checks.get(decision.id)
-
-            if checks is None or outcome is None:
-                skipped.append(f"{decision.id}: covered by its check, which runs as a gate")
-                continue
-
-            if outcome in PASSING:
-                skipped.append(f"{decision.id}: covered by its check, which passed")
-                continue
-
-            if outcome == "skipped":
-                # The check judges files this diff does not reach (#241).
-                skipped.append(f"{decision.id}: its check judges nothing this diff touches")
-                continue
-
-            if decision.id not in cited and local not in cited:
-                problems.append(
-                    f"decision {decision.id}: LOCKED, its check did not pass ({outcome}), "
-                    "with no entry in the log naming it"
-                )
-            continue
-
-        if not decision.paths:
-            skipped.append(f"{decision.id}: declares no paths, so its area is unknown")
-            continue
-
-        area = spec(decision.paths)
-        hits = [path for path in touched if area.match_file(path)]
-
-        if hits and decision.id not in cited and local not in cited:
-            shown = ", ".join(sorted(hits)[:3]) + ("…" if len(hits) > 3 else "")
-
-            problems.append(
-                f"decision {decision.id}: LOCKED, and the diff touches {len(hits)} "
-                f"file(s) it governs ({shown}), with no entry in the log"
-            )
-
-    return problems, skipped
 
 
 # ....................... #

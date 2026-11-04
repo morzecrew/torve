@@ -1145,51 +1145,6 @@ def test_an_implicit_partition_whose_record_lacks_the_task_answers_from_the_file
     assert json.loads(result.stdout)["spec"] == "S-0051"
 
 
-def test_owed_reports_a_row_covered_by_its_check(repo):
-    """S-0054 S-0054/D-3: `torve log owed` names the three states — owed,
-    pathless, covered by a check — so the executor sees why a row is or is
-    not on its list."""
-
-    repo.seed()
-    decisions = [
-        {
-            "id": "S-0009/D-1",
-            "grade": "LOCKED",
-            "text": "checked",
-            "paths": ["src/**"],
-            "check": "true",
-        },
-        {"id": "S-0009/D-2", "grade": "LOCKED", "text": "silent", "paths": ["src/**"]},
-    ]
-    repo.task(base_task(allow=["src/**"], decisions=decisions), log_document())
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "log",
-            "owed",
-            TASK_ID,
-            "--root",
-            str(repo.root),
-            "--touched",
-            "src/app.py",
-            "--format",
-            "json",
-        ],
-    )
-    reported = json.loads(result.stdout)
-
-    assert result.exit_code == 0, result.output
-    assert [p for p in reported["owed"] if "S-0009/D-2" in p]
-    assert reported["skipped"] == ["S-0009/D-1: covered by its check, which runs as a gate"]
-
-    text = CliRunner().invoke(
-        app, ["log", "owed", TASK_ID, "--root", str(repo.root), "--touched", "src/app.py"]
-    )
-
-    assert "covered by its check" in text.output
-
-
 # ----------------------- #
 # S-0057 S-0057/D-5: `torve init` writes what the code derives, and only that
 

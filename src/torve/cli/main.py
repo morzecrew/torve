@@ -70,6 +70,7 @@ app.add_typer(decisions.decisions_app, name="decisions")
 app.add_typer(spec.spec_app, name="spec")
 app.add_typer(sources.source_app, name="source")
 app.command("init")(init.init_cmd)
+app.command("abort")(log.abort_cmd)
 app.command("guide")(guide.guide_cmd)
 
 

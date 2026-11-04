@@ -681,7 +681,7 @@ def write_contracts(root: Path, report: PlanReport) -> list[Path]:
 
 def project_contract(worktree: Path, task: Task) -> Path | None:
     """S-0056/D-9: the contract the board holds, written into the worktree for
-    the attempt that reads it — the gates, `torve log owed`, the log
+    the attempt that reads it — the gates, `torve abort`, the log
     beside it. A worktree that already carries the file (the file mode,
     where the contract is tracked) is left alone; None says so."""
 

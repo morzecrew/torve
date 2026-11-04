@@ -1877,7 +1877,9 @@ class HarnessAgent:
         # the sandbox can resolve it: the worktree's `.git` points into a
         # host tree the sandbox cannot follow. The intake reads it back, so
         # the agent is never asked to copy a commit it cannot verify.
-        seed_log(ctx.workspace, ctx.task.id, base=_workspace_head(ctx.workspace))
+        seed_log(
+            ctx.workspace, ctx.task.id, base=_workspace_head(ctx.workspace), attempt=ctx.attempt
+        )
         # The run's channel, for the same reason and by the same route (RFC
         # S-0045/the-intake-route): nothing inside the sandbox can discover the broker's
         # intake, so the engine names it here. No channel writes no file,
