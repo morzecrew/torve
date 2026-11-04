@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-11-04T11:43:27Z'
+    title: >-
+      Phase 1 owns the end-to-end test of the manager it allows
+    md: >-
+      `torve plan S-0120` refused phase 1's contract: it allows `src/torve/cli/manager.py`
+      without that module's existing test `tests/test_manager_e2e.py` (the T-0113
+      rule). Phase 1's scope gains the file and its acceptance runs it. No row changes.
