@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0752
+phase: 2
+base: 7fd4cfa0353da0bf2913bd6346b9d843cbcd023c
+commit: 34e87b9078b70f9734562671dfd6d7087061fbaf
+at: '2026-11-04T12:37:30Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
