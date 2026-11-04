@@ -1,6 +1,7 @@
 # Sandbox image for the dsh harness (S-0004): harness baked in, never
-# injected. The base carries node 24, which satisfies dsh's requirement, plus
-# git, python3, uv and the engine's own CLI (S-0063/D-7).
+# injected. The base carries node 24, which satisfies dsh's requirement
+# (`^22.19.0 || >=24.0.0` at 0.2.1-rc.5), plus git, python3, uv and the
+# engine's own CLI (S-0063/D-7).
 ARG BASE=sandbox-base
 FROM ${BASE}
 # The harness version rides a pinned-default ARG (S-0033/D-3): a bump is a
@@ -10,12 +11,15 @@ FROM ${BASE}
 # and the profile stopped booting ("user patch-layer watching requires the
 # Cordis HMR service"). So the whole tree is installed from `harness/`'s lock
 # with `npm ci`, and the build refuses a lock whose dsh is not this ARG.
-# A bump: set the ARG and the dependency in `harness/package.json`, regenerate
-# the lock with `npm install` in the base image, and rebuild.
+# A bump: set the ARG and the dependency in `harness/package.json`, set its
+# `overrides` to the cordis, cosmokit and schemastery versions that dsh release
+# vendors (its tree pins them with tildes now, which still float), drop any the
+# tree no longer carries, regenerate the lock with `npm install` in the base
+# image, and rebuild.
 # S-0112/D-7: the annotation turns the bump into a pull request; the npm manager
 # reads `harness/` with it, so the ARG, the manifest and the lock move together.
 # renovate: datasource=npm depName=@deepseek-ai/dsh
-ARG DSH_VERSION=0.1.2-rc.1
+ARG DSH_VERSION=0.2.1-rc.5
 COPY harness/ /opt/harness/
 RUN cd /opt/harness && npm ci --no-audit --no-fund \
  && test "$(node -p 'require("@deepseek-ai/dsh/package.json").version')" = "${DSH_VERSION}" \
@@ -44,7 +48,9 @@ RUN ln -s /opt/harness/node_modules /opt/torve/scope-guard-policy/node_modules
 # Boot the profile this image ships, with the patches the seat really applies,
 # and fail the build if the plugin tree does not load. Every one of them is a
 # patch, and a patch that drops a key an entry requires fails at boot — which
-# without this is three attempts dead at `wall 0s` and a green repository.
+# without this is three attempts dead at `wall 0s` and a green repository. A
+# patch that says nothing dsh reads boots green, so the check also reads every
+# value back out of `dsh --dump-config` (S-0122/D-10).
 RUN /opt/torve/smoke
 
 # No model file is baked (S-0063/D-15). A dsh model is a provider, a catalog
@@ -53,6 +59,7 @@ RUN /opt/torve/smoke
 # renders one overlay from the seat's `env` instead, so adding a model is an
 # edit to reviewed configuration.
 #
-# Headless dsh prints no usage either; the session log carries it, multi-frame
-# zstd-compressed, and `/opt/torve/report-usage` sums it into the one JSON line
-# `parse_metadata` reads.
+# Headless dsh prints no usage either; the session log carries it (format v4,
+# zstd-compressed, under the attempt's own `$DSH_HOME`), and
+# `/opt/torve/report-usage` sums it into the one JSON line `parse_metadata`
+# reads.

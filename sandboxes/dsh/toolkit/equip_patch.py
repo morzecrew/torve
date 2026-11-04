@@ -18,10 +18,11 @@ with open(manifest, encoding="utf-8") as handle:
     items = json.load(handle).get("items", [])
 
 # Where the engine told this harness to put equipment (S-0063/D-19). dsh's
-# skill plugin watches `.agents/skills` and `.dsh/skills`; the first is the
-# convention a repository keeps its *own* reviewed skills in — writing there
-# overwrites them, and `git add -A` commits the overwrite before any gate can
-# object. So the manifest names the second and the engine excludes it.
+# skill plugin watches `.agents/skills` and `.dsh/skills` by default; the first
+# is the convention a repository keeps its *own* reviewed skills in — writing
+# there overwrites them, and `git add -A` commits the overwrite before any gate
+# can object. So the manifest names the second, the engine excludes it, and the
+# door (`door.yml`) turns the default roots off and names this one alone.
 SKILLS = os.environ.get("TORVE_EQUIP_ROOT") or ""
 
 # dsh's half of the hook kind (S-0072/D-3): a thin plugin on the `fs/*` event
@@ -80,9 +81,9 @@ for item in items:
     # Every other kind is a patch the operator wrote in dsh's own vocabulary:
     # an MCP server and an agent are plugin entries here, and a document torve
     # invented would be a schema it does not know. It must name an entry the
-    # profile already carries — `equip` cannot check that without booting dsh,
-    # so a wrong one fails at boot with dsh's own message, which names the
-    # entry and is clearer than anything repeated here.
+    # profile already carries — `equip` cannot check that without booting dsh.
+    # On 0.2.1-rc.5 a wrong one does not fail the boot: dsh warns on stderr,
+    # naming the entry, and runs without the patch.
     with open(path, encoding="utf-8") as handle:
         fragments.append(handle.read().rstrip("\n"))
 
