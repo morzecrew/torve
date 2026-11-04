@@ -2,38 +2,11 @@
 
 ## Decisions governing `src/torve/`
 
-### S-0055/D-23 — `LOCKED` (Standing decisions)
+### S-0121/D-12 — `LOCKED` (Charter) — implementation: partial
 
-Five layers — `base`, `domain`, `application`, `adapters`, `cli`, beside `gates` and `config` — with import directions enforced by import-linter over the whole package; the `layering` gate blocks
-
-- Paths: `src/torve/**` `pyproject.toml`
-- Consequence: The hexagon is visible in the tree and mechanically held
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0055/D-27 — `ASSUMED` (Standing decisions)
-
-No module is named `models`, `utils`, `helpers`, `common` or `base` below the package root; modules are named for what they hold, and the `source-layout` gate reads it
-
-- Paths: `src/torve/**`
-- Consequence: Names that admit anything accumulate everything
-
-### S-0055/D-59 — `ASSUMED` (Standing decisions)
-
-Strict typing is a floor over `src/`: `mypy --strict` blocks CI and the acceptance fallback, the one checker of record (S-0014/D-14); tests, scripts and skills carry no type floor
+Imports run downward only (cli > adapters > application > domain > base); gates and config import neither application nor adapters, config never imports cli, adapters never import each other, gates and the runtime and agent adapters never import `torve.config.spec`, and import-linter enforces it
 
 - Paths: `src/torve/**` `pyproject.toml`
-- Consequence: A substrate surface change fails at the type check
-
-## Invariants holding over `src/torve/`
-
-- **S-0055/I-1**: The five layer contracts hold over the whole package
-  - Paths: `src/torve/**` `pyproject.toml`
-  - Check: `uv run lint-imports --config pyproject.toml`
-- **S-0055/I-4**: The typing floor over src holds
-  - Paths: `src/torve/**`
-  - Check: `uv run mypy src`
-- **S-0055/I-5**: The suite is green
-  - Paths: `src/torve/**` `tests/**`
-  - Check: `uv run pytest`
+- Check: `uv run lint-imports && uv run pytest tests/test_layering.py` (shadow; runs as `decision:S-0121/D-12`, no log entry owed)
 
 <!-- /torve:managed -->

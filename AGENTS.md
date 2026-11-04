@@ -15,151 +15,19 @@
 
 ## Decisions governing the repository root
 
-### S-0055/D-18 — `LOCKED` (Standing decisions)
+### S-0121/D-12 — `LOCKED` (Charter) — implementation: partial
 
-Secrets never enter the tree; the `secrets` gate reads added lines and is the one gate no bypass trailer can lift
-
-- Paths: `src/torve/gates/secrets.py` `.gitignore`
-- Consequence: The boundary has never been crossed in 745 attempts and the tree holds it as structure
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0055/D-23 — `LOCKED` (Standing decisions)
-
-Five layers — `base`, `domain`, `application`, `adapters`, `cli`, beside `gates` and `config` — with import directions enforced by import-linter over the whole package; the `layering` gate blocks
+Imports run downward only (cli > adapters > application > domain > base); gates and config import neither application nor adapters, config never imports cli, adapters never import each other, gates and the runtime and agent adapters never import `torve.config.spec`, and import-linter enforces it
 
 - Paths: `src/torve/**` `pyproject.toml`
-- Consequence: The hexagon is visible in the tree and mechanically held
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+- Check: `uv run lint-imports && uv run pytest tests/test_layering.py` (shadow; runs as `decision:S-0121/D-12`, no log entry owed)
 
-### S-0055/D-24 — `LOCKED` (Standing decisions)
+### S-0121/D-20 — `LOCKED` (Charter) — implementation: partial
 
-`gates` imports only `domain`, `base` and `config`; the gates-only install stands alone
+Torve owns the DDL for every relation it uses as owner-grouped, forward-only, checksummed SQL under `migrations/`, and the substrate group pins an exact forze version that `pyproject.toml` matches and `doctor` enforces
 
-- Paths: `src/torve/gates/**` `pyproject.toml`
-- Consequence: The first shippable increment keeps shipping alone
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0055/D-26 — `LOCKED` (Standing decisions)
-
-The specification format terminates at the planner: gates, runtime adapters and agent adapters never import its owner
-
-- Paths: `pyproject.toml` `src/torve/gates/**` `src/torve/adapters/**`
-- Consequence: Format containment cannot break quietly; the contract is the only thing a gate reads about a task
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0055/D-59 — `ASSUMED` (Standing decisions)
-
-Strict typing is a floor over `src/`: `mypy --strict` blocks CI and the acceptance fallback, the one checker of record (S-0014/D-14); tests, scripts and skills carry no type floor
-
-- Paths: `src/torve/**` `pyproject.toml`
-- Consequence: A substrate surface change fails at the type check
-
-### S-0056/D-10 — `LOCKED` (Structure for everything)
-
-Every task directory whose contract names an archived document is deleted, not archived, in one commit; `.torve/tasks/` leaves the tracked exceptions; the retention leg over task directories goes with them
-
-- Paths: `.torve/tasks/**` `.gitignore`
-- Consequence: Git keeps the history and the record keeps the landings; nothing standing cites a task log
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0057/D-5 — `LOCKED` (The specification is a directory)
-
-`torve init` writes `.torve/schemas/*.json` from every model torve reads from YAML — the four files, the contract, the log, the configuration, the manifest — and `.torve/.gitignore` with the patterns for what torve alone writes, idempotent; it writes a configuration and a manifest only when asked with `--starter`, and never over an existing file; every YAML torve writes names its schema on its first line; `doctor` and `spec check` redden when a schema lags its model or the ignore file lacks a minted pattern
-
-- Paths: `.torve/schemas/**` `.torve/.gitignore` `.gitignore` `src/torve/cli/init.py` `src/torve/cli/doctor.py`
-- Consequence: An editor validates any torve YAML as it is typed; an adopting repository ignores the right files without copying a block; `init` is the initialisation there is
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0058/D-2 — `LOCKED` (One grammar and the anatomy)
-
-Every existing identifier converts once through a mapping committed as `.torve/archive/identifiers.yaml`, applied to the corpus, the archive, `src/`, `pages/`, `skills/`, the README, the local task files and the projections, with "RFC NNNN §n" converted to the section key at that position; a parity script gates the commit and is not committed
-
-- Paths: `.torve/specs/**` `.torve/archive/**` `src/**` `pages/**` `skills/**` `README.md`
-- Consequence: No legacy identifier stands anywhere the check reads; history keeps its words and resolves through the mapping
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0063/D-8 — `ASSUMED` (The image knows how to equip itself)
-
-`bake.hcl` declares a target per definition with the base as a named context, and a justfile recipe is the build; `torve sandbox build` shells `docker buildx bake`.
-
-- Paths: `bake.hcl` `justfile` `src/torve/cli/sandbox.py`
-- Consequence: the build expresses its own dependency graph, and the context staging the verb does by hand becomes the base image's inheritance
-
-### S-0071/D-1 — `ASSUMED` (The battery costs what it costs for reasons unrelated to what it judges)
-
-The test suite runs in parallel by default: `pytest-xdist` is a development dependency and `-n auto` is in the project's `addopts`, so both gates that run the suite get it without any contract's acceptance command changing
-
-- Paths: `pyproject.toml` `uv.lock`
-- Consequence: the two gates that are 98% of the battery's wall time fall from 267s to about 61s per battery, measured, and every attempt after it pays the lower figure
-
-### S-0071/D-2 — `ASSUMED` (The battery costs what it costs for reasons unrelated to what it judges)
-
-A dependency change here is an image change: the pinned seat images are rebuilt in the same change that touches the lockfile, under the tags the harness manifests name rather than under `latest`, and the moved digest is recorded rather than waived. No image definition is edited — each copies the two files and syncs from them, so the rebuild is an act, not a diff
-
-- Paths: `pyproject.toml` `uv.lock`
-- Consequence: an attempt's `uv run` reconciles against a populated environment instead of reaching a network it may not have
-
-### S-0095/D-6 — `ASSUMED` (A second repository can adopt torve)
-
-`pages/docs/reference/stability.md` states the upgrade (install the release, `torve init`, commit, `torve doctor`, `torve migrate --all` when the notes name a record migration), and a release that moves a `schema_version` or adds a record migration carries an Upgrade note in its changelog entry
-
-- Paths: `pages/docs/reference/stability.md` `README.md`
-- Consequence: an adopter reads one page to upgrade, and a release cannot move a format silently
-
-### S-0100/D-7 — `ASSUMED` (A session learns torve from the torve it runs)
-
-`skills/**/AGENTS.md` projections stay out of the wheel and out of the copy a sandbox receives.
-
-- Paths: `pyproject.toml` `src/torve/application/skills.py`
-- Consequence: an adopter's sandbox carries no row of torve's corpus
-
-### S-0106/D-4 — `ASSUMED` (A decision is judged before the pull request)
-
-A row's `check` may name a property test: a Hypothesis test stating the decision over generated inputs. `hypothesis` becomes a direct dev dependency. The spec-writer skill says when a row gets a property (a rule over inputs: parsers, matchers, state transitions, round trips), when an example test is the honest check, and that the phase settling the row writes it.
-
-- Paths: `pyproject.toml` `skills/spec-writer/SKILL.md`
-- Consequence: a decision is checked over the inputs it governs, not over the one example its author thought of
-
-### S-0110/D-1 — `ASSUMED` (A second adopter runs torve from a tool install)
-
-torve pins `forze==0.16.2`, in its dependencies, its extras and `migrations/substrate/FORZE_VERSION`, and the release that ships the bump bakes its seat images (S-0112/D-1).
-
-- Paths: `pyproject.toml` `uv.lock` `migrations/substrate/FORZE_VERSION`
-- Consequence: torve runs on the forze its adopters run, and the substrate pin check reads the new version
-
-### S-0110/D-4 — `ASSUMED` (A second adopter runs torve from a tool install)
-
-`just images` stamps every image with the version setuptools-scm renders for the tree it builds, the number hatch-vcs gives the host's torve, through `SETUPTOOLS_SCM_PRETEND_VERSION`; `torve doctor` runs each seat image's `torve --version` and goes red when it differs from the host's.
-
-- Paths: `bake.hcl` `justfile` `sandboxes/base/Dockerfile` `src/torve/cli/doctor.py`
-- Consequence: a sandbox running another torve than the host is a red check before a night
-
-### S-0110/D-11 — `ASSUMED` (A second adopter runs torve from a tool install)
-
-`pages/docs/reference/stability.md` and the operator reference `upgrading.md` state the upgrade: install the release over the old one (`uv tool install --force` with the new exact version; `uv tool upgrade` keeps an exact pin) and raise `engine`, rebuild the seat images, run `torve init`, `torve migrate --all` when the release notes name a record migration, and `torve doctor`, then commit. A release that moves a `schema_version`, adds a record migration or changes the hooks carries an Upgrade note.
-
-- Paths: `pages/docs/reference/stability.md` `README.md` `skills/torve/references/upgrading.md`
-- Consequence: an adopter upgrades from one page, and a session from one reference
-
-### S-0112/D-3 — `ASSUMED` (A release publishes its seat images)
-
-The bake tags every image, the base included, with the version it stamps, written as a tag; `:latest` is gone, and the base is in the `default` group.
-
-- Paths: `bake.hcl` `justfile`
-- Consequence: `just images` produces exactly the tags `{torve}` resolves to, and a derived image finds a base that runs the same torve
-
-### S-0112/D-5 — `ASSUMED` (A release publishes its seat images)
-
-Every image carries `org.opencontainers.image.source`, `org.opencontainers.image.version` and `org.opencontainers.image.revision`, and a seat image `io.morze.torve.harness.version`.
-
-- Paths: `bake.hcl`
-- Consequence: a pulled image says which repository, release and commit built it without its definition beside it
-
-## Invariants holding over the repository root
-
-- **S-0055/I-1**: The five layer contracts hold over the whole package
-  - Paths: `src/torve/**` `pyproject.toml`
-  - Check: `uv run lint-imports --config pyproject.toml`
+- Paths: `migrations/**` `src/torve/application/migrate.py` `src/torve/cli/migrate.py` `pyproject.toml`
+- Check: `uv run pytest tests/test_migrate.py` (shadow; runs as `decision:S-0121/D-20`, no log entry owed)
 
 <!-- /torve:managed -->
 
@@ -172,50 +40,26 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 `<file>` and `torve spec tests S-NNNN/D-n` read the same corpus from the worktree.
 
 - `migrations/` — 1 decision(s)
-- `migrations/substrate/` — 1 decision(s)
-- `pages/` — 2 decision(s)
-- `pages/diagrams/` — 0 decision(s)
-- `pages/docs/` — 10 decision(s)
-- `pages/docs/architecture/` — 1 decision(s)
-- `pages/docs/reference/` — 2 decision(s)
-- `sandboxes/` — 12 decision(s)
-- `sandboxes/base/` — 3 decision(s)
+- `sandboxes/base/` — 1 decision(s)
 - `sandboxes/claude/` — 1 decision(s)
-- `sandboxes/claude/toolkit/` — 3 decision(s)
-- `sandboxes/dsh/` — 3 decision(s)
-- `sandboxes/dsh/toolkit/` — 3 decision(s)
-- `sandboxes/mimo/` — 0 decision(s)
-- `sandboxes/mimo/toolkit/` — 2 decision(s)
-- `skills/` — 8 decision(s)
-- `skills/flag-dont-flip/` — 2 decision(s)
-- `skills/hooks/` — 4 decision(s)
-- `skills/hooks/implement/` — 7 decision(s)
-- `skills/spec-writer/` — 5 decision(s)
-- `skills/spec-writer/references/` — 1 decision(s)
-- `skills/torve/` — 4 decision(s)
-- `skills/torve/references/` — 5 decision(s)
-- `skills/verifier/` — 1 decision(s)
-- `skills/working-rules/` — 9 decision(s)
-- `src/` — 1 decision(s)
-- `src/torve/` — 3 decision(s)
-- `src/torve/_web/` — 1 decision(s)
-- `src/torve/adapters/` — 2 decision(s)
-- `src/torve/adapters/agent/` — 29 decision(s)
+- `sandboxes/claude/toolkit/` — 1 decision(s)
+- `sandboxes/dsh/` — 1 decision(s)
+- `sandboxes/dsh/toolkit/` — 1 decision(s)
+- `skills/hooks/implement/` — 1 decision(s)
+- `skills/torve/` — 1 decision(s)
+- `src/torve/` — 1 decision(s)
+- `src/torve/adapters/agent/` — 4 decision(s)
 - `src/torve/adapters/broker/` — 2 decision(s)
 - `src/torve/adapters/eventstore/` — 1 decision(s)
-- `src/torve/adapters/notify/` — 0 decision(s)
-- `src/torve/adapters/runtime/` — 8 decision(s)
-- `src/torve/adapters/vcs/` — 15 decision(s)
-- `src/torve/adapters/workspace/` — 5 decision(s)
-- `src/torve/application/` — 340 decision(s)
-- `src/torve/base/` — 5 decision(s)
-- `src/torve/cli/` — 126 decision(s)
-- `src/torve/config/` — 107 decision(s)
-- `src/torve/domain/` — 55 decision(s)
-- `src/torve/gates/` — 59 decision(s)
-- `tests/` — 74 decision(s)
-- `tests/fixtures/` — 0 decision(s)
-- `web/` — 1 decision(s)
-- `web/src/` — 1 decision(s)
+- `src/torve/adapters/runtime/` — 2 decision(s)
+- `src/torve/adapters/store/` — 1 decision(s)
+- `src/torve/adapters/vcs/` — 5 decision(s)
+- `src/torve/adapters/workspace/` — 1 decision(s)
+- `src/torve/application/` — 26 decision(s)
+- `src/torve/base/` — 3 decision(s)
+- `src/torve/cli/` — 10 decision(s)
+- `src/torve/config/` — 12 decision(s)
+- `src/torve/domain/` — 8 decision(s)
+- `src/torve/gates/` — 5 decision(s)
 
 <!-- /torve:managed -->

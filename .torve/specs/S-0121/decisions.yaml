@@ -1,0 +1,661 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      Models never decide what work exists or whether it is finished: state transitions
+      come only from recorded facts (exit codes, approvals, gate outcomes), the planner
+      calls no model, a drafted or decomposed contract is data the deterministic lint
+      admits or refuses, and what a critic's severity does is configuration (`review.blocks_at`),
+      never the model's choice
+    paths:
+      - src/torve/application/runner.py
+      - src/torve/application/session.py
+      - src/torve/application/manager.py
+      - src/torve/application/planner.py
+      - src/torve/application/intake.py
+      - src/torve/application/review.py
+      - src/torve/domain/states.py
+    rationale: >-
+      A model's output is evidence; the consequence is set by deterministic code or
+      a person, so every routing choice replays exactly from the record
+    cites: [S-0055/D-1, S-0001/D-10, S-0038/D-2, S-0020/D-1, S-0026/D-1]
+    check: >-
+      uv run pytest tests/test_intake.py::test_lint_decomposition_refuses_a_child_escaping_parent_scope
+      tests/test_session.py::test_a_red_with_no_mapped_rung_stays_on_the_seat
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      Gates run outside the agent session, in a gates sandbox, against a standalone
+      checkout of a snapshot commit the attempt left (`refs/torve/judge/<task>`),
+      so an agent cannot report a gate outcome; no candidate code and no repository
+      hook runs on the host, and every git command torve runs carries `core.hooksPath=/dev/null`
+    paths:
+      - src/torve/gates/**
+      - src/torve/application/runner.py
+      - src/torve/application/lane.py
+      - src/torve/adapters/workspace/git.py
+      - src/torve/adapters/vcs/git.py
+      - src/torve/adapters/runtime/docker.py
+    rationale: >-
+      Attempts once passed gates with ignored files no commit carried, and a repository
+      hook runs configuration the agent wrote
+    cites: [S-0055/D-2, S-0114/D-1, S-0114/D-3, S-0001/D-11]
+    check: uv run pytest tests/test_judge_checkout.py
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      Runner configuration, the gate manifest and a task's contract are read from
+      the root the runner launched in (the manifest at the attempt's merge base),
+      never from the worktree an agent wrote, so no agent writes configuration its
+      own run consumes
+    paths:
+      - src/torve/config/layout.py
+      - src/torve/config/runconfig.py
+      - src/torve/config/manifest.py
+      - src/torve/application/dispatch.py
+      - src/torve/application/runner.py
+    rationale: >-
+      Configuration read from the worktree lets the agent under judgement choose its
+      own judge, budget and harness; the battery still reads its manifest and contract
+      from the worktree, which the rebuild fixes in its first phase
+    cites: [S-0013/D-1, S-0027/D-1, S-0055/D-31]
+    check: >-
+      uv run pytest tests/test_run_loop.py::test_worktree_config_edits_never_reach_dispatch
+  - id: D-4
+    grade: LOCKED
+    text: >-
+      The append-only, typed event log is the system of record: every event is a kind
+      of a closed vocabulary checked against `AUTHORITY` before any store sees it,
+      no update command exists, every board and report is a projection rebuilt by
+      replay that pages to the end, and an agent writes only `divergence.recorded`
+      and `message.sent`, through the broker route that stamps its identity
+    paths:
+      - src/torve/domain/events.py
+      - src/torve/application/eventlog.py
+      - src/torve/application/divergence.py
+      - src/torve/application/channel.py
+      - src/torve/adapters/broker/local.py
+      - src/torve/adapters/eventstore/**
+    rationale: >-
+      An agent can write only about its own task, as itself, and never accept, land
+      or return a verdict; a truncated read once dispatched over a board missing a
+      third of its tasks
+    cites: [S-0044/D-1, S-0044/D-2, S-0045/D-2, S-0055/D-11, S-0055/D-42]
+    check: >-
+      uv run pytest tests/test_events.py::test_every_kind_has_an_authority_row_and_a_payload_model
+      tests/test_eventlog.py::test_an_unauthorized_write_never_reaches_the_store tests/test_eventlog.py::test_the_spec_declares_no_update_command
+      tests/test_channel.py::test_the_host_side_channel_stamps_identity_it_is_never_given
+      tests/test_manager.py::test_a_replayed_log_rebuilds_the_same_board
+  - id: D-5
+    grade: LOCKED
+    text: >-
+      No decision reads a host-local stream: every reader of `.torve/telemetry.jsonl`
+      lives in `application/streams.py` and serves reports only, and a committed artefact
+      is a function of committed inputs alone
+    paths:
+      - src/torve/application/streams.py
+      - src/torve/application/telemetry.py
+      - src/torve/application/ledger.py
+      - src/torve/application/projections.py
+      - src/torve/application/colocation.py
+    rationale: >-
+      Telemetry is a gitignored per-host file; decisions read from it disagreed across
+      hosts and after kills
+    cites: [S-0099/D-6, S-0103/D-6, S-0070/D-1]
+    check: >-
+      uv run pytest tests/test_layout.py -k stream tests/test_colocation.py::test_a_telemetry_stream_present_or_absent_renders_the_same_bytes
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The MCP surface serves projections and the per-task pack as read-only tools,
+      registers no tool that writes, and is never wired into a sandbox
+    paths: [src/torve/cli/mcp.py]
+    rationale: >-
+      It is the one engine surface an outside session can call; a write there bypasses
+      the reviewed-document route
+    cites: [S-0067/D-5, S-0003/D-19]
+    check: uv run pytest tests/test_mcp.py
+  - id: D-7
+    grade: LOCKED
+    text: >-
+      Agents and their harnesses run only inside a sandbox, with no harness SDK in
+      the engine process; the engine never builds an image mid-run, and mounting the
+      host Docker socket is an explicit per-repository opt-in
+    paths:
+      - src/torve/application/session.py
+      - src/torve/adapters/runtime/docker.py
+      - src/torve/adapters/agent/**
+    rationale: >-
+      An agent that can run, see or report its own judge turns every gate into theatre
+    cites: [S-0001/D-12, S-0003/D-8, S-0017/D-3]
+  - id: D-8
+    grade: LOCKED
+    text: >-
+      No sandbox holds a real credential: the host-side broker injects provider keys
+      at its own boundary and hands the sandbox a run-scoped token, routes and meters
+      providers, refuses requests past the run's budget, keeps counts never bodies
+      and opens last; configuration names variables, never values; the forge token
+      stays on the host and reaches git through a credential helper, never on argv
+    paths:
+      - src/torve/adapters/broker/**
+      - src/torve/application/dispatch.py
+      - src/torve/config/providers.py
+      - src/torve/config/agents.py
+      - src/torve/adapters/agent/harness.py
+      - src/torve/adapters/vcs/git.py
+    rationale: >-
+      A key inside a sandbox can be leaked, logged or spent outside the run's budget,
+      and no gate can take it back
+    cites: [S-0021/D-1, S-0055/D-4, S-0045/D-1, S-0063/D-18, S-0064/D-9, S-0080/D-13]
+    check: >-
+      uv run pytest tests/test_broker.py::test_a_brokered_seat_is_handed_no_provider_key
+      tests/test_broker.py::test_the_broker_keeps_counts_and_metadata_never_bodies
+      tests/test_dispatch.py::test_a_brokered_dispatch_hands_the_sandbox_no_provider_key
+  - id: D-9
+    grade: LOCKED
+    text: >-
+      Every sandbox image answers `/opt/torve/equip` and `/opt/torve/run`, and the
+      engine talks to it only through flat `TORVE_*` scalars in its own vocabulary;
+      brokered and direct runs differ only in values, no manifest carries a shell
+      line, and a seat's `env` reaches the image as written with nothing under `src/`
+      reading it
+    paths:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/config/agents.py
+      - sandboxes/base/**
+      - sandboxes/claude/**
+      - sandboxes/dsh/**
+    rationale: >-
+      This is the contract between the engine and every image; changing it rebuilds
+      and republishes every seat image at once
+    cites: [S-0063/D-1, S-0063/D-2, S-0064/D-7]
+    check: >-
+      uv run pytest tests/test_sandbox_defs.py -k "seam or broker"
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      An attempt's inputs are only what its seat declared: equipment is fetched host-side
+      before the sandbox exists and mounted read-only, never written into a path the
+      repository owns, and each image's `run` shuts out worktree files written for
+      other readers (`AGENTS.md`, `CLAUDE.md`, `.claude/skills`, `.agents/skills`,
+      `.mcp.json`) before adding its own
+    paths:
+      - src/torve/config/equipment.py
+      - src/torve/application/equipment.py
+      - sandboxes/claude/toolkit/**
+      - sandboxes/dsh/toolkit/**
+    rationale: >-
+      Candidates are comparable only when their inputs are declared; the dsh image's
+      door patches keys dsh does not read, which the rebuild fixes
+    cites: [S-0062/D-1, S-0066/D-1, S-0072/D-2]
+    check: >-
+      uv run pytest tests/test_equipment.py tests/test_session.py -k "host_side or
+      read_only or equipment_root"
+  - id: D-11
+    grade: LOCKED
+    text: >-
+      Each configuration key has one home: a profile says what the agent is, a harness
+      how a model is reached, a provider the key name, routes and roster, and a seat
+      which harness, profile, model and clocks; any other file refuses the key naming
+      where it moved, configuration only appends to the working rules, and a seat
+      is refused at load unless its roster lists its model and its harness speaks
+      the route's dialect
+    paths:
+      - src/torve/config/agents.py
+      - src/torve/config/runconfig.py
+      - src/torve/config/providers.py
+      - .torve/agents/**
+      - .torve/harnesses/**
+      - .torve/providers/**
+    rationale: >-
+      Consuming repositories' committed configuration depends on this shape, and an
+      attempt must never be where a bad seat is found
+    cites: [S-0061/D-1, S-0064/D-1, S-0029/D-1]
+    check: >-
+      uv run pytest tests/test_agents.py tests/test_runconfig.py -k "moved_key or
+      may_not_name_a_prompt or roster_does_not_list or cannot_speak"
+  - id: D-12
+    grade: LOCKED
+    text: >-
+      Imports run downward only (cli > adapters > application > domain > base); gates
+      and config import neither application nor adapters, config never imports cli,
+      adapters never import each other, gates and the runtime and agent adapters never
+      import `torve.config.spec`, and import-linter enforces it
+    paths: [src/torve/**, pyproject.toml]
+    rationale: >-
+      Layer drift is silent and costs a package-wide refactor to undo; the gates-only
+      install and adapter swaps depend on it
+    cites: [S-0015/D-1, S-0055/D-23, S-0042/D-2]
+    check: >-
+      uv run lint-imports && uv run pytest tests/test_layering.py
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      Every result-producing verb offers `--format json` in the persisted record's
+      shape, results go to stdout and diagnostics to stderr, no verb prompts interactively,
+      and presentation lives only in `cli/`
+    paths: [src/torve/cli/**]
+    rationale: >-
+      Unattended passes and scripts read these surfaces
+    cites: [S-0011/D-2, S-0018/D-1, S-0015/D-6]
+  - id: D-14
+    grade: LOCKED
+    text: >-
+      `EscalationReason` is one closed enum beside `EXIT_BY_REASON`: 0 ok, 1 gates
+      red, 2 escalated, 3 configuration, 4 infrastructure, 5 exhausted, 6 the engine
+      moved; a new reason needs a code, and a failure that measures nothing about
+      the model escalates as infrastructure, never as a conviction
+    paths:
+      - src/torve/domain/states.py
+      - src/torve/application/session.py
+      - src/torve/cli/options.py
+    rationale: >-
+      CI, the chain launcher and scripts branch on these codes
+    cites: [S-0011/D-4, S-0055/D-6, S-0062/D-7, S-0089/D-2]
+    check: >-
+      uv run pytest tests/test_domain.py::test_every_escalation_reason_has_an_exit_code
+      tests/test_run_loop.py -k "failed_prepare_convicts_nothing or refused_seat_escalates"
+  - id: D-15
+    grade: LOCKED
+    text: >-
+      Every YAML model checks `schema_version` through `base.model.SchemaVersion`,
+      and an `engine:` range in `config.yaml` stops any configuration-loading command
+      under a torve outside it
+    paths:
+      - src/torve/base/model.py
+      - src/torve/config/runconfig.py
+      - src/torve/domain/task.py
+      - src/torve/domain/spec.py
+    rationale: >-
+      A file written for another torve must stop the command that reads it; nothing
+      else records which engine a repository needs
+    cites: [S-0095/D-5, S-0110/D-2]
+    check: >-
+      uv run pytest tests/test_versions.py && uv run pytest tests/test_runconfig.py
+      -k "engine_range"
+  - id: D-16
+    grade: ASSUMED
+    text: >-
+      The engine writes one instant format, `YYYY-MM-DDTHH:MM:SSZ`, from `base.clock.stamp()`,
+      each closed vocabulary is defined once in `domain/vocabulary.py`, and every
+      strict model uses `base.model.STRICT` with described fields, so `torve init`
+      writes schemas an editor checks
+    paths:
+      - src/torve/base/clock.py
+      - src/torve/base/model.py
+      - src/torve/domain/vocabulary.py
+    rationale: >-
+      Timelines sort on one string, and a vocabulary word is added in one place
+    cites: [S-0058/D-7, S-0059/D-5, S-0059/D-6]
+    check: >-
+      uv run pytest tests/test_clock.py::test_no_module_but_the_clock_spells_the_instant
+      tests/test_spec.py::test_schema_descriptions_cover_every_property
+  - id: D-17
+    grade: ASSUMED
+    text: >-
+      `base/globs.py` is the one reading of a scope glob, with gitignore semantics,
+      and the pre-write hook shipped in `skills/hooks/implement/` imports a byte-identical
+      copy
+    paths: [src/torve/base/globs.py, skills/hooks/implement/globs.py]
+    rationale: >-
+      Disagreeing readings let the fence admit two tasks that could write one file
+    cites: [S-0105/D-1, S-0105/D-4]
+    check: >-
+      uv run pytest tests/test_globs.py && uv run pytest tests/test_equipment.py -k
+      reads_its_globs_through_the_engine
+  - id: D-18
+    grade: ASSUMED
+    text: >-
+      The attempt loop is `drive_attempts` over `AttemptHooks` with one typed `Dispatch`,
+      and new steps plug into the hooks, so the deterministic simulation drives the
+      loop that ships
+    paths: [src/torve/application/runner.py, src/torve/application/dispatch.py]
+    rationale: >-
+      Hooks only the real engine used would silently drop the simulation's checks
+      for ceilings, lying gates and duplicate landings
+    cites: [S-0046/D-2, S-0046/D-3]
+    check: uv run pytest tests/test_dst.py
+  - id: D-19
+    grade: LOCKED
+    text: >-
+      Git holds what should be and the store holds what happened: `TaskStore` is a
+      thin facade over forze's leased queue, the manager is one resident process that
+      rebuilds its board from the record each pass, a lease expires when no activity
+      is recorded, and the repository is the partition key
+    paths:
+      - src/torve/application/taskstore.py
+      - src/torve/application/manager.py
+      - src/torve/application/worker.py
+      - src/torve/adapters/store/**
+    rationale: >-
+      A restart is a re-read, a killed worker costs only its lease, and a wedged agent
+      cannot report itself healthy
+    cites: [S-0001/D-14, S-0044/D-5, S-0044/D-6, S-0055/D-38]
+    check: >-
+      uv run pytest tests/test_taskstore.py tests/test_manager.py::test_a_claim_that_has_gone_silent_past_its_lease_is_expired
+  - id: D-20
+    grade: LOCKED
+    text: >-
+      Torve owns the DDL for every relation it uses as owner-grouped, forward-only,
+      checksummed SQL under `migrations/`, and the substrate group pins an exact forze
+      version that `pyproject.toml` matches and `doctor` enforces
+    paths:
+      - migrations/**
+      - src/torve/application/migrate.py
+      - src/torve/cli/migrate.py
+      - pyproject.toml
+    rationale: >-
+      The store schema outlives every engine version, and a forze bump without its
+      migration is silent corruption
+    cites: [S-0012/D-1, S-0012/D-4, S-0055/D-43]
+    check: uv run pytest tests/test_migrate.py
+  - id: D-21
+    grade: LOCKED
+    text: >-
+      `torve plan` is deterministic: it mints from one accepted, committed document,
+      copies each inherited row's id, grade, text and paths into the contract at write
+      time, and derives task ids max+1, never reused; a contract naming no document
+      inherits every accepted row whose paths intersect its scope, and a task in flight
+      is never re-minted
+    paths:
+      - src/torve/application/planner.py
+      - src/torve/domain/task.py
+      - src/torve/domain/spec.py
+    rationale: >-
+      A contract cannot change under its executor, and with this charter as the one
+      standing document, scope intersection is how every contract gets its rows
+    cites: [S-0007/D-2, S-0055/D-7, S-0049/D-1, S-0059/D-1]
+    check: >-
+      uv run pytest tests/test_plan.py::test_inherit_decisions_copies_the_rows_intact
+      tests/test_plan.py::test_standing_decisions_intersect_in_and_out
+  - id: D-22
+    grade: ASSUMED
+    text: >-
+      A phase's acceptance commands must be runnable where they are judged, and the
+      mint-time lint refuses one that needs host credentials, operational state, git
+      or a Docker daemon the configuration does not nest
+    paths: [src/torve/application/intake.py]
+    rationale: >-
+      A command that can never go green there makes the contract unlandable by construction
+    cites: [S-0071/D-5, S-0055/D-46]
+    check: uv run pytest tests/test_intake.py -k docker
+  - id: D-23
+    grade: ASSUMED
+    text: >-
+      Every spec-authoring verb is one parse, mutate, emit and check transaction through
+      the single writer in `config/spec_emit.py` that aborts whole on a red check,
+      and verbs write structure and identifiers, never a chosen grade, prose or status
+    paths: [src/torve/config/spec_emit.py, src/torve/cli/spec.py]
+    rationale: >-
+      This charter is edited only through these verbs, and a half-written charter
+      corrupts every contract that inherits it
+    cites: [S-0025/D-1, S-0025/D-2]
+    check: uv run pytest tests/test_rfc_verbs.py
+  - id: D-24
+    grade: LOCKED
+    text: >-
+      The secrets gate reads added lines and no bypass lifts it; any other blocking
+      gate is lifted only by a person's `Torve-Bypass: <gate>: <reason>` trailer,
+      recorded with its author and counted, and secrets false positives are suppressed
+      only through the reviewed manifest
+    paths:
+      - src/torve/gates/secrets.py
+      - src/torve/gates/runner.py
+      - src/torve/config/manifest.py
+    rationale: >-
+      An override must cost a signature and leave a count, and a leaked secret cannot
+      be un-leaked
+    cites: [S-0002/D-7, S-0002/D-11, S-0055/D-17]
+    check: >-
+      uv run pytest tests/test_runner.py::test_bypass_is_appended_to_the_task_log
+      tests/test_gates.py::test_secrets_allow_patterns_suppress_reviewed_false_positives
+  - id: D-25
+    grade: ASSUMED
+    text: >-
+      The blocking suite gate convicts only a test still red at the head and not red
+      on the merge base after a rerun of the failing files; flaky and inherited reds
+      pass, and inherited node ids ride the gate result
+    paths: [src/torve/gates/suite.py, src/torve/gates/runner.py]
+    rationale: >-
+      A suite without head and base attribution convicts attempts for reds the base
+      already carried
+    cites: [S-0118/D-1, S-0118/D-2, S-0118/D-3]
+    check: uv run pytest tests/test_suite.py
+  - id: D-26
+    grade: ASSUMED
+    text: >-
+      The battery reports what it judged: outcomes are pass, fail, flaky, skipped,
+      bypassed or error, a gate whose paths the diff misses is reported skipped and
+      never omitted, a command that runs no test fails, and shadow gates report without
+      touching the exit code
+    paths:
+      - src/torve/gates/runner.py
+      - src/torve/gates/acceptance.py
+      - src/torve/config/manifest.py
+    rationale: >-
+      A judge whose pass can stand for two different suites, or for none, cannot select
+      between candidates
+    cites: [S-0002/D-6, S-0070/D-6, S-0089/D-4]
+    check: >-
+      uv run pytest tests/test_gates.py -k "judges_nothing_the_attempt_changed or
+      acceptance" tests/test_runner.py::test_quarantined_gate_failure_does_not_gate
+  - id: D-27
+    grade: LOCKED
+    text: >-
+      Two tasks whose scopes intersect are never in flight together, agents never
+      communicate with each other, and the runner composes each attempt's context
+      host-side from that task's own facts only
+    paths:
+      - src/torve/application/manager.py
+      - src/torve/application/dispatch.py
+      - src/torve/application/contextpack.py
+    rationale: >-
+      Isolated contracts that cannot overlap are what make parallel attempts comparable
+      and safe to land
+    cites: [S-0001/D-29, S-0006/D-6, S-0055/D-21]
+    check: >-
+      uv run pytest tests/test_manager.py::test_tasks_in_flight_hold_their_scope_against_new_dispatch
+      tests/test_manager.py::test_two_wildcard_scopes_that_share_a_path_fence_each_other
+  - id: D-28
+    grade: LOCKED
+    text: >-
+      The critic is independent of the author: it judges a diff composed before its
+      disposable copy exists, never receives the author's trace or any model-written
+      context, holds no forge credential, keeps nothing it writes, and a finding whose
+      evidence does not locate is discarded unread
+    paths: [src/torve/application/review.py, src/torve/gates/evidence.py]
+    rationale: >-
+      Judge-and-select is only as good as the judge's independence from the author's
+      reasoning
+    cites: [S-0005/D-2, S-0005/D-3, S-0055/D-49, S-0043/D-2]
+    check: >-
+      uv run pytest tests/test_review_run.py::test_the_review_input_is_composed_before_the_copy_exists
+      tests/test_review_role.py::test_findings_with_unlocatable_evidence_are_discarded_and_counted
+  - id: D-29
+    grade: LOCKED
+    text: >-
+      Forge thread text is an untrusted claim: it reaches an attempt only inside a
+      nonce-delimited fence, a thread asking for anything but a change to in-scope
+      files is refused as injection, the leg never merges, pushes or resolves a person's
+      thread, and a re-raised finding escalates
+    paths: [src/torve/application/reviewleg.py, src/torve/application/threads.py]
+    rationale: >-
+      Third-party text becomes agent work here; the fence, the refusal and the termination
+      rule stop prompt injection and endless rounds
+    cites: [S-0084/D-5, S-0084/D-8, S-0084/D-14, S-0103/D-7]
+    check: >-
+      uv run pytest tests/test_reviewleg.py -k "nonce or inject or reraised or persons"
+  - id: D-30
+    grade: LOCKED
+    text: >-
+      The landing route is configured, never inferred: under `pull_request` the lane
+      lands candidates onto `torve/S-NNNN` cut from the remote base, pushes under
+      lease, opens or refreshes one pull request and stops; it never moves the base,
+      never resolves a conflict, never lands without the configured approval, and
+      `promotion.auto_merge` defaults off
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/config/runconfig.py
+      - src/torve/cli/merge.py
+      - src/torve/adapters/vcs/git.py
+    rationale: >-
+      The landing is the engine's one irreversible write to a shared repository
+    cites: [S-0080/D-1, S-0083/D-1, S-0006/D-1, S-0055/D-50]
+    check: >-
+      uv run pytest tests/test_lane.py::test_a_conflict_escalates_the_run_and_leaves_the_branch_for_a_human
+      tests/test_residency.py::test_the_switch_is_off_by_default_and_an_unarmed_pass_never_lands
+      tests/test_runconfig.py::test_auto_merge_with_no_criterion_armed_is_refused_naming_what_to_set
+  - id: D-31
+    grade: LOCKED
+    text: >-
+      A task is landed exactly when a landing file for it sits in the base tree or
+      on the remote tip of its document branch; landing files are written once per
+      attempt and never deleted, and `projections.landed` is the one answer every
+      reader uses
+    paths:
+      - src/torve/application/projections.py
+      - src/torve/application/decisions.py
+      - src/torve/application/lane.py
+      - src/torve/application/residency.py
+    rationale: >-
+      The landing file is written by the commit that lands the task, so it cannot
+      disagree with git after a kill, a rebase or a squash merge
+    cites: [S-0099/D-1, S-0059/D-12, S-0091/D-3]
+    check: >-
+      uv run pytest tests/test_projections.py -k landed tests/test_residency.py::test_a_contract_that_already_landed_is_minted_as_landed
+  - id: D-32
+    grade: ASSUMED
+    text: >-
+      The lane works from the remote's copy of a document branch, fetched with prune:
+      commits it did not make are rebased onto, a conflict escalates, and every push
+      leases on the exact commit it fetched
+    paths: [src/torve/application/lane.py, src/torve/adapters/vcs/git.py]
+    rationale: >-
+      A stale local ref nearly pushed squash-merged history back, and a lease on a
+      just-fetched ref reset hand commits away
+    cites: [S-0091/D-1, S-0094/D-2, S-0099/D-3]
+    check: >-
+      uv run pytest tests/test_lane.py -k "hand_commit or merged_while_no_pass_ran"
+  - id: D-33
+    grade: ASSUMED
+    text: >-
+      The lane's verdicts on a commit are forge commit statuses keyed by its sha,
+      a completing landing runs the blocking battery over the branch tip and leaves
+      the pull request in draft unless it is green, and every lane battery is recorded
+      as a `lane.judged` event
+    paths:
+      - src/torve/application/lane.py
+      - src/torve/domain/events.py
+      - src/torve/cli/merge.py
+    rationale: >-
+      A status keyed by sha is the one carrier every host and the pull request's reader
+      agree on
+    cites: [S-0093/D-1, S-0118/D-6, S-0118/D-9]
+    check: >-
+      uv run pytest tests/test_lane.py -k "red_battery_at_completion or keeps_the_draft"
+  - id: D-34
+    grade: LOCKED
+    text: >-
+      The agent produces code and the runner produces every forge artefact: commits
+      are authored by the agent identity and committed by torve, pull-request bodies
+      and replies are composed from records, never from agent prose, and the base
+      is never force-pushed
+    paths:
+      - src/torve/adapters/vcs/git.py
+      - src/torve/application/forge.py
+      - src/torve/application/runner.py
+    rationale: >-
+      Everything the forge shows a person must come from data the engine can vouch
+      for
+    cites: [S-0010/D-1, S-0010/D-2, S-0080/D-4]
+    check: >-
+      uv run pytest tests/test_forge.py::test_the_pr_is_composed_from_records_never_prose
+      tests/test_provenance.py::test_the_commit_is_authored_by_the_agent_and_committed_by_torve
+  - id: D-35
+    grade: LOCKED
+    text: >-
+      Accepting a document, grading or amending a LOCKED row, merging a pull request,
+      resolving a person's review thread, force-pushing and deleting a branch are
+      the owner's acts, and the shipped operator skill says so
+    paths: [skills/torve/SKILL.md, src/torve/cli/init.py]
+    rationale: >-
+      A session new to a repository must not take the owner's decisions by not knowing
+      they were the owner's
+    cites: [S-0100/D-4]
+  - id: D-36
+    grade: LOCKED
+    text: >-
+      The engine never changes its own code under a running process: a chain whose
+      `torve` package resolves under the repository root neither fast-forwards nor
+      plans, and a fast-forward that crosses `night.engine_paths` makes `manager serve`
+      exit 6 for its launcher to reinstall
+    paths:
+      - src/torve/cli/manager.py
+      - src/torve/domain/states.py
+      - src/torve/config/runconfig.py
+    rationale: >-
+      A fast-forward or install under a running engine swaps lazily imported modules
+      and can leave no runnable engine
+    cites: [S-0117/D-6, S-0120/D-1, S-0120/D-3]
+    check: >-
+      uv run pytest tests/test_manager.py -k "engine_moved or imports_from_the_root"
+  - id: D-37
+    grade: ASSUMED
+    text: >-
+      A night is a subject in the event log whose terms are recorded whole at open;
+      a chained night plans only from a clean base at the remote tip, budgets bound
+      a UTC day, and a failing pass leg is recorded and the pass carries on
+    paths: [src/torve/application/residency.py, src/torve/cli/manager.py]
+    rationale: >-
+      The night is the unit an operator budgets and reads in the morning, and one
+      broken leg once stopped every pass
+    cites: [S-0079/D-1, S-0117/D-3, S-0117/D-4, S-0044/A-12]
+    check: >-
+      uv run pytest tests/test_residency.py -k "day or axis or broken_leg or night_with_nothing_to_start"
+  - id: D-38
+    grade: LOCKED
+    text: >-
+      The issue intake leg is off until `intake.issue_label` names a label, drafts
+      only an issue whose label a triager applied and whose text nobody edited since,
+      hands the drafter only the title and body, and never writes to the forge
+    paths: [src/torve/application/issues.py, src/torve/config/runconfig.py]
+    rationale: >-
+      Tracker text is untrusted; only text a triager vetted may reach an agent
+    cites: [S-0119/D-1, S-0119/D-2, S-0119/D-4]
+    check: >-
+      uv run pytest tests/test_issues.py -k "off or triage or edited"
+  - id: D-39
+    grade: ASSUMED
+    text: >-
+      Every attempt appends exactly one telemetry row, however it ends, carrying the
+      hash of the regime it ran under and facts only: absent counts stay absent, and
+      an unpriced cost is unreported, never zero
+    paths:
+      - src/torve/application/telemetry.py
+      - src/torve/application/runner.py
+      - src/torve/application/ledger.py
+    rationale: >-
+      Selecting by cost and quality is only as honest as the record, and numbers from
+      two regimes are never compared by accident
+    cites: [S-0038/D-1, S-0055/D-41, S-0004/D-19, S-0064/D-12]
+    check: >-
+      uv run pytest tests/test_runner.py::test_a_halted_attempt_appends_its_verdict_row
+      tests/test_ledger.py::test_rates_are_per_seat_and_an_unpriced_seat_reports_unreported
+      tests/test_dispatch.py::test_a_priced_seat_that_reported_no_counts_stays_unreported
+  - id: D-40
+    grade: ASSUMED
+    text: >-
+      Session traces live under `.torve/traces/`, are never committed, uploaded or
+      put into a prompt, and never drive control flow; the context pack is computed
+      host-side with no model from the task's own facts
+    paths:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/application/reaper.py
+      - src/torve/application/contextpack.py
+    rationale: >-
+      What an agent saw can be reconstructed, while what it reasoned never feeds another
+      agent
+    cites: [S-0039/D-1, S-0039/D-2, S-0055/D-60]
+    check: >-
+      uv run pytest tests/test_reaper.py::test_retention_touches_nothing_within_both_bounds

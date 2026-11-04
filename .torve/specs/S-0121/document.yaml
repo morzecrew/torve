@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0121
+title: Charter
+kind: convention
+change:
+  type: docs
+  scope: spec
+status: accepted
+implementation: partial
+depends_on: []
+informed_by: [S-0055]
+supersedes: []
+superseded_by: null
+owner: misery7100
+schema_version: 4
+summary: |
+  The rules that still govern torve's surviving code, restated as forty rows in one document
+  that replaces the hundred and twenty before it. Documents S-0001 to S-0120 move to the
+  archive, superseded by this one: nothing inherits from them and no contract carries their
+  rows, while every citation of them in code and history still resolves.
+
+  The rows are the ones a maintainer or a critic needs to keep from breaking what the
+  judge-and-select rebuild keeps: who decides (D-1 to D-6), custody and the sandbox seam
+  (D-7 to D-11), code shape (D-12 to D-18), the store and planning (D-19 to D-23), the gates
+  (D-24 to D-27), the critic and forge threads (D-28, D-29), landing (D-30 to D-35), and the
+  night, intake and record (D-36 to D-40). Each row cites the archived rows it descends from.
+motivation: |
+  The corpus had grown to 120 documents. A contract inherited rows from about thirty of them,
+  `application/AGENTS.md` projected some 340 rows, and much of what the rows defended (the
+  silence check, attestation entries, the verify pilot, mutation, evals, fleet, standing work,
+  the web dashboard) is being deleted by the rebuild. The rows worth keeping were scattered
+  across documents written for code that has since moved. One short document of rules that
+  still hold is what a contract, a reviewer and the owner can read.
+current_state: |
+  Four agents read every document from S-0001 to S-0120 with its amendments applied, checked
+  each candidate row's paths against the tree, and grepped the code behind each LOCKED one;
+  eighty candidates were merged into these forty. Two rows state the rule the code is about to
+  meet rather than one it meets today, which is why the implementation is partial: the battery
+  still reads its gate manifest and the task's contract from the agent's worktree (D-3), and the
+  dsh image's door patches configuration keys dsh does not read, so project instruction files
+  still reach that seat (D-10). The rebuild fixes both.
+goals: ''
+non_goals: ''
+tests: ''
+docs: ''
+out_of_scope: ''
+risks: |
+  A row that still mattered may have been left out. Every archived document stays readable
+  with `torve spec show`, and a missed rule comes back through `torve spec add-decision` citing
+  where it came from. The opposite risk is a row kept here whose code the rebuild deletes;
+  `torve spec check` names a row whose paths match nothing, and the rebuild retires it.

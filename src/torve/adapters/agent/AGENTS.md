@@ -2,225 +2,32 @@
 
 ## Decisions governing `src/torve/adapters/agent/`
 
-### S-0055/D-33 — `ASSUMED` (Standing decisions)
+### S-0121/D-7 — `LOCKED` (Charter) — implementation: partial
 
-Configuration routes by nature — identity in the image, task context in the workspace, secrets as environment names, knobs in the command, state on the slot volume — one item, one channel
+Agents and their harnesses run only inside a sandbox, with no harness SDK in the engine process; the engine never builds an image mid-run, and mounting the host Docker socket is an explicit per-repository opt-in
 
-- Paths: `src/torve/config/runconfig.py` `src/torve/adapters/agent/harness.py`
-- Consequence: A second channel for a secret is a leak; a repository-carried harness config is an injection surface
-
-### S-0055/D-60 — `ASSUMED` (Standing decisions)
-
-Every attempt runs on a worktree seeded with the base sha pinned host-side, the role's skills materialised, and the divergence log seeded; the session trace is captured to `.torve/traces/` and its content enters no prompt and drives no control flow
-
-- Paths: `src/torve/application/session.py` `src/torve/adapters/agent/harness.py` `.torve/traces/**`
-- Consequence: What an agent saw is reconstructible; what it reasoned is never an input to another agent
-
-### S-0059/D-2 — `LOCKED` (One word for the document, and the tree as the record)
-
-Every reader resolves a contract's document by `document_dir(spec_dir, identifier)`; the scope gate's exemption and the runner's decision gates come from the identifier, and the gate context carries the corpus path
-
-- Paths: `src/torve/gates/context.py` `src/torve/gates/scope.py` `src/torve/gates/runner.py` `src/torve/application/decisions.py` `src/torve/adapters/agent/harness.py`
-- Consequence: The regexes over the path go; a document that moved is still found
+- Paths: `src/torve/application/session.py` `src/torve/adapters/runtime/docker.py` `src/torve/adapters/agent/**`
 - Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
-### S-0059/D-8 — `ASSUMED` (One word for the document, and the tree as the record)
+### S-0121/D-8 — `LOCKED` (Charter) — implementation: partial
 
-The log's `base_sha` is `base`, the landing's word; the log's schema version is 2 and a log saying `base_sha` reads through a shim; the landing's `commit` stays; `spec new`'s hint and `spec show`'s label name the summary, not a description
+No sandbox holds a real credential: the host-side broker injects provider keys at its own boundary and hands the sandbox a run-scoped token, routes and meters providers, refuses requests past the run's budget, keeps counts never bodies and opens last; configuration names variables, never values; the forge token stays on the host and reaches git through a credential helper, never on argv
 
-- Paths: `src/torve/domain/spec.py` `src/torve/application/**` `src/torve/gates/decisions_reported.py` `src/torve/adapters/agent/harness.py` `src/torve/cli/**`
-- Consequence: One word for the commit an attempt built on, in the log and the landing
+- Paths: `src/torve/adapters/broker/**` `src/torve/application/dispatch.py` `src/torve/config/providers.py` `src/torve/config/agents.py` `src/torve/adapters/agent/harness.py` `src/torve/adapters/vcs/git.py`
+- Check: `uv run pytest tests/test_broker.py::test_a_brokered_seat_is_handed_no_provider_key tests/test_broker.py::test_the_broker_keeps_counts_and_metadata_never_bodies tests/test_dispatch.py::test_a_brokered_dispatch_hands_the_sandbox_no_provider_key` (shadow; runs as `decision:S-0121/D-8`, no log entry owed)
 
-### S-0060/D-9 — `ASSUMED` (A source is a file, and the contract names it)
+### S-0121/D-9 — `LOCKED` (Charter) — implementation: partial
 
-The harness prompt names the source, its title and its ref in the line above the decisions, and the pack carries the source's own file beside `decisions.json`
+Every sandbox image answers `/opt/torve/equip` and `/opt/torve/run`, and the engine talks to it only through flat `TORVE_*` scalars in its own vocabulary; brokered and direct runs differ only in values, no manifest carries a shell line, and a seat's `env` reaches the image as written with nothing under `src/` reading it
 
-- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
-- Consequence: The executor reads what asked, not a slug
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/config/agents.py` `sandboxes/base/**` `sandboxes/claude/**` `sandboxes/dsh/**`
+- Check: `uv run pytest tests/test_sandbox_defs.py -k "seam or broker"` (shadow; runs as `decision:S-0121/D-9`, no log entry owed)
 
-### S-0062/D-10 — `ASSUMED` (Equipment is declared, and the harness is told how to take it)
+### S-0121/D-40 — `ASSUMED` (Charter) — implementation: partial
 
-For a harness that takes the `skill` kind the prompt stops naming `.torve/skills/`; for one that does not, `materialize` and the prompt's paragraph stand unchanged. All three harnesses this repository builds take it — claude by flag, dsh at `.agents/skills`, mimo at `.mimocode/skill/` (S-0063/D-16) — so the paragraph stands for none of them.
+Session traces live under `.torve/traces/`, are never committed, uploaded or put into a prompt, and never drive control flow; the context pack is computed host-side with no model from the task's own facts
 
-- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/skills.py`
-- Consequence: a loaded skill is loaded, not described — and a harness with no skill channel keeps the only mechanism it has
-
-### S-0063/D-1 — `LOCKED` (The image knows how to equip itself)
-
-A sandbox image carries `/opt/torve/run`, which invokes its harness; a manifest carries no command template and `command` is refused by name.
-
-- Paths: `src/torve/adapters/agent/harness.py` `src/torve/config/agents.py`
-- Consequence: the shell that knows how to start a harness lives beside the harness, and a seat cannot be misconfigured into a model that silently would not work
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0063/D-2 — `LOCKED` (The image knows how to equip itself)
-
-The engine speaks to every image through one set of environment variables — `TORVE_PROMPT`, `TORVE_MODEL`, `TORVE_EQUIPMENT`, `TORVE_EQUIP_ROOT`, `TORVE_OUTPUT`, and `TORVE_BROKER_URL`/`TORVE_BROKER_TOKEN` where a broker is in force.
-
-- Paths: `src/torve/application/ports.py` `src/torve/adapters/agent/harness.py`
-- Consequence: a new harness is a new image and never a new template language, and every adapter fills one shape
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0063/D-5 — `ASSUMED` (The image knows how to equip itself)
-
-Broker placeholders retire into `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN`; the refusal moves from "the string names a placeholder" to "this seat needs a broker".
-
-- Paths: `src/torve/adapters/agent/harness.py`
-- Consequence: a run-scoped token stops being spliced into a shell string, and a seat whose provider the broker does not route is still refused before dispatch
-
-### S-0064/D-7 — `LOCKED` (A provider is a record, and the seam carries scalars)
-
-Every parameter crosses the seam as a scalar in torve's own vocabulary and units, and the image assembles its harness's representation from them; `DSH_MODEL` retires.
-
-- Paths: `src/torve/adapters/agent/harness.py` `sandboxes/**`
-- Consequence: one uniform set of names reaches three harnesses, and a unit or a spelling that only makes sense to one of them is converted in the file that knows which one it is
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0064/D-8 — `LOCKED` (A provider is a record, and the seam carries scalars)
-
-Brokered and direct differ by the value of `TORVE_BASE_URL` and `TORVE_API_KEY` and never by a variable's presence; `TORVE_BROKER_URL` and `TORVE_BROKER_TOKEN` retire and no image tests whether a broker is in force.
-
-- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/session.py` `sandboxes/**`
-- Consequence: nine broker branches across three definitions go, and mimo becomes brokerable by deletion rather than by implementation
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0065/D-6 — `ASSUMED` (The record is read, and what looks lost is unjoined)
-
-`terminal_reason` and `session_id` are recorded on the attempt when the harness returns them, absent when it does not, and never synthesised
-
-- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/runner.py`
-- Consequence: a three-second boot failure and a twenty-minute clock stop being the same class, and the continuation question becomes answerable without committing to an answer
-
-### S-0066/D-4 — `ASSUMED` (An attempt's inputs are declared, and the image says what it loaded)
-
-The engine compares what a seat declared against the inventory the harness reports it loaded; a mismatch is a fact on the attempt record, never a conviction
-
-- Paths: `src/torve/adapters/agent/harness.py`
-- Consequence: the door becomes a checked fact rather than an assertion about three images, and `shadow`'s determinism claim acquires its missing half
-
-### S-0067/D-3 — `ASSUMED` (A session is briefed, and the working rules have one source)
-
-The working rules live once, at `skills/working-rules/`, reaching a sandbox as a declared equipment item and a session through its skill root; `build_prompt` names the skill instead of inlining it
-
-- Paths: `skills/working-rules/**` `src/torve/adapters/agent/harness.py` `.torve/agents/**`
-- Consequence: the best short statement of how to work in this repository stops being readable only by opening the engine's source, and both modes read one text that a diff can refuse
-
-### S-0067/D-4 — `LOCKED` (A session is briefed, and the working rules have one source)
-
-One bullet stays in the prompt: that the role's skills are in system position, whole, and that their files are under `.torve/skills/`
-
-- Paths: `src/torve/adapters/agent/harness.py`
-- Consequence: the skill remains reachable; without it the rules are a file nothing points at
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0069/D-1 — `ASSUMED` (A conviction is the next contract's input)
-
-A repair is a mode of an attempt, not a role, a task or a child — `build_prompt` gains a `conviction` beside its `continuation` and `revision`
-
-- Paths: `src/torve/adapters/agent/harness.py`
-- Consequence: the attempt ledger, the budget, the poison ceiling and the escalation reasons all apply unchanged, and nothing new has to be configured for a repair to exist
-
-### S-0069/D-2 — `ASSUMED` (A conviction is the next contract's input)
-
-The conviction reaches the next attempt in the prompt — the gate, its output tail, the paths the diff touched and the inherited rows governing them — as evidence the contract still outranks
-
-- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
-- Consequence: the most specific thing the engine ever learns about a task stops arriving through a channel an attempt may skip
-
-### S-0073/D-1 — `LOCKED` (The working rules live once, and say what an attempt costs)
-
-`build_prompt` names the working-rules skill and does not restate it; the test over it asserts that property rather than the words, so a bullet added back fails instead of passing quietly beside the skill
-
-- Paths: `src/torve/adapters/agent/harness.py` `tests/test_tiering.py`
-- Consequence: one copy of the text that governs behaviour, and a test that cannot be satisfied by two
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0073/D-2 — `ASSUMED` (The working rules live once, and say what an attempt costs)
-
-The working rules reach the agent in system position, through each harness's own channel, carrying the same text
-
-- Paths: `src/torve/adapters/agent/harness.py` `.torve/harnesses`
-- Consequence: the rules are read before the contract rather than below it, and they join the cached prefix
-
-### S-0073/D-3 — `ASSUMED` (The working rules live once, and say what an attempt costs)
-
-`num_turns`, `permission_denials` and `subagent_stats` are recorded on the attempt when the receipt carries them, absent when it does not, and never invented
-
-- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/telemetry.py`
-- Consequence: an attempt at 113 turns and an attempt at 12 stop reading as the same attempt
-
-### S-0074/D-2 — `ASSUMED` (What the engine is worth against a bare harness)
-
-The bare arm's prompt carries the task's intent and nothing else — no inherited rows, no context pack, no working rules — as a fourth `build_prompt` mode beside revision, continuation and repair
-
-- Paths: `src/torve/adapters/agent/harness.py` `tests/test_tiering.py`
-- Consequence: what an arm removed is a property of the prompt a test can assert, rather than something read back out of a transcript
-
-### S-0075/D-1 — `LOCKED` (What an attempt costs, measured per changed line)
-
-An attempt records its per-request context curve — first, median, max and sum — on every seat, reconstructed from the message usage where cache fields are absent, with the shape used named on the row and the sum checked against the receipt's own total
-
-- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/telemetry.py`
-- Consequence: the identity behind every token figure can be verified per attempt instead of trusted, and an attempt that cannot be reconstructed says so
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0075/D-5 — `LOCKED` (What an attempt costs, measured per changed line)
-
-A request is identified by the message id the stream carries, not by the event: one request emits several assistant events, each repeating the same usage object, and the curve counts requests
-
-- Paths: `src/torve/adapters/agent/harness.py`
-- Consequence: the reconstruction closes against the receipt on a seat that reports cache fields, and the seat that does not is reported unmeasured rather than published wrong
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0076/D-1 — `ASSUMED` (The attempt is handed what the engine already knows)
-
-The pack's small deterministic files arrive in the attempt's first message rather than behind a read; `decisions.json` stays behind one
-
-- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/contextpack.py`
-- Consequence: seven round trips every attempt spends opening what the engine wrote become zero, and the attempt starts with what the engine intended rather than with what it opened first
-
-### S-0076/D-4 — `ASSUMED` (The attempt is handed what the engine already knows)
-
-The cap on what one tool result may return is enforced at the harness's own result boundary, where every tool crosses it, and the prompt's reading advice names the shell forms beside the reader's
-
-- Paths: `src/torve/adapters/agent/harness.py` `.torve/harnesses/**`
-- Consequence: the context's growth term stops being set by whichever command dumped the most, whichever tool that command used
-
-### S-0077/D-4 — `ASSUMED` (The turns the engine could have taken itself)
-
-The pack carries a map of where things are, and it arrives in the first message rather than behind a read
-
-- Paths: `src/torve/application/contextpack.py` `src/torve/adapters/agent/harness.py`
-- Consequence: the median eight calls an attempt spends finding its way around this repository become zero, and every attempt starts from the same account of the tree instead of from whichever corner it happened to list first
-
-### S-0089/D-2 — `ASSUMED` (A night serves what a worker can finish)
-
-A seat whose failure no retry can change escalates at once as `seat_refused` with the seat's own words — the harness could not be executed (exit 126 or 127), or its envelope reports an API error with a 4xx status other than 429 and zero tokens in, cached and out; no attempt is counted, nothing is convicted or checkpointed, and the reason maps to exit code 4
-
-- Paths: `src/torve/application/ports.py` `src/torve/adapters/agent/harness.py` `src/torve/application/runner.py` `src/torve/domain/states.py` `tests/test_run_loop.py` `tests/test_agents.py` `tests/test_domain.py`
-- Consequence: a broken image, an over-long prompt or an unsupported model is named as what it is in one dispatch, and the poison ceiling counts only attempts a model made
-
-### S-0100/D-8 — `ASSUMED` (A session learns torve from the torve it runs)
-
-`torve init --starter` writes role profiles that equip working-rules and flag-dont-flip to implement and revert and working-rules to review; the prompt names working-rules only to a role equipped with it.
-
-- Paths: `src/torve/cli/init.py` `src/torve/adapters/agent/harness.py`
-- Consequence: a fresh adopter's agent gets the skills its prompt names
-
-### S-0104/D-7 — `ASSUMED` (A phase's scope bends to the files its change reaches)
-
-The attempt's prompt lists its contingent paths beside its scope, the scope gate reports every promoted path, and the reviewer is shown the promotions.
-
-- Paths: `src/torve/adapters/agent/harness.py` `src/torve/gates/scope.py` `src/torve/application/review.py`
-- Consequence: a widening is read by the agent, the gate and the reviewer, never made silently
-
-## Invariants holding over `src/torve/adapters/agent/`
-
-- **S-0061/I-1**: No configuration key reaches the prompt before the charter's base working rules — prompt_extras appends, and nothing replaces.
-  - Paths: `src/torve/adapters/agent/harness.py` `src/torve/config/agents.py`
-  - Check: `uv run pytest tests/test_agents.py -k base_rules`
-- **S-0063/I-1**: No harness manifest carries a shell line, and no engine code substitutes into one.
-  - Paths: `src/torve/config/agents.py` `src/torve/adapters/agent/harness.py`
-  - Check: `uv run pytest tests/test_agents.py -k no_shell`
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/reaper.py` `src/torve/application/contextpack.py`
+- Check: `uv run pytest tests/test_reaper.py::test_retention_touches_nothing_within_both_bounds` (shadow; runs as `decision:S-0121/D-40`, no log entry owed)
 
 <!-- /torve:managed -->

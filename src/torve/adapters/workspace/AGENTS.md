@@ -2,40 +2,11 @@
 
 ## Decisions governing `src/torve/adapters/workspace/`
 
-### S-0059/D-12 — `LOCKED` (One word for the document, and the tree as the record)
+### S-0121/D-2 — `LOCKED` (Charter) — implementation: partial
 
-Every reader of a landing reads the tree through `landings` and `landed_commits` — `shipped_landings`, `shipped_ids`, `shipped_commit`, the revert leg, `status`, `shadow`, `evals`, the review's defect lookup, the PR review's `landed_tasks` and `spec cites`; no git subprocess reads a trailer or a subject, closing S-0022/A-1's exception and retiring S-0007/D-26's subject spellings; the five local tasks without a landing get one written once from their trailers, by a script not committed
+Gates run outside the agent session, in a gates sandbox, against a standalone checkout of a snapshot commit the attempt left (`refs/torve/judge/<task>`), so an agent cannot report a gate outcome; no candidate code and no repository hook runs on the host, and every git command torve runs carries `core.hooksPath=/dev/null`
 
-- Paths: `src/torve/application/projections.py` `src/torve/application/specquality.py` `src/torve/application/review.py` `src/torve/application/session.py` `src/torve/application/ports.py` `src/torve/application/residency.py` `src/torve/application/shadow.py` `src/torve/adapters/vcs/git.py` `src/torve/adapters/workspace/git.py` `src/torve/cli/**`
-- Consequence: A tree without git answers what landed; S-0022/D-5 holds again without its exception
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0080/D-10 — `ASSUMED` (The lane opens a pull request, and a person lands it)
-
-In `pull_request` mode a worktree is cut from the remote's `main` after a fetch, never from the local one
-
-- Paths: `src/torve/adapters/workspace/git.py` `src/torve/gates/context.py`
-- Consequence: an attempt builds on the base its pull request will be merged against, rather than on a copy that is stale from the first merge onward
-
-### S-0083/D-9 — `ASSUMED` (The pull request is one per document, not one per task)
-
-In `unit: document` a task's worktree is cut from the document branch's tip when the branch exists and from the remote's `main` after a fetch when it does not, which means wiring the `fetch` that `resolve_base` and `WorkspaceGit.create` already take through `WorkspacePort` and the runner
-
-- Paths: `src/torve/gates/context.py` `src/torve/adapters/workspace/git.py` `src/torve/application/ports.py` `src/torve/application/runner.py`
-- Consequence: the phase after a landed one starts on the tree that landing produced the moment it landed, so a night runs a whole document without a person in the middle
-
-### S-0110/D-7 — `ASSUMED` (A second adopter runs torve from a tool install)
-
-Every git command torve runs carries `core.hooksPath=/dev/null`, so no repository hook runs on a commit, rebase, checkout or push torve makes. A repository moves the checks its hooks stand for into its gates or its CI.
-
-- Paths: `src/torve/adapters/vcs/**` `src/torve/adapters/workspace/**` `src/torve/application/lane.py`
-- Consequence: configuration an agent wrote never runs on the host through a hook
-
-### S-0114/D-1 — `ASSUMED` (The judge reads only the commit)
-
-Before an attempt's battery, the host commits what `git add -A` would stage in the worktree to a snapshot under `refs/torve/judge/<task>`, leaving the worktree's index and branch untouched, and builds a standalone checkout at `.wt/<task>.judge/` the way a shadow replay builds its clone: a fresh repository that fetches the snapshot alone, so it holds only the objects the snapshot reaches, checked out detached at the snapshot's commit, which the host verifies before any gate runs.
-
-- Paths: `src/torve/adapters/workspace/git.py` `src/torve/application/ports.py`
-- Consequence: a gate reads only what the commit would carry, and can run git over the candidate's history
+- Paths: `src/torve/gates/**` `src/torve/application/runner.py` `src/torve/application/lane.py` `src/torve/adapters/workspace/git.py` `src/torve/adapters/vcs/git.py` `src/torve/adapters/runtime/docker.py`
+- Check: `uv run pytest tests/test_judge_checkout.py` (shadow; runs as `decision:S-0121/D-2`, no log entry owed)
 
 <!-- /torve:managed -->

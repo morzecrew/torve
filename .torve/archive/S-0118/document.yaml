@@ -1,0 +1,163 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0118
+title: A gate run is spent only where it can convict
+kind: design
+change:
+  type: fix
+  scope: gates
+status: superseded
+implementation: complete
+depends_on: [S-0055, S-0093, S-0101]
+informed_by: [S-0071, S-0081, S-0099, S-0113, S-0114]
+supersedes: []
+superseded_by: S-0121
+fixes:
+  - 219
+  - 220
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The whole suite runs once per battery, as a blocking `suite` gate that convicts an attempt only for a test it broke, and the lane re-gates with blocking gates alone and records what it judged where `torve why` can read it.
+
+  A failing test's file is rerun at the head, then on the merge base: still red at the head and not red on the base is the attempt's regression and convicts; green on the rerun is flaky; red on the base too is inherited, recorded by node id and never convicts. `coverage-delta` leaves the manifest and its delta becomes a report the suite gate prints, and the acceptance fallback stops naming `uv run pytest`. The lane's batteries skip shadow gates, every lane battery is recorded as a `lane.judged` event with its failing gates' output, and an escalation names its failing gates before it clips.
+motivation: |-
+  Three readings from this repository's record, 2026-10-02 to 2026-11-01, 153 attempt batteries:
+
+  - **The only whole-suite run is a shadow gate, and it is ignored.** `coverage-delta` took 4.16h of 5.52h of gate time (75%). It ran 133 times and went red 116 times: 83 over a coverage shortfall, 33 over a red suite. 28 of those 33 batteries, across 19 tasks, still passed, because the gate is shadow. T-0685 is one of them: it broke `tests/test_layout.py`, landed by fast-forward, and the lane later escalated T-0687 for it (#219).
+  - **A blocking suite with no attribution would have been worse.** The failing files across the 33 red suites repeat across tasks that did not touch them: `tests/test_rfc_emit.py` in 11 batteries over a week, `tests/test_broker_sealed.py` in 9, across eight tasks. A plain blocking suite would have convicted every one of those attempts for a red the base already carried.
+  - **Every red runs the suite twice.** `run_command` re-runs a failed command once (`src/torve/base/shell.py`), and `coverage-delta` is one command, so each of its 116 reds paid for two whole-suite runs.
+
+  The lane repeats the cost and loses the answer. A rebased candidate's re-gate runs the whole manifest under no contract (S-0083/D-13): every shadow gate, `coverage-delta` with its suite, and the acceptance fallback's `uv run pytest` — the suite up to four times on a red, for a verdict that reads only blocking gates. From 2026-10-02 to 2026-10-28, 21 of 78 landings were rebased: median 655s and p90 4854s from the green battery to the landing, against 185s for a fast-forward. The re-gate's own duration is recorded nowhere. When it goes red, the record keeps a one-line summary, the escalation clips it to 300 characters, and the judge checkout is gone: S-0115's night needed a reproduction on the host to learn which test failed (#220).
+current_state: |-
+  - **The battery** (`src/torve/gates/runner.py`): decision gates first, then the manifest's gates cheapest-first by `timeout`; every gate runs, after a blocking failure too (T-0234), one after another. A gate with `paths` is skipped when the attempt changed nothing under them (S-0071/D-6). Only blocking outcomes set the exit code.
+  - **The suite** (`.torve/gates.yaml`): `coverage-delta`, shadow, `paths: [src/**]`, runs `COVERAGE_CORE=sysmon uv run pytest --cov=src --cov-report=xml -q` and then `diff-cover`; a red suite ends the command with the sentence "the suite is red" (T-0319). `acceptance` runs the contract's commands, which name the phase's own tests; with no contract it runs its `commands`, which end in `uv run pytest`. The suite is parallel under `-n auto` (S-0071/D-1).
+  - **The base tree** is something a builtin already builds: `red-on-base` (`src/torve/gates/red_on_base.py`) extracts the merge base with `git archive` into a scratch directory and runs test files there (S-0081/D-5).
+  - **A gate result** (`GateResult`, `src/torve/domain/attempt.py`) carries `flaky_commands` and `quarantined_failures`. The record's `gates.evaluated` keeps a red gate's output clipped to `RECORDED_OUTPUT`, 4000 characters (`_recorded_result`, `src/torve/application/telemetry.py`).
+  - **The lane** (`src/torve/application/lane.py`): `_regate` runs `run_gates(ctx)` over a judge checkout (S-0114/D-3) and returns `(exit_code, summary, results)`; `_land_rebased` drops the results and passes the summary to `_record_red`, which writes the `torve/regate` status (S-0101/D-8), a `lane_gates_red` telemetry line, and on the second red `poison_ceiling` with `red again at the same base and head: <summary>`. The completion battery (S-0093/D-1) is the same `_regate`. `process_lane` returns `LaneResult`s to its two callers, `torve merge` (`src/torve/cli/merge.py`) and the served lane leg (`src/torve/cli/manager.py`), both of which hold the record.
+  - **The record** has no lane kind. `gates.evaluated` is the worker's and moves a task to `gated` in the projection (`src/torve/application/manager.py`), and a document pull request's body lists it (S-0101/D-6). The manager records a run state's escalation with `detail[:300]` (`src/torve/cli/manager.py`). Lane timing exists only as telemetry timestamps, which no decision reads (S-0099).
+goals: |-
+  - A phase never lands with a test it broke still failing. Closes #219.
+  - A failure the base already carries never convicts a candidate that did not cause it, in the attempt's battery or the lane's.
+  - The whole suite runs once per battery, not twice on every red and up to four times in a red re-gate.
+  - A red lane battery is read from the record, failing test named, with no reproduction on the host. Closes #220.
+  - Lane time is measurable from the record.
+non_goals: |-
+  - Running gates in parallel. The suite is 75% of gate time and already parallel inside (S-0071/D-1); the rest of the battery is minutes.
+  - Making a red `main` green. An inherited failure is recorded and reported, not fixed; whose it is stays a person's call.
+  - Removing the attempt's shadow gates. They measure attempts and keep running there; only the lane stops paying for them.
+  - Changing `acceptance`. A contract's commands stay the phase's own tests.
+design:
+  - key: the-suite-gate
+    md: |-
+      A builtin `suite` runs the first of its entry's `commands` over the head: the whole suite, once, with no blanket re-run. On a red, it reads the failing node ids from pytest's short summary and settles each:
+
+      1. **Rerun at the head**, the failing tests' files, each in its own order, reading the failing ids. Green now: flaky, reported in `flaky_commands`, no conviction — what `run_command`'s re-run decides today, at the cost of a few files instead of the suite, with the order inside each file kept.
+      2. **Run on the merge base**, the files of the ids still red, on the base tree. Green there: the attempt's regression, and the gate fails naming them. Red there too: inherited, recorded and not convicting.
+
+      An id that cannot run on the base (its file is new, or the base errors on collection) has no base reading and is a regression: nothing clears it. A red whose output names no failing id (collection error, crash, timeout) fails the gate as it would today. The entry's later `commands` are reports, run right after the suite's own run and before any rerun, so they read what the whole suite wrote (its `coverage.xml`, not a rerun's); their output is appended and their exit codes never convict.
+
+      ```yaml
+      - name: suite
+        run: "@suite"
+        state: blocking
+        origin: S-0118
+        timeout: 600
+        sabotage: suite
+        commands:
+          - "COVERAGE_CORE=sysmon uv run pytest --cov=src --cov-report=xml -q"
+          - "uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
+      ```
+
+      `GateResult` and `BuiltinOutcome` gain `inherited_failures: list[str]`, the inherited node ids, beside `quarantined_failures`. A suite whose only failures are inherited passes, and the ids ride the record with the result.
+  - key: one-suite-per-battery
+    md: |-
+      The manifest names `suite` and drops `coverage-delta`: its suite is the suite gate's, and its delta is the suite entry's report. The acceptance fallback keeps lint, format and types and stops naming `uv run pytest`, so a run with no contract — a human pull request, a re-gate, a completion battery — runs the suite once, through `suite`. `suite` carries no `paths`: a change to a test file or a page a test reads can break the suite (T-0667 broke `tests/test_docs.py`).
+
+      The manifest change lands in the completion pull request, with the two tests that read the manifest's `coverage-delta` entry (`tests/test_manifest.py`, `tests/test_gates.py`) and the retired `coverage-delta` sabotage family. A manifest naming a builtin the judging engine lacks fails every battery, so no phase can carry it; S-0116's entries waited the same way.
+  - key: the-lane-judges-with-blocking-gates
+    md: |-
+      `_regate` runs the gates whose state is `blocking`, and the decision gates, because `decisions-reported` reads their verdicts (S-0106/D-1). A shadow or quarantined manifest gate cannot change a lane verdict, and the attempt already measured it on the same change; in the lane it costs time nobody reads. The completion battery is `_regate` too, so it gets the same rule (S-0093/D-5).
+
+      The suite's attribution then does in the lane what #219 asked for: the re-gate's base is the merge base with the tip it rebased onto, so a test the base already fails is inherited there, and the candidate lands. A document's own red still meets the completion battery (S-0093/D-1), where it becomes a round.
+
+      `LaneResult` carries what the lane judged: the base and head, the battery's duration and its results. A poison-ceiling escalation lists the failing gates first and counts the rest (`red again at the same base and head: acceptance=fail, suite=fail; 9 passed`), so the record's 300-character clip reaches the failing gates first; the full results are in the battery's `lane.judged`.
+  - key: the-record-keeps-the-lane
+    md: |-
+      Every battery the lane runs, green or red, is recorded as a `lane.judged` event on the candidate's task, or on the document's last task for a completion battery:
+
+      ```python
+      class LaneJudged(BaseModel):
+          model_config = STRICT
+
+          leg: str            # "regate" or "completion"
+          base: str
+          head: str
+          exit_code: int
+          duration_s: float
+          results: list[dict[str, Any]] = Field(default_factory=list)  # as gates.evaluated records them
+      ```
+
+      `process_lane` hands each battery to an `on_judged` callback as `_regate` returns, and its two callers record what it handed them in a `finally`, as the manager's lane leg already reads the lane's requeues and escalations, so a pass that raises after a battery keeps it. It is never read for a state transition, so the board does not move and a pull request body does not list it twice. `torve why` renders each one with its failing gates' output, and lane time is the record's: the battery's duration, and the gap between a task's last `gates.evaluated` and its `landing.recorded`.
+tests: |-
+  - Attribution is a pure function of the readings — failing at the head, failing on the file rerun, and on the base green, red or unreadable — and a Hypothesis property drives it: the three outcomes partition the head's failures, and a test convicts exactly when it is red on the rerun and not red on the base.
+  - The builtin over a scratch repository: a regression fails naming the test; a test red on the base passes with the id in `inherited_failures`; a test that passes on its rerun is flaky; a test that fails only after an earlier test in its file convicts; a test whose file the base lacks convicts; a collection error fails; a report command reads the whole suite's coverage file, and its non-zero exit does not convict. The sabotage pair proves `suite` convicts a regression and passes an inherited red.
+  - The manifest: `suite` is blocking with no `paths`, `coverage-delta` is gone, and the acceptance fallback names no `pytest`.
+  - The lane: a rebased candidate's re-gate runs no shadow gate; a candidate whose only failing test fails on the base it rebased onto lands; the poison-ceiling detail names the failing gates within its first 300 characters.
+  - The record: `torve merge` and the lane leg each record one `lane.judged` per battery, green and red, and one a later raise in the pass did not lose; the projection leaves the task's state where it was; `torve why` shows the failing gate's output.
+  - Not tested: an order dependence across files, which passes on the file rerun and reads as flaky (risks).
+docs: >-
+  `pages/docs/operating.md`: the gates section says the whole suite runs once, as
+  `suite`, and how a failure is attributed; the lane section says the re-gate runs
+  blocking gates and where a red re-gate's output is read.
+out_of_scope: |-
+  - **Parallel gate execution.** Worth measuring after this lands; with the suite run once, what remains is minutes, and the every-gate-runs rule (T-0234) stays.
+  - **Fixing an inherited red.** The record and `torve why` now name it; turning it into work on `main` is a person's, or a standing job's, and needs a document of its own.
+  - **The attempt's other shadow gates.** `mutation`, `red-on-base`, `evidence` and `held-out` keep their soaks on attempts; a later document promotes or retires each on its own numbers.
+risks: |-
+  - **An order dependence across files reads as flaky.** The rerun keeps each failing file's own order, so a dependence inside a file convicts as today's whole-suite re-run does. A test that fails only after another file's tests passes on the rerun and does not convict, an accepted false negative. It is still printed and counted in `flaky_commands`; a test flaky in many batteries is visible there.
+  - **A second failure in an inherited test is masked.** A test red on the base stays inherited when the change breaks it a second way. It stays named in `inherited_failures` on every battery, and whoever fixes the base's own failure meets the second one. Comparing failure text instead of the test's id would read temporary paths, addresses and line numbers that move when the change edits the file, and convict changes for reds they did not cause.
+  - **Attempts that change nothing under `src/` now run the suite.** `coverage-delta`'s `paths: [src/**]` skipped them: 77 of 302 measured runs, 11,786s of the gate's 43,448s (`.torve/gates.yaml`). `suite` runs on them because a change to a test or a page a test reads can break the suite (T-0667); each such battery pays one suite run, 164s at the median.
+  - **A base that cannot run a test reads as a regression.** A new dependency, a renamed fixture or a moved conftest makes the base error, and the gate convicts. That is fail-closed by intent, and a person reads it from the output.
+  - **The suite now blocks.** A miscalibrated attribution would teach people to route around the gate. The whole-suite reading soaked for a month inside `coverage-delta`; attribution can only turn its reds into passes, and Q-1 lets the owner choose a shadow soak instead.
+  - **The lane keeps fewer readings.** A shadow gate no longer runs on the rebased tree. A shadow gate whose result depends on the base it was rebased onto loses that reading; none in this manifest does today.
+alternatives:
+  - option: Promote `coverage-delta` to blocking
+    rejected_because: >-
+      83 of its 116 reds were a coverage shortfall the repository chose not to block
+      on (S-0071/D-4), and a red the base carries would have convicted attempts that
+      did not cause it: `tests/test_rfc_emit.py` in 11 batteries, `tests/test_broker_sealed.py`
+      in 9
+    cites: [S-0071/D-4]
+  - option: >-
+      Run the fallback battery on every fast-forward landing
+    rejected_because: >-
+      the attempt already ran the suite on that exact tree; the lane would pay for
+      a second run that can only agree, the cost S-0093 refused
+    cites: [S-0093]
+  - option: >-
+      Run the whole suite on the base to attribute a red
+    rejected_because: >-
+      it doubles the dearest gate on every red; only the failing ids need a base reading,
+      and they are few
+  - option: Record the lane's battery as `gates.evaluated`
+    rejected_because: >-
+      the projection moves a task to `gated` on it and a document pull request's body
+      lists it (S-0101/D-6), so a lane battery would move the board and double the
+      list
+    cites: [S-0101/D-6]
+  - option: Keep the lane's red output in telemetry
+    rejected_because: >-
+      telemetry is a gitignored file on one host and no decision reads it (S-0099);
+      `torve why` with a partition reads the record
+    cites: [S-0099]
+questions:
+  - id: Q-1
+    text: >-
+      Does `suite` enter blocking at once, departing S-0055/D-14's shadow-first rule
+      on the strength of a month of the same reading inside `coverage-delta`, or soak
+      at shadow first? The draft enters it blocking. The owner decides.
+  - id: Q-2
+    text: >-
+      Is the coverage delta still wanted? S-0071/D-4 held it at 80 with no promotion
+      in sight. As a report on the suite gate it costs one `diff-cover` run; dropping
+      it removes the command. The owner decides.

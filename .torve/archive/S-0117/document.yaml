@@ -1,0 +1,171 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0117
+title: >-
+  A document reaches its pull request without its owner
+kind: design
+change:
+  type: feat
+  scope: manager
+status: superseded
+implementation: complete
+depends_on: [S-0055, S-0079, S-0100]
+informed_by: [S-0084, S-0090, S-0097, S-0098, S-0108]
+supersedes: []
+superseded_by: S-0121
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  The engine takes a document from its acceptance to a ready pull request without a person in between: a chain of nights plans what was accepted and keeps serving under a daily budget, and a review blocker's revision runs on a stronger seat before it escalates.
+
+  The owner's two acts stay the owner's: accepting the document and merging its pull request. Everything this document adds is configuration-gated, so a repository that sets nothing runs exactly as it does today.
+motivation: |-
+  The engine is not where a document's time goes. Over the 23 document pull requests torve merged between 2026-10-04 and 2026-10-28, the median lead time from the acceptance commit to the merge was 14.9 hours, 353 hours in all:
+
+  - 109 hours (31%) passed between the acceptance commit and the document's first minted task: the median was 0.8 hours, the p90 12.5. Planning and starting a night are a person's acts, so a document accepted in the evening waits for the morning.
+  - 146 hours (41%) passed between the first attempt and the last landing, and the engine was idle in much of it. Of the 28 escalations raised on torve's partition since 2026-10-02, 16 were `blocker_finding`. Each one followed an in-run revision on the executor seat that left the reviewer's blocker standing. Of the 15 traced, 11 were finished by hand in an Opus session, and 3 of the 4 requeued with a precise note then landed on the engine.
+  - 96 hours (27%) passed between the last landing and the merge. Those pull requests carry 95 hand commits, 68 of them after the engine's last. 36 cite a bot's review thread in the reply that closed it, and all 110 threads on those pull requests were opened by review bots. The review-thread leg (S-0084, S-0097) answers exactly those, and torve's own night configuration runs it off. 18 more were phase work finished by hand, with 17 hand landing records beside them.
+  - 43 nights opened on the partition and 34 closed. Each night is started by hand, so every one killed, crashed or drained early is a gap until a person notices.
+
+  So the person between acceptance and merge is the bottleneck, not the width of the engine. Two of the three causes need no new concept: the night already exists, and so does a retry rung that moves an attempt to another seat. What is missing is a night that follows the last one, and a rung for the review's conviction.
+current_state: |-
+  - `torve manager serve <partition>` without `--night` runs passes until interrupted, with no budget and no night record (`serve` in `src/torve/application/residency.py`). With `--night` it opens one night under the configuration's `night:` terms, refuses a board with nothing to start (`_refusal`), and closes on a budget, the wall-clock end, a `stop_on` class or a drained queue (`reached`). The process then exits.
+  - A night's budget axes are measured from the board at its open (`Night.spent_usd`, `Night.attempts`), so each night started by hand gets the full `budget_usd` and `budget_attempts` again.
+  - A pass imports contract files under `.torve/tasks/` (`contracts`, `mint`). Writing them is `torve plan S-NNNN --no-dry-run` (`plan_document` and `write_contracts` in `src/torve/application/planner.py`), which refuses a corpus that is not committed (`_require_committed`). Nothing runs it for an accepted document.
+  - A surviving review blocker spends `review.blocker_revisions` (default 1) as in-run attempts in the same worktree, its findings carried by the feedback record, and then escalates `blocker_finding` (`src/torve/application/review.py`). The revision runs on the seat that produced the blocker.
+  - After a gate-red, `advance_tier` in `src/torve/application/session.py` moves the next attempt to the seat's retry rung for the most severe convicted axis (`retry_variant`, `retry_variants` and `resolved_retry_variants` on `TierConfig`). The broker's route table (`src/torve/application/dispatch.py`) and the provider check (`route_dispatch_providers` in `src/torve/cli/assembly.py`) list every rung, and the load refuses a rung that names no tier.
+  - The git lane adapter already fetches (`fetch`) and fast-forwards (`merge_ff`), and `minted_contracts` in the planner says which tasks a document already minted.
+  - The review-thread leg is off unless `threads.enabled` is set, and is refused under any landing but a document's pull request (`ThreadsConfig` in `src/torve/config/runconfig.py`).
+goals: |-
+  - A document accepted on the base is planned and served without anyone typing a command.
+  - The engine keeps serving across the day under one daily budget, and opens work again as soon as there is work to open.
+  - A review blocker gets one revision on the seat the configuration names as stronger before it reaches a person.
+  - The operator guide tells a repository how to run the engine this way, the review-thread leg included.
+non_goals: |-
+  - Not merging. The document pull request's merge stays the owner's act (S-0100/D-4), and so does accepting a document.
+  - Not width. One process still runs one task at a time; this document keeps that one task busy.
+  - Not a new escalation path. A blocker that survives the stronger seat escalates exactly as one does today.
+  - Not the lane. A red suite landing and a red re-gate losing its output are another document's.
+design:
+  - key: a-chain-of-nights
+    md: |-
+      `torve manager serve <partition> --night --chain` runs nights back to back in one process. When a night closes, the process does not exit: it runs idle passes at `--interval` and opens the next night as soon as two things hold. The board has work to start, which is the open's own refusal reading empty, and the day's budget has room. A night closed on a `stop_on` class ends the chain as it ends the night today, because the operator named that class as one to be woken for.
+
+      Each night keeps its own record, so `torve night show` and the ledger read a chain as the nights it was made of. A killed chain loses only what a killed night loses: the lease on the attempt in flight.
+  - key: the-daily-budget
+    md: |-
+      Under `--chain`, the `night:` section's `budget_usd` and `budget_attempts` bound a UTC day rather than one night. Each night opens with what remains of the day on each axis as its own budget, so `night.opened` records the remainder and `reached` needs no change. `reached` reads a zero budget as no bound, so a day on which any axis configured above zero has no remainder opens no night until the next UTC midnight; an axis configured as zero stays unbounded, as it is today. A night that crosses midnight keeps the budget it opened with. What it spends after midnight counts against the new day, so neither day exceeds its budget by more than the attempt in flight when it was reached, as a single night does today, and the next night opens with the new day's remainder. `minutes` still bounds each night.
+
+      ```yaml
+      night:
+        budget_usd: 50.0      # under --chain: dollars per UTC day across its nights
+        budget_attempts: 50   # under --chain: attempts per UTC day
+        minutes: 480          # each night's own wall clock, as today
+      ```
+  - key: planning-what-was-accepted
+    md: |-
+      Between nights, with nothing in flight, the chain brings the checkout up to the remote and plans what was accepted:
+
+      1. It fetches. When the checkout is on the configured base branch with a clean tree, it fast-forwards that branch to the remote's. A checkout on another branch, with local changes, or diverged is left alone and nothing is planned from it, so a document accepted only on a feature branch is never served. The chain says so once per state rather than once per pass.
+      2. For every document on the corpus path whose `status` is `accepted`, whose `implementation` is `none` and which has minted no task, in number order, it mints the document into the partition's record exactly as `torve plan S-NNNN --partition <partition> --no-dry-run` does, writing no file (S-0056/D-9). The next night serves the contracts.
+      3. A plan the planner refuses is recorded once per base commit as an engine event naming the document and the refusal. A refusal can turn on another document, such as one named in `depends_on` or `after`, so the chain tries again whenever the base moves rather than when the document's own files change. Within one sweep it also retries every refused document after each mint that succeeds, because a document's `after` target can carry a higher number; only what still refuses when a pass over the refused mints nothing waits for the base to move.
+
+      A document that already minted a task is never planned again here. Adding a phase to one is `plan --refresh`, a person's act as it is today.
+
+      The chain never fast-forwards the checkout its own engine runs from. When the `torve` package it imported resolves under the repository root, it skips the fast-forward and the planning and says why at the start. For torve's own repository that means running the chain from a tool install (Q-1).
+  - key: the-revision-rung
+    md: |-
+      A seat gains `revision_variant`: the dotted tier the revision after a surviving review blocker runs on. It is the review's counterpart of `retry_variants`, which route the attempt after a gate-red. Empty, the default, keeps today's behaviour: the revision runs on the seat that produced the blocker.
+
+      ```yaml
+      tiers:
+        executor:
+          harness: claude-subscription
+          model: deepseek-v4.1-flash
+          revision_variant: executor.night   # the blocker's revision runs on opus
+      ```
+
+      `advance_tier` resolves the rung when the attempt about to run follows a blocker revision, as it resolves a gate-red's rung. The revision keeps everything S-0090 gave it: the same worktree, the critique in the feedback record, and `blocker_revisions` as the bound. The attempt after a green pass returns to the seat, as after every rung. The load refuses a `revision_variant` that names no tier, and the provider check and the broker's route table list every tier a run can reach, following each listed tier's own rungs, because the broker opens before the first attempt and `advance_tier` reads a gate-red's rung from the tier that just ran.
+
+      This puts the strong model where the hand finishes put it: 11 of the 15 traced blocker escalations were finished by an Opus session working from the escalated tree.
+  - key: the-operator-guide
+    md: |-
+      The torve skill's night reference and the operating page describe the configuration that runs a document without its owner: `--chain`, the daily budget, a `revision_variant` on the executor seat, and the review-thread leg on with the forge's review bots named and `approve_comment` set, so a bot's thread is answered by a round and a person reads only the threads the leg refuses. The escalations reference says that a blocker reaching a person has already survived the stronger seat.
+
+      torve's own night configuration lives outside the repository, because the runner reads its configuration from where it was launched and never from the repository under work. Turning these on for torve is the operator's edit at acceptance, not a phase (Q-2).
+tests: |-
+  - The chain: a night that drains is followed by the next once a task becomes startable, with no new process; a night closed on a `stop_on` class ends the chain; a chain with nothing startable records no night (`tests/test_residency.py`, `tests/test_manager.py`).
+  - The daily budget: a second night of the same UTC day opens with the remainder on each axis; a day with one configured axis spent opens nothing until midnight; an axis configured as zero stays unbounded; `--chain` without `--night` is refused (`tests/test_residency.py`, `tests/test_manager.py`).
+  - Planning: an accepted document with no minted task is minted into the record once and served by the next night; a draft, an implemented document and one that minted a task are left alone; a refused plan is recorded once per base commit; a checkout off its base branch or with local changes is neither fast-forwarded nor planned from; a chain whose engine imports from under the root plans nothing (`tests/test_manager.py`, `tests/test_plan.py`).
+  - The rung: the revision after a surviving blocker runs on `revision_variant` and the attempt after a green pass returns to the seat; an empty `revision_variant` keeps the seat; a rung naming no tier refuses to load; the route table and the provider check carry the rung and every listed rung's own rungs (`tests/test_session.py`, `tests/test_runner.py`, `tests/test_runconfig.py`, `tests/test_dispatch.py`).
+
+  Not tested: whether the stronger seat clears the blockers the executor left. That is measured on the nights after this lands, as blocker escalations per landed phase.
+docs: >-
+  The torve skill's `night.md` and `escalations.md` references and `pages/docs/operating.md`
+  describe the chain, the daily budget, the revision rung and the review-thread leg,
+  in the fourth phase. The CHANGELOG entry lands with the completion pull request.
+out_of_scope: |-
+  - Merging the document pull request on green. It is the owner's act (S-0100/D-4); a repository that wants it already has the forge's auto-merge.
+  - More than one worker. The chain serves one task at a time, as a night does; width needs the claim and id races fixed first, which is another document's work.
+  - `reap --escalated` hanging after an interrupted night (#221) and the by-hand guide's base (#222). Both are fixes of their own; this document only makes the paths that hit them rarer.
+  - A per-document pause. One escalation still stops new minting for the partition (`loop.pause_escalations`). With fewer escalations reaching a person the pause bites less; scoping it changes S-0108's rule, worth doing if a chain shows a pause holding a second document back.
+risks: |-
+  - The chain spends without anyone watching. The daily budget bounds it. `cost_usd` for a seat on another provider is priced at Anthropic rates today, so the dollar axis stops a cheap seat early rather than late; the attempts axis is the honest bound for those seats until the price is right.
+  - Planning from the base turns an accepted but wrong document into spend before anyone looks. Acceptance is already the owner's signature on the phasing, and `torve spec check` runs in the acceptance pull request; the chain plans nothing the planner refuses.
+  - The stronger seat costs more per revision. It runs only after a blocker survived one revision, which on torve was 16 times in a month.
+  - Fast-forwarding a checkout a person also works in can surprise them. The chain leaves a checkout alone unless it sits on the base branch with a clean tree, and says so.
+  - Read as "the owner is no longer needed": the owner still accepts every document and merges every pull request, and every escalation still reaches them.
+sections:
+  - key: locked-rows-kept
+    md: |-
+      - S-0055/D-3, the sandbox is the unit of lifecycle: the revision on the rung runs in a sandbox as every attempt does, and the chain's planning on the host is the deterministic planner, not agent code.
+      - S-0055/D-4, the broker routes providers: the rung is on the route table before the first attempt (D-2).
+      - S-0055/D-5, agents do not communicate: the revision on the rung reads the feedback record of its own run, as the revision on the seat does.
+      - S-0055/D-7 and S-0055/D-9, contracts are immutable and copy their rows at mint: the chain plans only documents that minted nothing, so it never re-mints a contract.
+      - S-0055/D-49, a blocker escalates the target: it still does, after the revision `blocker_revisions` already allowed, which now may run on another seat.
+      - S-0055/D-50, landings serialize through one lane and never land without the configured approval: nothing here touches the lane or the approval.
+      - S-0055/D-22, user-facing strings carry no corpus coordinates: the `--chain` help and the chain's messages name no document of torve's corpus.
+      - S-0055/D-23, the layers: the fetch, the fast-forward and the planner call are composed in `cli/`, and the application layer receives them as callables.
+      - S-0100/D-5, a shipped skill cites nothing of torve's own corpus: the night and escalations references describe the configuration without naming this document.
+alternatives:
+  - option: >-
+      Requeue an escalated blocker from its checkpoint on a stronger seat, as the
+      operator does by hand with a note.
+    rejected_because: >-
+      It needs a resolution the engine records on its own behalf and a seat override
+      carried per requeue to dispatch, to do what an in-run rung does with the mechanism
+      gate-red retries already use. The revision keeps the worktree and the critique;
+      a requeue would rebuild both.
+  - option: >-
+      Raise `blocker_revisions` and keep the revision on the executor seat.
+    rejected_because: >-
+      All 16 blocker escalations followed a revision on that seat that left the blocker
+      standing. A second try of the same seat on the same critique is the expensive
+      way to learn the same thing.
+  - option: >-
+      Run `serve --night` from cron or a systemd timer instead of a chain.
+    rejected_because: >-
+      Each night would open with the full budget, so the bound is per night rather
+      than per day, and nothing would plan an accepted document. A timer can still
+      start the chain at boot; the chain is what keeps serving once started.
+  - option: >-
+      Plan accepted documents in the acceptance pull request's CI instead of on the
+      host.
+    rejected_because: >-
+      The engine, the store and the checkout the nights serve from are on the host.
+      CI would have to write contract files back to it, and the planner already runs
+      where the import reads them.
+questions:
+  - id: Q-1
+    text: >-
+      The chain does not fast-forward the checkout its engine imports from, so on
+      torve's own repository, where nights run `uv run torve` from the checkout, it
+      would never plan. Run torve's own chain from a tool install of main, reinstalled
+      by the operator after a merge, or keep running from the checkout and plan by
+      hand? Lean: a tool install, so torve runs the way its adopters do (S-0110/D-3).
+  - id: Q-2
+    text: >-
+      torve's own night configuration has `threads.enabled` off, and 36 hand commits
+      in the month answered bot threads that leg would have composed into rounds.
+      Turn it on at acceptance with the three review bots this repository uses and
+      an `approve_comment`, and set `revision_variant: executor.night` on the executor
+      seat? Lean: yes, both, in the same edit.

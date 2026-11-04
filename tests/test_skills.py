@@ -184,11 +184,11 @@ def test_a_materialized_skill_set_carries_no_projection(tmp_path):
     """S-0100/D-7: the `AGENTS.md` beside a skill is torve's corpus projection,
     and a sandbox copy takes the skill's text and nothing of the rows."""
 
-    assert (skills_root() / "flag-dont-flip" / "AGENTS.md").is_file(), "the source has one"
+    assert (skills_root() / "torve" / "AGENTS.md").is_file(), "the source has one"
 
-    materialize("implement", tmp_path, {"implement": ["flag-dont-flip"]})
+    materialize("implement", tmp_path, {"implement": ["torve"]})
 
-    assert (tmp_path / "flag-dont-flip" / "SKILL.md").is_file()
+    assert (tmp_path / "torve" / "SKILL.md").is_file()
     assert not list(tmp_path.rglob("AGENTS.md"))
 
 
