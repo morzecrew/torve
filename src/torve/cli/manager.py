@@ -966,8 +966,7 @@ async def _serve(
 ) -> tuple[int, str]:
     from torve.application.eventlog import event_log
     from torve.application.executors import runner_execute
-    from torve.application.fleet import escalated_tasks
-    from torve.application.manager import project
+    from torve.application.manager import escalated_tasks, project
     from torve.application.projections import landed
     from torve.application.residency import (
         Night,
@@ -983,7 +982,6 @@ async def _serve(
     )
     from torve.application.worker import Worker
     from torve.cli import assembly
-    from torve.cli.assembly import build_notifier
     from torve.domain.events import SubjectType
 
     config = load_config(root, config_path)
@@ -1000,9 +998,6 @@ async def _serve(
     # branch is landed, whether or not the base holds its landing file yet.
     landings = landed(root)
     ran = ran_here(root)
-    # The tasks holding the pause, as the pass's own `paused` computed them,
-    # so the relay that follows pages exactly those (S-0094/D-4).
-    holding: set[str] = set()
 
     async def paused() -> bool:
         """This root's own pause rule, re-decided every pass (S-0048/A-1).
@@ -1013,44 +1008,7 @@ async def _serve(
         """
 
         board = project(await log.of_subject_type(SubjectType.TASK, partition=partition))
-        escalated = escalated_tasks(root, board)
-        held = len(escalated) >= config.loop.pause_escalations
-        holding.clear()
-        holding.update(escalated if held else ())
-
-        return held
-
-    async def relay() -> list[str]:
-        """Drain the undelivered queue to whatever destination is
-        configured. Built per pass from the same log the pass reads —
-        the destination included, for S-0044/A-11's reason one step back:
-        `build_notifier` refuses an adapter it does not know, and refusing
-        it outside the leg took the whole pass down with it."""
-
-        from torve.application.notify import relay as drain
-
-        return await drain(
-            log,
-            build_notifier(config),
-            partition=partition,
-            actor_id=worker,
-            max_attempts=config.notify.attempts,
-            held=frozenset(holding),
-        )
-
-    async def standing() -> tuple[str, bool]:
-        # S-0023's leg, unchanged — it mints a contract through the
-        # ordinary adoption path, and the scan above imports whatever it
-        # minted onto the board. Nothing about it had to move for the
-        # manager to run it (S-0023/A-2), except that an instance numbers
-        # past the board's ids, not only the files (S-0056/D-9).
-        from torve.application.standing import standing_leg
-
-        taken = {one.subject_id for one in await board_records()}
-
-        return standing_leg(
-            root, config, runtime_for(config, None), landings.__contains__, taken=taken
-        )
+        return len(escalated_tasks(root, board)) >= config.loop.pause_escalations
 
     async def resolutions() -> set[str]:
         """The rounds a person resolved off the board (S-0101/D-2): the lane's
@@ -1175,7 +1133,7 @@ async def _serve(
 
     thread_leg = _thread_leg(root, config, records=board_records)
 
-    # S-0119/D-8: the pass's intake leg, after the standing leg and before the
+    # S-0119/D-8: the pass's intake leg, after the review-thread leg and before the
     # scan. Always built; its own switch is the label, and it reads nothing
     # and builds no agent while that is empty (S-0119/D-1).
     issues_leg = _issues_leg(root, config, records=board_records)
@@ -1271,9 +1229,7 @@ async def _serve(
                 ran=ran.__contains__,
                 only=only,
                 dispatch=dispatch,
-                standing=standing,
                 paused=paused,
-                relay=relay,
                 lane=lane_leg,
                 lane_through_pause=config.promotion.landing == "pull_request",
                 threads=thread_leg,
@@ -1316,9 +1272,7 @@ async def _serve(
                 ran=ran.__contains__,
                 only=only,
                 dispatch=False,
-                standing=standing,
                 paused=paused,
-                relay=relay,
                 lane=lane_leg,
                 lane_through_pause=config.promotion.landing == "pull_request",
                 threads=thread_leg,
@@ -1354,9 +1308,7 @@ async def _serve(
                     ran=ran.__contains__,
                     only=only,
                     dispatch=dispatch,
-                    standing=standing,
                     paused=paused,
-                    relay=relay,
                     lane=lane_leg,
                     lane_through_pause=config.promotion.landing == "pull_request",
                     threads=thread_leg,

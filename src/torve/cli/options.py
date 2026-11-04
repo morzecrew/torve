@@ -250,10 +250,9 @@ def partition_for(root: Path, override: str = "", dsn: str = "") -> str:
     """The partition a report should read, given what the caller typed and
     the DSN `dsn_for` resolved.
 
-    An explicit `--partition` wins. Otherwise the operator's fleet manifest
-    answers for this root, and then, when a store DSN resolved, the
-    configuration's `scm.repo` — the `org/repo` name a repository's nights
-    are served under. With no store, or neither naming one, this returns
+    An explicit `--partition` wins. Otherwise, when a store DSN resolved, the
+    configuration's `scm.repo` answers — the `org/repo` name a repository's
+    nights are served under. With no store, or neither naming one, this returns
     nothing and the report reads this repository's files as it did before.
 
     A default is safe because every report falls back to the files when the
@@ -265,20 +264,10 @@ def partition_for(root: Path, override: str = "", dsn: str = "") -> str:
     if override:
         return override
 
-    from torve.config.fleet import default_manifest_path, load_fleet_manifest
     from torve.config.runconfig import EngineRefused, load_runner_config
 
-    here = root.resolve()
-
-    try:
-        manifest = load_fleet_manifest(default_manifest_path())
-        named = next((repo.partition for repo in manifest.repositories if repo.path == here), "")
-
-    except (ValueError, OSError, yaml.YAMLError):
-        named = ""
-
-    if named or not dsn:
-        return named
+    if not dsn:
+        return ""
 
     try:
         config = load_runner_config(root, None)

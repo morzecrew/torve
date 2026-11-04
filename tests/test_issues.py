@@ -147,18 +147,16 @@ def test_the_leg_is_off_with_no_label_and_reads_nothing(tmp_path: Path):
     assert not source_path(tmp_path).exists()
 
 
-@pytest.mark.parametrize("surface", ["torve.cli.manager", "torve.cli.fleet"])
 def test_the_pass_builds_no_planner_agent_while_the_leg_is_off(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, surface: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
-    """S-0119/D-1: with `intake.issue_label` empty, neither the manager's nor
-    the fleet's pass builds a drafting agent, so a planner tier this host
-    cannot build never stops a pass with the leg off."""
+    """S-0119/D-1: with `intake.issue_label` empty, the manager's pass builds
+    no drafting agent, so a planner tier this host cannot build never stops a
+    pass with the leg off."""
 
     import asyncio
-    import importlib
 
-    from torve.cli import assembly
+    from torve.cli import assembly, manager
 
     calls: list[int] = []
 
@@ -167,7 +165,7 @@ def test_the_pass_builds_no_planner_agent_while_the_leg_is_off(
         raise AssertionError("no planner agent is built with the leg off")
 
     monkeypatch.setattr(assembly, "build_tier_agent", explode)
-    leg = importlib.import_module(surface)._issues_leg(tmp_path, RunnerConfig())
+    leg = manager._issues_leg(tmp_path, RunnerConfig())
 
     assert asyncio.run(leg()) == ("issue intake off", False)
     # The detail line alone passes even if the agent was built eagerly and
@@ -394,8 +392,8 @@ def test_a_leg_started_draft_that_spends_its_budget_escalates_and_holds_the_paus
     so one that spends its budget escalates `budget_exhausted` in its own run
     state, and that escalation is one the pause counts, like any other."""
 
-    from torve.application.fleet import escalated_tasks
     from torve.application.intake import draft_request
+    from torve.application.manager import escalated_tasks
     from torve.application.runstate import RunState
     from torve.base import naming
     from torve.domain.states import TaskState

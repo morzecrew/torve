@@ -636,7 +636,6 @@ def _engine_record(root: Path, rel: str) -> bool:
     an operator commit before every landing."""
 
     from torve.application.enginelock import LOCK
-    from torve.application.evals import EVAL_LEDGER
     from torve.application.review import PR_LEDGER
     from torve.config.manifest import Manifest, load_manifest
 
@@ -658,7 +657,6 @@ def _engine_record(root: Path, rel: str) -> bool:
         # pr-reviews ledger is the same class of record.
         f"{layout.TORVE_DIR}/{LOCK}",
         f"{layout.TORVE_DIR}/{PR_LEDGER}",
-        f"{layout.TORVE_DIR}/{EVAL_LEDGER}",
     }
 
 

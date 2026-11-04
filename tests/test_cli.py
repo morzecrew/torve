@@ -317,33 +317,6 @@ def _fake_docker_runtime(digest):
     return lambda config, override: _FakeRuntime()
 
 
-def test_doctor_names_an_eval_ledger_verdict_for_the_configured_digest(tmp_path, monkeypatch):
-    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "docker"}})
-    digest = "sha256:" + "ab" * 32
-    monkeypatch.setattr("torve.cli.options.runtime_for", _fake_docker_runtime(digest))
-
-    ledger = root / ".torve" / "evals.jsonl"
-    ledger.write_text(
-        json.dumps(
-            {
-                "kind": "config-eval",
-                "at": "2026-08-20T11:04:12Z",
-                "digests": {"incumbent": digest, "candidate": "sha256:" + "cd" * 32},
-                "candidate_matched": True,
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
-    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
-    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
-    image_check = checks["image python:3.13-slim"]
-    assert image_check["ok"] is True
-    assert "incumbent verdict from 2026-08-20T11:04:12Z" in image_check["detail"]
-    assert "candidate_matched=True" in image_check["detail"]
-
-
 def test_doctor_image_check_is_unchanged_with_no_eval_ledger(tmp_path, monkeypatch):
     root = _doctor_repo(tmp_path, {"runtime": {"adapter": "docker"}})
     digest = "sha256:" + "ab" * 32
@@ -1134,60 +1107,6 @@ def test_the_dsn_read_stops_on_an_engine_the_install_is_outside(tmp_path, monkey
         assert refused.value.exit_code == EXIT_CONFIG
 
 
-def _fleet(config_home: Path, body: str, monkeypatch) -> None:
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
-    (config_home / "torve").mkdir(parents=True, exist_ok=True)
-    (config_home / "torve" / "fleet.yaml").write_text(body, encoding="utf-8")
-
-
-def test_the_partition_defaults_to_the_one_the_fleet_manifest_names(tmp_path, monkeypatch):
-    """#196: a task minted into the store answered "no task" from `torve why`
-    unless the operator named its partition. The fleet manifest is where a
-    root's partition is configured, so a report reads it from there."""
-
-    from torve.cli.options import partition_for
-
-    root = tmp_path / "repo"
-    root.mkdir()
-    config_home = tmp_path / "config"
-
-    # No manifest at all names nothing, and the report reads the files.
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
-    assert partition_for(root) == ""
-
-    _fleet(
-        config_home,
-        f"repositories:\n  - root: {tmp_path / 'other'}\n    trust: own\n    partition: acme/other\n"
-        f"  - root: {root}\n    trust: own\n    partition: acme/one\n",
-        monkeypatch,
-    )
-
-    assert partition_for(root) == "acme/one"
-    # What the caller typed always wins over what the manifest names.
-    assert partition_for(root, "acme/typed") == "acme/typed"
-    # A root the manifest does not list names nothing.
-    assert partition_for(tmp_path) == ""
-
-    _fleet(config_home, "repositories: [", monkeypatch)
-    assert partition_for(root) == ""
-
-
-def test_why_reads_the_configured_partition_without_the_flag(tmp_path, monkeypatch):
-    from torve.cli import why
-
-    _fleet(
-        tmp_path / "config",
-        f"repositories:\n  - root: {tmp_path}\n    trust: own\n    partition: acme/one\n",
-        monkeypatch,
-    )
-    asked: list[str] = []
-    monkeypatch.setattr(why, "_recorded", lambda dsn, partition, task_id: asked.append(partition))
-
-    CliRunner().invoke(app, ["why", "T-0001", "--root", str(tmp_path)])
-
-    assert asked == ["acme/one"]
-
-
 STORED = (
     "schema_version: 1\nstore:\n  adapter: postgres\n  dsn_env: TORVE_TEST_PG\n"
     "scm:\n  repo: acme/one\n"
@@ -1200,9 +1119,9 @@ def _configure(root: Path, body: str) -> None:
 
 
 def test_with_a_store_the_partition_falls_back_to_scm_repo(tmp_path, monkeypatch):
-    """A repository's nights are served under its `scm.repo`, so a root no
-    manifest lists reads that partition — but only with a store to read it
-    from; with none, the files answer as they always did."""
+    """A repository's nights are served under its `scm.repo`, so a root reads
+    that partition — but only with a store to read it from; with none, the
+    files answer as they always did."""
 
     from torve.cli.options import partition_for
 
@@ -1214,15 +1133,6 @@ def test_with_a_store_the_partition_falls_back_to_scm_repo(tmp_path, monkeypatch
     assert partition_for(tmp_path, dsn=dsn) == "acme/one"
     assert partition_for(tmp_path, "acme/typed", dsn) == "acme/typed"
 
-    # The manifest's entry for the root outranks the configuration.
-    _fleet(
-        tmp_path / "config",
-        f"repositories:\n  - root: {tmp_path}\n    trust: own\n    partition: acme/fleet\n",
-        monkeypatch,
-    )
-    assert partition_for(tmp_path, dsn=dsn) == "acme/fleet"
-
-    (tmp_path / "config" / "torve" / "fleet.yaml").unlink()
     _configure(tmp_path, "- not a mapping\n")
     assert partition_for(tmp_path, dsn=dsn) == ""
 
@@ -1335,7 +1245,6 @@ def test_init_writes_the_schemas_the_ignore_file_and_the_schema_lines_once(tmp_p
         "contract.json",
         "decisions.json",
         "document.json",
-        "fleet.json",
         "gates.json",
         "harness.json",
         "landing.json",
@@ -1343,7 +1252,6 @@ def test_init_writes_the_schemas_the_ignore_file_and_the_schema_lines_once(tmp_p
         "phasing.json",
         "provider.json",
         "sources.json",
-        "standing.json",
     ]
     assert json.loads((schemas / "contract.json").read_text(encoding="utf-8"))["title"] == "Task"
     assert (root / ".torve" / "specs").is_dir()  # an empty corpus checks clean

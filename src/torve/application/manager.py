@@ -23,13 +23,17 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from torve.application.planner import scopes_clash
+from torve.application.runstate import RunState
 from torve.base.clock import parse
+from torve.base.naming import WORKTREE_DIR
 from torve.domain.events import EventKind, NightClosed, NightOpened, SubjectType
 from torve.domain.spec import document_id
 from torve.domain.states import TaskState
 from torve.domain.task import DISPATCHABLE_ROLES, Task
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from torve.domain.events import EventRecord
 
 # ----------------------- #
@@ -105,8 +109,7 @@ class Board:
     # ....................... #
 
     def escalated(self) -> set[str]:
-        """The tasks waiting on a person. What a fleet's attention budget is
-        measured from (S-0024 S-0024/D-2) for a partition the manager serves —
+        """The tasks waiting on a person, for a partition the manager serves —
         the run-state files answer for whatever v1 still holds, and the two
         are unioned rather than summed (S-0048/D-5)."""
 
@@ -273,6 +276,43 @@ def project(events: Iterable[EventRecord]) -> Board:
         tasks[event.subject_id] = view
 
     return Board(tasks=tasks)
+
+
+# ....................... #
+
+
+def escalated_tasks(root: Path, board: Board | None = None) -> set[str]:
+    """One repository's escalation queue, across both carriers (S-0048/D-5).
+
+    A partition the resident manager serves records its escalations in the
+    log; whatever v1 ran on the same root left them in run-state files.
+    Union by task id rather than a sum, because a task escalated under one
+    and re-escalated under the other is one task the operator has to look
+    at, and counting it twice pauses for work that does not exist.
+
+    A file whose task the log has since closed — landed by hand or abandoned
+    — is the escalation's leftover footprint for `torve reap --escalated`,
+    not a queue entry: `manager resolve` clears the file only on a requeue
+    (S-0094/D-5), and counting it held every later pass paused.
+    """
+
+    closed = (
+        set()
+        if board is None
+        else {
+            view.task_id
+            for view in board.tasks.values()
+            if view.state is TaskState.ABANDONED
+            or (view.state is TaskState.READY and view.landed_sha)
+        }
+    )
+    from_files = {
+        state.task_id
+        for state in RunState.load_all(root / WORKTREE_DIR)
+        if state.state is TaskState.ESCALATED and state.task_id not in closed
+    }
+
+    return from_files | (board.escalated() if board is not None else set())
 
 
 # ....................... #

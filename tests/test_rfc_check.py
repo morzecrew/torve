@@ -950,7 +950,6 @@ def test_schema_is_written_beside_the_corpus_and_drift_reddens(tmp_path: Path) -
         "contract.json",
         "decisions.json",
         "document.json",
-        "fleet.json",
         "gates.json",
         "harness.json",
         "landing.json",
@@ -958,7 +957,6 @@ def test_schema_is_written_beside_the_corpus_and_drift_reddens(tmp_path: Path) -
         "phasing.json",
         "provider.json",
         "sources.json",
-        "standing.json",
     ]
     assert (
         json.loads((schemas / "document.json").read_text(encoding="utf-8"))["title"] == "document"

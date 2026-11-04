@@ -657,7 +657,6 @@ def test_engine_records_never_block_the_lane(lane_repo):
     contract_dir.mkdir(parents=True)
     (contract_dir / "contract.yaml").write_text("# runner-minted\n", encoding="utf-8")
     (lane_repo / ".torve" / "pr-reviews.jsonl").write_text("{}\n", encoding="utf-8")
-    (lane_repo / ".torve" / "evals.jsonl").write_text("{}\n", encoding="utf-8")
     result = invoke_merge(lane_repo)
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["results"][0]["action"] == "landed"
@@ -750,7 +749,6 @@ def test_the_ticks_own_lock_never_blocks_the_lane(lane_repo):
     candidate(lane_repo, "T-7014", "fourteen.py", "fourteen = 14\n")
     (lane_repo / ".torve" / "tick.lock").write_text('{"pid": 1}', encoding="utf-8")
     (lane_repo / ".torve" / "pr-reviews.jsonl").write_text("{}\n", encoding="utf-8")
-    (lane_repo / ".torve" / "evals.jsonl").write_text("{}\n", encoding="utf-8")
     result = invoke_merge(lane_repo)
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["results"][0]["action"] == "landed"

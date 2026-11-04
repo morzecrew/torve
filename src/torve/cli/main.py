@@ -27,9 +27,7 @@ from torve.cli import (
     decisions,
     doctor,
     equip,
-    evals,
     feedback,
-    fleet,
     gates,
     guide,
     init,
@@ -46,11 +44,9 @@ from torve.cli import (
     run,
     sandbox,
     serve,
-    shadow,
     sources,
     spec,
     status,
-    survey,
     why,
 )
 from torve.cli.options import load_dotenv
@@ -68,7 +64,6 @@ app.add_typer(gates_app, name="gates")
 app.add_typer(sandbox.sandbox_app, name="sandbox")
 app.add_typer(equip.equip_app, name="equip")
 app.add_typer(review.review_app, name="review")
-app.add_typer(fleet.fleet_app, name="fleet")
 app.add_typer(log.log_app, name="log")
 app.add_typer(manager.manager_app, name="manager")
 app.add_typer(night.night_app, name="night")
@@ -125,10 +120,7 @@ app.command("lint-contract")(intake.lint_contract_cmd)
 app.command("brief")(brief.brief_cmd)
 app.command("context")(context.context_cmd)
 app.command("run")(run.run_cmd)
-app.command("shadow")(shadow.shadow_cmd)
-app.command("survey")(survey.survey_cmd)
 app.command("serve")(serve.serve_cmd)
-app.command("eval")(evals.eval_cmd)
 app.command("cancel")(run.cancel)
 app.command("kill")(run.kill)
 app.command("mcp")(mcp.mcp_cmd)
