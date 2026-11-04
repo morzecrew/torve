@@ -1,0 +1,268 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: LOCKED
+    text: >-
+      The engine, not a model, turns a critic's findings into block or pass: a candidate
+      is blocked when a finding that survives the location filter is at or above `review.blocks_at`,
+      or when an owned row is `violated` with located evidence, and an `unknown` row
+      never blocks
+    paths:
+      - src/torve/application/review.py
+      - src/torve/application/critic.py
+      - src/torve/gates/evidence.py
+    rationale: >-
+      A verdict the model states is wording; findings with located evidence are what
+      the owner's sample found real, ten of sixteen
+    cites: [S-0121/D-1, S-0121/D-28]
+  - id: D-2
+    grade: LOCKED
+    text: >-
+      The executor reaches the judge only through its tree and one `torve abort` record:
+      every status, reading and message in the evidence package is produced by the
+      host or a throwaway gates sandbox, and commit messages, pull-request text, log
+      entries and traces never reach the critic
+    paths:
+      - src/torve/gates/evidence_package.py
+      - src/torve/application/review.py
+      - src/torve/application/critic.py
+    rationale: >-
+      Anything the executor writes about its own work is a claim the judge would have
+      to discount; leaving it out costs nothing
+    cites: [S-0121/D-28, S-0121/D-40]
+  - id: D-3
+    grade: LOCKED
+    text: >-
+      Protected paths (tests written for the unit by anyone but its executor, `conftest.py`,
+      pytest configuration, `.torve/**` and the gate manifest) are mounted read-only
+      in the executor sandbox, an edit to one blocks, and evidence runs use the base
+      versions of test-harness files unless the contract licenses a change
+    paths:
+      - src/torve/adapters/runtime/docker.py
+      - src/torve/application/session.py
+      - src/torve/gates/no_test_tampering.py
+    rationale: >-
+      Read-only tests stop test edits, the commonest way agents game a check; base-pinned
+      harness files stop a `conftest.py` from rewriting results
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The attempt battery is six gates that judge code (`secrets`, `scope` blocking
+      on the fence only, `suite` with attribution, `mypy` on new errors only, `layering`,
+      protected-test tampering), the engine runs ruff's fixes in the sandbox before
+      the snapshot, and no other gate runs on an attempt
+    paths:
+      - .torve/gates.yaml
+      - src/torve/gates/runner.py
+      - src/torve/gates/scope.py
+      - src/torve/application/session.py
+    rationale: >-
+      55% of red attempts were red only on bookkeeping gates, and 27 of 44 lint reds
+      were formatting the engine can fix itself
+    cites: [S-0121/D-25, S-0121/D-26]
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The evidence package covers only the rows a unit owns, those whose paths meet
+      its files or tests, plus LOCKED rows its diff touches as constraints; each owned
+      row gets a status from base and head runs, and the package is capped at 24 KB
+    paths: [src/torve/gates/evidence_package.py]
+    rationale: >-
+      Judging every row of a document made the evidence gate red on 57 of 58 attempts
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      The critic reviews one candidate per call in a fresh context, in pre-rank order,
+      and stops at the first clean one; it may run anything in a disposable copy without
+      network for 300 s, and it never sees earlier reviews' findings or other candidates'
+      diffs
+    paths: [src/torve/application/critic.py, src/torve/application/review.py]
+    rationale: >-
+      Pointwise verdicts avoid order bias and give per-candidate labels; earlier findings
+      anchor the critic
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      A unit's class sets its width (S one candidate, M two, L three, never more),
+      stragglers are cut at 1.5 times the first green finisher's wall time capped
+      at 15 minutes, identical normalised diffs collapse, and a deterministic pre-rank
+      orders the rest before any critic call
+    paths: [src/torve/application/selection.py, src/torve/config/runconfig.py]
+    rationale: >-
+      The executor is cheap and the critic dominates cost; width buys wall time and
+      fewer revisions, and gains flatten past three
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      A gate-red candidate with three or fewer convicted tests, or only mypy errors,
+      gets one follow-up turn in its own session with the gate output and no critic
+      call; a critic block goes to a fresh Opus session on the selected tree with
+      the blocking findings and repros, at most two rounds; a re-raised finding escalates;
+      a unit stops at five critic calls, $3 notional spend or 90 minutes
+    paths:
+      - src/torve/application/runner.py
+      - src/torve/application/session.py
+      - src/torve/application/selection.py
+    rationale: >-
+      Opus revisions cleared re-review 5 of 6 times against 18 of 41 for DeepSeek;
+      mechanical reds need no judge
+  - id: D-9
+    grade: OPEN
+    text: >-
+      Whether an in-session dsh revision replaces the Opus revision after a critic
+      block, decided by 20 units comparing the two after the session driver lands:
+      dsh becomes the default if it clears 70% or more at lower cost and wall time
+    paths: [src/torve/application/selection.py]
+    rationale: >-
+      The Opus clear rate rests on six revisions, and dsh in-session revision is untried
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      The dsh seat pins `@deepseek-ai/dsh@0.2.1-rc.5` and `deepseek-v4.1-flash-1017`,
+      runs a `torve-exec` profile built on `sdk-minimal` with `DSH_PERMISSION_MODE=danger-full-access`
+      inside the container, telemetry off, a per-attempt `DSH_HOME`, an empty `DSH_AGENTS_HOME`
+      and a 900 s bash timeout, and every patch carries a `--dump-config` boot assertion
+    paths: [sandboxes/dsh/**, .torve/harnesses/dsh.yaml]
+    rationale: >-
+      DeepSeek recommends 0.2.1-rc.1 or later for this model, Minimal beats Standard
+      by 2 to 5 points on DeepSeek's own scaffold table, and dsh drops unknown keys
+      and refused plugins without an error
+    cites: [S-0121/D-9, S-0121/D-10]
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      The engine drives a dsh session through headless `--json` and continues it with
+      `--session-id`, reads tool calls, results and per-step usage from the NDJSON
+      events in place of `report-usage`, and interrupts a session by killing the process
+      and resuming it later
+    paths:
+      - src/torve/adapters/agent/harness.py
+      - src/torve/adapters/agent/dsh_session.py
+      - sandboxes/dsh/toolkit/**
+    rationale: >-
+      This is DeepSeek's documented supervising pattern and needs no new protocol;
+      the SDK has no cancel call either
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      Contract v3 splits scope into `files`, `tests` (paired tests derived at mint
+      and licensed), `fence` and `contingent`; only the fence convicts, edits outside
+      files and tests become evidence, and a v2 contract loads mapped for one release
+    paths:
+      - src/torve/domain/task.py
+      - src/torve/application/planner.py
+      - src/torve/application/neighbours.py
+      - src/torve/gates/scope.py
+    rationale: >-
+      Paired tests outside scope forced amendments on at least 11 of 27 documents,
+      and one task burned eight attempts on them
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      A phasing file may set `unit: document` to mint one contract for the whole document,
+      the default when it has three phases or fewer, and a contract carries its own
+      document's rows plus at most ten LOCKED rows of other documents whose paths
+      it touches
+    paths: [src/torve/application/planner.py, src/torve/domain/spec.py]
+    rationale: >-
+      Review rounds inherited 131 rows from about thirty documents, and small documents
+      paid one session per phase
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      The divergence log keeps `halted`, written by `torve abort`, and `departed`
+      with a proposal; a justified abort is never counted as a failure, and the `decided`
+      and `resolved` attestations, `torve log owed` and the silence check are removed
+    paths:
+      - src/torve/application/divergence.py
+      - src/torve/cli/log.py
+      - src/torve/domain/spec.py
+    rationale: >-
+      Attestations were 67% of entries and changed no outcome; an honest exit cut
+      cheating sharply in ImpossibleBench
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      Once per pull-request head, one critic call sorts every unresolved bot thread
+      as apply, minor, invalid, duplicate or out of scope with evidence, the valid
+      ones become one revision whose acceptance is the touched modules' tests plus
+      mypy, and replies quote the critic's evidence
+    paths: [src/torve/application/reviewleg.py, src/torve/application/critic.py]
+    rationale: >-
+      Review rounds took 44% of agent hours, one per thread
+    cites: [S-0121/D-29]
+  - id: D-16
+    grade: ASSUMED
+    text: >-
+      Every unit writes one `unit.closed` telemetry record (schema 2) holding its
+      candidates, gates, critic verdicts, selection, revisions, outcome, cost and
+      the owner's minutes, and the version 1 telemetry file is kept read-only
+    paths: [src/torve/application/telemetry.py, src/torve/application/ledger.py]
+    rationale: >-
+      pass@1, selection win rate, critic precision and cost per landed unit must come
+      from the record, not from a study run beside it
+    cites: [S-0121/D-39]
+  - id: D-17
+    grade: ASSUMED
+    text: >-
+      Evals and arms, shadow arms, fleet, standing work, notify, the opensandbox runtime,
+      serve and the web dashboard, survey, the verify role with held-out and verify-tests,
+      the mutation, coverage-delta, decisions-reported, self-audit, user-facing-text,
+      source-layout, red-on-base and row-evidence gates, the evidence matrix and the
+      mimo, codex and opencode sandboxes are deleted, and a removed configuration
+      key is accepted with a warning for one release
+    paths:
+      - src/torve/application/evals.py
+      - src/torve/application/shadow.py
+      - src/torve/application/fleet.py
+      - src/torve/application/standing.py
+      - src/torve/application/notify.py
+      - src/torve/application/survey.py
+      - src/torve/application/evidence_matrix.py
+      - src/torve/gates/mutation.py
+      - src/torve/gates/held_out.py
+      - src/torve/gates/verify_tests.py
+      - src/torve/gates/decisions_reported.py
+      - src/torve/gates/red_on_base.py
+      - src/torve/gates/row_evidence.py
+      - web/**
+      - sandboxes/mimo/**
+    rationale: >-
+      About 9k source lines that no night uses, and gates that convicted nothing real
+  - id: D-18
+    grade: ASSUMED
+    text: >-
+      A non-blocking shadow critic, DeepSeek V4.1-Flash-1017 at max effort run read-only
+      through dsh, reviews the same candidates for 40 units after the release, and
+      becomes a first pass only if it finds at least 90% of the Opus-confirmed blocks
+      with at most 10% spurious ones
+    paths: [src/torve/application/critic.py]
+    rationale: >-
+      It would save most of the critic's cost, but recall is not worth risking before
+      it is measured
+  - id: D-19
+    grade: ASSUMED
+    text: >-
+      The critic's prompt is frozen and versioned with its sha in each record, findings
+      are labelled acted, rebutted or ignored, and a prompt change is first tested
+      on 30 labelled past reviews
+    paths: [src/torve/application/critic.py, .torve/review-corpus/**]
+    rationale: Judge verdicts move with prompt wording
+  - id: D-20
+    grade: ASSUMED
+    text: >-
+      The import-linter independence contract covers every adapter package, including
+      the broker and the event store
+    paths: [pyproject.toml]
+    rationale: >-
+      The contract listed agent, runtime, workspace, vcs and store only
+    cites: [S-0121/D-12]
+  - id: D-21
+    grade: OPEN
+    text: >-
+      What makes intake demand a document now that one charter is the only standing
+      document: the `document_required` arm counts LOCKED rows from distinct documents
+      and can no longer fire
+    paths: [src/torve/application/intake.py, src/torve/config/runconfig.py]
+    rationale: >-
+      The threshold of two documents assumed a corpus of many
