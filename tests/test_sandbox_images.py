@@ -535,6 +535,106 @@ def test_the_result_envelope_is_still_the_last_line() -> None:
     assert text.index("for (const event of stream)") < text.index("total_cost_usd: cost")
 
 
+# A dsh session log in format v4, as 0.2.1-rc.5 writes one: usage on each step's
+# `assistant/message`, a retried request's on the last usage chunk of its
+# `assistant/attempt` stream, and every dispatched call as a `tool/call`.
+_V4_LOG = [
+    {"type": "session", "version": 4, "id": "session-1", "cwd": "/w"},
+    {
+        "type": "assistant/message",
+        "data": {
+            "turn": 1,
+            "step": 1,
+            "message": {
+                "role": "assistant",
+                "source": {"kind": "model", "model": "deepseek-v4.1-flash-1017"},
+            },
+            "usage": {
+                "inputTokens": 800,
+                "outputTokens": 50,
+                "cacheReadTokens": 200,
+                "cacheWriteTokens": 30,
+            },
+        },
+    },
+    {"type": "tool/call", "data": {"callId": "c1", "name": "bash", "arguments": "{}"}},
+    {
+        "type": "assistant/attempt",
+        "data": {
+            "stream": [
+                {"type": "chunk", "chunk": {"type": "usage", "usage": {"outputTokens": 1}}},
+                {
+                    "type": "chunk",
+                    "chunk": {"type": "usage", "usage": {"inputTokens": 100, "outputTokens": 7}},
+                },
+            ]
+        },
+    },
+    {"type": "tool/call", "data": {"callId": "c2", "name": "read", "arguments": "{}"}},
+    {"type": "tool/call", "data": {"callId": "c3", "name": "bash", "arguments": "{}"}},
+    {
+        "type": "assistant/message",
+        "data": {"usage": {"inputTokens": 200, "outputTokens": 9, "cacheReadTokens": 900}},
+    },
+]
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not available")
+@pytest.mark.parametrize("compressed", [False, True])
+def test_report_usage_reads_the_v4_log_into_what_the_parsers_take(
+    tmp_path: Path, compressed: bool
+) -> None:
+    """The seam end to end, without an image: the shipped reporter over a v4
+    log under `$DSH_HOME`, and its output through the engine's own parsers.
+    Until 0.2.1-rc.5 the reporter read the v0 file under `~/.dsh`, which no
+    0.1.7+ dsh writes — a bump would have reported nothing, and no error."""
+
+    from torve.adapters.agent.harness import parse_burn, parse_metadata, parse_tool_calls
+
+    if compressed and shutil.which("zstd") is None:
+        pytest.skip("zstd not available")
+
+    session = tmp_path / "home" / "sessions" / "--w--" / "session-1"
+    session.mkdir(parents=True)
+    log = session / "session.v4.jsonl"
+    log.write_text("".join(json.dumps(event) + "\n" for event in _V4_LOG), encoding="utf-8")
+
+    if compressed:
+        subprocess.run(["zstd", "-q", "--rm", str(log), "-o", f"{log}.zstd"], check=True)
+
+    reporter = REPO_ROOT / "sandboxes" / "dsh" / "toolkit" / "report-usage"
+    env = {**os.environ, "DSH_HOME": str(tmp_path / "home")}
+    output = subprocess.run(
+        ["node", str(reporter)], env=env, capture_output=True, text=True, check=True
+    ).stdout
+
+    meta = parse_metadata(output)
+
+    assert meta.model_version == "deepseek-v4.1-flash-1017"
+    assert (meta.input_tokens, meta.output_tokens) == (1100, 66)
+    assert (meta.cache_read_tokens, meta.cache_creation_tokens) == (1100, 30)
+    assert json.loads(output.splitlines()[-1])["tool_counts"] == {"bash": 2, "read": 1}
+
+    trace = tmp_path / "trace.log"
+    trace.write_text(output, encoding="utf-8")
+    burn = parse_burn(trace)
+
+    assert burn is not None
+    assert (burn.turns, burn.tool_calls) == (3, 3)
+    assert [fact["name"] for fact in parse_tool_calls(trace)] == ["bash", "read", "bash"]
+
+    # No session at all is no output and a clean exit, never an invented zero.
+    empty = subprocess.run(
+        ["node", str(reporter)],
+        env={**os.environ, "DSH_HOME": str(tmp_path / "nowhere")},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert empty.stdout == ""
+
+
 # The format switches as a command line the harness itself parses, the way the
 # door's are: `--help` validates the flags and exits before anything dials. The
 # pair is probed together because it is one switch — measured on claude 2.1.x,
