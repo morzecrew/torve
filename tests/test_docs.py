@@ -280,3 +280,42 @@ def test_the_operating_guide_documents_the_evidence_gate_and_its_table():
     assert "`Survivors`, the number of mutation survivors under its paths or `none`" in text
     assert "`Findings`, the number of review findings recorded against it or `none`" in text
     assert "Without a table for that tip the decisions table stays as it is today" in text
+
+
+def test_the_operating_guide_documents_the_engine_the_chain_plans_from():
+    """S-0120/D-5: the page an operator reads says a chain fast-forwards and
+    plans from its own checkout only when it runs an installed engine, names
+    `night.engine_paths` and the exit code its fast-forward gives when it
+    moves them, and ships the launcher loop — a virtualenv of its own,
+    relaunched on 6, apart from the host's shared tool install."""
+
+    from torve.config.runconfig import NightConfig
+    from torve.domain.states import EXIT_ENGINE_MOVED
+
+    guide = (PAGES / "operating.md").read_text(encoding="utf-8")
+    text = " ".join(guide.split())
+
+    # The key the engine parses, not one the page invented.
+    assert "engine_paths" in NightConfig.model_fields
+    assert "night.engine_paths" in text
+    assert (
+        "A chain fast-forwards and plans from its own checkout only when it runs an installed engine"
+        in text
+    )
+
+    # The move, the event it records and the code a launcher reads.
+    assert "chain_engine_moved" in text
+    assert f"exits {EXIT_ENGINE_MOVED}" in text
+    assert "EXIT_ENGINE_MOVED" in text
+
+    # The loop: installed from the checkout into its own virtualenv, serving
+    # that same checkout by `--root`, and relaunched on the code rather than
+    # reusing the shared tool install; any other exit stops it with its code.
+    assert "uv pip install" in text
+    assert "$HOME/.torve-engines/torve-self" in text
+    assert '--root "$root"' in text
+    assert '[ "$status" -eq 6 ] || exit "$status"' in text
+    assert "virtualenv of its own" in text
+    assert "relaunch" in text
+    assert "~/.local/bin/torve" in text
+    assert "shared tool install" in text

@@ -1426,6 +1426,22 @@ def test_init_writes_the_intake_issue_label_into_the_config_schema(tmp_path):
     assert label["description"]
 
 
+def test_init_writes_the_night_engine_paths_into_the_config_schema(tmp_path):
+    """S-0120/D-1: the schema is derived from the model, so the key that turns
+    the engine check on reaches an editor validating a configuration, with its
+    empty default and its words."""
+
+    root = _bare_repo(tmp_path)
+    assert CliRunner().invoke(app, ["init", "--root", str(root)]).exit_code == 0
+
+    config = json.loads((root / ".torve" / "schemas" / "config.json").read_text(encoding="utf-8"))
+    paths = config["$defs"]["NightConfig"]["properties"]["engine_paths"]
+
+    assert paths["type"] == "array"
+    assert paths["items"]["type"] == "string"
+    assert paths["description"]
+
+
 def test_init_appends_a_missing_pattern_below_the_operators_lines_and_rewrites_a_stale_schema(
     tmp_path,
 ):

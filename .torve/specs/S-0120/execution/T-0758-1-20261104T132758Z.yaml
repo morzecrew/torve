@@ -1,0 +1,459 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0758
+base: 279ff1175891a436e1899ebdd24a4f07e98939ed
+commit: 61cd5c5fd6682a06672707502ecd439dc198fd71
+at: '2026-11-04T13:27:58Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: LOCKED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: S-0054/D-14
+    grade: ASSUMED
+  - id: S-0055/D-1
+    grade: LOCKED
+  - id: S-0055/D-4
+    grade: LOCKED
+  - id: S-0055/D-5
+    grade: LOCKED
+  - id: S-0055/D-6
+    grade: ASSUMED
+  - id: S-0055/D-18
+    grade: LOCKED
+  - id: S-0055/D-19
+    grade: ASSUMED
+  - id: S-0055/D-22
+    grade: LOCKED
+  - id: S-0055/D-23
+    grade: LOCKED
+  - id: S-0055/D-24
+    grade: LOCKED
+  - id: S-0055/D-26
+    grade: LOCKED
+  - id: S-0055/D-27
+    grade: ASSUMED
+  - id: S-0055/D-28
+    grade: ASSUMED
+  - id: S-0055/D-30
+    grade: ASSUMED
+  - id: S-0055/D-31
+    grade: ASSUMED
+  - id: S-0055/D-32
+    grade: ASSUMED
+  - id: S-0055/D-33
+    grade: ASSUMED
+  - id: S-0055/D-34
+    grade: ASSUMED
+  - id: S-0055/D-36
+    grade: ASSUMED
+  - id: S-0055/D-52
+    grade: ASSUMED
+  - id: S-0055/D-56
+    grade: ASSUMED
+  - id: S-0055/D-59
+    grade: ASSUMED
+  - id: S-0056/D-6
+    grade: LOCKED
+  - id: S-0056/D-8
+    grade: ASSUMED
+  - id: S-0056/D-10
+    grade: LOCKED
+  - id: S-0057/D-3
+    grade: LOCKED
+  - id: S-0057/D-4
+    grade: LOCKED
+  - id: S-0057/D-5
+    grade: LOCKED
+  - id: S-0058/D-2
+    grade: LOCKED
+  - id: S-0058/D-10
+    grade: ASSUMED
+  - id: S-0059/D-1
+    grade: LOCKED
+  - id: S-0059/D-5
+    grade: LOCKED
+  - id: S-0059/D-6
+    grade: LOCKED
+  - id: S-0059/D-8
+    grade: ASSUMED
+  - id: S-0059/D-12
+    grade: LOCKED
+  - id: S-0060/D-1
+    grade: LOCKED
+  - id: S-0061/D-3
+    grade: LOCKED
+  - id: S-0061/D-9
+    grade: ASSUMED
+  - id: S-0061/D-11
+    grade: ASSUMED
+  - id: S-0062/D-6
+    grade: LOCKED
+  - id: S-0063/D-8
+    grade: ASSUMED
+  - id: S-0064/D-1
+    grade: LOCKED
+  - id: S-0064/D-4
+    grade: LOCKED
+  - id: S-0064/D-5
+    grade: ASSUMED
+  - id: S-0064/D-6
+    grade: LOCKED
+  - id: S-0068/D-1
+    grade: ASSUMED
+  - id: S-0071/D-1
+    grade: ASSUMED
+  - id: S-0071/D-2
+    grade: ASSUMED
+  - id: S-0079/D-5
+    grade: ASSUMED
+  - id: S-0079/D-10
+    grade: ASSUMED
+  - id: S-0080/D-1
+    grade: ASSUMED
+  - id: S-0080/D-2
+    grade: ASSUMED
+  - id: S-0082/D-12
+    grade: ASSUMED
+  - id: S-0083/D-1
+    grade: ASSUMED
+  - id: S-0083/D-2
+    grade: ASSUMED
+  - id: S-0083/D-15
+    grade: ASSUMED
+  - id: S-0084/D-5
+    grade: ASSUMED
+  - id: S-0084/D-16
+    grade: ASSUMED
+  - id: S-0085/D-1
+    grade: ASSUMED
+  - id: S-0085/D-4
+    grade: ASSUMED
+  - id: S-0086/D-6
+    grade: ASSUMED
+  - id: S-0087/D-1
+    grade: ASSUMED
+  - id: S-0089/D-1
+    grade: ASSUMED
+  - id: S-0089/D-2
+    grade: ASSUMED
+  - id: S-0091/D-1
+    grade: ASSUMED
+  - id: S-0091/D-3
+    grade: ASSUMED
+  - id: S-0092/D-4
+    grade: ASSUMED
+  - id: S-0094/D-1
+    grade: ASSUMED
+  - id: S-0094/D-3
+    grade: ASSUMED
+  - id: S-0094/D-4
+    grade: ASSUMED
+  - id: S-0094/D-5
+    grade: ASSUMED
+  - id: S-0095/D-1
+    grade: ASSUMED
+  - id: S-0095/D-2
+    grade: ASSUMED
+  - id: S-0095/D-5
+    grade: ASSUMED
+  - id: S-0095/D-6
+    grade: ASSUMED
+  - id: S-0096/D-2
+    grade: ASSUMED
+  - id: S-0096/D-3
+    grade: ASSUMED
+  - id: S-0097/D-4
+    grade: ASSUMED
+  - id: S-0097/D-5
+    grade: ASSUMED
+  - id: S-0097/D-7
+    grade: ASSUMED
+  - id: S-0099/D-1
+    grade: ASSUMED
+  - id: S-0099/D-5
+    grade: ASSUMED
+  - id: S-0099/D-9
+    grade: ASSUMED
+  - id: S-0100/D-1
+    grade: ASSUMED
+  - id: S-0100/D-4
+    grade: ASSUMED
+  - id: S-0100/D-5
+    grade: ASSUMED
+  - id: S-0100/D-7
+    grade: ASSUMED
+  - id: S-0100/D-9
+    grade: ASSUMED
+  - id: S-0100/D-11
+    grade: ASSUMED
+  - id: S-0100/D-12
+    grade: ASSUMED
+  - id: S-0101/D-2
+    grade: ASSUMED
+  - id: S-0102/D-4
+    grade: ASSUMED
+  - id: S-0103/D-4
+    grade: ASSUMED
+  - id: S-0106/D-4
+    grade: ASSUMED
+  - id: S-0108/D-1
+    grade: ASSUMED
+  - id: S-0109/D-1
+    grade: ASSUMED
+  - id: S-0110/D-1
+    grade: ASSUMED
+  - id: S-0110/D-2
+    grade: ASSUMED
+  - id: S-0110/D-3
+    grade: ASSUMED
+  - id: S-0110/D-4
+    grade: ASSUMED
+  - id: S-0110/D-8
+    grade: ASSUMED
+  - id: S-0110/D-11
+    grade: ASSUMED
+  - id: S-0110/D-12
+    grade: ASSUMED
+  - id: S-0110/D-13
+    grade: ASSUMED
+  - id: S-0111/D-1
+    grade: ASSUMED
+  - id: S-0111/D-4
+    grade: ASSUMED
+  - id: S-0112/D-2
+    grade: ASSUMED
+  - id: S-0112/D-3
+    grade: ASSUMED
+  - id: S-0112/D-5
+    grade: ASSUMED
+  - id: S-0112/D-8
+    grade: ASSUMED
+  - id: S-0113/D-4
+    grade: ASSUMED
+  - id: S-0113/D-5
+    grade: ASSUMED
+  - id: S-0114/D-3
+    grade: ASSUMED
+  - id: S-0115/D-8
+    grade: ASSUMED
+  - id: S-0116/D-2
+    grade: ASSUMED
+  - id: S-0116/D-13
+    grade: ASSUMED
+  - id: S-0116/D-14
+    grade: ASSUMED
+  - id: S-0117/D-1
+    grade: ASSUMED
+  - id: S-0117/D-3
+    grade: ASSUMED
+  - id: S-0117/D-5
+    grade: ASSUMED
+  - id: S-0117/D-6
+    grade: LOCKED
+  - id: S-0117/D-7
+    grade: OPEN
+  - id: S-0117/D-8
+    grade: ASSUMED
+  - id: S-0118/D-9
+    grade: LOCKED
+  - id: S-0119/D-1
+    grade: ASSUMED
+  - id: S-0119/D-8
+    grade: ASSUMED
+entries:
+  - decision: D-3
+    grade: LOCKED
+    at: '2026-11-04T13:17:47Z'
+    claim: >-
+      The engine check now reads the changed paths NUL-separated; nothing in the change
+      installs, upgrades or re-executes the engine, and the chain still ends at the
+      exit code the launcher reads.
+    evidence: >-
+      src/torve/cli/manager.py:769 — the changed line only splits the diff the engine
+      check reads, so the engine still never installs itself
+    action: decided
+  - decision: S-0055/D-4
+    grade: LOCKED
+    at: '2026-11-04T13:17:47Z'
+    claim: >-
+      The added night validator reads glob strings alone; no credential, provider
+      or secret value is introduced by the change.
+    evidence: >-
+      src/torve/config/runconfig.py:1552 — the validator filters engine_paths entries
+      for a leading bang and touches no credential field
+    action: decided
+  - decision: S-0055/D-5
+    grade: LOCKED
+    at: '2026-11-04T13:17:47Z'
+    claim: >-
+      The change touches no executor memory or shadow-run setting; it refuses a negated
+      engine path at load.
+    evidence: >-
+      src/torve/config/runconfig.py:1548 — the added method belongs to NightConfig
+      and reads only its engine_paths
+    action: decided
+  - decision: S-0055/D-22
+    grade: LOCKED
+    at: '2026-11-04T13:17:47Z'
+    claim: >-
+      The change adds no user-facing string that names a corpus coordinate; the one
+      new message speaks of night.engine_paths and the scope grammar.
+    evidence: >-
+      src/torve/cli/manager.py:735 — the added prose names a character class and cites
+      no identifier
+    action: decided
+  - decision: S-0055/D-23
+    grade: LOCKED
+    at: '2026-11-04T13:17:47Z'
+    claim: >-
+      Both files keep their layers; the change adds no import across base, domain,
+      application, adapters, cli, gates or config.
+    evidence: >-
+      src/torve/config/runconfig.py:1548 — the validator uses the field_validator
+      already imported at the module head
+    action: decided
+  - decision: S-0057/D-3
+    grade: LOCKED
+    at: '2026-11-04T13:17:47Z'
+    claim: >-
+      The change adds no corpus-root key; the validator reads night.engine_paths and
+      nothing under specs.path.
+    evidence: >-
+      src/torve/config/runconfig.py:1552 — the filter walks the night engine paths
+      only
+    action: decided
+  - decision: S-0057/D-4
+    grade: LOCKED
+    at: '2026-11-04T13:17:47Z'
+    claim: >-
+      The night reference keeps the specification vocabulary; the edited prose and
+      launcher name manager serve and --root and no verb named rfc.
+    evidence: >-
+      skills/torve/references/night.md:109 — the changed launcher line names a flag
+      and the checkout variable
+    action: decided
+  - decision: S-0058/D-2
+    grade: LOCKED
+    at: '2026-11-04T13:17:47Z'
+    claim: >-
+      The change writes no identifier in any of the four files; the launcher snippet
+      and the validator message name flags, fields and a shell variable only.
+    evidence: >-
+      pages/docs/operating.md:1406 — the changed launcher line carries a flag and
+      a variable, no identifier
+    action: decided
+  - decision: S-0059/D-1
+    grade: LOCKED
+    at: '2026-11-04T13:17:47Z'
+    claim: >-
+      The change adds no contract field or key; the engine check reads a git diff
+      and its own configured globs.
+    evidence: >-
+      src/torve/cli/manager.py:769 — the changed helper splits git output and consults
+      the matcher
+    action: decided
+  - decision: S-0059/D-5
+    grade: LOCKED
+    at: '2026-11-04T13:17:47Z'
+    claim: >-
+      The validator introduces no vocabulary word; it compares each engine path against
+      a leading bang character.
+    evidence: >-
+      src/torve/config/runconfig.py:1552 — the added list comprehension tests a character
+      prefix and imports nothing new
+    action: decided
+  - decision: S-0059/D-6
+    grade: LOCKED
+    at: '2026-11-04T13:17:55Z'
+    claim: >-
+      The engine_paths field keeps its attribute docstring and the model keeps the
+      shared strict config; the addition is a method, so no schema property is left
+      without its words.
+    evidence: >-
+      src/torve/config/runconfig.py:1548 — the added validator is a method beside
+      the field, not a schema property
+    action: decided
+  - decision: S-0059/D-12
+    grade: LOCKED
+    at: '2026-11-04T13:17:55Z'
+    claim: >-
+      The change reads no landing, trailer or subject; the helper reads a git diff
+      between two commits it is handed.
+    evidence: >-
+      src/torve/cli/manager.py:769 — the changed line reads the diff only
+    action: decided
+  - decision: S-0061/D-3
+    grade: LOCKED
+    at: '2026-11-04T13:17:55Z'
+    claim: >-
+      No seat field is touched; the added validator belongs to the night section and
+      reads its engine paths.
+    evidence: >-
+      src/torve/config/runconfig.py:1548 — the method is one of the NightConfig validators
+    action: decided
+  - decision: S-0062/D-6
+    grade: LOCKED
+    at: '2026-11-04T13:17:55Z'
+    claim: >-
+      The change edits the night reference launcher prose; no skill text the gate
+      parses changes shape, and the skills stay package data.
+    evidence: >-
+      skills/torve/references/night.md:110 — the changed line is inside the launcher
+      code block
+    action: decided
+  - decision: S-0064/D-1
+    grade: LOCKED
+    at: '2026-11-04T13:17:55Z'
+    claim: >-
+      No provider key is added or moved; the change refuses a negated engine path
+      at load.
+    evidence: >-
+      src/torve/config/runconfig.py:1552 — the validator reads night.engine_paths
+      only
+    action: decided
+  - decision: S-0064/D-4
+    grade: LOCKED
+    at: '2026-11-04T13:17:55Z'
+    claim: >-
+      The change adds no dialect or harness check; the validator is the night section
+      one.
+    evidence: >-
+      src/torve/config/runconfig.py:1548 — the added method reads engine paths and
+      nothing about a seat
+    action: decided
+  - decision: S-0064/D-6
+    grade: LOCKED
+    at: '2026-11-04T13:17:55Z'
+    claim: >-
+      No reasoning-effort field or profile key is touched; the validator belongs to
+      the night terms.
+    evidence: >-
+      src/torve/config/runconfig.py:1552 — the filter walks engine paths alone
+    action: decided
+  - decision: S-0117/D-6
+    grade: LOCKED
+    at: '2026-11-04T13:17:55Z'
+    claim: >-
+      The fast-forward guard and the planning skip are untouched; the change only
+      makes the engine check read unquoted paths so its globs see the tree.
+    evidence: >-
+      src/torve/cli/manager.py:769 — the changed helper reads the diff the engine
+      check matches
+    action: decided
+  - decision: S-0118/D-9
+    grade: LOCKED
+    at: '2026-11-04T13:17:55Z'
+    claim: >-
+      No lane battery record is added or changed; the diff adds a unit test for the
+      engine check and reads git output in the helper.
+    evidence: >-
+      tests/test_manager.py:2320 — the added test calls the engine check helper and
+      records nothing
+    action: decided
