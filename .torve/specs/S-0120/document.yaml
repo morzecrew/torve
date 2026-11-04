@@ -1,0 +1,116 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0120
+title: The chain runs the engine its base carries
+kind: design
+change:
+  type: feat
+  scope: manager
+status: draft
+implementation: none
+depends_on: [S-0117]
+informed_by: [S-0079, S-0119]
+supersedes: []
+superseded_by: null
+owner: Lev Litvinov
+schema_version: 4
+summary: |-
+  A chained night whose fast-forward moves the engine's own sources ends with an exit code of its own, so the launcher installs the new engine and starts the chain again, and an engine change merged on the base reaches the chain at the next night boundary.
+
+  The chain never installs or replaces itself: it says the engine moved, and the launcher, outside the engine, does the install. Off by default; a repository opts in by naming the files that make up its engine.
+motivation: |-
+  On 2026-11-03 torve served S-0119 with `--night --chain` from its own checkout. S-0117/D-6 then holds: the engine imports from that checkout, so the chain never fast-forwards it and never plans from it. Everything the chain was built to do without a person, a person did:
+
+  - S-0119 was planned by hand (`torve plan S-0119 --partition torve --no-dry-run`) after its `after:` target was marked complete.
+  - The chain was stopped five times. Twice it was to pick up an engine change: #243 at 09:32, and the dsh seat and its profile at 09:52. Twice it was to land a phase by hand, and once to stop the #249 loop. #246 merged while the chain ran and never reached it.
+  - Each stop cost more than the restart. A pass had dispatched T-0728 two seconds before one SIGTERM, which spent an attempt with no sandbox. T-0728 and T-0735 were cut mid-run, and their stale `running` and `gated` state files escalated `gate_infrastructure_failure` on every requeue until the files were removed by hand. The SIGINT the first stop sent was ignored, because a job started detached inherits it ignored.
+  - The checkout the chain never moves is also the tree `ready_candidates` reads landings from. After #247 merged, that tree still lacked S-0119's landing files, and the lane recut the merged document's branch (#250).
+
+  The other nights (erp, es, pi) already run an installed engine, `~/.local/bin/torve`, so their chains fast-forward and plan. That install was built from a detached worktree at 7e380c3b and has not moved since, so none of the fixes merged on 2026-11-03 reach those nights either. An installed engine fixes planning, but not the upgrade: nothing tells a chain that the engine it runs is older than the one its base now carries.
+current_state: |-
+  - `_engine_imports_under(root)` in `src/torve/cli/manager.py` is S-0117/D-6. It is true when `torve.__file__` resolves under the repository root outside a `site-packages` directory. The chain then prints "the engine imports from this checkout — the chain leaves it alone and plans nothing between nights" once and sets `planning = False`.
+  - `_sync_and_plan(root, log, partition, *, config, worker)` is S-0117/D-5. With nothing in flight it fetches, resolves the configured base and, on that branch with a clean tree, fast-forwards with `GitLane.merge_ff(root, "origin/<base>")`. It then mints every accepted, unimplemented, unplanned document. It returns `None`, and the chain loop in `_serve` calls it at the top of each iteration, before the day's remainder and the night's open.
+  - `_serve` returns `(handled, reason)`. `serve_cmd` exits `EXIT_OK` whatever the reason, in both text and `--format json`. `src/torve/domain/states.py` assigns exit codes 0 to 5 and says "Codes above 5 stay unassigned — reserve, never reuse."
+  - `NightConfig` in `src/torve/config/runconfig.py` carries `budget_usd`, `budget_attempts`, `minutes` and `stop_on`. Nothing names the engine.
+  - The launchers live outside every repository, in `torve-handover/`. `tnight.sh` runs `uv run --no-sync torve … --chain "$@"` inside torve's checkout, so the engine imports from it. `erpnight.sh`, `esnight.sh` and `pinight.sh` run `~/.local/bin/torve`, a `uv tool` install whose receipt names `directory = …/worktrees/torve-223`. That one install is shared by every night on the host.
+goals: |-
+  - torve's own chain fast-forwards its checkout and plans from it like any repository's, because it runs an installed engine.
+  - An engine change merged on the base reaches a running chain at the next night boundary, with nobody stopping it.
+  - The engine never writes its own installation; a failed install leaves the old engine runnable and the failure visible to the operator.
+  - A repository that names no engine files runs exactly as it does today.
+non_goals: |-
+  - Not upgrading mid-night. A night that runs its full `minutes` keeps the engine it opened with, as it keeps its budget (S-0117/D-4). A fix that cannot wait is a stop the operator makes.
+  - Not the shared `~/.local/bin/torve`. The erp, es and pi nights run an engine their own base does not carry, so their base moving says nothing about it. Moving them is a release and a reinstall, and so is the operator's.
+  - Not a version check. Engine versions are written at release, not per commit, so a version string misses every merged fix in between. The trigger is the files.
+design:
+  - key: the-trigger
+    md: |-
+      `night.engine_paths` lists the files that make up the engine, in the glob grammar a contract's scope uses. It is empty by default, and empty means off.
+
+      ```yaml
+      night:
+        engine_paths: [src/torve/**, pyproject.toml, uv.lock]
+      ```
+
+      `_sync_and_plan` reads the checkout's `HEAD` before the fast-forward and after it. When the fast-forward moved it, the chain diffs the two with `git diff --name-only`, and a changed path that `night.engine_paths` matches means the engine moved. A checkout the fast-forward did not move, because the tree was dirty, the branch was another one or the base had not moved, has not moved its engine either. The installed engine was built from the tree the launcher saw, and that tree has not changed.
+  - key: the-exit
+    md: |-
+      When the engine moved, the chain plans nothing, records a `chain_engine_moved` engine event, and returns from `_serve` with the reason `engine moved`. Planning waits for the new engine, because planning is engine code too. The event carries `from` and `to` (the two commits) and `paths` (up to ten matched paths and the count).
+
+      `serve_cmd` exits with `EXIT_ENGINE_MOVED = 6` for that reason, in text and in `--format json`. Every other reason still exits `EXIT_OK`. The check runs only where the fast-forward runs: between nights, with nothing in flight (S-0117/D-5). So no attempt is cut, no lease is left behind, and no state file is stale.
+  - key: the-launcher
+    md: |-
+      The launcher is the operator's and installs the engine. For torve's own chain, it installs into a virtualenv of its own, outside the checkout and outside the shared tool install, and loops on code 6:
+
+      ```sh
+      engine=$HOME/.torve-engines/torve-self
+      while :; do
+        uv venv --allow-existing -q "$engine"
+        uv pip install -q --python "$engine/bin/python" "$root[opensandbox,postgres,migrate]" || exit 1
+        "$engine/bin/torve" --plain manager serve torve --night --chain --config "$config"
+        [ $? -eq 6 ] || break
+      done
+      ```
+
+      Installed from the checkout's tree, the engine no longer imports from the checkout, so S-0117/D-6 no longer holds the chain back: it fast-forwards and plans. A failed install exits the loop and leaves the previous engine in place, so the next start can run it. The operating guide and the night reference ship this loop.
+tests: |-
+  - The trigger, in `tests/test_manager.py`: `_sync_and_plan` against a local origin whose new commit changes a file `night.engine_paths` matches reports the engine moved and mints nothing. A commit that touches no such file plans as before, an empty `engine_paths` never reports a move, and a checkout the fast-forward did not move reports none.
+  - The exit: a chained `_serve` whose sync reports a move returns `engine moved` after recording `chain_engine_moved` with `from`, `to` and `paths`. `serve_cmd` maps that reason to exit 6 in text and `--format json`, and every other reason to 0.
+  - The key: `night.engine_paths` loads, defaults to empty, and reaches `.torve/schemas/config.json`.
+  - Not tested: the launcher loop. It is a shell script outside the package, and the guide documents it; the exit code it reads is tested.
+docs: >-
+  `pages/docs/operating.md` (the chain section) and `skills/torve/references/night.md`
+  cover two things. One is why a chain must run an installed engine to plan from its
+  own checkout. The other is `night.engine_paths` and the launcher loop above, including
+  why torve's own chain needs a virtualenv apart from the shared tool install.
+out_of_scope: ''
+risks: |-
+  - **A loop that never settles.** If the launcher installs from a different tree than the one the chain fast-forwards, every boundary looks like an engine move. The loop installs from `$root`, the checkout the chain moves, so the tree it installs is the tree the next run compares against.
+  - **An install that breaks.** A broken install after a merge exits the loop, and the night stays down until someone looks. That is what the operator sees today when a merged change breaks the engine, but now the failure is the install's exit status rather than a stack trace inside a night.
+  - **Paths that miss the engine.** `engine_paths` is the operator's statement of what the engine is. A change to a file it does not name, say a new package directory, reaches the chain only at the next manual restart.
+  - **The checkout is shared.** Once the chain fast-forwards torve's checkout, a person working in it (an untracked file, another branch) makes the chain leave it alone. It records `plan_refused` for `checkout` once per base commit, so the work goes on in worktrees, as the rails already say.
+alternatives:
+  - option: >-
+      The chain re-executes itself (`os.execv`) after running a configured install
+      command.
+    rejected_because: >-
+      The engine would then run an install that replaces its own code. A failed install
+      would leave half an environment under the process that started it, the same
+      hazard S-0117/D-6 refuses for the checkout. An exit code keeps installing where
+      the operator can see it.
+  - option: >-
+      Compare the running engine's version with the base's.
+    rejected_because: >-
+      torve's version moves at release, not per commit, so every fix merged between
+      releases would be missed. The changed files are the honest signal.
+  - option: >-
+      Keep serving torve's chain from the checkout and lift S-0117/D-6.
+    rejected_because: >-
+      Fast-forwarding the tree a process imports from mixes two engines in one process,
+      because most of the engine imports inside functions. That is the reason S-0117/D-6
+      exists, and it still holds.
+questions:
+  - id: Q-1
+    text: >-
+      Should an engine move also end a night that has idled for longer than some bound,
+      rather than wait for its `minutes`? Left out of this document; decide once the
+      boundary wait shows up as a cost.
