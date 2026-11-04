@@ -794,6 +794,14 @@ A seat may name a `revision_variant`, a dotted tier. When the attempt about to r
 - Consequence: an adopter that sets nothing gets today's pass, and the label is the leg's one switch
 - Check: `uv run pytest tests/test_issues.py -k off` (shadow; runs as `decision:S-0119/D-1`, no log entry owed)
 
+### S-0120/D-1 — `ASSUMED` (The chain runs the engine its base carries) — implementation: none
+
+`night.engine_paths` is a list of globs in the scope grammar naming the files that make up the engine; empty, the default, turns the engine check off.
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: a repository that names nothing serves exactly as before, and torve's own night names its sources, its manifest and its lock
+- Check: `uv run pytest tests/test_runconfig.py -k engine_paths` (shadow; runs as `decision:S-0120/D-1`, no log entry owed)
+
 ## Invariants holding over `src/torve/config/`
 
 - **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
