@@ -1985,6 +1985,9 @@ REMOVED_KEYS = (
     ("loop", "standing_max_per_tick"),
 )
 REMOVED_HARNESSES = frozenset({"mimo", "codex", "opencode"})
+# Said once per file per process, as the manifest's twinless warning is: one
+# command loads the configuration from several places.
+_warned: set[Path] = set()
 
 
 def _drop_removed(config: dict[str, Any], root: Path, source: Path) -> None:
@@ -2016,7 +2019,8 @@ def _drop_removed(config: dict[str, Any], root: Path, source: Path) -> None:
                 del seats[seat]
                 dropped.append(f"tiers.{seat} (harness {harness})")
 
-    if dropped:
+    if dropped and source not in _warned:
+        _warned.add(source)
         warnings.warn(
             f"{source}: {', '.join(dropped)} removed in 0.9.0 and ignored — "
             "delete them from the configuration",
