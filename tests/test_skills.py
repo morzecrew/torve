@@ -401,6 +401,38 @@ def test_the_night_reference_covers_the_verify_pilot():
     assert "underspecified" in text
 
 
+def test_the_night_reference_ships_the_engine_launcher():
+    """S-0120/D-5: the reference an operator reads during a night says a chain
+    fast-forwards and plans only when it runs an installed engine, names
+    `night.engine_paths`, the event and exit code its fast-forward gives when
+    it moves them, and ships a launcher loop installing into a virtualenv of
+    its own and relaunching on 6 — with no corpus identifier of torve's."""
+
+    from torve.domain.states import EXIT_ENGINE_MOVED
+
+    raw = (skills_root() / "torve" / "references" / "night.md").read_text(encoding="utf-8")
+    text = " ".join(raw.split())
+
+    assert "night.engine_paths" in text
+    assert "installed engine" in text
+    assert "engine moved" in text
+    assert "chain_engine_moved" in text
+    assert f"exits {EXIT_ENGINE_MOVED}" in text
+
+    # The loop installs from the checkout into its own virtualenv and
+    # relaunches on the code, never the host's shared tool install.
+    assert "uv pip install" in text
+    assert "$HOME/.torve-engines/torve-self" in text
+    assert "[ $? -eq 6 ] || break" in text
+    assert "virtualenv of its own" in text
+    assert "relaunch" in text
+    assert "~/.local/bin/torve" in text
+    assert "shared tool install" in text
+
+    # The skill speaks to any adopter, so it names no torve corpus path.
+    assert "src/torve/" not in text
+
+
 def test_the_spec_writer_asks_a_phase_intent_to_name_the_public_surface():
     """S-0116/D-13: a phase written for a verifier names what to test, so the
     verifier does not invent an API — the skill and the template it points at

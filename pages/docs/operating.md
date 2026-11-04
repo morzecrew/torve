@@ -1366,9 +1366,53 @@ A checkout off the base branch, with uncommitted changes or that will not
 fast-forward plans nothing, and the record names why once per base commit: a
 `plan_refused` engine event whose `document` is `checkout`.
 
-A chain whose engine imports from the checkout it serves skips the
-fast-forward and the planning and says so once at the start (S-0117/D-6):
-moving that checkout would move the code the process is running.
+A chain fast-forwards and plans from its own checkout only when it runs an
+installed engine (S-0120/D-5). One whose engine imports from that checkout
+skips both and says so once at the start (S-0117/D-6): moving the tree the
+process is running would move the code it is executing.
+
+`night.engine_paths` names the engine's files — globs in the same grammar a
+contract's scope uses. Empty, the default, turns the check off; torve's own
+night names its sources, its manifest and its lock:
+
+```yaml
+night:
+  engine_paths: [src/torve/**, pyproject.toml, uv.lock]
+```
+
+Between nights, when the fast-forward moves the checkout across a change to a
+file the list matches, the chain mints nothing and ends with the reason
+`engine moved` (S-0120/D-2). It records a `chain_engine_moved` engine event
+carrying the commit before, the commit after, and up to ten matched paths with
+their count, and exits 6 — `EXIT_ENGINE_MOVED` — in text and in `--format
+json`, where every other reason still exits 0 (S-0120/D-4). The engine never
+installs itself: the chain's part ends at the exit code (S-0120/D-3), so a
+failed install leaves the previous engine in place and fails where the
+operator sees it.
+
+The launcher loops on that code — install, relaunch, and stop on any other
+exit — installing the engine from the checkout the chain fast-forwards:
+
+```sh
+root=...              # torve's checkout, the tree the chain moves
+config=...            # the night's configuration
+engine=$HOME/.torve-engines/torve-self
+while :; do
+  uv venv --allow-existing -q "$engine"
+  uv pip install -q --python "$engine/bin/python" "$root[opensandbox,postgres,migrate]" || exit 1
+  "$engine/bin/torve" --plain manager serve torve --night --chain --config "$config"
+  [ $? -eq 6 ] || break
+done
+```
+
+Installed from the checkout's tree, the engine no longer imports from that
+checkout, so the chain fast-forwards and plans like any repository's. For
+torve's own chain the loop installs into a virtualenv of its own,
+`$HOME/.torve-engines/torve-self`, apart from the host's shared tool install
+`~/.local/bin/torve`. That one install serves every night on the host, so
+reinstalling it when torve's base moves would replace files under nights whose
+own base did not move; only a night whose base moved needs the new engine, and
+only its own virtualenv takes it.
 
 So a document can go from acceptance to a ready pull request without its
 owner. The terms that make the run survive what its owner would have answered:
