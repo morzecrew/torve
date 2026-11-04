@@ -120,8 +120,8 @@ def build_server(root: Path, rfc_dir: Path, *, dsn: str = "", partition: str = "
     @server.tool(annotations=types.ToolAnnotations(readOnlyHint=True))  # type: ignore[untyped-decorator]
     def pack(task_id: str, file: str = "") -> dict[str, Any]:  # pyright: ignore[reportUnusedFunction]
         """What a sandbox running one task is handed on disk: its context
-        pack — index.md, decisions.json, gates.json, tests.json,
-        attempts.json, contended.json, schema/*.json — built here by the
+        pack — index.md, map.md, scope.md, decisions.json, attempts.json,
+        symbols.txt, schema/*.json — built here by the
         same function dispatch calls, so a session on any harness reads what
         an agent in a sandbox reads. Pass one file name to fetch just that
         file; empty returns every file. Nothing is written."""

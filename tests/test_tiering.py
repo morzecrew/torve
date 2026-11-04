@@ -92,11 +92,12 @@ def test_the_first_message_carries_the_packs_small_files(tmp_path):
 
     pack = tmp_path / PACK_RELPATH
     pack.mkdir(parents=True, exist_ok=True)
-    (pack / "gates.json").write_text('{"gates": ["the battery"]}', encoding="utf-8")
-    (pack / "tests.json").write_text('{"coverage": ["the tests"]}', encoding="utf-8")
     (pack / "attempts.json").write_text('{"attempts": ["the red"]}', encoding="utf-8")
-    (pack / "contended.json").write_text('{"contended": ["the paths"]}', encoding="utf-8")
     (pack / "decisions.json").write_text('{"inherited": ["the rows"]}', encoding="utf-8")
+    # S-0122/the-evidence-package: a pack written before carries these; the
+    # first message no longer does.
+    (pack / "gates.json").write_text('{"gates": ["the battery"]}', encoding="utf-8")
+    (pack / "contended.json").write_text('{"contended": ["the paths"]}', encoding="utf-8")
     # S-0077/D-4: the map rides the same message, and it is markdown rather
     # than JSON, so the fence it lands in is not the JSON one.
     (pack / "map.md").write_text("# Where things are\n\n- `src/` — the layout", encoding="utf-8")
@@ -106,21 +107,17 @@ def test_the_first_message_carries_the_packs_small_files(tmp_path):
     handed = pack_handover(tmp_path)
     prompt = build_prompt(Task(id="T-0001", decisions=[]), pack=handed)
 
-    for body in ("the battery", "the tests", "the red", "the paths", "the layout", "the bodies"):
+    for body in ("the red", "the layout", "the bodies"):
         assert body in prompt
+
+    for body in ("the battery", "the paths"):
+        assert body not in prompt
 
     assert "```\n# Where things are" in prompt
     assert "```json\n# Where things are" not in prompt
 
     # Named once, as what it is — never as a file to open.
-    for name in (
-        "map.md",
-        "scope.md",
-        "gates.json",
-        "tests.json",
-        "attempts.json",
-        "contended.json",
-    ):
+    for name in ("map.md", "scope.md", "attempts.json"):
         assert f"{PACK_RELPATH}/{name}" not in prompt
 
     assert "the rows" not in prompt

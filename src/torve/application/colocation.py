@@ -7,10 +7,8 @@ harness that loads nested files lazily should know a rule is waiting
 before it opens the subtree.
 
 The section is a function of the corpus alone (S-0070/D-1, S-0070/D-2):
-contention is live, uncommitted and machine-local, so it reaches the
-reader who needs it through the pack (`contended.json`, built from
-`contended_paths` below) and never through a file a gate diffs against a
-fresh render.
+nothing live, uncommitted or machine-local — contention, the telemetry
+stream — reaches a file a gate diffs against a fresh render.
 
 Rendered, never edited: text outside the markers is the operator's and is
 never touched; a hand edit inside them is drift, which `--check` names by
@@ -24,13 +22,10 @@ files under the repository root. Nothing here reaches the record.
 
 from __future__ import annotations
 
-import json
 from collections.abc import Collection
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast
 
-from torve.application.specquality import telemetry_file
 from torve.config.spec import archive_dir, load_corpus
 from torve.domain.spec import Corpus, Decision, Document, Invariant
 
@@ -39,7 +34,6 @@ from torve.domain.spec import Corpus, Decision, Document, Invariant
 AGENTS_FILE = "AGENTS.md"
 MARK_OPEN = "<!-- torve:managed {where} — rendered from the corpus; do not edit by hand -->"
 MARK_CLOSE = "<!-- /torve:managed -->"
-CONTENTION_WINDOW = 500  # telemetry rows, the drafter's window (S-0020 phase 3)
 
 
 # ....................... #
@@ -177,36 +171,6 @@ def superseded_rows(corpus: Corpus) -> list[str]:
         for row in doc.decisions
         if row.superseded_by
     )
-
-
-# ....................... #
-
-
-def contended_paths(root: Path) -> dict[str, int]:
-    """Paths blocked dispatches collided on in the telemetry stream's last
-    rows — the same read the drafter's execution facts make. Read by the
-    pack, never by a rendered section (S-0070/D-2)."""
-
-    stream = telemetry_file(root)
-
-    if not stream.is_file():
-        return {}
-
-    contended: dict[str, int] = {}
-
-    for line in stream.read_text(encoding="utf-8").splitlines()[-CONTENTION_WINDOW:]:
-        try:
-            record = cast("dict[str, Any]", json.loads(line))
-        except json.JSONDecodeError:
-            continue
-
-        if record.get("event") == "blocked_dispatch":
-            path = str(record.get("path", ""))
-
-            if path:
-                contended[path] = contended.get(path, 0) + 1
-
-    return contended
 
 
 # ----------------------- #

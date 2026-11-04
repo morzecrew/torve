@@ -58,7 +58,7 @@ def test_a_contract_that_lints_red_is_briefed_and_exits_zero(repo) -> None:
     pack = Path(brief["pack"])
     assert pack == repo.root / ".torve" / "context"
     assert (pack / "index.md").is_file()
-    assert (pack / "gates.json").is_file()
+    assert (pack / "decisions.json").is_file()
 
     names = {gate["name"] for gate in brief["gates"]}
     assert "scope" in names

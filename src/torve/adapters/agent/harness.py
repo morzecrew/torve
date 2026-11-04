@@ -78,28 +78,15 @@ SKILLS_RELPATH = ".torve/skills"
 # attempts read the files it holds about thirty-four times between them. A file
 # costs a round trip and a decision to trust it; a grep costs a round trip and
 # no trust, so the grep wins and the file is written for nobody. It is already
-# bounded — whole under the pack's budget, an outline over it — which is what
-# makes it safe to carry.
+# bounded — bodies under the pack's budget, names past it — which is what makes
+# it safe to carry. The battery's manifest, coverage counts and contended paths
+# were handed over too, and went (S-0122/the-evidence-package): no attempt was
+# measured acting on them, and they were most of what this section weighed.
 HANDED_OVER: tuple[tuple[str, str], ...] = (
     ("map.md", "where things are: the source layout, the engine's own directories"),
     ("source.json", "what asked for this work: an audit, an incident, a review, an ask"),
-    ("gates.json", "the battery this attempt faces: name, axis, state, what convicts"),
-    (
-        "tests.json",
-        "coverage of the files in scope from the last battery, and the tests that name them",
-    ),
-    (
-        "attempts.json",
-        "this task's prior attempts, and each red gate's output, governing rows and failed tests",
-    ),
-    ("contended.json", "paths other work is contending for right now"),
-    (
-        "scope.md",
-        (
-            "the files this scope names and the tests that name them, whole under"
-            " the pack's budget and as an outline over it"
-        ),
-    ),
+    ("attempts.json", "this task's prior attempts, and what each blocking red printed"),
+    ("scope.md", "the files this task changes and their tests, whole; the contingent by name"),
 )
 
 # The two scripts every sandbox image answers (S-0063/D-1, S-0063/D-3): one
