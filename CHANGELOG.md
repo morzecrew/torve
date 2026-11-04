@@ -30,7 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `torve survey` is gone.
 
 - The verify role is gone: `torve plan` mints no verify tasks, and the `torve:verifier`
-  skill no longer ships.
+  skill no longer ships. Finish any document planned with the verify pilot on before
+  upgrading: its verify tasks no longer load, and the tasks waiting on them never start.
 
 - The `mutation`, `held-out`, `verify-tests`, `decisions-reported`, `self-audit`,
   `user-facing-text`, `source-layout`, `red-on-base` and `evidence` gates are gone. A
