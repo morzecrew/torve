@@ -819,7 +819,8 @@ def test_no_seated_definition_reads_a_mounted_credential() -> None:
 # Which channel each image puts the engine's staged system text through
 # (S-0073/D-8). `mimo` is absent because it has no seat to test the channel on,
 # which S-0073 put out of scope rather than this forgetting it.
-SYSTEM_CHANNEL = {"claude": "--append-system-prompt", "dsh": "persona"}
+# dsh's channel is the patch head in `persona.yml`, which the next test reads.
+SYSTEM_CHANNEL = {"claude": "--append-system-prompt", "dsh": "/opt/torve/persona.yml"}
 
 
 @pytest.mark.parametrize("name", sorted(SYSTEM_CHANNEL))
@@ -842,6 +843,83 @@ def test_a_seat_reads_the_system_text_the_engine_staged(name: str) -> None:
         f"{name} reads the system text but puts it nowhere its harness reads in "
         f"system position ({SYSTEM_CHANNEL[name]})"
     )
+
+
+def test_the_dsh_persona_patch_carries_the_sentence_and_the_rules(tmp_path: Path) -> None:
+    """The key is `personaPrefix` since 0.1.3-alpha.2, and dsh drops an unknown
+    key without a word, so a patch still saying `persona` would boot with the
+    rules gone. The bundle's own sentence is restated because a patch replaces
+    the entry's config, and it carries no `{{cwd}}`: 0.2.1 registers none, and
+    an unregistered variable fails the render. Rendered the way `run` renders
+    it, so the block scalar the rules are appended to is what is read."""
+
+    toolkit_dir = DEFINITIONS / "dsh" / "toolkit"
+    rules = tmp_path / "rules.md"
+    rules.write_text("Rule one.\n\nRule two: `x`.\n", encoding="utf-8")
+    patch = tmp_path / "persona.yml"
+    rendered = subprocess.run(
+        ["sh", "-c", f"cat {toolkit_dir / 'persona.yml'}; sed 's/^/      /' {rules}"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    patch.write_text(rendered, encoding="utf-8")
+
+    [entry] = yaml.safe_load(patch.read_text(encoding="utf-8"))
+
+    assert entry["id"] == "system-prompt"
+    assert entry["config"] == {
+        "personaPrefix": "You are a coding agent powered by the {{model}} model.\n\n"
+        "Rule one.\n\nRule two: `x`."
+    }
+
+
+def test_the_dsh_environment_is_one_file_every_entry_point_reads() -> None:
+    """S-0122/D-10: the permission mode, telemetry off, and both homes per
+    attempt. One file, because `equip` installs the hook plugin into the profile
+    under `$DSH_HOME` and `run` has to boot that same profile; and the agents
+    home is a directory, since dsh reads an empty value as unset."""
+
+    toolkit_dir = DEFINITIONS / "dsh" / "toolkit"
+    values = dict(
+        line.split("=", 1)
+        for line in (toolkit_dir / "dsh.env").read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith(("#", "export"))
+    )
+
+    assert values["DSH_PERMISSION_MODE"] == "danger-full-access"
+    assert values["DSH_TELEMETRY_DISABLED"] == "1"
+    assert values["DSH_HOME"].startswith("/tmp/")
+    assert values["DSH_AGENTS_HOME"].startswith("/tmp/")
+
+    for script in ("equip", "run", "smoke"):
+        assert ". /opt/torve/dsh.env" in (toolkit_dir / script).read_text(encoding="utf-8")
+
+    # Fresh per attempt: emptied before the plugin install writes into it.
+    equip = (toolkit_dir / "equip").read_text(encoding="utf-8")
+
+    assert equip.index('rm -rf "$DSH_HOME" "$DSH_AGENTS_HOME"') < equip.index("equip_patch.py")
+
+
+def test_the_dsh_shell_runs_in_the_foreground_for_fifteen_minutes() -> None:
+    """S-0122/D-10's 900 s, and both halves of it: the executor caps a timeout
+    at `maxTimeoutMs` (600 s unless stated), so `timeoutMs` alone would read as
+    600. With `tool-jobs` off nothing reads a background job back, so `bash`
+    neither offers one nor turns a timed-out command into one."""
+
+    rows = {
+        row["id"]: row
+        for row in yaml.safe_load(
+            (DEFINITIONS / "dsh" / "toolkit" / "tools.yml").read_text(encoding="utf-8")
+        )
+    }
+
+    assert rows["bash-sandbox"]["config"] == {"timeoutMs": 900000, "maxTimeoutMs": 900000}
+    assert rows["tool-bash"]["config"] == {
+        "enableRunInBackground": False,
+        "promoteOnTimeout": False,
+    }
+    assert rows["tool-jobs"]["disabled"] is True
 
 
 def test_a_manifest_declares_its_dialects_and_names_no_credential() -> None:

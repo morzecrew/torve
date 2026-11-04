@@ -6,13 +6,31 @@
 # the bundle set on an entry this file narrows has to be restated here, or it
 # is dropped and the entry fails its own schema at boot — taking the whole
 # plugin tree with it. `maxBytes` below is `dsh-base/cordis.patch.yml`'s value
-# for `agent-instructions`, restated for exactly that reason; the smoke check
-# in the Dockerfile is what catches it if the bundle's value moves.
+# for `agent-instructions`, restated for exactly that reason (its schema marks
+# it required); the smoke check in the Dockerfile is what catches it if the
+# bundle's value moves.
+#
+# The keys are the ones the two entries read, checked against 0.2.1-rc.5's own
+# schemas. Until then this file said `candidates` and `roots`, which neither
+# entry has, and dsh drops a key it does not know without a word: the door read
+# as shut in every review and stood open on every attempt, `AGENTS.md` and
+# `CLAUDE.md` loaded and the default skill roots watched. So the smoke check
+# reads each value below back out of `dsh --dump-config`, and a key that stops
+# meaning anything fails the build rather than the regime digest.
 - id: agent-instructions
   config:
-    candidates: []
     maxBytes: 65536
+    # `AGENTS.md`/`CLAUDE.md` and their `.local.md` twins, root to cwd. The
+    # user-global `AGENTS.md` under each home is not a candidate and cannot be
+    # emptied here; `dsh.env` points both homes at directories `equip` makes
+    # empty for the attempt.
+    instructionFileCandidates: []
+    localInstructionFileCandidates: []
+# The default roots are the project's `.dsh/skills` and `.agents/skills` and
+# each home's `skills`; with them off, the one root left is the one the engine
+# named (S-0063/D-19).
 - id: skill-filesystem
   config:
-    roots:
+    includeDefaultRoots: false
+    customSkillDirs:
       - "@EQUIP_ROOT@"

@@ -14,7 +14,10 @@
 # and the two searches. `bash` is `tool-bash`, `read`/`write`/`edit` are
 # `tool-fs`, `glob`/`grep` are `tool-fs-search`, and `skill` stays because
 # equipment reaches this seat as skills and a seat that cannot open one is
-# equipped with nothing.
+# equipped with nothing. `read_image` (also `tool-fs`) and `working_directory`
+# stay as well: they are what S-0122's `torve-exec` profile keeps beside the
+# shell. Measured on 0.2.1-rc.5 with this file applied, a request declares
+# those nine and nothing else.
 #
 # Every entry below is disabled rather than removed: `--patch` configures an
 # entry the profile already carries and cannot add one (S-0063/D-17), so a
@@ -22,8 +25,11 @@
 # deleting its two lines.
 #
 # The names are from `dsh --profile headless --dump-default-config` on
-# 0.1.1-rc.2; an id this file names that the bundle has dropped fails at boot
-# with dsh's own message, and the build's smoke check is what sees it.
+# 0.2.1-rc.5. An id the bundle has dropped is no boot failure there: dsh warns
+# `patch: entry "..." not found` on stderr and boots without it, which is how
+# three rows here (`tool-str-replace-editor`, `tool-ralph`,
+# `tool-subagent-report`, none of them in rc.5's headless profile) patched
+# nothing unnoticed. The build's smoke check fails on that warning now.
 
 # Background jobs. The engine's attempts run commands and wait for them.
 - id: tool-jobs
@@ -38,19 +44,9 @@
 - id: tool-todo
   disabled: true
 
-# A second editor beside `tool-fs`'s `edit`, declaring its own schema. One pair
-# of edit semantics per attempt is enough.
-- id: tool-str-replace-editor
-  disabled: true
-
-# A bounded self-driving loop, up to sixty-four rounds. An attempt is already
-# the loop, and the engine is what bounds it.
-- id: tool-ralph
-  disabled: true
-
-# Subagents: the tool, the fork variant, the two control tools, and the report.
-# The engine's unit of parallelism is a task, dispatched from outside the
-# sandbox, where the ledger can see it.
+# Subagents: the tool, the fork variant, and the control tools. The engine's
+# unit of parallelism is a task, dispatched from outside the sandbox, where the
+# ledger can see it.
 - id: tool-subagent
   disabled: true
 - id: tool-subagent-fork
@@ -59,14 +55,51 @@
   disabled: true
 - id: tool-subagent-list-agents
   disabled: true
-- id: tool-subagent-report
-  disabled: true
 
 # Same, one level up.
 - id: tool-workflow
   disabled: true
 
-# `web_search`; `web_fetch` the bundle already switched off. A sandbox with no
-# network route to a search provider declares a tool that cannot answer.
+# `web_search` and `web_fetch`. A sandbox with no network route to a search
+# provider declares a tool that cannot answer.
 - id: tool-web
+  disabled: true
+
+# `exit_plan_mode`, declared on every request although a headless attempt never
+# enters plan mode: it asks a user to approve a plan, and there is none.
+- id: plan-mode
+  disabled: true
+
+# `bash` itself stays, and runs in the foreground only. With `tool-jobs` gone
+# nothing can read a background job back, yet rc.5 still offers
+# `run_in_background` on every call and, by default, turns a command that
+# outlives its timeout into a background job — a test run would come back as a
+# job id the model has no tool to wait on. Both off: a call returns when its
+# command does, or is killed at the timeout below.
+- id: tool-bash
+  config:
+    enableRunInBackground: false
+    promoteOnTimeout: false
+
+# The shell's clock (S-0122/D-10): a test suite or a build is one call, and the
+# headless default kills it at 60 s. The executor caps any timeout at
+# `maxTimeoutMs` (600 s unless stated), so both are written, or the 900 s would
+# quietly read as 600. The `disabled` this row carries is the bundle's and is
+# untouched: a patch replaces `config`, nothing else.
+- id: bash-sandbox
+  config:
+    timeoutMs: 900000
+    maxTimeoutMs: 900000
+
+# Not a tool, but paid the same way: up to 4 KiB of the served task sent a
+# second time, under its own system text, to name a session nobody browses — a
+# request per attempt, and one the session log records beside the steps rather
+# than as one, so the usage `report-usage` sums cannot include it.
+- id: session-title-llm
+  disabled: true
+
+# Uploads the session log to DeepSeek's own API when the `llm-deepseek` route
+# carries the attempt. This seat's route is `llm-pi-ai`, so it should be inert;
+# it is off so that "should" is not what keeps an attempt's log on the host.
+- id: session-log-deepseek
   disabled: true

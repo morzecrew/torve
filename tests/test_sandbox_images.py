@@ -380,7 +380,15 @@ DOOR = {
         "--mcp-config '{\"mcpServers\":{}}'",
         "--strict-mcp-config",
     ],
-    "dsh": ["candidates: []", '--patch "$DOOR"'],
+    # The keys 0.2.1-rc.5's entries read. `candidates: []` and `roots:` stood
+    # here until then and matched a door dsh never opened a file for.
+    "dsh": [
+        "instructionFileCandidates: []",
+        "localInstructionFileCandidates: []",
+        "includeDefaultRoots: false",
+        "customSkillDirs:",
+        '--patch "$DOOR"',
+    ],
     "mimo": [". /opt/torve/door.env", "MIMOCODE_DISABLE_AGENTS_SKILLS=1"],
 }
 
