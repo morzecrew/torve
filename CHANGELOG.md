@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- An agent profile's `finish` command runs in the sandbox after the agent stops and
+  before its tree is judged, for example a formatter's fixes. Its exit status never
+  fails the attempt.
+
+- `rows: completion` in the gate manifest runs a contract row's `check` only in the
+  battery that completes its document, instead of on every attempt.
+
+### Security
+
+- The gates read the gate manifest and the task's contract from the repository root,
+  never from the attempt's worktree. An attempt could previously edit both and change
+  which gates judged it.
+
+- The gate battery mounts a cache volume of its own (`<cache_volume>-<slot>-gates`).
+  Code a gate ran could previously leave files in the attempt's cache for the next
+  attempt to read.
+
 ## [0.8.0] - 2026-11-04
 
 ### Added

@@ -14,6 +14,9 @@
 # What this arm cannot answer on its own: whether the instructions were earning
 # their place. That is the landing rate and the diff, read together, over
 # enough tasks to mean something.
+# The formatter's fixes, applied by the engine once the agent stops and before
+# the tree leaves the sandbox (S-0122/D-4): 27 of 44 lint reds were format-only.
+finish: "uv run ruff format --quiet . && uv run ruff check --fix --exit-zero --quiet ."
 equipment: []
 prompt_extras: |
   Prefer the smallest change that makes the acceptance commands pass.

@@ -1047,6 +1047,12 @@
           "title": "Equipment",
           "type": "array"
         },
+        "finish": {
+          "default": "",
+          "description": "S-0122/D-4: the command run in the sandbox after the agent, before its tree\nleaves \u2014 its exit convicts nothing; the battery judges what it leaves.",
+          "title": "Finish",
+          "type": "string"
+        },
         "harness": {
           "default": "",
           "description": "S-0061/D-2/D-3: the harness manifest this seat is reached through, by name \u2014\n`.torve/harnesses/<name>.yaml`. Resolution happens on the raw mapping in\n`load_runner_config`, before this model validates, so by the time a `TierConfig`\nexists the manifest's fields are already merged onto it; the name is kept so\n`config_hash` and `torve doctor` can both say where a value came from.",

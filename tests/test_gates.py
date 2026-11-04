@@ -560,26 +560,20 @@ def test_a_suite_budget_counts_its_base_and_never_doubles(tmp_path):
     assert battery_budget(battery(ctx), ctx) == (2 + 3) * 100
 
 
-def test_the_shipped_suite_gate_reports_coverage_from_the_battery_base():
+def test_the_shipped_suite_gate_runs_the_suite_and_reports_nothing():
     # The manifest is configuration the battery reads; its shape is checked
     # here so a later edit cannot silently widen the judgment surface.
-    # S-0118/D-5: the suite replaced `coverage-delta`, blocking with no
-    # `paths`, and the coverage delta became its report.
+    # S-0118/D-5 made the suite blocking with no `paths`; S-0122/D-4 dropped
+    # the coverage report that rode it, the dearest step that convicted nothing.
     from torve.config.manifest import load_manifest
 
     root = Path(__file__).resolve().parent.parent
     manifest = load_manifest(root / ".torve" / "gates.yaml")
-    gates = {g.name: g for g in manifest.resolved_gates()}
-    gate = gates["suite"]
+    gate = {g.name: g for g in manifest.resolved_gates()}["suite"]
 
-    assert "coverage-delta" not in gates
     assert (gate.state, gate.paths, gate.timeout) == ("blocking", [], 600)
+    assert gate.commands == ["uv run pytest -q"]
     assert manifest.tests.run.startswith("uv run pytest")
-
-    report = gate.commands[1]
-    assert "{base}" in report  # the battery's base, never a shell-resolved ref
-    for ref_resolver in ("merge-base", "rev-parse", "origin/", "git diff"):
-        assert ref_resolver not in report
 
 
 # ----------------------- #
@@ -909,6 +903,27 @@ def test_a_tasks_battery_carries_no_document_rows_or_invariants(repo):
     assert ctx.task is not None
     assert ctx.inherited == [] and ctx.invariants == []
     assert [gate.name for gate in decision_gates(ctx.task)] == ["decision:S-0009/D-1"]
+
+
+def test_a_manifest_that_runs_rows_at_completion_gives_an_attempt_none(repo):
+    """S-0122/D-4: `rows: completion` keeps a contract's checked rows out of
+    the attempt battery; the document's completion battery runs them."""
+
+    from torve.gates.runner import battery
+
+    repo.seed()
+    repo.task(
+        base_task(allow=["src/**"], decisions=_checked("true", twin="tests/test_x.py")),
+        log_document(),
+    )
+    repo.write("src/app.py", "print('x')\n")
+    repo.commit("change")
+
+    ctx = context_for(repo)
+    assert "decision:S-0009/D-1" in [gate.name for gate in battery(ctx)]
+
+    ctx.manifest = ctx.manifest.model_copy(update={"rows": "completion"})
+    assert not [gate.name for gate in battery(ctx) if gate.name.startswith("decision:")]
 
 
 def test_a_row_with_a_check_is_covered_and_owes_no_entry():

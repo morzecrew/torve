@@ -683,7 +683,7 @@ def emit(run: Dispatch, kind: str, attempt: int, /, **payload: object) -> None:
 # ....................... #
 
 
-def cache_volumes(run: Dispatch) -> dict[str, str]:
+def cache_volumes(run: Dispatch, role: str = "") -> dict[str, str]:
     """The derived-cache volume this run's current regime mounts (S-0035
     §5.2, S-0035/D-4): named like the auth volume — base plus `-<slot>`, so two
     concurrent workers never share a cache — at the fixed address outside
@@ -692,15 +692,17 @@ def cache_volumes(run: Dispatch) -> dict[str, str]:
 
     Always empty under shadow (S-0035/D-3): a replay measures the cold truth
     even when the tier names a cache, so an eval comparing arms never
-    compares caches. Both the agent's sandbox and the gate battery's read
-    it here, because a pass that judged a different cache than the attempt
-    ran under would be judging a different regime.
+    compares caches. A *role* names a volume of its own: the gate battery's
+    is never the attempt's, because candidate code a gate runs could leave
+    files there for the next attempt to read (S-0122/D-3).
     """
 
     if run.shadow or not run.tier.cache_volume:
         return {}
 
-    return {f"{run.tier.cache_volume}-{run.config.worker_slot}": CACHE_MOUNT}
+    suffix = f"-{role}" if role else ""
+
+    return {f"{run.tier.cache_volume}-{run.config.worker_slot}{suffix}": CACHE_MOUNT}
 
 
 # ....................... #
@@ -711,7 +713,7 @@ def telemetry_target(run: Dispatch) -> Path:
     record must never depend on the manifest existing — a worktree with no
     gates.yaml still burned the money."""
 
-    manifest_file = layout.gates_file(run.worktree)
+    manifest_file = layout.gates_file(run.worktree if run.shadow else run.root)
     telemetry_rel = (
         load_manifest(manifest_file).telemetry if manifest_file.is_file() else Manifest().telemetry
     )

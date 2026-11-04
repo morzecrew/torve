@@ -1132,6 +1132,33 @@ def test_a_failed_prepare_convicts_nothing(rig, monkeypatch):
     assert vcs.commits == []
 
 
+def test_a_finish_command_runs_after_the_agent_and_convicts_nothing(rig, monkeypatch):
+    """S-0122/D-4: the seat's `finish` runs over the agent's tree once it
+    stops, before the tree leaves the sandbox. A failing one is kept as
+    output and convicts nothing: the battery judges what it left."""
+
+    from torve.application.ports import ExecResult
+
+    repo, deps, runtime, _, _ = rig
+    ran: list[str] = []
+    monkeypatch.setattr(
+        runtime,
+        "exec",
+        lambda h, command, t: (
+            ran.append(command),
+            ExecResult(exit_code=1, output="left a residue", duration_s=0.0),
+        )[1],
+    )
+    config = RunnerConfig(
+        tiers={"executor": TierConfig(finish="ruff format ."), "planner": TierConfig()}
+    )
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.READY
+    assert len(ran) == 1 and "ruff format ." in ran[0]
+
+
 def test_a_seat_with_no_prepare_runs_nothing_extra(rig, monkeypatch):
     """Absent is the common case and costs an attempt nothing: no exec, no
     seconds recorded, no step in the record."""

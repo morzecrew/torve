@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-11-04T22:31:07Z'
+    title: >-
+      The battery keeps lint and acceptance, and mypy runs plain
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          The attempt battery is six gates that judge code (`secrets`, `scope` blocking
+          on the fence only, `suite` with attribution, `mypy` on new errors only,
+          `layering`, protected-test tampering), the engine runs ruff's fixes in the
+          sandbox before the snapshot, and no other gate runs on an attempt
+        after: >-
+          The attempt battery judges code only: secrets, scope, no-test-tampering,
+          lint, layering, mypy, the suite with attribution and the task's acceptance;
+          a seat's finish command applies the formatter's fixes before the tree leaves
+          the sandbox, and a contract row's check runs at document completion, not
+          on every attempt
+      - subject: D-4
+        field: fingerprint
+        after: bad8cda0dd671bb5/1276d8264d4b28b4
+    md: |
+      Building phase 1 settled three things D-4 and the phase's intent had wrong.
+      `lint` stays a blocking gate: once the seat's `finish` command has applied
+      the formatter's fixes, what is left is a real finding, and it costs
+      seconds. `mypy` runs plain over the package, because `main` is mypy-clean,
+      so a red is the change's own and needs no attribution against the base.
+      The task's `acceptance` stays too: it runs whatever the contract names.
+
+      Two clauses of phase 1's intent were already true or are kept on purpose.
+      A surviving blocker's revision already runs on the seat's
+      `revision_variant` (S-0117/D-1). The poison ceiling keeps counting per
+      dispatch: requeues are an operator's act, and a lifetime count would
+      escalate a task the operator just requeued.

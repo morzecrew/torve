@@ -254,6 +254,16 @@
       "title": "Quarantine",
       "type": "array"
     },
+    "rows": {
+      "default": "attempt",
+      "description": "Where a contract row's `check` runs (S-0122/D-4): on every attempt as a\n`decision:<id>` gate, or only in the battery that completes its document.",
+      "enum": [
+        "attempt",
+        "completion"
+      ],
+      "title": "Rows",
+      "type": "string"
+    },
     "schema_version": {
       "default": 1,
       "description": "The engine's shape version this manifest is read under.",

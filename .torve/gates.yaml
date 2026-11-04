@@ -64,6 +64,11 @@ scope:
     src/torve/domain/events.py:
       - pages/docs/architecture/record.md
 
+# What a battery over an attempt judges (S-0122/D-4): the code, never the
+# engine's bookkeeping. A row's `check` runs when its document completes, not on
+# every attempt, and the spec checks run in CI.
+rows: completion
+
 gates:
   # The builtins run in the runner's own process over the diff, and measure
   # under 10ms each on a one-file change; 6 is three orders of magnitude of
@@ -88,51 +93,6 @@ gates:
     origin: structural
     timeout: 6
     sabotage: no-test-tampering
-  - name: decisions-reported
-    run: "@decisions-reported"
-    state: blocking
-    origin: structural
-    axis: compliance
-    timeout: 6
-    sabotage: decisions-reported
-  - name: self-audit
-    run: "@self-audit"
-    state: shadow
-    origin: structural
-    axis: compliance
-    timeout: 6
-    sabotage: self-audit
-  # The corpus validator (S-0007/D-14), and the only place the corpus is
-  # checked since CI stopped running the battery twice (S-0002/A-4) — named, so
-  # a red corpus does not read as a red test suite.
-  - name: spec-valid
-    run: "uv run torve spec check"
-    input: worktree
-    state: blocking
-    origin: S-0007
-    axis: form
-    # 4.4s over three runs of the whole corpus.
-    # Since S-0114 a battery's checkout holds no `.venv`, so the first `uv run`
-    # gate builds the environment: 2s with a warm cache, over 17s under load
-    # (S-0116's completion battery, 2026-10-20). Every `uv run` gate carries the
-    # same 120, so whichever sorts first can pay for it.
-    timeout: 120
-    sabotage: tests/test_rfc_check.py
-  - name: source-layout
-    run: "@source-layout"
-    state: shadow
-    origin: S-0014
-    axis: form
-    timeout: 6
-    sabotage: source-layout
-  # No corpus identifiers in user-facing strings (S-0011/D-11, S-0011/A-1).
-  - name: user-facing-text
-    run: "@user-facing-text"
-    state: blocking
-    origin: S-0011
-    axis: compliance
-    timeout: 6
-    sabotage: user-facing-text
   # Style over the whole tree, which the battery did not check. `ruff check`
   # lived only in the `acceptance` fallback below — the list a run with no task
   # contract falls back to — so a task-contract run linted whatever its contract
@@ -172,6 +132,18 @@ gates:
     # same 120, so whichever sorts first can pay for it.
     timeout: 120
     sabotage: tests/test_layering.py
+  # Types over the package, as its own gate rather than a line in the
+  # `acceptance` fallback, which only a run with no contract ever reached
+  # (S-0122/D-4). `main` is mypy-clean, so a red here is the change's own.
+  # 9.1s cold and 0.3s warm over the package; the same 120 as every `uv run`
+  # gate, for the environment build whichever sorts first pays.
+  - name: mypy
+    run: "uv run mypy src"
+    state: blocking
+    origin: S-0122
+    input: worktree
+    timeout: 120
+    sabotage: tests/test_lint.py
   # The whole suite, once per battery, a red attributed to the change that
   # caused it (S-0118/D-1): a failing test's file is rerun at the head, then
   # on the merge base, and a test convicts only when it is red at the head and
@@ -184,11 +156,8 @@ gates:
   # `paths`: a change to a test, or to a page a test reads, is judged too.
   #
   # 600 is the ceiling measured for `coverage-delta`'s suite: 164s median over
-  # 228 runs, 271s at p90, 600s at worst. `COVERAGE_CORE=sysmon` keeps the
-  # measurement cheap, as it did there. The suite writes no report: a
-  # `coverage.xml` it could not write would turn a green run red with no test
-  # named, and convict. The XML is the report's to write, where a failure
-  # never convicts.
+  # 228 runs, 271s at p90, 600s at worst. The coverage report that rode here
+  # cost more than any gate and convicted nothing (S-0122/D-4).
   - name: suite
     run: "@suite"
     state: blocking
@@ -196,77 +165,7 @@ gates:
     timeout: 600
     sabotage: suite
     commands:
-      - "COVERAGE_CORE=sysmon uv run pytest --cov=src --cov-report= -q"
-      - "uv run coverage xml -q && uv run diff-cover coverage.xml --compare-branch {base} --fail-under 80"
-  # The managed AGENTS.md sections beside the code, rendered from the corpus
-  # and drift-checked like the index (S-0054/D-7).
-  - name: spec-projection
-    run: "uv run torve spec project --check"
-    input: worktree
-    state: shadow
-    origin: S-0054
-    axis: form
-    # 1.5s over three runs of the projection across 32 governed directories.
-    # Since S-0114 a battery's checkout holds no `.venv`, so the first `uv run`
-    # gate builds the environment: 2s with a warm cache, over 17s under load
-    # (S-0116's completion battery, 2026-10-20). Every `uv run` gate carries the
-    # same 120, so whichever sorts first can pay for it.
-    timeout: 120
-    sabotage: tests/test_colocation.py
-  # Does the attempt's own test code already pass on the tree it started from
-  # (S-0081/D-1)? Not a builtin of the cheap kind: it runs the qualifying test
-  # functions against the base tree, so it declares a real timeout. Enters at
-  # shadow and is promoted on its own false-positive rate. The twin is the
-  # gate's own test file: it reddens when the gate stops convicting.
-  #
-  # The entry lands after the builtin (T-0438): the battery that judges an
-  # attempt runs the engine as landed, so a manifest naming a builtin the
-  # landed engine lacks is an infrastructure failure, not a red gate.
-  - name: red-on-base
-    run: "@red-on-base"
-    state: shadow
-    origin: S-0081
-    # Two runs of the changed test files only, plus the base extracted with
-    # `git archive` into a temporary directory (S-0081/D-5). The whole suite is 25s; the qualifying slice is a fraction of that,
-    # and 300 is the headroom a contract that rewrites every test file wants.
-    timeout: 300
-    sabotage: tests/test_gates.py
-  # The verify pilot's two builtins (S-0116/D-10, D-11). They enter at shadow
-  # with the document's completion, as its phasing says, so no phase needed
-  # the new engine to pass in its own sandbox. Both skip until the pilot is on:
-  # `held-out` runs only when the task's implement task recorded held-out
-  # properties, and `verify-tests` judges only a verify task.
-  #
-  # A held-out run is one pytest pass over the recorded files: a 13-test file
-  # measured 3.2-3.4s over three runs on the host. A property draws many
-  # examples per test, so 120 is the headroom a large held-out set wants.
-  - name: held-out
-    run: "@held-out"
-    state: shadow
-    origin: S-0116
-    timeout: 120
-    sabotage: held-out
-  # A collection pass over the verifier's file and its held-out properties,
-  # then one run of both: 0.65s and 3.5-3.7s over three runs on the host. Each
-  # pass gets the whole timeout, with the same headroom as `held-out`.
-  - name: verify-tests
-    run: "@verify-tests"
-    state: shadow
-    origin: S-0116
-    timeout: 120
-    sabotage: verify-tests
-  # Which rows a test the change had to turn green proves (S-0115/D-1 to D-4,
-  # D-9): the changed test functions that cite a carried row, run on the base
-  # tree and on the candidate. It names each behavioural row with no proving
-  # test and no check. Its runs are `red-on-base`'s shape, one test function at
-  # a time, so it takes the same 300 (S-0115's risks). Shadow until its record
-  # earns more, as a check's state is promoted (S-0054/D-4).
-  - name: evidence
-    run: "@evidence"
-    state: shadow
-    origin: S-0115
-    timeout: 300
-    sabotage: evidence
+      - "uv run pytest -q"
   - name: acceptance
     run: "@task.acceptance"
     state: blocking
@@ -274,11 +173,7 @@ gates:
     # The one entry whose cost is not this file's to measure: it runs whatever
     # commands the contract under work names, so its p90 is a property of the
     # contracts and not of the gate. The cap stands where it was, and the gate
-    # sorts last, which is where the dearest gate belongs.
+    # sorts last, which is where the dearest gate belongs. A run with no
+    # contract has nothing to accept: `lint`, `mypy` and `suite` judge it.
     timeout: 900
     sabotage: acceptance
-    # Fallback for runs with no task contract (human pull requests).
-    commands:
-      - "uv run ruff check ."
-      - "uv run ruff format --check ."
-      - "uv run mypy src"

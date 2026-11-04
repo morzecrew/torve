@@ -7,7 +7,7 @@ from __future__ import annotations
 import warnings
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
-from typing import Annotated
+from typing import Annotated, Literal
 
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -486,6 +486,9 @@ class Manifest(BaseModel):
     telemetry: str = ".torve/telemetry.jsonl"
     """The path, relative to the repository root, the gate run appends its telemetry
     records to."""
+    rows: Literal["attempt", "completion"] = "attempt"
+    """Where a contract row's `check` runs (S-0122/D-4): on every attempt as a
+    `decision:<id>` gate, or only in the battery that completes its document."""
     gates: list[Gate] = Field(default_factory=list)
     """The battery itself: every gate entry, run in the order the resolver puts them
     in."""

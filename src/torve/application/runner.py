@@ -445,7 +445,9 @@ def _write_attempt_record(run: Dispatch, record: dict[str, Any], attempt: int) -
     numbers."""
 
     payload = record_payload(record, attempt)
-    manifest_rel = load_manifest(layout.gates_file(run.worktree)).telemetry
+    manifest_rel = load_manifest(
+        layout.gates_file(run.worktree if run.shadow else run.root)
+    ).telemetry
 
     append_record(
         run.root / manifest_rel, record_row(payload, task_id=record["task_id"], at=record["at"])
@@ -960,10 +962,11 @@ def _gates_spec(run: Dispatch, state: RunState) -> SandboxSpec:
         labels=naming.labels(run.task.id, state.run_id, run.root),
         timeout_s=run.config.runtime.sandbox_timeout,
         # The battery pays the toolchain cold tax (mypy, ruff, uv all
-        # run under these gates), so the live gates sandbox carries the
-        # same derived-cache mount the attempt did — an empty dict here
-        # is the cold pass, shadow's the exclusion (S-0035/D-3).
-        volumes=cache_volumes(run),
+        # run under these gates), so the live gates sandbox carries a
+        # derived cache of its own — never the attempt's, which candidate
+        # code run here could seed for the next attempt (S-0122/D-3). An
+        # empty dict is the cold pass, shadow's the exclusion (S-0035/D-3).
+        volumes=cache_volumes(run, "gates"),
         # The gates sandbox gets the nested daemon first (S-0111/D-4).
         nested=_nested_docker(run, "gates"),
     )
@@ -1129,12 +1132,12 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
     the event the board folds. The row is written whether or not anything
     is observing — the record exists before either carrier does."""
 
-    manifest_path = layout.gates_file(run.worktree)
+    # S-0121/D-3: the battery is the root's, never one the attempt could have
+    # edited in its worktree. A replay judges by the manifest its clone holds.
+    manifest_path = layout.gates_file(run.worktree if run.shadow else run.root)
 
     if not manifest_path.is_file():
-        raise FileNotFoundError(
-            f"no gate manifest in the worktree ({manifest_path}) — gates are fail-closed"
-        )
+        raise FileNotFoundError(f"no gate manifest at {manifest_path} — gates are fail-closed")
 
     manifest = load_manifest(manifest_path)
 
@@ -1168,6 +1171,13 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
             if held.is_file() and not carried.exists():
                 carried.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(held, carried)
+
+        # S-0121/D-3: the contract judged is the root's, over any copy the
+        # agent could have edited in its worktree.
+        if source.is_file() and not run.shadow:
+            carried = layout.task_file(judge, run.task.id)
+            carried.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(source, carried)
 
         # The base is resolved on the host and named to the checkout by the sha
         # of its merge base with the attempt (S-0114/D-1): an ancestor of the

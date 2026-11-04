@@ -1239,6 +1239,55 @@ def test_the_battery_judges_the_attempt_under_its_contract_and_log(repo):
     assert seen["log"] is True
 
 
+def test_an_attempt_cannot_edit_its_own_judge(repo):
+    """S-0121/D-3: the battery runs the root's manifest over the root's
+    contract. An attempt that rewrites both in its worktree, one to drop the
+    gate that judges it and one to judge itself by a command of its choosing,
+    still meets the root's."""
+
+    from torve.application.ports import ExecResult, SandboxHandle
+
+    commands: list[str] = []
+
+    class CommandRecordingRuntime:
+        def create(self, spec, workspace):
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def exec(self, handle, command, timeout_s):
+            commands.append(command)
+            return ExecResult(exit_code=0, output="", duration_s=0.0)
+
+        def sync_out(self, handle, workspace):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+        def resolve_image(self, image):
+            return None
+
+    repo.seed()
+    worktree = _cut_worktree(
+        repo,
+        manifest_with([{"name": "acceptance", "run": "@task.acceptance"}]),
+        dict(base_task(allow=["src/**"]), acceptance=["echo contract"]),
+    )
+    (worktree / "src" / "feature.py").write_text("FEATURE = True\n", encoding="utf-8")
+    (worktree / ".torve" / "gates.yaml").write_text(
+        yaml.safe_dump(manifest_with([{"name": "hostile", "run": "echo hostile"}])),
+        encoding="utf-8",
+    )
+    layout.task_file(worktree, TASK_ID).write_text(
+        yaml.safe_dump(dict(base_task(allow=["src/**"]), acceptance=["echo hostile"])),
+        encoding="utf-8",
+    )
+
+    exit_code, summary, *_ = _gate_pass(repo, worktree, runtime=CommandRecordingRuntime())
+
+    assert exit_code == 0, summary
+    assert commands == ["echo contract"]
+
+
 def test_a_tampered_cache_and_tracked_list_never_reach_the_battery(repo):
     """S-0114/D-2: the sandbox mounts the checkout, and the checkout is what
     `git add -A` would commit — so an attempt's `.venv` shim and its rewrite
@@ -2020,8 +2069,8 @@ def _conviction_passes(monkeypatch, repo, passes, seen_metas, append_telemetry=F
     """Replace the gate pass with one driven by per-attempt entries: a
     non-empty conviction list goes red with those recorded results, `[]` is
     green, and `None` is the empty-diff shape — red with no per-gate record
-    at all. Each pass seeds the labeled manifest into the mock worktree so
-    selection reads the same declarations a real pass judged by. When
+    at all. Each pass seeds the labeled manifest at the root, where a real
+    pass reads its declarations (S-0121/D-3), so selection reads the same. When
     `append_telemetry`, each pass also writes the row the real pass would:
     the outcome and state of every gate beside the tier stamp of the
     attempt that produced them."""
@@ -2030,7 +2079,7 @@ def _conviction_passes(monkeypatch, repo, passes, seen_metas, append_telemetry=F
     outcomes = list(passes)
 
     def scripted(run, _state):
-        manifest_file = run.worktree / ".torve" / "gates.yaml"
+        manifest_file = run.root / ".torve" / "gates.yaml"
         manifest_file.parent.mkdir(parents=True, exist_ok=True)
         manifest_file.write_text(yaml.safe_dump(RETRY_MANIFEST), encoding="utf-8")
 
@@ -2585,6 +2634,12 @@ def test_an_unnamed_cache_mounts_nothing_a_named_one_is_slot_suffixed():
     # cache — one function, so the attempt and the battery cannot disagree.
     assert mounts_for(TierConfig(cache_volume="torve-cache"), 2, shadow=True) == {}
 
+    # S-0122/D-3: a role's volume is never the attempt's.
+    gates = cache_volumes(
+        _gate_dispatch(tier=TierConfig(cache_volume="torve-cache"), worker_slot=2), "gates"
+    )
+    assert gates == {"torve-cache-2-gates": CACHE_MOUNT}
+
     # The mount is fixed and outside the workspace bind — no attempt can
     # read the cache as project content.
     workdir = SandboxSpec(name="n", image="i", labels={}, timeout_s=1.0).workdir
@@ -2633,25 +2688,21 @@ def _recording_runtime():
 
 
 def _script_gates_capturing_cache(monkeypatch):
-    """Replace the gate pass with a recorder of the cache volumes it would
-    mount — the same dispatch-derived set the gates sandbox spec carries."""
+    """Replace the gate pass with a recorder of the cache volumes its
+    sandbox spec would mount."""
     import torve.application.runner as run_module
-    from torve.application.dispatch import cache_volumes
 
     seen: list[dict] = []
 
-    def scripted(run, _state):
-        # Read off the dispatch, not counted out of a positional list: the
-        # pass and the attempt derive the mount from the same function, so
-        # this is the mount the battery would actually have carried.
-        seen.append(cache_volumes(run))
+    def scripted(run, state):
+        seen.append(run_module._gates_spec(run, state).volumes)
         return 0, "scripted", "cafecafe1234", [], ""
 
     monkeypatch.setattr(run_module, "run_gate_pass", scripted)
     return seen
 
 
-def test_a_warm_tiers_run_mounts_the_slot_volume_attempt_and_gates_alike(repo, monkeypatch):
+def test_a_warm_tiers_run_mounts_the_slot_volume_and_the_gates_one_of_their_own(repo, monkeypatch):
     from test_run_loop import task_for
 
     from torve.application.runner import run_task
@@ -2668,9 +2719,9 @@ def test_a_warm_tiers_run_mounts_the_slot_volume_attempt_and_gates_alike(repo, m
     assert runtime.specs  # the attempt sandbox, and only it: gates are scripted
     for spec in runtime.specs:
         assert spec.volumes == {"torve-cache-5": CACHE_MOUNT}
-    # The gates lane of the same live pass is handed the same mount: the
-    # battery is where the toolchain cold tax is paid.
-    assert gate_caches == [{"torve-cache-5": CACHE_MOUNT}]
+    # The battery pays the toolchain cold tax too, from a volume of its own:
+    # candidate code a gate runs never seeds the attempt's cache (S-0122/D-3).
+    assert gate_caches == [{"torve-cache-5-gates": CACHE_MOUNT}]
 
 
 def test_a_cold_run_mounts_nothing_at_all(repo, monkeypatch):

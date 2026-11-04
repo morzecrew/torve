@@ -55,6 +55,12 @@
       "title": "Equipment",
       "type": "array"
     },
+    "finish": {
+      "default": "",
+      "description": "A command run in the sandbox after the agent and before its tree leaves \u2014 a\nformatter's fixes applied (S-0122/D-4). Its exit convicts nothing: the battery\njudges the tree it leaves.",
+      "title": "Finish",
+      "type": "string"
+    },
     "name": {
       "default": "",
       "description": "What a seat resolves this profile by (S-0061/D-12). Empty is the filename stem,\nwhich is what every file wrote before the key existed; two profiles claiming one\nname are refused at load naming both, which is the half a directory cannot enforce.",

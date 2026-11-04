@@ -348,7 +348,7 @@ def battery(ctx: GateContext, only: set[str] | None = None) -> list[Gate]:
 
     gates = [
         *ctx.manifest.resolved_gates(),
-        *decision_gates(ctx.task),
+        *(decision_gates(ctx.task) if ctx.manifest.rows == "attempt" else []),
         *row_gates(ctx.inherited),
         *invariant_gates(ctx.invariants),
     ]

@@ -184,4 +184,109 @@ Session traces live under `.torve/traces/`, are never committed, uploaded or put
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/reaper.py` `src/torve/application/contextpack.py`
 - Check: `uv run pytest tests/test_reaper.py::test_retention_touches_nothing_within_both_bounds` (shadow; runs as `decision:S-0121/D-40`, no log entry owed)
 
+### S-0122/D-1 — `LOCKED` (Judge-and-select rebuild) — implementation: none
+
+The engine, not a model, turns a critic's findings into block or pass: a candidate is blocked when a finding that survives the location filter is at or above `review.blocks_at`, or when an owned row is `violated` with located evidence, and an `unknown` row never blocks
+
+- Paths: `src/torve/application/review.py` `src/torve/application/critic.py` `src/torve/gates/evidence.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0122/D-2 — `LOCKED` (Judge-and-select rebuild) — implementation: none
+
+The executor reaches the judge only through its tree and one `torve abort` record: every status, reading and message in the evidence package is produced by the host or a throwaway gates sandbox, and commit messages, pull-request text, log entries and traces never reach the critic
+
+- Paths: `src/torve/gates/evidence_package.py` `src/torve/application/review.py` `src/torve/application/critic.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0122/D-3 — `LOCKED` (Judge-and-select rebuild) — implementation: none
+
+Protected paths (tests written for the unit by anyone but its executor, `conftest.py`, pytest configuration, `.torve/**` and the gate manifest) are mounted read-only in the executor sandbox, an edit to one blocks, and evidence runs use the base versions of test-harness files unless the contract licenses a change
+
+- Paths: `src/torve/adapters/runtime/docker.py` `src/torve/application/session.py` `src/torve/gates/no_test_tampering.py`
+- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+
+### S-0122/D-4 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+The attempt battery judges code only: secrets, scope, no-test-tampering, lint, layering, mypy, the suite with attribution and the task's acceptance; a seat's finish command applies the formatter's fixes before the tree leaves the sandbox, and a contract row's check runs at document completion, not on every attempt
+
+- Paths: `.torve/gates.yaml` `src/torve/gates/runner.py` `src/torve/gates/scope.py` `src/torve/application/session.py`
+
+### S-0122/D-6 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+The critic reviews one candidate per call in a fresh context, in pre-rank order, and stops at the first clean one; it may run anything in a disposable copy without network for 300 s, and it never sees earlier reviews' findings or other candidates' diffs
+
+- Paths: `src/torve/application/critic.py` `src/torve/application/review.py`
+
+### S-0122/D-7 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+A unit's class sets its width (S one candidate, M two, L three, never more), stragglers are cut at 1.5 times the first green finisher's wall time capped at 15 minutes, identical normalised diffs collapse, and a deterministic pre-rank orders the rest before any critic call
+
+- Paths: `src/torve/application/selection.py` `src/torve/config/runconfig.py`
+
+### S-0122/D-8 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+A gate-red candidate with three or fewer convicted tests, or only mypy errors, gets one follow-up turn in its own session with the gate output and no critic call; a critic block goes to a fresh Opus session on the selected tree with the blocking findings and repros, at most two rounds; a re-raised finding escalates; a unit stops at five critic calls, $3 notional spend or 90 minutes
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `src/torve/application/selection.py`
+
+### S-0122/D-9 — `OPEN` (Judge-and-select rebuild) — implementation: none
+
+Whether an in-session dsh revision replaces the Opus revision after a critic block, decided by 20 units comparing the two after the session driver lands: dsh becomes the default if it clears 70% or more at lower cost and wall time
+
+- Paths: `src/torve/application/selection.py`
+
+### S-0122/D-12 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+Contract v3 splits scope into `files`, `tests` (paired tests derived at mint and licensed), `fence` and `contingent`; only the fence convicts, edits outside files and tests become evidence, and a v2 contract loads mapped for one release
+
+- Paths: `src/torve/domain/task.py` `src/torve/application/planner.py` `src/torve/application/neighbours.py` `src/torve/gates/scope.py`
+
+### S-0122/D-13 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+A phasing file may set `unit: document` to mint one contract for the whole document, the default when it has three phases or fewer, and a contract carries its own document's rows plus at most ten LOCKED rows of other documents whose paths it touches
+
+- Paths: `src/torve/application/planner.py` `src/torve/domain/spec.py`
+
+### S-0122/D-14 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+The divergence log keeps `halted`, written by `torve abort`, and `departed` with a proposal; a justified abort is never counted as a failure, and the `decided` and `resolved` attestations, `torve log owed` and the silence check are removed
+
+- Paths: `src/torve/application/divergence.py` `src/torve/cli/log.py` `src/torve/domain/spec.py`
+
+### S-0122/D-15 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+Once per pull-request head, one critic call sorts every unresolved bot thread as apply, minor, invalid, duplicate or out of scope with evidence, the valid ones become one revision whose acceptance is the touched modules' tests plus mypy, and replies quote the critic's evidence
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/application/critic.py`
+
+### S-0122/D-16 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+Every unit writes one `unit.closed` telemetry record (schema 2) holding its candidates, gates, critic verdicts, selection, revisions, outcome, cost and the owner's minutes, and the version 1 telemetry file is kept read-only
+
+- Paths: `src/torve/application/telemetry.py` `src/torve/application/ledger.py`
+
+### S-0122/D-17 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+Evals and arms, shadow arms, fleet, standing work, notify, the opensandbox runtime, serve and the web dashboard, survey, the verify role with held-out and verify-tests, the mutation, coverage-delta, decisions-reported, self-audit, user-facing-text, source-layout, red-on-base and row-evidence gates, the evidence matrix and the mimo, codex and opencode sandboxes are deleted, and a removed configuration key is accepted with a warning for one release
+
+- Paths: `src/torve/application/evals.py` `src/torve/application/shadow.py` `src/torve/application/fleet.py` `src/torve/application/standing.py` `src/torve/application/notify.py` `src/torve/application/survey.py` `src/torve/application/evidence_matrix.py` `src/torve/gates/mutation.py` `src/torve/gates/held_out.py` `src/torve/gates/verify_tests.py` `src/torve/gates/decisions_reported.py` `src/torve/gates/red_on_base.py` `src/torve/gates/row_evidence.py` `web/**` `sandboxes/mimo/**`
+
+### S-0122/D-18 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+A non-blocking shadow critic, DeepSeek V4.1-Flash-1017 at max effort run read-only through dsh, reviews the same candidates for 40 units after the release, and becomes a first pass only if it finds at least 90% of the Opus-confirmed blocks with at most 10% spurious ones
+
+- Paths: `src/torve/application/critic.py`
+
+### S-0122/D-19 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+The critic's prompt is frozen and versioned with its sha in each record, findings are labelled acted, rebutted or ignored, and a prompt change is first tested on 30 labelled past reviews
+
+- Paths: `src/torve/application/critic.py` `.torve/review-corpus/**`
+
+### S-0122/D-21 — `OPEN` (Judge-and-select rebuild) — implementation: none
+
+What makes intake demand a document now that one charter is the only standing document: the `document_required` arm counts LOCKED rows from distinct documents and can no longer fire
+
+- Paths: `src/torve/application/intake.py` `src/torve/config/runconfig.py`
+
 <!-- /torve:managed -->
