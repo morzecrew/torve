@@ -32,7 +32,6 @@ from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, cast
 
 from torve.application.feedback import capture_feedback
-from torve.application.planner import change_type_of
 from torve.application.ports import (
     COMPLETION_CONTEXT,
     REBASE_CONTEXT,
@@ -55,7 +54,6 @@ from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import Task
 
 if TYPE_CHECKING:
-    from torve.domain.task import InheritedDecision
     from torve.gates.context import GateContext
     from torve.gates.runner import RunReport
 
@@ -73,10 +71,6 @@ DOCUMENT_BRANCH = re.compile(r"^torve/(S-\d+)$")
 #: one flag on the parent command. The lane reads git through subprocess
 #: where no port method fits (the ports are not its to widen).
 NO_HOOKS = ("-c", "core.hooksPath=/dev/null")
-
-#: The builtins whose readings S-0115/D-5 joins into a document pull request's
-#: table: the whole-document battery runs them whatever their state.
-JOINED_BUILTINS = frozenset({"evidence", "mutation"})
 
 
 # `pull_request` mode's landing act (S-0080/D-3), injected because the push and
@@ -474,8 +468,6 @@ def _regate(
 
         if landed and task_path is not None:
             ctx.task = load_task(task_path)
-            # S-0106/D-6: `red-on-base` reads the document's change type.
-            ctx.change_type = change_type_of(root / ctx.specs, ctx.task)
 
         if task_id is None:
             # S-0114/D-3: the judge checkout is detached, so the branch the
@@ -489,18 +481,13 @@ def _regate(
             write_tracked_files(root)
 
         # S-0118/D-6: the lane judges with the gates that can change its
-        # verdict — the blocking ones — and the decision gates, whose verdicts
-        # `decisions-reported` reads. A shadow or quarantined manifest gate,
-        # and a standing invariant, cannot move a lane verdict, and the
-        # attempt already measured the same change. The whole-document
-        # battery also runs the gates S-0115/D-5 joins into the pull request's
-        # table, whatever their state (S-0118/A-1).
+        # verdict — the blocking ones — and the decision gates. A shadow or
+        # quarantined manifest gate, and a standing invariant, cannot move a
+        # lane verdict, and the attempt already measured the same change.
         selected = {
             gate.name
             for gate in battery(ctx)
-            if gate.state == "blocking"
-            or gate.name.startswith(DECISION_PREFIX)
-            or (task_id is None and gate.builtin in JOINED_BUILTINS)
+            if gate.state == "blocking" or gate.name.startswith(DECISION_PREFIX)
         }
 
         started = time.monotonic()
@@ -588,10 +575,6 @@ def _document_inputs(ctx: GateContext, branch: str) -> None:
 
     if document is None:
         return
-
-    # S-0106/D-6: a refactor document's completion battery judges whether
-    # behaviour held, so the gate is told the type.
-    ctx.change_type = document.change.type if document.change else None
 
     ctx.inherited = [
         InheritedDecision(
@@ -1561,7 +1544,6 @@ def _completion_battery(
         return tip, "the document branch could not be checked out"
 
     outcome: object = ()
-    judged: list[InheritedDecision] = []
 
     try:
         if holdout is not None:
@@ -1590,18 +1572,10 @@ def _completion_battery(
             _BRANCH.reset(branch_token)
             _LEG.reset(token)
 
-        judged = _judged_rows(workdir, document)
-
     finally:
         vcs.remove_worktree(root, workdir)
 
     exit_code, summary = _unpack(outcome)
-    results = outcome.results if isinstance(outcome, _Regate) else []
-
-    # S-0115/D-5: the joined table for this tip, carried to the publisher that
-    # composes the document's pull request (D-6).
-    if results:
-        _record_evidence(root, document, tip, results, judged)
 
     return tip, summary if exit_code != 0 else None
 
@@ -1616,33 +1590,6 @@ def _unpack(outcome: object) -> tuple[int, str]:
     exit_code, summary = cast("tuple[int, str]", outcome)
 
     return exit_code, summary
-
-
-def _judged_rows(workdir: Path, document: str) -> list[InheritedDecision]:
-    """The document's rows as the tree the battery judged declares them, read
-    before the checkout goes: the battery carried those (`_document_inputs`
-    reads the same tree), and the host's corpus can lag the branch."""
-
-    from torve.application.evidence_matrix import document_decisions
-
-    return document_decisions(workdir, document)
-
-
-def _record_evidence(
-    root: Path, document: str, tip: str, results: list[GateResult], judged: list[InheritedDecision]
-) -> None:
-    """Join the whole-document battery's readings with the rows it *judged*
-    into one table and record it against the tip it measured (S-0115/D-5). A
-    battery with no `evidence` result records nothing, so the body stays as it
-    was (D-7). The review findings are the publisher's to join from the board
-    it holds: the lane opens no store and reads no stream (S-0099/D-6)."""
-
-    from torve.application.evidence_matrix import join, record_table
-
-    rows = join(judged, results)
-
-    if rows:
-        record_table(root, tip, document, rows)
 
 
 # ....................... #
@@ -2865,8 +2812,6 @@ def _rebase_document(
 
     outcome: object = ()
 
-    judged: list[InheritedDecision] = []
-
     try:
         _restate_landings(workdir, base)
         branch_token = _BRANCH.set(branch)
@@ -2876,8 +2821,6 @@ def _rebase_document(
 
         finally:
             _BRANCH.reset(branch_token)
-
-        judged = _judged_rows(workdir, document)
 
     finally:
         vcs.remove_worktree(root, workdir)
@@ -2895,10 +2838,6 @@ def _rebase_document(
         return
 
     rebased = vcs.tip(root, branch) or branch_tip
-
-    if isinstance(outcome, _Regate) and outcome.results:
-        # S-0115/D-5: the table is the one measured on the tip about to publish.
-        _record_evidence(root, document, rebased, outcome.results, judged)
     reference = _publish(root, publish, tasks[-1], branch, rebased, results)
 
     if reference is None:

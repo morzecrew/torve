@@ -69,10 +69,6 @@ gates:
     run: "@no-test-tampering"
     state: blocking
     origin: structural
-  - name: decisions-reported
-    run: "@decisions-reported"
-    state: blocking
-    origin: structural
   # Your test gate. Gates run inside the sandbox image (`runtime.image` in
   # config.yaml), so the command needs the toolchain that image carries.
   # - name: tests

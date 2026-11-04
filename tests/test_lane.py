@@ -4546,84 +4546,6 @@ def test_the_battery_names_a_merge_base_its_checkout_holds(lane_repo, commits, b
     assert seen["commands"] == [f"echo {fork}"]
 
 
-def test_the_completion_battery_records_the_joined_table_for_its_own_tip(lane_repo, monkeypatch):
-    """S-0115/D-5, D-6: the lane joins the whole-document battery into one
-    table and carries it keyed by the tip it measured; another tip reads none."""
-
-    import torve.application.lane as lane
-    from torve.application.evidence_matrix import read_table
-    from torve.domain.attempt import GateResult
-
-    _phased(lane_repo)
-    document = naming.document_branch("S-0930")
-    git(lane_repo, "branch", document, "main")
-
-    def regate(workdir, base_ref, task_id, gates=None):
-        results = [
-            GateResult(
-                name="evidence",
-                outcome="pass",
-                state="shadow",
-                output="row S-0930/D-1: pass — tests/test_lane.py::test_one",
-            )
-        ]
-        return lane._Regate(0, "evidence=pass", results)
-
-    monkeypatch.setattr(lane, "_regate", regate)
-    tip, red = lane._completion_battery(lane_repo, GitLane(), document)
-
-    assert red is None
-    table = read_table(lane_repo, tip)
-    assert table is not None
-    assert table[0].row == "S-0930/D-1"
-    assert table[0].tests == ("tests/test_lane.py::test_one",)
-    assert read_table(lane_repo, "0" * len(tip)) is None
-
-
-def test_the_table_carries_the_rows_of_the_tree_the_battery_judged(lane_repo, monkeypatch):
-    """S-0115/D-5: the table's rows are the ones the judged tree declares —
-    the document branch's — not the host checkout's, which can lag it."""
-
-    from test_decisions import document as written
-    from test_decisions import place
-
-    import torve.application.lane as lane
-    from torve.application.evidence_matrix import read_table
-    from torve.domain.attempt import GateResult
-
-    _phased(lane_repo)
-    branch = naming.document_branch("S-0930")
-    git(lane_repo, "checkout", "-q", "-b", branch)
-    place(
-        lane_repo / ".torve" / "specs",
-        "0930",
-        written(
-            "0930",
-            rows=[("S-0930/D-1", "ASSUMED", "a term", "`one.py`", "cheap to revisit")],
-            phasing=[
-                {"phase": 1, "title": "one", "intent": "One.", "scope": ["one.py"]},
-                {"phase": 2, "title": "two", "intent": "Two.", "scope": ["two.py"]},
-            ],
-        ),
-    )
-    git(lane_repo, "add", "-A")
-    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the branch gives D-1 a path")
-    git(lane_repo, "checkout", "-q", "main")
-
-    def regate(workdir, base_ref, task_id, gates=None):
-        result = GateResult(
-            name="evidence", outcome="pass", state="shadow", output="row S-0930/D-1: pass — t::x"
-        )
-        return lane._Regate(0, "evidence=pass", [result])
-
-    monkeypatch.setattr(lane, "_regate", regate)
-    tip, _red = lane._completion_battery(lane_repo, GitLane(), branch)
-
-    table = read_table(lane_repo, tip)
-    assert table is not None
-    assert table[0].paths == ("one.py",)
-
-
 def test_a_rebased_regate_runs_no_shadow_gate(lane_repo, tmp_path):
     """S-0118/D-6: the lane's battery runs the blocking gates and the decision
     gates alone. A shadow gate cannot move its verdict, and the attempt already
@@ -4665,51 +4587,6 @@ def test_a_rebased_regate_runs_no_shadow_gate(lane_repo, tmp_path):
     assert [r.action for r in results] == ["landed"]
     assert ran.is_file()
     assert not hidden.exists()
-
-
-def test_the_whole_document_battery_keeps_the_joined_gates(lane_repo, monkeypatch):
-    """S-0118/A-1: the document's battery also runs the gates S-0115/D-5 joins
-    into the pull request's table, shadow as they are; a task's re-gate still
-    runs only the blocking and decision gates."""
-
-    import torve.application.lane as lane
-    import torve.gates.runner as runner
-
-    gate = {"state": "shadow", "origin": "structural", "timeout": 5}
-    (lane_repo / ".torve" / "gates.yaml").write_text(
-        yaml.safe_dump(
-            {
-                "schema_version": 1,
-                "gates": [
-                    {"name": "runs", "run": "true", **gate, "state": "blocking"},
-                    {"name": "evidence", "run": "@evidence", **gate},
-                    {"name": "mutation", "run": "@mutation", **gate},
-                    {"name": "hidden", "run": "true", **gate},
-                ],
-            },
-            sort_keys=False,
-        ),
-        encoding="utf-8",
-    )
-    git(lane_repo, "add", "-A")
-    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "a joined gate at shadow")
-
-    class Stop(Exception):
-        pass
-
-    selected: list[set[str]] = []
-
-    def run_gates(_ctx, only=None, progress=None):
-        selected.append(set(only or ()))
-        raise Stop
-
-    monkeypatch.setattr(runner, "run_gates", run_gates)
-
-    for task_id in (None, "T-7062"):
-        with pytest.raises(Stop):
-            lane._regate(lane_repo, "main", task_id)
-
-    assert selected == [{"runs", "evidence", "mutation"}, {"runs"}]
 
 
 def test_a_rebased_tree_with_no_manifest_is_still_judged(lane_repo):

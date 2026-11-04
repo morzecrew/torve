@@ -56,7 +56,6 @@ from torve.application.dispatch import (
 )
 from torve.application.forge import compose_pr
 from torve.application.manager import in_flight_fences, project
-from torve.application.planner import change_type_of
 from torve.application.ports import (
     AgentResult,
     JudgePort,
@@ -1207,10 +1206,6 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
             # S-0116/D-10: the held-out properties of the task's latest event
             # reach the battery here, before any gate runs.
             _attach_holdout(run, ctx)
-            # S-0106/D-6: a phase of a refactor document is judged by whether
-            # behaviour held, so the battery is told the type `red-on-base` re-aims
-            # on. Read here, not in the gate: the corpus is the planner's (S-0015/A-1).
-            ctx.change_type = change_type_of(judge / run.config.specs.path, run.task)
 
             if _is_empty_implement_diff(ctx, run.root):
                 # T-0172: an implement attempt that changed nothing against the
@@ -1344,7 +1339,7 @@ def _decides_a_row(ctx: GateContext) -> bool:
     """Whether the attempt's log carries a `decided` entry for a row the
     contract inherited, by either spelling of the row's id."""
 
-    from torve.gates.decisions_reported import parse_log
+    from torve.gates.log_entry import parse_log
 
     if ctx.task is None or not ctx.log_text:
         return False
@@ -1517,26 +1512,17 @@ async def _bare_gates(run: Dispatch, _state: RunState) -> tuple[int, str, str]:
 # settled it is `.torve/specs/S-0069/document.yaml`'s motivation — the same
 # gate convicted the next attempt of the same task 196 times across 28 tasks:
 # `acceptance` 52, `layering` 41, `user-facing-text` 39, `decisions-reported`
-# 26, `scope` 14. The four gates here are those checks: a red from one names a
-# property of the tree, not a verdict on the approach, and the tree a
-# mechanical conviction names is repaired rather than rebuilt. `acceptance` —
-# the largest class — stays deliberately outside the set: a suite that fails
-# twice may be a tree worth keeping or an approach worth abandoning, and only
-# the ledger's per-gate repeat counts can tell those apart. Widening this set
-# is a decision with those counts behind it (S-0069/D-5's own consequence);
-# it does not happen by editing this line.
-#
-# `red-on-base` is the first widening, argued rather than edited in
-# (S-0081/D-7): its check is the same kind of pure function of the tree — a
-# test that is green against base is a property of the two trees, not a
-# verdict on the approach — and the repair is the one the conviction names,
-# writing the test the change had to make green. It qualifies only once it
-# blocks, which is the rule every name here already reads below: while the
-# gate stands at `shadow` (S-0081/D-1) its failure is a fact and routes
-# where it routes today.
-REPAIR_GATES: frozenset[str] = frozenset(
-    {"layering", "scope", "user-facing-text", "decisions-reported", "red-on-base"}
-)
+# 26, `scope` 14. The gates here are those checks still in the battery: a red
+# from one names a property of the tree, not a verdict on the approach, and the
+# tree a mechanical conviction names is repaired rather than rebuilt.
+# `acceptance` — the largest class — stays deliberately outside the set: a
+# suite that fails twice may be a tree worth keeping or an approach worth
+# abandoning, and only the ledger's per-gate repeat counts can tell those
+# apart. Widening this set is a decision with those counts behind it
+# (S-0069/D-5's own consequence); it does not happen by editing this line.
+# `user-facing-text`, `decisions-reported` and `red-on-base` left with their
+# gates (S-0122/D-17).
+REPAIR_GATES: frozenset[str] = frozenset({"layering", "scope"})
 
 
 # ....................... #

@@ -12,7 +12,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from torve.gates.runner import run_gates
-from torve.gates.sabotage import VERIFY_MANIFEST_RUN, Repo
+from torve.gates.sabotage import SUITE_TEST_RUN, Repo
 from torve.gates.suite import _reading, attribution, failing_ids
 
 TASK_ID = "T-9001"
@@ -55,7 +55,7 @@ def suite_manifest(commands: list[str] | None = None) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "scope": {"allow": [], "deny": []},
-        "tests": {"run": VERIFY_MANIFEST_RUN},
+        "tests": {"run": SUITE_TEST_RUN},
         "gates": [
             {
                 "name": "suite",
@@ -64,7 +64,7 @@ def suite_manifest(commands: list[str] | None = None) -> dict[str, Any]:
                 "origin": "S-0118",
                 "timeout": 120,
                 "sabotage": "suite",
-                "commands": [VERIFY_MANIFEST_RUN] if commands is None else commands,
+                "commands": [SUITE_TEST_RUN] if commands is None else commands,
             }
         ],
     }
@@ -287,7 +287,7 @@ def test_a_red_cleared_by_the_rerun_is_flaky(repo):
 
     assert result.outcome == "flaky"
     assert result.exit_code == 0
-    assert result.flaky_commands == [VERIFY_MANIFEST_RUN]
+    assert result.flaky_commands == [SUITE_TEST_RUN]
 
 
 def test_reports_run_before_any_rerun_over_what_the_suite_wrote(repo):
@@ -313,7 +313,7 @@ def test_reports_run_before_any_rerun_over_what_the_suite_wrote(repo):
 def test_a_failing_report_does_not_convict(repo):
     """S-0118/D-3: a report's exit code is a reading, never a conviction."""
 
-    repo.seed(suite_manifest([VERIFY_MANIFEST_RUN, "exit 1"]))
+    repo.seed(suite_manifest([SUITE_TEST_RUN, "exit 1"]))
     repo.write("src/app.py", "print('changed')\n")
     repo.commit("a green suite with a red report")
 
@@ -327,7 +327,7 @@ def test_a_report_substitutes_the_battery_base(repo):
     """S-0118/D-3: a report is a command like any other, with the battery's
     base substituted into it."""
 
-    repo.seed(suite_manifest([VERIFY_MANIFEST_RUN, "echo BASE={base}"]))
+    repo.seed(suite_manifest([SUITE_TEST_RUN, "echo BASE={base}"]))
     repo.write("src/app.py", "print('changed')\n")
     repo.commit("a report naming the base")
 
@@ -347,7 +347,7 @@ def test_a_file_that_does_not_collect_convicts_beside_an_inherited_red(repo):
     file that did not collect has no reading anywhere, so it convicts even when
     the named failure beside it is inherited."""
 
-    repo.seed(suite_manifest([f"{VERIFY_MANIFEST_RUN} --continue-on-collection-errors"]))
+    repo.seed(suite_manifest([f"{SUITE_TEST_RUN} --continue-on-collection-errors"]))
     red_base(repo)
     repo.write("tests/test_broken.py", "def test_broken(:\n    assert True\n")
     repo.commit("an inherited red and a file that does not collect")

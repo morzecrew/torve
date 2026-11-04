@@ -181,30 +181,12 @@ class TwinlessGateWarning(UserWarning):
 # ....................... #
 
 # Builtins: expected input and a cost proxy used for cheapest-first ordering.
-# Diff-, task- and log-input builtins are near-free; only acceptance shells out.
+# Diff-input builtins are near-free; acceptance and the suite shell out.
 BUILTIN_INPUTS: dict[str, str] = {
     "scope": "diff",
     "secrets": "diff",
     "no-test-tampering": "diff",
-    "decisions-reported": "log",
-    "self-audit": "log",
-    "source-layout": "diff",
-    "user-facing-text": "diff",
     "acceptance": "worktree",
-    # S-0081: runs the changed test functions against the base tree, so it needs
-    # the worktree and the base, not the diff alone.
-    "red-on-base": "worktree",
-    # S-0115/D-2: runs each citing test function against the base tree and the
-    # candidate, so it needs the worktree and the base, not the diff alone.
-    "evidence": "worktree",
-    # S-0107: mutates the changed source and runs the paired tests against a
-    # scratch copy of the whole worktree, so it needs the worktree, not the
-    # diff alone.
-    "mutation": "worktree",
-    # S-0116/D-10, D-11: both write the held-out files into the checkout and
-    # run them, so each needs the worktree rather than the diff alone.
-    "held-out": "worktree",
-    "verify-tests": "worktree",
     # S-0118/D-1: runs the suite once and reruns the failing files over the
     # worktree, then reads the merge base, so it needs more than the diff.
     "suite": "worktree",
@@ -213,27 +195,27 @@ BUILTIN_TIMEOUTS: dict[str, float] = {
     "scope": 30,
     "secrets": 30,
     "no-test-tampering": 30,
-    "decisions-reported": 30,
-    "self-audit": 30,
-    "source-layout": 30,
-    "user-facing-text": 30,
     "acceptance": 600,
-    "red-on-base": 300,
-    # S-0115/D-2: the same two trees as `red-on-base`, run once per citing
-    # function, so its timeout matches that gate's.
-    "evidence": 300,
-    # S-0107: a baseline run of the paired tests plus the sampled mutants,
-    # each capped at twice that baseline — the dearest builtin when it scores.
-    "mutation": 900,
-    # S-0116/D-10, D-11: one run of the held-out files, and for `verify-tests`
-    # a collect over the same set first.
-    "held-out": 600,
-    "verify-tests": 600,
     # S-0118/D-5: the ceiling measured for the whole-suite run this replaces
     # (164s median, 271s p90, 600s worst over 228 runs).
     "suite": 600,
 }
 SHELL_GATE_TIMEOUT = 600.0
+# S-0122/D-17: the builtins removed in 0.9.0. A manifest entry naming one is
+# dropped with a warning for one release, so a manifest written for 0.8 loads.
+REMOVED_BUILTINS = frozenset(
+    {
+        "decisions-reported",
+        "self-audit",
+        "source-layout",
+        "user-facing-text",
+        "red-on-base",
+        "evidence",
+        "mutation",
+        "held-out",
+        "verify-tests",
+    }
+)
 
 DEFAULT_TEST_PATTERNS = [
     "tests/**",
@@ -345,7 +327,7 @@ class TestsConfig(BaseModel):
 
     run: str = DEFAULT_TEST_RUN
     """The command a list of test files is appended to (S-0106/D-7) — what
-    red-on-base runs a qualifying file with. Defaults to pytest over the paths."""
+    the suite gate reruns a failing file with. Defaults to pytest over the paths."""
 
     pair: list[str] = Field(default_factory=lambda: list(DEFAULT_TEST_PAIRS))
     """Templates from a module to its tests over `{dir}` and `{stem}`
@@ -580,6 +562,18 @@ def load_manifest(path: Path) -> Manifest:
         manifest = Manifest.model_validate(raw)
     except ValueError as exc:
         raise ValueError(f"{path}: {exc}") from None
+
+    removed = [gate.name for gate in manifest.gates if gate.builtin in REMOVED_BUILTINS]
+
+    if removed:
+        warnings.warn(
+            f"{path}: gate entries {', '.join(removed)} name builtins removed in 0.9.0 "
+            "and are ignored — delete them from the manifest",
+            FutureWarning,
+            stacklevel=2,
+        )
+        kept = [gate for gate in manifest.gates if gate.builtin not in REMOVED_BUILTINS]
+        manifest = manifest.model_copy(update={"gates": kept})
 
     manifest.resolved_gates()  # surface builtin/name errors at load time
 

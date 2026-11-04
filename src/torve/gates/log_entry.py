@@ -1,20 +1,16 @@
-"""`decisions-reported` — a LOCKED area touched with no log entry, or an
-illegal action for the grade (S-0002/starting-set; format S-0001/task-contract-and-execution-log as amended by
-S-0001/A-1: `logs/<task-id>.yaml`, one `entries:` list, YAML only — the converter
-owned compatibility and died with it).
+"""The execution log's entry checks (format S-0001/task-contract-and-execution-log as
+amended by S-0001/A-1: `logs/<task-id>.yaml`, one `entries:` list, YAML only).
+
+What the retired `decisions-reported` gate applied to a log, kept for the
+callers that still read one: the halt and departure intake refuses an entry
+before it writes (`check_entry`, `check_pin`), `torve log owed` asks which
+LOCKED rows a change owes an entry (`owed`), and the reports parse a log the
+same way (`parse_log`, `ACTIONS`). No gate convicts on any of it (S-0122/D-17).
 
 Checks: schema (required fields, vocabularies, UTC timestamp, positive
 attempt, kind or class present), legality (the action the grade licenses,
-both ways, with the S-0001/D-26 close-out exemptions), evidence (locatable file
-ranges or commands carrying output), drift (the declared `drift_count`
-against entries classed drift), and silence (every LOCKED decision whose
-declared paths the diff touched has an entry citing it; no paths — skipped,
-never passed).
-
-A missing log is an empty log (S-0003/A-2, S-0003/D-21) — the silence check still
-applies to it — and a contract declaring `decisions: []` passes explicitly
-(S-0007/D-5). The log also carries a `bypasses:` list (S-0002/D-7); its items are
-records, not divergences, and are validated only for shape.
+both ways, with the S-0001/D-26 close-out exemptions), and evidence (locatable
+file ranges or commands carrying output).
 """
 
 from __future__ import annotations
@@ -26,10 +22,8 @@ from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
-from torve.config.manifest import Gate
 from torve.domain.vocabulary import ENTRY_ACTIONS, ENTRY_CLASSES, ENTRY_GRADES, ENTRY_KINDS
-from torve.gates.context import GateContext
-from torve.gates.contract import NO_TASK, BuiltinOutcome, spec
+from torve.gates.contract import spec
 from torve.gates.evidence import BACKTICKED, CITATION, locate
 
 if TYPE_CHECKING:
@@ -45,13 +39,12 @@ RFC3339 = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(?:Z|\+00:00)
 CITATION_PREFIX = re.compile(r"^(?P<path>[^\s:][^:]*):(?P<start>\d+)(?:-(?P<end>\d+))?")
 REQUIRED = ("decision", "grade", "at", "attempt", "claim", "evidence", "action")
 OPTIONAL = ("kind", "class", "proposal", "notes")
-# The one vocabulary's words as sets (S-0059/D-5) — the log's, the record's and this gate's.
+# The one vocabulary's words as sets (S-0059/D-5) — the log's and the record's.
 GRADES = frozenset(ENTRY_GRADES)
 KINDS = frozenset(ENTRY_KINDS)
 CLASSES = frozenset(ENTRY_CLASSES)
 ACTIONS = frozenset(ENTRY_ACTIONS)
 LEGAL = {"LOCKED": "halted", "ASSUMED": "departed", "OPEN": "decided", "UNLISTED": "decided"}
-BYPASS_FIELDS = {"gate", "reason", "author", "commit", "at"}
 
 
 # ....................... #
@@ -71,8 +64,8 @@ def _norm(value: object) -> str:
 
 
 def parse_log(text: str) -> tuple[dict[str, Any] | None, str | None]:
-    """(document, error). A log that does not parse is a red result, not a
-    skipped one — the gate is fail-closed."""
+    """(document, error). A log that does not parse is an error, never read
+    as an empty one."""
 
     try:
         loaded = yaml.safe_load(text)
@@ -258,13 +251,11 @@ def _check_evidence(index: int, entry: dict[str, Any], root: Path) -> list[str]:
 
 
 def check_entry(entry: dict[str, Any], root: Path, *, index: int = 0) -> list[str]:
-    """Every per-entry check this gate applies, for a caller holding one
-    entry rather than a log (S-0044 S-0044/D-10).
+    """Every per-entry check, for a caller holding one entry rather than a
+    log (S-0044 S-0044/D-10).
 
     The intake calls this before it writes, so an agent is refused while it
-    can still act, in the words the gate would have used hours later. Parity
-    is the function rather than a copy of its messages: there is one
-    implementation, and a test pins that both callers reach it.
+    can still act.
     """
 
     return (
@@ -272,51 +263,6 @@ def check_entry(entry: dict[str, Any], root: Path, *, index: int = 0) -> list[st
         + _check_legality(index, entry)
         + _check_evidence(index, entry, root)
     )
-
-
-# ....................... #
-
-
-def _check_drift(document: dict[str, Any]) -> list[str]:
-    declared = document.get("drift_count")
-
-    if declared is None:
-        return []  # the declared claim's presence is self-audit's finding
-
-    if not isinstance(declared, int) or declared < 0:
-        return [f"drift_count {declared!r} is not a non-negative integer"]
-
-    actual = sum(1 for e in document["entries"] if _norm(e.get("class")) == "drift")
-
-    if declared != actual:
-        return [f"declared drift count {declared} != {actual} entries classed drift"]
-
-    return []
-
-
-# ....................... #
-
-
-def _check_bypasses(document: dict[str, Any]) -> list[str]:
-    bypasses: Any = document.get("bypasses")
-
-    if bypasses is None:
-        return []
-
-    if not isinstance(bypasses, list) or any(
-        not isinstance(b, dict) for b in cast(list[object], bypasses)
-    ):
-        return ["'bypasses' must be a list of mappings"]
-
-    problems: list[str] = []
-
-    for index, record in enumerate(cast(list[dict[str, Any]], bypasses)):
-        missing = BYPASS_FIELDS - set(record)
-
-        if missing:
-            problems.append(f"bypass {index + 1}: missing {', '.join(sorted(missing))}")
-
-    return problems
 
 
 # ....................... #
@@ -334,13 +280,8 @@ def owed(
     logged: Iterable[str],
     checks: dict[str, str] | None = None,
 ) -> tuple[list[str], list[str]]:
-    """(problems, skipped) — the silence check, over inputs rather than over
-    a gate context.
-
-    The gate asks this of the diff it is judging; the agent-facing `owed`
-    verb asks it of the files an attempt says it touched, before the battery
-    ever runs. One implementation, because a pre-check that disagrees with
-    the conviction is worse than no pre-check at all.
+    """(problems, skipped) — the silence check, over inputs: the agent-facing
+    `owed` verb asks it of the files an attempt says it touched.
 
     `checks` maps a row id to its `decision:<id>` gate's verdict. A row whose
     check ran and passed is covered (S-0054/D-3); one whose check failed — or
@@ -409,22 +350,6 @@ def owed(
 # ....................... #
 
 
-def _check_silence(
-    ctx: GateContext, document: dict[str, Any], checks: dict[str, str] | None = None
-) -> tuple[list[str], list[str]]:
-    assert ctx.task is not None
-
-    return owed(
-        ctx.task.decisions,
-        ctx.changed_paths,
-        [_norm(entry.get("decision")) for entry in document["entries"]],
-        checks,
-    )
-
-
-# ....................... #
-
-
 SHA_SHAPE = re.compile(r"^[0-9a-f]{7,64}$")
 
 
@@ -432,10 +357,8 @@ def check_pin(document: dict[str, Any]) -> list[str]:
     """S-0001/D-36 (S-0021/A-1): the log opens with `repo` and `base`, so its
     path:line evidence resolves against the commit the work started from.
     Public for the same reason `check_entry` is: the intake checks the
-    document it is about to write, so a pin this gate would convict is
-    reported while someone can still act on it.
-    The pin has been part of the format since S-0016/A-1 and voluntary in the
-    gate; agent-written logs omitted it until the gate demanded it."""
+    document it is about to write, so a missing pin is reported while
+    someone can still act on it."""
 
     problems: list[str] = []
 
@@ -456,70 +379,3 @@ def check_pin(document: dict[str, Any]) -> list[str]:
         problems.append(f"base {base!r} is not a commit sha")
 
     return problems
-
-
-# ....................... #
-
-
-def check_decisions_reported(
-    gate: Gate, ctx: GateContext, checks: dict[str, str] | None = None
-) -> BuiltinOutcome:
-    if ctx.task is None:
-        return NO_TASK
-
-    if ctx.log_text is None or not ctx.log_text.strip():
-        # A missing log is an empty log (S-0003/A-2, S-0003/D-21) — the file is created
-        # by writing, so only the silence check can convict its absence: a
-        # touched LOCKED area with no entry is a violation exactly as it
-        # would be in a written log without the matching entry.
-        empty: dict[str, Any] = {
-            "schema_version": 1,
-            "task": ctx.task.id,
-            "drift_count": 0,
-            "entries": [],
-        }
-
-        silence_problems, _skipped = _check_silence(ctx, empty, checks)
-
-        if silence_problems:
-            header = (
-                "no execution log — absence is an empty log, and the silence check still applies:"
-            )
-
-            return BuiltinOutcome("fail", "\n".join([header, *silence_problems]))
-
-        if not ctx.task.decisions:
-            return BuiltinOutcome("pass", "decisions: [] — none apply, explicitly")
-
-        return BuiltinOutcome(
-            "pass",
-            f"no execution log — absence is an empty log; "
-            f"{len(ctx.task.decisions)} inherited decision(s), none touched",
-        )
-
-    document, parse_error = parse_log(ctx.log_text)
-
-    if document is None:
-        return BuiltinOutcome("fail", parse_error or "log did not parse")
-
-    problems: list[str] = []
-    problems += check_pin(document)
-
-    for index, entry in enumerate(document["entries"]):
-        problems += _check_schema(index, entry)
-        problems += _check_legality(index, entry)
-        problems += _check_evidence(index, entry, ctx.root)
-
-    problems += _check_drift(document)
-    problems += _check_bypasses(document)
-    silence_problems, skipped = _check_silence(ctx, document, checks)
-    problems += silence_problems
-
-    if problems:
-        return BuiltinOutcome("fail", "\n".join(problems))
-
-    count = len(document["entries"])
-    lines = [f"{count} entr{'y' if count == 1 else 'ies'}, all checks green"]
-    lines += [f"skipped: {s}" for s in skipped]
-
-    return BuiltinOutcome("pass", "\n".join(lines))

@@ -188,14 +188,9 @@ def _convicts_on(name: str) -> str:
         "scope": "a changed path outside scope.allow or inside scope.deny",
         "secrets": "a secret pattern in an added line",
         "no-test-tampering": "an existing test edited without a licence",
-        "decisions-reported": "a LOCKED row's paths touched with no log entry, or a malformed entry",
-        "self-audit": "drift_count missing from the log",
         "acceptance": "an acceptance command exits non-zero",
-        "user-facing-text": "a corpus coordinate in a user-facing string",
-        "source-layout": "a module named for what it is not",
         "layering": "an import against the layer contracts",
         "spec-valid": "a corpus document that does not check",
-        "coverage-delta": "changed lines below the coverage threshold",
         "suite": (
             "a test still red at the head that the base tree does not also fail or cannot "
             "run, a file that does not collect, or a red that names no test"

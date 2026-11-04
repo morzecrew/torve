@@ -2290,8 +2290,8 @@ def test_the_chosen_rung_is_derivable_from_telemetry_records_alone(repo, monkeyp
 # convicted tree, with the convicting gate's own command beside everything
 # the contract declared — and one gate earns one repair. The qualifying set
 # (D-5) is the gates whose checks are pure functions of the tree:
-# layering, scope, user-facing-text, decisions-reported; `acceptance` — the
-# largest repeat-conviction class in the ledger — is deliberately outside it.
+# layering and scope; `acceptance` — the largest repeat-conviction class in
+# the ledger — is deliberately outside it.
 
 
 REPAIR_MANIFEST = {
@@ -2312,32 +2312,11 @@ REPAIR_MANIFEST = {
             "axis": "compliance",
         },
         {
-            "name": "decisions-reported",
-            "run": "@decisions-reported",
-            "state": "blocking",
-            "origin": "structural",
-            "axis": "boundary",
-        },
-        {
             "name": "layering",
             "run": "uv run lint-imports",
             "state": "blocking",
             "origin": "structural",
             "axis": "form",
-        },
-        # The set's first widening (S-0081/D-7), declared blocking so the
-        # qualifying case can be asked at all; the gate itself enters the real
-        # manifest at shadow. Declared here as a shell entry, not `@red-on-base`:
-        # the builtin carries no manifest defaults yet, so a manifest naming it
-        # does not load. The command is the string the builtin branch of
-        # `_repair_command` would hand back, so the repair reads the same either
-        # way.
-        {
-            "name": "red-on-base",
-            "run": "torve gates run --only red-on-base",
-            "state": "blocking",
-            "origin": "S-0081",
-            "axis": "functional",
         },
     ],
 }
@@ -2494,47 +2473,6 @@ def test_a_non_blocking_failure_on_a_qualifying_gate_is_not_a_conviction(repo, m
     assert _convicted_commits(vcs) == []
 
 
-def test_a_blocking_red_on_base_conviction_routes_the_next_attempt_as_a_repair(repo, monkeypatch):
-    """D-7: the set's first widening. A blocking conviction from `red-on-base`
-    qualifies like the four before it — the convicted tree, the gate's own
-    command beside the contract's acceptance, once per dispatch."""
-    from torve.application.runner import run_task
-    from torve.domain.states import TaskState
-
-    repo.seed()
-    seen: list[dict] = []
-    _repair_passes(monkeypatch, repo, [[conviction("red-on-base")], []], seen)
-    vcs, deps = _repair_deps(repo)
-
-    state = run_task(repo.root, _contract_task(), _retry_config(), deps)
-
-    assert state.state is TaskState.READY
-    assert seen[1]["meta"]["repair"] == "red-on-base"
-    assert seen[1]["meta"]["repair_of_attempt"] == 1
-    assert seen[1]["acceptance"] == ["uv run pytest", "torve gates run --only red-on-base"]
-    assert len(_convicted_commits(vcs)) == 1
-
-
-def test_a_shadow_red_on_base_failure_routes_where_it_routes_today(repo, monkeypatch):
-    """D-7's "only once it blocks": the gate enters at shadow, and a shadow
-    failure is a fact, not a conviction — nothing is repaired, and the
-    contract's own acceptance is what the next attempt carries."""
-    from torve.application.runner import run_task
-    from torve.domain.states import TaskState
-
-    repo.seed()
-    seen: list[dict] = []
-    _repair_passes(monkeypatch, repo, [[conviction("red-on-base", state="shadow")], []], seen)
-    vcs, deps = _repair_deps(repo)
-
-    state = run_task(repo.root, _contract_task(), _retry_config(), deps)
-
-    assert state.state is TaskState.READY
-    assert "repair" not in seen[1]["meta"]
-    assert seen[1]["acceptance"] == ["uv run pytest"]
-    assert _convicted_commits(vcs) == []
-
-
 def test_a_shell_gate_repairs_with_its_own_command_verbatim(repo, monkeypatch):
     """D-3 names the gate's own command: a shell gate declares the command it
     runs, and that is the command the repair's acceptance gains."""
@@ -2564,7 +2502,7 @@ def test_the_most_severe_qualifying_conviction_is_repaired_first(repo, monkeypat
     _repair_passes(
         monkeypatch,
         repo,
-        [[conviction("layering"), conviction("decisions-reported")], []],
+        [[conviction("layering"), conviction("scope")], []],
         seen,
     )
     _vcs, deps = _repair_deps(repo)
@@ -2572,9 +2510,9 @@ def test_the_most_severe_qualifying_conviction_is_repaired_first(repo, monkeypat
     state = run_task(repo.root, _contract_task(), _retry_config(), deps)
 
     assert state.state is TaskState.READY
-    # boundary outranks form.
-    assert seen[1]["meta"]["repair"] == "decisions-reported"
-    assert seen[1]["acceptance"] == ["uv run pytest", "torve gates run --only decisions-reported"]
+    # compliance outranks form.
+    assert seen[1]["meta"]["repair"] == "scope"
+    assert seen[1]["acceptance"] == ["uv run pytest", "torve gates run --only scope"]
 
 
 def test_a_different_gate_still_earns_its_own_repair(repo, monkeypatch):

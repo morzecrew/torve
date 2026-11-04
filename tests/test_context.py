@@ -892,7 +892,8 @@ def _append_attempt(root, task_id, results, agent=None, kind=None, stream=".torv
 
 
 # acceptance is declared here unlabeled on purpose: the default reading is
-# the whole fail-safe of S-0034/D-4.
+# the whole fail-safe of S-0034/D-4. The two compliance gates are shell
+# entries under the names old records carry; their builtins left in 0.9.0.
 _LABELED_GATES = [
     {"name": "acceptance", "run": "@task.acceptance", "state": "blocking", "origin": "structural"},
     {
@@ -904,14 +905,14 @@ _LABELED_GATES = [
     },
     {
         "name": "decisions-reported",
-        "run": "@decisions-reported",
+        "run": "true",
         "state": "blocking",
         "origin": "structural",
         "axis": "compliance",
     },
     {
         "name": "self-audit",
-        "run": "@self-audit",
+        "run": "true",
         "state": "shadow",
         "origin": "structural",
         "axis": "compliance",
@@ -1593,51 +1594,3 @@ def test_a_lock_the_cut_cannot_take_is_a_workspace_error(tmp_path, monkeypatch):
 
     with pytest.raises(WorkspaceError, match="no locks here"):
         GitWorkspace(tmp_path).create("T-0425", None)
-
-
-# ----------------------- #
-# The document's change type (S-0106/D-6): the application layer that holds
-# the corpus reads it and hands it to the battery; a gate never parses a
-# specification document (S-0007/D-18), so what is tested here is the context's
-# own reading of the one fact `red-on-base` re-aims its verdict on.
-
-
-def test_a_context_is_a_refactor_only_for_a_refactor_document(tmp_path):
-    from torve.config.manifest import Manifest
-    from torve.gates.context import GateContext
-
-    def context(change_type):
-        return GateContext(
-            root=tmp_path,
-            manifest=Manifest(gates=[]),
-            head_sha="",
-            base=None,
-            merge_base=None,
-            change_type=change_type,
-        )
-
-    assert context(None).refactor is False  # no document, or one that declares no change
-    assert context("feat").refactor is False
-    assert context("refactor").refactor is True
-
-
-def test_build_context_leaves_the_change_type_to_the_application_layer(repo):
-    from conftest import context_for
-
-    repo.seed()
-
-    assert context_for(repo).change_type is None
-
-
-def test_change_type_of_reads_the_change_a_document_declares(plan_repo):  # noqa: F811
-    from torve.application.planner import change_type_of
-    from torve.domain.task import Task
-
-    root, write_doc, _ = plan_repo
-    write_doc("0091", "A refactor", extra={"change": {"type": "refactor"}})
-    spec_dir = root / SPECS_DIR
-
-    assert change_type_of(spec_dir, Task(id="T-0001", decisions=[], spec="S-0091")) == "refactor"
-    assert change_type_of(spec_dir, Task(id="T-0002", decisions=[], spec="S-0090")) is None
-    assert change_type_of(spec_dir, Task(id="T-0003", decisions=[])) is None
-    assert change_type_of(spec_dir, Task(id="T-0004", decisions=[], spec="S-0999")) is None

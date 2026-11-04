@@ -19,7 +19,7 @@ from torve.config import layout
 from torve.config.manifest import Manifest
 from torve.domain.attempt import BypassRecord
 from torve.domain.events import HoldoutFile
-from torve.domain.spec import ChangeType, Invariant
+from torve.domain.spec import Invariant
 from torve.domain.task import InheritedDecision, Task
 
 # ----------------------- #
@@ -96,12 +96,6 @@ class GateContext:
     inherited: list[InheritedDecision] = field(default_factory=list)
     invariants: list[Invariant] = field(default_factory=list)
 
-    # S-0106/D-6: the change type of the document the battery judges — set by
-    # the application layer that read the corpus, because a gate never parses
-    # a specification document (S-0007/D-18). None outside a document, or for
-    # one that declares no change, and `red-on-base` then reads it as before.
-    change_type: ChangeType | None = None
-
     # S-0116/D-10: the held-out properties of the task's latest
     # `verify.holdout` event, handed to the battery by the runner. Empty for
     # every task with no such event — the ordinary attempt. A gate writes them
@@ -119,15 +113,6 @@ class GateContext:
     @property
     def changed_paths(self) -> list[str]:
         return [e.path for e in self.diff]
-
-    # ....................... #
-
-    @property
-    def refactor(self) -> bool:
-        """S-0106/D-6: is this battery judging a document whose change type is
-        `refactor`?"""
-
-        return self.change_type == "refactor"
 
 
 # ....................... #

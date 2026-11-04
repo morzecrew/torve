@@ -1652,7 +1652,7 @@ def test_init_starter_sets_up_a_repository_the_gates_pass(repo):
 
     assert run.exit_code == 0, run.output
     names = {r["name"] for r in json.loads(run.stdout)["results"]}
-    assert {"scope", "secrets", "no-test-tampering", "decisions-reported"} <= names
+    assert {"scope", "secrets", "no-test-tampering"} <= names
 
 
 def test_init_starter_leaves_an_existing_file_alone_and_plain_init_writes_neither(tmp_path):
@@ -1670,7 +1670,7 @@ def test_init_starter_leaves_an_existing_file_alone_and_plain_init_writes_neithe
     assert starter.exit_code == 0, starter.output
     assert "config.yaml  exists, left alone" in starter.output
     assert (root / ".torve" / "config.yaml").read_text(encoding="utf-8") == before
-    assert "@decisions-reported" in (root / ".torve" / "gates.yaml").read_text(encoding="utf-8")
+    assert "@no-test-tampering" in (root / ".torve" / "gates.yaml").read_text(encoding="utf-8")
 
 
 # ----------------------- #
