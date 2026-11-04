@@ -4,12 +4,6 @@
         <loc>https://morzecrew.github.io/torve/dev/</loc>
       </url>
       <url>
-        <loc>https://morzecrew.github.io/torve/dev/AGENTS/</loc>
-      </url>
-      <url>
-        <loc>https://morzecrew.github.io/torve/dev/architecture/AGENTS/</loc>
-      </url>
-      <url>
         <loc>https://morzecrew.github.io/torve/dev/architecture/channel/</loc>
       </url>
       <url>
@@ -38,9 +32,6 @@
       </url>
       <url>
         <loc>https://morzecrew.github.io/torve/dev/operating/</loc>
-      </url>
-      <url>
-        <loc>https://morzecrew.github.io/torve/dev/reference/AGENTS/</loc>
       </url>
       <url>
         <loc>https://morzecrew.github.io/torve/dev/reference/stability/</loc>
