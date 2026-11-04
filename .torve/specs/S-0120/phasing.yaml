@@ -32,11 +32,12 @@ phasing:
       - tests/test_runconfig.py
       - tests/test_domain.py
       - tests/test_manager.py
+      - tests/test_manager_e2e.py
       - tests/test_cli.py
     acceptance:
       - >-
-        uv run pytest tests/test_manager.py tests/test_runconfig.py tests/test_cli.py
-        tests/test_domain.py
+        uv run pytest tests/test_manager.py tests/test_manager_e2e.py tests/test_runconfig.py
+        tests/test_cli.py tests/test_domain.py
       - uv run mypy src
       - uv run torve spec check
     character: structural
