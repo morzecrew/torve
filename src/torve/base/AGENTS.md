@@ -2,42 +2,25 @@
 
 ## Decisions governing `src/torve/base/`
 
-### S-0058/D-7 — `LOCKED` (One grammar and the anatomy)
+### S-0121/D-15 — `LOCKED` (Charter) — implementation: partial
 
-The engine writes one instant, `YYYY-MM-DDTHH:MM:SSZ` in UTC, from `torve.base.clock.stamp()`, for amendments, landings, entries, telemetry, run state and their display; the dates that exist convert once to midnight UTC with the loss stated
+Every YAML model checks `schema_version` through `base.model.SchemaVersion`, and an `engine:` range in `config.yaml` stops any configuration-loading command under a torve outside it
 
-- Paths: `src/torve/base/clock.py` `src/torve/domain/spec.py` `src/torve/application/telemetry.py` `src/torve/application/runstate.py` `src/torve/application/decisions.py` `src/torve/application/projections.py` `src/torve/cli/spec.py` `src/torve/cli/decisions.py`
-- Consequence: A timeline over amendments, landings and entries sorts on one string
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+- Paths: `src/torve/base/model.py` `src/torve/config/runconfig.py` `src/torve/domain/task.py` `src/torve/domain/spec.py`
+- Check: `uv run pytest tests/test_versions.py && uv run pytest tests/test_runconfig.py -k "engine_range"` (shadow; runs as `decision:S-0121/D-15`, no log entry owed)
 
-### S-0059/D-6 — `LOCKED` (One word for the document, and the tree as the record)
+### S-0121/D-16 — `ASSUMED` (Charter) — implementation: partial
 
-One shared `ConfigDict` in `torve/base/model.py` — `extra="forbid"`, `use_attribute_docstrings=True` — configures every model that forbids extras; a field's words are its attribute docstring, never a comment beside it and never `Field(description=...)`; a test asserts every property of every schema `init` writes carries a description
+The engine writes one instant format, `YYYY-MM-DDTHH:MM:SSZ`, from `base.clock.stamp()`, each closed vocabulary is defined once in `domain/vocabulary.py`, and every strict model uses `base.model.STRICT` with described fields, so `torve init` writes schemas an editor checks
 
-- Paths: `src/torve/base/model.py` `src/torve/domain/**` `src/torve/config/**` `src/torve/application/standing.py` `src/torve/cli/init.py` `.torve/schemas/**`
-- Consequence: The schema an editor shows carries the field's meaning; a field added without its words fails the suite
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+- Paths: `src/torve/base/clock.py` `src/torve/base/model.py` `src/torve/domain/vocabulary.py`
+- Check: `uv run pytest tests/test_clock.py::test_no_module_but_the_clock_spells_the_instant tests/test_spec.py::test_schema_descriptions_cover_every_property` (shadow; runs as `decision:S-0121/D-16`, no log entry owed)
 
-### S-0083/D-3 — `ASSUMED` (The pull request is one per document, not one per task)
+### S-0121/D-17 — `ASSUMED` (Charter) — implementation: partial
 
-The document branch is named from the contract's own `spec` — `torve/S-NNNN` — by a helper beside `naming.branch`, and the two namespaces cannot collide because `S-` and `T-` identifiers cannot
+`base/globs.py` is the one reading of a scope glob, with gitignore semantics, and the pre-write hook shipped in `skills/hooks/implement/` imports a byte-identical copy
 
-- Paths: `src/torve/base/naming.py`
-- Consequence: a branch on the forge says which document it carries without anything having to look the mapping up, and `pr_for_branch` answers about a document by the same call it answers about a task
-
-### S-0095/D-5 — `ASSUMED` (A second repository can adopt torve)
-
-Every model torve reads from YAML checks `schema_version` through one shared field type: absent reads as current; another value is refused naming the file, the version found and the version read, with "a newer torve" for a newer file and the release notes' conversion for an older one
-
-- Paths: `src/torve/base/model.py` `src/torve/config/runconfig.py` `src/torve/config/manifest.py` `src/torve/config/agents.py` `src/torve/config/providers.py` `src/torve/config/fleet.py` `src/torve/domain/task.py` `src/torve/domain/spec.py` `tests/test_versions.py`
-- Consequence: a file written for another torve stops the command that reads it, instead of being read as current
-
-### S-0105/D-1 — `ASSUMED` (One reading of a scope glob)
-
-`src/torve/base/globs.py`, standard library only, holds the reading of a scope glob: `matches(path, globs)` and `overlap(left, right)`, both decided by one segment-wise meet of two patterns, with gitignore's semantics as the scope gate reads them through pathspec. A pattern with no inner `/` matches at any depth, a leading `/` anchors it, a trailing `/` means a directory, what is under a matched path matches too, `**` spans segments, `*` and `?` stay within one, and a bracket class reads as any one character.
-
-- Paths: `src/torve/base/globs.py`
-- Consequence: the hook and the engine can share one function, because nothing it needs is outside the standard library
-- Check: `uv run pytest tests/test_globs.py -q` (shadow; runs as `decision:S-0105/D-1`, no log entry owed)
+- Paths: `src/torve/base/globs.py` `skills/hooks/implement/globs.py`
+- Check: `uv run pytest tests/test_globs.py && uv run pytest tests/test_equipment.py -k reads_its_globs_through_the_engine` (shadow; runs as `decision:S-0121/D-17`, no log entry owed)
 
 <!-- /torve:managed -->

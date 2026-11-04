@@ -2,11 +2,11 @@
 
 ## Decisions governing `migrations/`
 
-### S-0055/D-43 — `ASSUMED` (Standing decisions)
+### S-0121/D-20 — `LOCKED` (Charter) — implementation: partial
 
-Migrations are owner-grouped, forward-only SQL under `migrations/`; the substrate is pinned by `FORZE_VERSION`, which `torve doctor` enforces and `config_hash` digests
+Torve owns the DDL for every relation it uses as owner-grouped, forward-only, checksummed SQL under `migrations/`, and the substrate group pins an exact forze version that `pyproject.toml` matches and `doctor` enforces
 
-- Paths: `migrations/**` `src/torve/application/migrate.py` `src/torve/cli/doctor.py`
-- Consequence: A substrate surface change fails at the pin bump, not in production
+- Paths: `migrations/**` `src/torve/application/migrate.py` `src/torve/cli/migrate.py` `pyproject.toml`
+- Check: `uv run pytest tests/test_migrate.py` (shadow; runs as `decision:S-0121/D-20`, no log entry owed)
 
 <!-- /torve:managed -->

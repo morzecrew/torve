@@ -2,424 +2,60 @@
 
 ## Decisions governing `src/torve/domain/`
 
-### S-0053/D-1 — `LOCKED` (The item model and the rebuilt corpus)
+### S-0121/D-1 — `LOCKED` (Charter) — implementation: partial
 
-The specification the engine reads is one pydantic model in `domain/spec.py`, `extra="forbid"`; every reader — planner, importer, check, health, show, intake lint, standing inheritance — consumes the model and never a parser's rows
+Models never decide what work exists or whether it is finished: state transitions come only from recorded facts (exit codes, approvals, gate outcomes), the planner calls no model, a drafted or decomposed contract is data the deterministic lint admits or refuses, and what a critic's severity does is configuration (`review.blocks_at`), never the model's choice
 
-- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py`
-- Consequence: Six consumers stop re-shaping rows; a field the author wrote cannot be dropped on the way to the record; S-0007/D-17 stands because the *format* still terminates at `config/` while the model may cross
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+- Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `src/torve/application/manager.py` `src/torve/application/planner.py` `src/torve/application/intake.py` `src/torve/application/review.py` `src/torve/domain/states.py`
+- Check: `uv run pytest tests/test_intake.py::test_lint_decomposition_refuses_a_child_escaping_parent_scope tests/test_session.py::test_a_red_with_no_mapped_rung_stays_on_the_seat` (shadow; runs as `decision:S-0121/D-1`, no log entry owed)
 
-### S-0053/D-3 — `ASSUMED` (The item model and the rebuilt corpus)
+### S-0121/D-4 — `LOCKED` (Charter) — implementation: partial
 
-Five fenced kinds: `decision-details`, `invariants`, `alternatives`, `questions`, `changes`; prose sections become `DesignSection`s keyed by heading slug and are typed no further
+The append-only, typed event log is the system of record: every event is a kind of a closed vocabulary checked against `AUTHORITY` before any store sees it, no update command exists, every board and report is a projection rebuilt by replay that pages to the end, and an agent writes only `divergence.recorded` and `message.sent`, through the broker route that stamps its identity
 
-- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py`
-- Consequence: Typing an argument fragments it; what is typed is what was already a list
+- Paths: `src/torve/domain/events.py` `src/torve/application/eventlog.py` `src/torve/application/divergence.py` `src/torve/application/channel.py` `src/torve/adapters/broker/local.py` `src/torve/adapters/eventstore/**`
+- Check: `uv run pytest tests/test_events.py::test_every_kind_has_an_authority_row_and_a_payload_model tests/test_eventlog.py::test_an_unauthorized_write_never_reaches_the_store tests/test_eventlog.py::test_the_spec_declares_no_update_command tests/test_channel.py::test_the_host_side_channel_stamps_identity_it_is_never_given tests/test_manager.py::test_a_replayed_log_rebuilds_the_same_board` (shadow; runs as `decision:S-0121/D-4`, no log entry owed)
 
-### S-0053/D-5 — `ASSUMED` (The item model and the rebuilt corpus)
+### S-0121/D-14 — `LOCKED` (Charter) — implementation: partial
 
-Every row carries a content fingerprint; a mismatch between a contract's copied row and the row as it stands is reported as *suspect* by `decisions show` and `rfc health`, never as a conviction
+`EscalationReason` is one closed enum beside `EXIT_BY_REASON`: 0 ok, 1 gates red, 2 escalated, 3 configuration, 4 infrastructure, 5 exhausted, 6 the engine moved; a new reason needs a code, and a failure that measures nothing about the model escalates as infrastructure, never as a conviction
 
-- Paths: `src/torve/domain/spec.py` `src/torve/application/decisions.py`
-- Consequence: Copy-at-mint becomes checkable; S-0031/D-3's no-retroactive rule is preserved by making the mismatch a reading, not a red
+- Paths: `src/torve/domain/states.py` `src/torve/application/session.py` `src/torve/cli/options.py`
+- Check: `uv run pytest tests/test_domain.py::test_every_escalation_reason_has_an_exit_code tests/test_run_loop.py -k "failed_prepare_convicts_nothing or refused_seat_escalates"` (shadow; runs as `decision:S-0121/D-14`, no log entry owed)
 
-### S-0053/D-14 — `ASSUMED` (The item model and the rebuilt corpus)
+### S-0121/D-15 — `LOCKED` (Charter) — implementation: partial
 
-`domain/spec.py` imports nothing but pydantic and `domain/rfc.py`, so extracting it into its own distribution is a packaging act and never a rewrite
+Every YAML model checks `schema_version` through `base.model.SchemaVersion`, and an `engine:` range in `config.yaml` stops any configuration-loading command under a torve outside it
 
-- Paths: `src/torve/domain/spec.py`
-- Consequence: The model is the reusable half; torve's grades, paths and checks are a profile over it
+- Paths: `src/torve/base/model.py` `src/torve/config/runconfig.py` `src/torve/domain/task.py` `src/torve/domain/spec.py`
+- Check: `uv run pytest tests/test_versions.py && uv run pytest tests/test_runconfig.py -k "engine_range"` (shadow; runs as `decision:S-0121/D-15`, no log entry owed)
 
-### S-0053/D-15 — `ASSUMED` (The item model and the rebuilt corpus)
+### S-0121/D-16 — `ASSUMED` (Charter) — implementation: partial
 
-`check` on a row is authored, never derived; a `LOCKED` row without one is reported *soft* by `rfc health`; nothing runs a check in this document
+The engine writes one instant format, `YYYY-MM-DDTHH:MM:SSZ`, from `base.clock.stamp()`, each closed vocabulary is defined once in `domain/vocabulary.py`, and every strict model uses `base.model.STRICT` with described fields, so `torve init` writes schemas an editor checks
 
-- Paths: `src/torve/domain/spec.py`
-- Consequence: 15 of 19 derived checks in the probe were guesses; running checks as gates is the next document's design
+- Paths: `src/torve/base/clock.py` `src/torve/base/model.py` `src/torve/domain/vocabulary.py`
+- Check: `uv run pytest tests/test_clock.py::test_no_module_but_the_clock_spells_the_instant tests/test_spec.py::test_schema_descriptions_cover_every_property` (shadow; runs as `decision:S-0121/D-16`, no log entry owed)
 
-### S-0053/D-16 — `ASSUMED` (The item model and the rebuilt corpus)
+### S-0121/D-21 — `LOCKED` (Charter) — implementation: partial
 
-The fingerprint covers text, grade and paths; consequence, rationale and check are outside it, since a contract copies the first three at mint and a human reads the rest (S-0053/Q-1, settled in draft)
+`torve plan` is deterministic: it mints from one accepted, committed document, copies each inherited row's id, grade, text and paths into the contract at write time, and derives task ids max+1, never reused; a contract naming no document inherits every accepted row whose paths intersect its scope, and a task in flight is never re-minted
 
-- Paths: `src/torve/domain/spec.py`
-- Consequence: An edit to a consequence is free; an edit to what an executor is bound by is recorded
+- Paths: `src/torve/application/planner.py` `src/torve/domain/task.py` `src/torve/domain/spec.py`
+- Check: `uv run pytest tests/test_plan.py::test_inherit_decisions_copies_the_rows_intact tests/test_plan.py::test_standing_decisions_intersect_in_and_out` (shadow; runs as `decision:S-0121/D-21`, no log entry owed)
 
-### S-0054/D-1 — `LOCKED` (Decisions as gates and the projections beside the code)
+### S-0121/D-33 — `ASSUMED` (Charter) — implementation: partial
 
-`InheritedDecision` gains `consequence` and `check`, copied at mint from the model, carried by `decision.recorded`, rendered after each row in the prompt; the fingerprinted set stays text, grade and paths
+The lane's verdicts on a commit are forge commit statuses keyed by its sha, a completing landing runs the blocking battery over the branch tip and leaves the pull request in draft unless it is green, and every lane battery is recorded as a `lane.judged` event
 
-- Paths: `src/torve/domain/task.py` `src/torve/application/planner.py`
-- Consequence: A gate reads the contract and never the corpus (S-0007/D-18 stands); the reason a row exists reaches the executor for the first time
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
+- Paths: `src/torve/application/lane.py` `src/torve/domain/events.py` `src/torve/cli/merge.py`
+- Check: `uv run pytest tests/test_lane.py -k "red_battery_at_completion or keeps_the_draft"` (shadow; runs as `decision:S-0121/D-33`, no log entry owed)
 
-### S-0055/D-1 — `LOCKED` (Standing decisions)
+### S-0121/D-36 — `LOCKED` (Charter) — implementation: partial
 
-Models never decide what work exists or whether it is finished; the runner executes state transitions from facts — exit codes, gate outcomes, approvals — and an agent reports observations that never cause a transition
+The engine never changes its own code under a running process: a chain whose `torve` package resolves under the repository root neither fast-forwards nor plans, and a fast-forward that crosses `night.engine_paths` makes `manager serve` exit 6 for its launcher to reinstall
 
-- Paths: `src/torve/application/runner.py` `src/torve/application/manager.py` `src/torve/domain/states.py`
-- Consequence: A reviewer's severity is data whose consequence configuration sets; the planner invokes no model at all
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0055/D-6 — `ASSUMED` (Standing decisions)
-
-Escalation reasons are a closed enum mapped to exit codes; `locked_conflict` and `underspecified` are halts on working judgement, one indicting the code and the other the contract
-
-- Paths: `src/torve/domain/states.py` `src/torve/cli/options.py`
-- Consequence: A new reason is an amendment and a code path, never a free string
-
-### S-0055/D-7 — `LOCKED` (Standing decisions)
-
-A task contract is immutable once minted: a changed contract is a new task, a re-mint is a version and never a transition, and a task in flight is never re-minted
-
-- Paths: `src/torve/domain/task.py` `src/torve/application/planner.py`
-- Consequence: An executor's contract cannot drift out from under it; `torve plan` refuses to re-mint over minted phases and leaves the decision to a person
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0055/D-9 — `LOCKED` (Standing decisions)
-
-A contract copies its rows' grade, text and paths at mint time; a grade is never resolved at read time
-
-- Paths: `src/torve/application/planner.py` `src/torve/domain/task.py`
-- Consequence: A regrade never rewrites the judgement of a task that ran under the old grade
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0055/D-12 — `ASSUMED` (Standing decisions)
-
-An empty decision list on a contract is legal and explicit; "none apply" is distinct from "field forgotten"
-
-- Paths: `src/torve/gates/decisions_reported.py` `src/torve/domain/task.py`
-- Consequence: The document-less lane is governed by standing inheritance, not by silence
-
-### S-0055/D-37 — `LOCKED` (Standing decisions)
-
-A fact is an event of a closed kind vocabulary with an authority table; an agent may write only `divergence.recorded` and `message.sent`; no update command exists on the record
-
-- Paths: `src/torve/domain/events.py` `src/torve/application/eventlog.py`
-- Consequence: An audit trail that can be edited cannot be trusted; the authority table refuses before any store sees the write
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0056/D-1 — `LOCKED` (Structure for everything)
-
-A document is one YAML file, `rfcs/NNNN-slug.yaml`, in the `Document` model's own shape and key order; loading is the model's validator plus the corpus checks; `schema_version` 2, and 1 is refused
-
-- Paths: `src/torve/config/spec.py` `src/torve/domain/spec.py`
-- Consequence: The markdown parser, `load_fences`, the heading and table regexes are deleted; every reader of the corpus is unchanged
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0056/D-2 — `LOCKED` (Structure for everything)
-
-`DecisionDetail` folds into `Decision`; the fenced kinds are gone; a row carries `rationale`, `cites`, `check`, `check_state`, `check_twin`, `superseded_by` and its `fingerprint` on itself
-
-- Paths: `src/torve/domain/spec.py` `src/torve/application/planner.py`
-- Consequence: `inherit_decisions` reads the row; the frontmatter fingerprint map is gone
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0056/D-3 — `LOCKED` (Structure for everything)
-
-Prose is `sections[].md`, a string the engine never parses, with `key` and `heading` beside it; `level` and `order` are dropped
-
-- Paths: `src/torve/domain/spec.py`
-- Consequence: Markdown inside a body is welcome and invisible to every check
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0057/D-1 — `LOCKED` (The specification is a directory)
-
-A specification is a directory `S-NNNN/` — the identifier and nothing else — of `document.yaml`, `decisions.yaml`, `amendments.yaml` and `execution.yaml`, split by who writes each; an absent file is an empty list; the loader joins them into the one `Document` every reader keeps reading; `schema_version` 3, and 2 is refused
-
-- Paths: `src/torve/config/spec.py` `src/torve/domain/spec.py` `src/torve/config/spec_emit.py`
-- Consequence: The author's file changes only by the author; `amended_by` is derived and gone; `Document.path` names a directory
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0057/D-2 — `LOCKED` (The specification is a directory)
-
-A section is `key` and `md`; the heading is rendered from the key and the number from the position; `check` refuses a section with an empty body, a typed-kind fence, the decisions table header or an amendment identifier as its key
-
-- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py`
-- Consequence: A typed list exists in one place; a heading cannot disagree with its key
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0058/D-1 — `LOCKED` (One grammar and the anatomy)
-
-Every item the corpus defines has one global identifier, `S-NNNN/<local>` — `D-n`, `I-n`, `Q-n`, `A-n`, `P-n` or a prose key — and is written inside its own document by the local half alone; the document is the namespace, amendments included, and tasks stay `T-NNNN`
-
-- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py`
-- Consequence: One regex reads every citation; nothing is spelled twice; sections and phases become citable
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0058/D-4 — `LOCKED` (One grammar and the anatomy)
-
-`document.yaml` carries the prose as typed keys — `summary`, `motivation`, `current_state`, `goals`, `non_goals`, `tests`, `risks` required of an accepted design, `docs` and `out_of_scope` optional, `design` a keyed list with at least one entry once a design is accepted, `sections` the extras capped at eight — with keys unique document-wide and never a family shape; an accepted convention owes its summary alone; `description` is dropped and the summary's first sentence routes
-
-- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `src/torve/config/spec_emit.py`
-- Consequence: `yq .motivation` answers; a document without a motivation cannot be accepted; the routing line is written once
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0058/D-5 — `LOCKED` (One grammar and the anatomy)
-
-`phasing.yaml` holds `phasing` and `contract_example`, author-written and planner-read; a scope amendment touches it and the amendments file alone
-
-- Paths: `src/torve/domain/spec.py` `src/torve/application/planner.py`
-- Consequence: Six files per document; the planner's list diffs apart from the prose
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0058/D-6 — `LOCKED` (One grammar and the anatomy)
-
-Execution is a directory, `execution/<task>-<attempt>-<instant>.yaml`, one landing per file, written once and never deleted; the loader reads it sorted by instant into `landings`; an identical replay is a no-op and a restarted attempt lands under a new instant; the scope gate exempts the directory
-
-- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `src/torve/config/spec_emit.py` `src/torve/application/decisions.py` `src/torve/gates/scope.py`
-- Consequence: Two candidates of one document never conflict at merge; no landing is refused for a number
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0058/D-7 — `LOCKED` (One grammar and the anatomy)
-
-The engine writes one instant, `YYYY-MM-DDTHH:MM:SSZ` in UTC, from `torve.base.clock.stamp()`, for amendments, landings, entries, telemetry, run state and their display; the dates that exist convert once to midnight UTC with the loss stated
-
-- Paths: `src/torve/base/clock.py` `src/torve/domain/spec.py` `src/torve/application/telemetry.py` `src/torve/application/runstate.py` `src/torve/application/decisions.py` `src/torve/application/projections.py` `src/torve/cli/spec.py` `src/torve/cli/decisions.py`
-- Consequence: A timeline over amendments, landings and entries sorts on one string
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0058/D-12 — `LOCKED` (One grammar and the anatomy)
-
-A landing names its `base` — the commit the attempt built on, read from the log's pin — beside the `commit` it rides in when the lander knows it; a landing made by hand is made after the work commit, with `torve log land --commit`, in a commit of its own
-
-- Paths: `src/torve/domain/spec.py` `src/torve/application/decisions.py` `src/torve/cli/log.py`
-- Consequence: Where an implementation started is on the landing, not only in a log git never carries; the trailer join stays for the runner's commit
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0059/D-1 — `LOCKED` (One word for the document, and the tree as the record)
-
-A contract names its document as `spec: S-NNNN` — the identifier, never a path; a contract carrying `rfc` refuses to load with a hint naming the key; the same word and value stand on the drafts file, `torve intake --spec`, a standing job's `decisions_from`, the plan report, the projections' envelopes, the web tables and the pack; the contract's schema version is 2 and the local contracts are rewritten once
-
-- Paths: `src/torve/domain/task.py` `src/torve/application/planner.py` `src/torve/application/intake.py` `src/torve/application/standing.py` `src/torve/application/review.py` `src/torve/application/projections.py` `src/torve/application/specquality.py` `src/torve/cli/**` `web/src/**` `.torve/tasks/**`
-- Consequence: One lookup resolves a document from a contract; nothing regexes a number out of a path
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0059/D-3 — `LOCKED` (One word for the document, and the tree as the record)
-
-The record's source id of a task is `spec or "operator"`, the document id; `CORPUS_NAMESPACE` goes; a mint whose contract carries `rfc` folds through one read shim in `minted_contract`, and the record is not rewritten
-
-- Paths: `src/torve/application/residency.py` `src/torve/application/manager.py` `src/torve/domain/source.py`
-- Consequence: A task's source joins the record's source without translation; three hundred recorded mints keep folding
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0059/D-5 — `LOCKED` (One word for the document, and the tree as the record)
-
-Every closed vocabulary is defined once in `torve/domain/vocabulary.py` and imported — the corpus words, the entry words, the contract's role, tier and character, the gate words, the finding severity, the source kind — with the tuples the CLI lists; `domain/rfc.py` is deleted; a word two fields share, or the record reads, is never spelled inline; `Phase.character` and `Task.character` share `Character`
-
-- Paths: `src/torve/domain/**` `src/torve/config/**` `src/torve/application/standing.py`
-- Consequence: A word gains a member in one place; the parity test between the log's and the record's copies is deleted with the copies
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0059/D-6 — `LOCKED` (One word for the document, and the tree as the record)
-
-One shared `ConfigDict` in `torve/base/model.py` — `extra="forbid"`, `use_attribute_docstrings=True` — configures every model that forbids extras; a field's words are its attribute docstring, never a comment beside it and never `Field(description=...)`; a test asserts every property of every schema `init` writes carries a description
-
-- Paths: `src/torve/base/model.py` `src/torve/domain/**` `src/torve/config/**` `src/torve/application/standing.py` `src/torve/cli/init.py` `.torve/schemas/**`
-- Consequence: The schema an editor shows carries the field's meaning; a field added without its words fails the suite
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0059/D-8 — `ASSUMED` (One word for the document, and the tree as the record)
-
-The log's `base_sha` is `base`, the landing's word; the log's schema version is 2 and a log saying `base_sha` reads through a shim; the landing's `commit` stays; `spec new`'s hint and `spec show`'s label name the summary, not a description
-
-- Paths: `src/torve/domain/spec.py` `src/torve/application/**` `src/torve/gates/decisions_reported.py` `src/torve/adapters/agent/harness.py` `src/torve/cli/**`
-- Consequence: One word for the commit an attempt built on, in the log and the landing
-
-### S-0059/D-10 — `LOCKED` (One word for the document, and the tree as the record)
-
-The runner writes no `Torve-Task`, `Torve-Attempt`, `Torve-Agent`, `Torve-Config` or `Torve-Decisions` trailer, retiring S-0010/D-4; the landing carries `decisions: [{id, grade}]`, the rows the contract carried; `Torve-Bypass`, `Torve-Fixes` and `Torve-Checkpoint` stay
-
-- Paths: `src/torve/application/runner.py` `src/torve/domain/spec.py` `src/torve/config/spec_emit.py`
-- Consequence: One record of a landing; the commit author stays the agent's identity (S-0010/D-2)
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0060/D-1 — `LOCKED` (A source is a file, and the contract names it)
-
-A source is a file, `.torve/sources/<kind>/<slug>.yaml`, carrying `id` (which must equal `<kind>/<slug>` from its own path), `title`, `ref`, `at` and `summary`; its identifier is `<kind>/<slug>`, a document's stays `S-NNNN`, and `specification` is not a directory because a document is already a source; `torve init` writes `sources.json` and each file opens with its schema line
-
-- Paths: `src/torve/domain/source.py` `src/torve/config/sources.py` `src/torve/cli/init.py` `.torve/sources/**` `.torve/schemas/**`
-- Consequence: A source identifier resolves to something a person can open, which is what makes it worth putting on a contract
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0060/D-2 — `LOCKED` (A source is a file, and the contract names it)
-
-A source carries no decisions: rows that stand are the corpus's alone, and a source that settled some names the document holding them in `settled_by`
-
-- Paths: `src/torve/domain/source.py` `src/torve/config/sources.py`
-- Consequence: One row-bearing artefact; a contract inherits from one place and `spec cites` has one answer
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0060/D-3 — `LOCKED` (A source is a file, and the contract names it)
-
-`Task.source: str | None` is the provenance — a source identifier, `S-NNNN` or `<kind>/<slug>`, validated and never parsed for inheritance — beside `spec`, which stays whose rows the contract inherits; a contract may carry both, either or neither
-
-- Paths: `src/torve/domain/task.py` `src/torve/gates/context.py`
-- Consequence: A task can say what asked for it without pretending a document did
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0060/D-8 — `LOCKED` (A source is a file, and the contract names it)
-
-A document's `kind` stays `design` or `convention`: it answers what prose an accepted document owes and nothing else, so a bug worth a document is a design whose motivation is the defect, an audit's standing rules are a convention, and where the work came from is the source
-
-- Paths: `src/torve/domain/vocabulary.py` `src/torve/config/spec.py` `skills/spec-writer/**`
-- Consequence: One axis per field; the corpus never grows a second way to say provenance
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0079/D-1 — `ASSUMED` (The night as a typed record)
-
-A night is a subject in the event log — `night.opened` and `night.closed`, both the manager's authority — and never a file, a summary or a counter anybody maintains
-
-- Paths: `src/torve/domain/events.py`
-- Consequence: a manager killed at 04:00 has already written everything the morning report needs, and a night with an open and no close reads as unfinished rather than as lost
-
-### S-0079/D-2 — `ASSUMED` (The night as a typed record)
-
-`night.opened` carries the night's terms whole — the ready queue as it stood, the width, the budget in dollars and in attempts, the stop conditions, the lease, and as `knobs` the resolved `env` of every seat the queue can reach, keyed by seat: the seat each queued task resolves to, the rungs its retries can climb, and the review seat — read once at the open and never re-read
-
-- Paths: `src/torve/domain/events.py`
-- Consequence: a night's report says what the night was started with even after the configuration was edited while it ran, and two nights are comparable because their terms are recorded rather than reconstructed from whatever the file says afterwards
-
-### S-0085/D-1 — `ASSUMED` (A document builds on another document's tree)
-
-A phasing file names the documents whose landed tree its work builds on under a top-level `after`, as document ids; the header's `depends_on` keeps its one meaning, decision inheritance, and says nothing about trees
-
-- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `.torve/schemas/phasing.json`
-- Consequence: S-0009 declares `after: [S-0008]` and `depends_on: []` and both are true; a document may name one document in both lists or in either
-
-### S-0085/D-5 — `ASSUMED` (A document builds on another document's tree)
-
-`after` names documents, never phases; a case that needs a phase inside one is a case for an amendment, with the case written down
-
-- Paths: `src/torve/domain/spec.py`
-- Consequence: the grammar is one list of ids and the planner's lookup is one call per id; a dependent waits for the whole named document, which under S-0083/D-5 is when its tree reaches the base anyway
-
-### S-0087/D-1 — `ASSUMED` (A document names its change, and its pull request wears the name)
-
-A document's header may carry `change` — a Conventional Commits type from the operator's mapping, an optional scope, and `breaking`, default false; the field is optional on the model, and `torve spec check` warns when an accepted design document has none
-
-- Paths: `src/torve/domain/spec.py` `src/torve/config/spec.py` `.torve/schemas/document.json`
-- Consequence: every document in the corpus loads as it is, and the one whose landing would be untyped is named at check, not discovered in `main`'s history
-
-### S-0089/D-2 — `ASSUMED` (A night serves what a worker can finish)
-
-A seat whose failure no retry can change escalates at once as `seat_refused` with the seat's own words — the harness could not be executed (exit 126 or 127), or its envelope reports an API error with a 4xx status other than 429 and zero tokens in, cached and out; no attempt is counted, nothing is convicted or checkpointed, and the reason maps to exit code 4
-
-- Paths: `src/torve/application/ports.py` `src/torve/adapters/agent/harness.py` `src/torve/application/runner.py` `src/torve/domain/states.py` `tests/test_run_loop.py` `tests/test_agents.py` `tests/test_domain.py`
-- Consequence: a broken image, an over-long prompt or an unsupported model is named as what it is in one dispatch, and the poison ceiling counts only attempts a model made
-
-### S-0095/D-5 — `ASSUMED` (A second repository can adopt torve)
-
-Every model torve reads from YAML checks `schema_version` through one shared field type: absent reads as current; another value is refused naming the file, the version found and the version read, with "a newer torve" for a newer file and the release notes' conversion for an older one
-
-- Paths: `src/torve/base/model.py` `src/torve/config/runconfig.py` `src/torve/config/manifest.py` `src/torve/config/agents.py` `src/torve/config/providers.py` `src/torve/config/fleet.py` `src/torve/domain/task.py` `src/torve/domain/spec.py` `tests/test_versions.py`
-- Consequence: a file written for another torve stops the command that reads it, instead of being read as current
-
-### S-0099/D-5 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
-
-A review round's branch, pull request, target, findings and phases ride in its own contract under `round:`, which `task.minted` carries; the wave, the requeue's rescope and the morning report read the board.
-
-- Paths: `src/torve/application/reviewleg.py` `src/torve/application/lane.py` `src/torve/cli/manager.py` `src/torve/application/manager.py` `src/torve/domain/task.py`
-- Consequence: a round is described by the record that minted it, not by a row on the host that minted it
-
-### S-0099/D-7 — `ASSUMED` (Every fact has one carrier, and no decision reads telemetry)
-
-The broker meters streamed responses, and `seat.consumed` carries input, output, cache-read and cache-write tokens beside the total for every attempt and review.
-
-- Paths: `src/torve/adapters/broker/local.py` `src/torve/application/eventlog.py` `src/torve/application/ports.py` `src/torve/domain/events.py`
-- Consequence: cost per landing is a query for every seat, including plan-billed ones
-
-### S-0101/D-1 — `ASSUMED` (The last lane facts leave the stream)
-
-A round that answers a red completion battery carries `battery: true` and its target in its contract's `round:`; the battery's round state is pending until that round lands or a person resolves it, and answered after.
-
-- Paths: `src/torve/application/lane.py` `src/torve/application/reviewleg.py` `src/torve/domain/task.py`
-- Consequence: a battery's round is recognised on any host from the record that minted it
-
-### S-0101/D-4 — `ASSUMED` (The last lane facts leave the stream)
-
-`review.recorded` carries each finding (severity, path, line, claim, evidence), and the review leg reads recorded findings from the board.
-
-- Paths: `src/torve/domain/events.py` `src/torve/application/eventlog.py` `src/torve/application/review.py` `src/torve/application/reviewleg.py`
-- Consequence: a host that did not run a review still reads what it found
-
-### S-0101/D-11 — `ASSUMED` (The last lane facts leave the stream)
-
-`review.recorded` gains `items`, the list of the review's findings with severity, path, line, claim and evidence, defaulting to empty: no stored row changes and no migration runs.
-
-- Paths: `src/torve/domain/events.py`
-- Consequence: rows recorded before the field read as a review with no findings, which is what they hold
-
-### S-0102/D-4 — `ASSUMED` (The task unit and the review leg stop reading the stream)
-
-A round the review leg widens to the whole phasing carries `whole: true` in its contract's `round:`, and a requeue reads it there.
-
-- Paths: `src/torve/application/reviewleg.py` `src/torve/cli/manager.py` `src/torve/domain/task.py`
-- Consequence: a round is widened once, whichever host requeues it
-
-### S-0104/D-1 — `ASSUMED` (A phase's scope bends to the files its change reaches)
-
-A contract carries `scope.contingent`, literal paths the planner derives at mint and at refresh: the importers, in source and tests, one hop, of the files the phase's globs match; the first-party modules those files import; their tests paired at any depth under `tests/`; their packages' `__init__`; and the paths the document's other phases' scopes match.
-
-- Paths: `src/torve/domain/task.py` `src/torve/application/neighbours.py` `src/torve/application/planner.py`
-- Consequence: the files a change most often reaches beyond its phase are known to the attempt before it starts
-
-### S-0104/D-2 — `ASSUMED` (A phase's scope bends to the files its change reaches)
-
-A contingent path is promoted on its first write when no in-flight task's `allow` or promoted paths hold it: the board records `scope.promoted`, and the path joins the task's fence for every overlap check after.
-
-- Paths: `src/torve/application/runner.py` `src/torve/application/manager.py` `src/torve/domain/events.py` `skills/hooks/implement/scope_guard.py`
-- Consequence: an attempt that needs a neighbour writes it and carries on, and no other task writes it at the same time
-
-### S-0109/D-2 — `ASSUMED` (A conflict the served lane re-queues reaches the board)
-
-`task.requeued` may be written by the manager only, and `task.returned` stays the operator's (S-0044/A-13).
-
-- Paths: `src/torve/domain/events.py` `pages/docs/architecture/record.md`
-- Consequence: the record tells a mechanical disposal apart from a person sending judged work back
-- Check: `uv run pytest tests/test_events.py tests/test_docs.py -q` (shadow; runs as `decision:S-0109/D-2`, no log entry owed)
-
-### S-0116/D-1 — `ASSUMED` (An independent verifier)
-
-`verify` is a role in the closed vocabulary and a dispatchable one. A verify contract carries acceptance commands and no targets, and the reaper keeps a verify task's worktree as it keeps an implement task's.
-
-- Paths: `src/torve/domain/vocabulary.py` `src/torve/domain/task.py` `src/torve/application/reaper.py`
-- Consequence: a worker claims a verify task off the board like an implement task, and every reader of `DISPATCHABLE_ROLES` offers it
-
-### S-0116/D-9 — `ASSUMED` (An independent verifier)
-
-After a verify attempt the host records the files under `.torve/tmp/holdout/` of its worktree on its entry's implement task as one `verify.holdout` event of names and texts, at most 64 KiB, empty when it wrote none, and deletes them from the worktree. The event registry gains the kind, its payload and the worker as its actor. The latest event on the task is the held-out set; it replaces every earlier one.
-
-- Paths: `src/torve/application/runner.py` `src/torve/domain/events.py`
-- Consequence: held-out properties live in the record that every host of the fleet reads, never in an attempt's commit and never in an implementer's sandbox
-
-### S-0118/D-4 — `ASSUMED` (A gate run is spent only where it can convict)
-
-`GateResult` and `BuiltinOutcome` carry `inherited_failures`, the node ids a gate found red on the base too, beside `quarantined_failures`; a suite whose only failures are inherited passes and records them
-
-- Paths: `src/torve/domain/attempt.py` `src/torve/gates/contract.py` `src/torve/gates/runner.py` `tests/test_attempt_record.py` `tests/test_gates.py`
-- Consequence: the record holds every inherited red by name, so a red base is visible in `gates.evaluated` and `torve why` without convicting anyone
-
-### S-0118/D-9 — `LOCKED` (A gate run is spent only where it can convict)
-
-Every battery the lane runs, green or red, is recorded as a `lane.judged` event on the candidate's task, or on the document's last task for a completion battery, carrying the leg, base, head, exit code, duration and the results as `gates.evaluated` records them; the caller of `process_lane` writes each one from what `on_judged` handed it (D-12), in a `finally`, so a pass that raises after a battery keeps it, and no projection reads it for a state transition
-
-- Paths: `src/torve/domain/events.py` `src/torve/cli/merge.py` `src/torve/cli/manager.py` `tests/test_events.py` `tests/test_manager.py`
-- Consequence: a red re-gate's failing output and every lane battery's duration are in the record, so lane time is measured from the record and never from telemetry
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
-
-### S-0120/D-4 — `ASSUMED` (The chain runs the engine its base carries)
-
-`EXIT_ENGINE_MOVED = 6` is the first code assigned above 5. `torve manager serve` exits with it for the reason `engine moved`, in text and in `--format json`, and with `EXIT_OK` for every other reason as before.
-
-- Paths: `src/torve/domain/states.py` `src/torve/cli/manager.py`
-- Consequence: a launcher loops on one documented code, and every launcher that treats a non-zero exit as a failure keeps working, because no other reason changes its code
-- Check: `uv run pytest tests/test_manager.py -k engine_moved` (shadow; runs as `decision:S-0120/D-4`, no log entry owed)
-
-## Invariants holding over `src/torve/domain/`
-
-- **S-0059/I-3**: Every property of every schema `torve init` writes carries a description
-  - Paths: `src/torve/domain/**` `src/torve/config/**` `src/torve/application/standing.py`
-  - Check: `uv run pytest tests/test_spec.py -k schema_descriptions`
+- Paths: `src/torve/cli/manager.py` `src/torve/domain/states.py` `src/torve/config/runconfig.py`
+- Check: `uv run pytest tests/test_manager.py -k "engine_moved or imports_from_the_root"` (shadow; runs as `decision:S-0121/D-36`, no log entry owed)
 
 <!-- /torve:managed -->
