@@ -173,7 +173,13 @@ gates:
     # The one entry whose cost is not this file's to measure: it runs whatever
     # commands the contract under work names, so its p90 is a property of the
     # contracts and not of the gate. The cap stands where it was, and the gate
-    # sorts last, which is where the dearest gate belongs. A run with no
-    # contract has nothing to accept: `lint`, `mypy` and `suite` judge it.
+    # sorts last, which is where the dearest gate belongs.
     timeout: 900
     sabotage: acceptance
+    # Fallback for a run with no task contract, and the acceptance a review
+    # round's contract takes (the thread leg refuses to start without one).
+    # It repeats `lint` and `mypy` on a contract-less run, which costs seconds.
+    commands:
+      - "uv run ruff check ."
+      - "uv run ruff format --check ."
+      - "uv run mypy src"
