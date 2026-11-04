@@ -2317,6 +2317,41 @@ def test_a_move_out_of_the_engine_paths_is_still_engine_moved(tmp_path):
     assert event["count"] == 1
 
 
+def test_an_engine_path_git_would_quote_is_read_as_the_path_it_is(tmp_path):
+    """S-0120/D-2: the changed paths are read NUL-separated, so a name git
+    would quote — a quote, a tab, a non-ASCII byte — reaches the globs as the
+    path the tree holds. Read line-wise, the quoted line matches nothing and
+    the chain plans on the engine its base has moved past."""
+
+    from torve.cli import manager as manager_cli
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main", str(root)], check=True)
+    subprocess.run(["git", "-C", str(root), "config", "user.name", "Chain Human"], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "config", "user.email", "chain@example.invalid"], check=True
+    )
+    (root / "src" / "torve").mkdir(parents=True)
+    (root / "src" / "torve" / "engine.py").write_text("moved = False\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "commit", "-q", "--no-gpg-sign", "-m", "engine"], check=True
+    )
+    before = _head(root)
+
+    quoted = 'src/torve/eng"ine.py'
+    (root / quoted).write_text("moved = True\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "commit", "-q", "--no-gpg-sign", "-m", "quoted"], check=True
+    )
+
+    moved = manager_cli._engine_paths_moved(root, before, _head(root), ["src/torve/**"])
+
+    assert moved == [quoted]
+
+
 def test_a_commit_that_misses_engine_paths_still_plans_and_reports_no_engine_moved(tmp_path):
     """S-0120/D-2: the engine check reads the changed files, not the fact that
     the base moved. A commit touching no configured path is an ordinary night

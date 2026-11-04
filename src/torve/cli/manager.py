@@ -732,8 +732,10 @@ def _engine_paths_moved(
 
     A move is two paths, and the deleted side is the engine's: rename detection
     would report only the destination, which usually sits outside the globs, so
-    the diff is read with renames off. The ledger and the lane read their diffs
-    the same way."""
+    the diff is read with renames off. Paths are read NUL-separated, so a name
+    git would quote (a tab, a quote, a backslash, a non-ASCII byte) arrives as
+    the path it is and the globs see what the tree holds. The ledger and the
+    lane read their diffs the same way."""
 
     if not engine_paths or not before or not after or before == after:
         return []
@@ -744,7 +746,18 @@ def _engine_paths_moved(
     from torve.base.globs import matches
 
     proc = subprocess.run(
-        ["git", *NO_HOOKS, "-C", str(root), "diff", "--no-renames", "--name-only", before, after],
+        [
+            "git",
+            *NO_HOOKS,
+            "-C",
+            str(root),
+            "diff",
+            "--no-renames",
+            "--name-only",
+            "-z",
+            before,
+            after,
+        ],
         capture_output=True,
         text=True,
         check=False,
@@ -753,7 +766,7 @@ def _engine_paths_moved(
     if proc.returncode != 0:
         return []
 
-    return sorted(path for path in proc.stdout.splitlines() if matches(path, engine_paths))
+    return sorted(path for path in proc.stdout.split("\0") if path and matches(path, engine_paths))
 
 
 # ....................... #

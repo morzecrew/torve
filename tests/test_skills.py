@@ -419,11 +419,13 @@ def test_the_night_reference_ships_the_engine_launcher():
     assert "chain_engine_moved" in text
     assert f"exits {EXIT_ENGINE_MOVED}" in text
 
-    # The loop installs from the checkout into its own virtualenv and
-    # relaunches on the code, never the host's shared tool install.
+    # The loop installs from the checkout into its own virtualenv, serves that
+    # checkout by `--root`, and relaunches on the code; any other exit stops it
+    # with its code, never the host's shared tool install.
     assert "uv pip install" in text
     assert "$HOME/.torve-engines/torve-self" in text
-    assert "[ $? -eq 6 ] || break" in text
+    assert '--root "$root"' in text
+    assert '[ "$status" -eq 6 ] || exit "$status"' in text
     assert "virtualenv of its own" in text
     assert "relaunch" in text
     assert "~/.local/bin/torve" in text

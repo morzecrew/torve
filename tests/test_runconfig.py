@@ -944,6 +944,16 @@ def test_night_engine_paths_defaults_to_empty_and_loads_the_globs_it_names(tmp_p
     assert config.night.engine_paths == ["src/torve/**", "pyproject.toml", "uv.lock"]
 
 
+def test_night_engine_paths_refuses_a_negated_glob_at_load(tmp_path):
+    """S-0120/D-1: the entries are globs in the scope grammar, and that grammar
+    has no negation. A `!` entry is refused at load rather than read as a
+    literal segment matching no file, which would silently never fire the
+    engine check it was written to arm."""
+
+    with pytest.raises(ValueError, match="may not start with '!'"):
+        load(tmp_path, "schema_version: 1\nnight:\n  engine_paths: ['!src/torve/**']\n")
+
+
 # ....................... #
 
 

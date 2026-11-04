@@ -308,11 +308,13 @@ def test_the_operating_guide_documents_the_engine_the_chain_plans_from():
     assert f"exits {EXIT_ENGINE_MOVED}" in text
     assert "EXIT_ENGINE_MOVED" in text
 
-    # The loop: installed from the checkout into its own virtualenv, and
-    # relaunched on the code rather than reusing the shared tool install.
+    # The loop: installed from the checkout into its own virtualenv, serving
+    # that same checkout by `--root`, and relaunched on the code rather than
+    # reusing the shared tool install; any other exit stops it with its code.
     assert "uv pip install" in text
     assert "$HOME/.torve-engines/torve-self" in text
-    assert "[ $? -eq 6 ] || break" in text
+    assert '--root "$root"' in text
+    assert '[ "$status" -eq 6 ] || exit "$status"' in text
     assert "virtualenv of its own" in text
     assert "relaunch" in text
     assert "~/.local/bin/torve" in text

@@ -93,9 +93,11 @@ for that reason, in text and in `--format json`, and 0 for every other
 reason, so a launcher can loop on one code.
 
 The engine never installs itself: the chain's part ends at the exit code, and
-the launcher installs the new engine and relaunches the chain. For torve's own
-chain the loop installs into a virtualenv of its own, apart from the host's
-shared tool install, and relaunches on 6:
+the launcher installs the new engine and relaunches the chain, stopping on any
+other exit and passing that exit's code on. For torve's own chain the loop
+installs into a virtualenv of its own, apart from the host's shared tool
+install, serves the checkout it installed from with `--root`, and relaunches
+on 6:
 
 ```sh
 root=...              # torve's checkout, the tree the chain moves
@@ -104,8 +106,9 @@ engine=$HOME/.torve-engines/torve-self
 while :; do
   uv venv --allow-existing -q "$engine"
   uv pip install -q --python "$engine/bin/python" "$root[opensandbox,postgres,migrate]" || exit 1
-  "$engine/bin/torve" --plain manager serve torve --night --chain --config "$config"
-  [ $? -eq 6 ] || break
+  "$engine/bin/torve" --plain manager serve torve --night --chain --config "$config" --root "$root"
+  status=$?
+  [ "$status" -eq 6 ] || exit "$status"
 done
 ```
 

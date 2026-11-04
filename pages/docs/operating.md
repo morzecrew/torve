@@ -1391,7 +1391,10 @@ failed install leaves the previous engine in place and fails where the
 operator sees it.
 
 The launcher loops on that code — install, relaunch, and stop on any other
-exit — installing the engine from the checkout the chain fast-forwards:
+exit, passing that exit's code on — installing the engine from the checkout
+the chain fast-forwards, and serving that same checkout with `--root`, so the
+chain plans `$root` rather than whatever directory the launcher was started
+from:
 
 ```sh
 root=...              # torve's checkout, the tree the chain moves
@@ -1400,8 +1403,9 @@ engine=$HOME/.torve-engines/torve-self
 while :; do
   uv venv --allow-existing -q "$engine"
   uv pip install -q --python "$engine/bin/python" "$root[opensandbox,postgres,migrate]" || exit 1
-  "$engine/bin/torve" --plain manager serve torve --night --chain --config "$config"
-  [ $? -eq 6 ] || break
+  "$engine/bin/torve" --plain manager serve torve --night --chain --config "$config" --root "$root"
+  status=$?
+  [ "$status" -eq 6 ] || exit "$status"
 done
 ```
 

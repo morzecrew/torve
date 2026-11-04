@@ -1543,6 +1543,26 @@ class NightConfig(BaseModel):
     crosses a change to one of them, the engine has moved and the chain ends so a
     launcher can install the new one."""
 
+    @field_validator("engine_paths")
+    @classmethod
+    def _no_negation(cls, globs: list[str]) -> list[str]:
+        """A `!glob` is refused, as `Scope` refuses one (S-0120/D-1): the matcher
+        reads a leading `!` as a literal segment, so an entry that looked like
+        gitignore's negation would match no file and the engine check would
+        silently never fire. The night names what to watch, and has no `deny`
+        to point a reader at."""
+
+        negated = [glob for glob in globs if glob.startswith("!")]
+
+        if negated:
+            raise ValueError(
+                f"night.engine_paths may not start with '!' ({', '.join(negated)}): "
+                "the scope grammar has no negation, so the entry names a literal "
+                "path that matches nothing — list the files that make up the engine"
+            )
+
+        return globs
+
     @model_validator(mode="after")
     def _the_night_can_end_and_its_stops_can_fire(self) -> NightConfig:
         if self.budget_usd <= 0 and self.budget_attempts <= 0:
