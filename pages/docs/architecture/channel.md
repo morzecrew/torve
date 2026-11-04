@@ -64,8 +64,7 @@ bookkeeping before it is judged on it.
     path instead, read-only: the attempt's HEAD with its recent history and
     the worktree's index, and none of the host's config or other branches.
     `git status`, `diff` and `log` answer; nothing in the sandbox can write a
-    ref or an object. OpenSandbox ships no `.git`, so git does not answer
-    there, and the design does not lean on it: the divergence pin is dropped
+    ref or an object. The design does not lean on git either: the divergence pin is dropped
     into the worktree at dispatch instead of being derived, the engine
     records and re-projects the log host-side, and `torve log owed` takes the
     changed files as arguments rather than computing a diff.

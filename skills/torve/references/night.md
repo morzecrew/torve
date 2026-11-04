@@ -108,7 +108,7 @@ while :; do
   uv venv --allow-existing -q "$engine"
   SETUPTOOLS_SCM_PRETEND_VERSION=$images \
     uv pip install -q --reinstall-package torve --python "$engine/bin/python" \
-    "torve[opensandbox,postgres,migrate] @ file://$root" || exit 1
+    "torve[postgres,migrate] @ file://$root" || exit 1
   "$engine/bin/torve" --plain manager serve torve --night --chain --config "$config" --root "$root"
   status=$?
   [ "$status" -eq 6 ] || exit "$status"
@@ -212,10 +212,10 @@ what a pass did in its detail line and in the `issue_drafted` and
   to tonight's tasks. A task moves through queued, claimed or running, gated,
   ready, landed. Escalated or halted means it waits for you.
 - When the escalation queue reaches `loop.pause_escalations` every pass is
-  paused on purpose: a paused pass mints nothing, runs no standing job and
+  paused on purpose: a paused pass mints nothing, drafts no labelled issue and
   opens no review round. It does not stop work already on the board — queued
-  tasks are still claimed and run, an in-flight attempt finishes, the
-  notification relay pages, and with `promotion.landing: pull_request` the
+  tasks are still claimed and run, an in-flight attempt finishes, and with
+  `promotion.landing: pull_request` the
   lane still lands green candidates on their branches and republishes their
   pull requests. Resolve escalations until the queue is below the threshold
   (see `torve guide torve escalations`) to let new work through again.

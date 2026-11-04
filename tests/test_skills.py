@@ -61,19 +61,6 @@ def test_the_spec_writer_teaches_when_a_row_gets_a_property():
     assert "proves the check can fail" in text
 
 
-def test_the_spec_writer_reads_a_survivor_as_a_weak_check():
-    """S-0107/D-4 (documentation): a row's check is judged by the mutants it
-    leaves alive on its own lines, so the skill says a check that leaves
-    survivors there is a weak one — and that a survivor is evidence, graded,
-    never a verdict on its own."""
-
-    raw = (skills_root() / "spec-writer" / "SKILL.md").read_text(encoding="utf-8")
-    text = " ".join(raw.split())
-
-    assert "a check that leaves survivors on its row's lines is a weak check" in text
-    assert "A survivor is evidence, not a verdict" in text
-
-
 def test_hypothesis_is_a_direct_dev_dependency():
     """S-0106/D-4: a row's property imports Hypothesis without a fixture, so the
     dependency is named in the dev group rather than reached transitively
@@ -468,11 +455,10 @@ def test_every_verb_the_operator_skill_names_exists():
 
 
 def test_the_skills_tell_an_implementer_to_cite_the_row_a_test_proves():
-    """S-0115/D-8: the citations the `evidence` gate reads are written on
-    purpose — the working rules and the spec-writer skill both put the row's
-    full identifier in the test function's own docstring, as a whole token,
-    never in the module or class above it, and say the citation belongs in the
-    test the change turns green."""
+    """S-0115/D-8: the citations are written on purpose — the working rules and
+    the spec-writer skill both put the row's full identifier in the test
+    function's own docstring, as a whole token, never in the module or class
+    above it."""
 
     for skill in ("working-rules", "spec-writer"):
         raw = (skills_root() / skill / "SKILL.md").read_text(encoding="utf-8")
@@ -481,5 +467,3 @@ def test_the_skills_tell_an_implementer_to_cite_the_row_a_test_proves():
         assert "cites it in its own docstring" in text, skill
         assert "the row's full identifier, `S-NNNN/D-n`, as a whole token" in text, skill
         assert "A module or class docstring proves nothing for the tests beneath it" in text, skill
-        assert "red on the base tree and green on the candidate" in text, skill
-        assert "`evidence` gate" in text, skill

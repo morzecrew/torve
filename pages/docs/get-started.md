@@ -31,7 +31,6 @@ torve gates run --base main
  ✓   scope                pass      blocking
  ✓   secrets              pass      blocking
  ∅   no-test-tampering    skipped   blocking
- ∅   decisions-reported   skipped   blocking
 exit 0
 ```
 
@@ -75,10 +74,6 @@ gates:
     run: "@no-test-tampering"
     state: blocking
     origin: structural
-  - name: decisions-reported
-    run: "@decisions-reported"
-    state: blocking
-    origin: structural
   # Your test gate. Gates run inside the sandbox image (`runtime.image` in
   # config.yaml), so the command needs the toolchain that image carries.
   # - name: tests
@@ -111,8 +106,8 @@ the hooks' environments:
     origin: structural
 ```
 
-`no-test-tampering` and `decisions-reported` read a task contract and its
-log, so with no task they report `skipped`, never a silent green.
+`no-test-tampering` reads a task contract, so with no task it reports
+`skipped`, never a silent green.
 
 The run also warns `TwinlessGateWarning`. A gate can name a `sabotage:` twin,
 which is the evidence that the gate is able to fail. For a builtin, the twin
@@ -159,8 +154,7 @@ What these settings mean:
   the daemon at `tcp://127.0.0.1:2375`. A task's containers, ports and volumes
   are its own, and nothing it starts outlives it.
 
-`nested` needs the `docker` runtime; OpenSandbox and sealed broker mode refuse
-it, and the review role is refused — a judge never starts containers. The
+Sealed broker mode refuses `nested`, and so does the review role — a judge never starts containers. The
 sandbox image must carry the Docker CLI: the published base does, so pull it
 rather than a stock language image, or derive from it for what it lacks.
 

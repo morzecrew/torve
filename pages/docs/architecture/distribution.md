@@ -19,7 +19,7 @@ list.
 | assignment state lives in the runner | a killed run needed a reaper to notice | a worker holds a lease and nothing else; the manager reclaims it from the record when it goes quiet (S-0044/D-6) |
 | the tick's dispatch rules are the only ones | a filesystem scan | the same rules over the record, and the scan is deleted — the oversize skip and the already-ran test were the last two to move (S-0019 S-0019/A-8) |
 | the planning reports read one host's files | a scan of `.torve/` and `.wt/` | `why`, `status` and `context` answer from the record when a partition is named, and name the carrier they used |
-| one manager, one repository | a process and a hand-typed partition per repo | one resident process over the operator's fleet manifest, which now names the board each root mints onto |
+| the partition is typed on every report | a hand-typed partition per repo | the configuration's `scm.repo` names the board a repository's nights are served under |
 | the corpus is only readable by re-parsing it | every reader walked `rfcs/` and re-parsed each document | the corpus is imported into the record; decisions are versioned subjects answered by query |
 | a worker needs the repository to know what it is running | dispatch read every `contract.yaml` off disk, every pass | the mint carries the contract; the board answers what a partition can start, and the task directory is an importer |
 
@@ -48,9 +48,9 @@ The design survives in its document for whoever rebuilds it.
 
 Item 4 — run state and telemetry as files — is crossed off. `torve why`,
 `torve status` and `torve context` answer from the record when a partition
-is named and say in the report which carrier answered, and the two surfaces
-that re-expose them — the served dashboard and the MCP tool — take the same
-partition and read it per request (S-0032 S-0032/A-3). `--dsn` defaults to the
+is named and say in the report which carrier answered, and the surface
+that re-exposes them — the MCP tool — takes the same partition and reads it
+per request (S-0032 S-0032/A-3). `--dsn` defaults to the
 DSN the configuration names, so naming the partition is the whole of it.
 
 What stays on files by shape rather than by schedule: the findings ledger,
@@ -60,45 +60,12 @@ the event vocabulary, not a change of source.
 
 ## How a second repository gets served
 
-One process, one manifest, one log. The operator's fleet manifest already
-listed every repository, in a deterministic order, with a trust class each
-and one attention budget across all of them; it now also names the partition
-a repository's contracts are minted onto.
-
-```yaml
-# ~/.config/torve/fleet.yaml
-repositories:
-  - root: ~/GitLibrary/Morze/torve
-    trust: own
-    partition: morzecrew/torve
-  - root: ~/work/atlas
-    trust: reviewed
-    partition: acme/atlas
-```
-
-```console
-$ torve fleet serve --dsn "$TORVE_PG_DSN"
-```
-
-The partition is declared there and never derived, for the reason the trust
-class is: a repository under work configures nothing about the engine that
-works on it, and a repository that chose its own partition could mint onto a
-board it was never given. Deriving it from the git remote is convenient and
-wrong for a repository with no remote, with two, or with one that changed.
-
-A round surveys every queue, decides one pause for the fleet total, then
-gives each repository a single pass under its own trust class. A repository
-with no partition, or whose configuration asks for more than its class
-allows, or that fails outright, is recorded and the round carries on — a
-manager that stopped serving four healthy repositories because a fifth was
-broken would be worse than one that says so.
-
-**Rounds are serial.** One long attempt delays every other partition's next
-pass by its whole duration. Running partitions at once is the obvious next
-move and is deliberately not built: it needs a seat allocator that will not
-run two workers under one cache volume, a broker per worker, and a decision
-about how many attempts an operator wants running unattended. It is worth
-doing when someone feels the delay, not before.
+One manager per partition: each repository runs its own `torve manager serve`
+over the same log, under its own configuration. The fleet that ticked every
+root in one round left in 0.9.0 with nothing serving more than one repository
+through it (S-0122/D-17); serving several at once in one process waits on a
+seat allocator, a broker per worker and a decision about how many attempts an
+operator wants running unattended.
 
 ## The wall that is not a file
 

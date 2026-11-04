@@ -6,9 +6,9 @@ corpus: "rfcs/ — the specification corpus" {
 }
 
 cli: "cli/ — Typer verbs, presentation only" {
-  run: "run · tick · fleet"
+  run: "run · manager"
   plan: "plan · rfc"
-  obs: "status · context · serve"
+  obs: "status · context · mcp"
 }
 
 application: "application/ — the engine" {
@@ -22,8 +22,8 @@ application: "application/ — the engine" {
 }
 
 gates: "gates/ — the battery" {
-  builtins: "builtin gates\n(scope · decisions-reported · …)"
-  shell: "shell gates\n(acceptance · coverage-delta)"
+  builtins: "builtin gates\n(scope · suite · …)"
+  shell: "shell gates\n(lint · layering · mypy)"
 }
 
 ports: "application ports (Protocols)" {
@@ -31,7 +31,7 @@ ports: "application ports (Protocols)" {
 }
 
 adapters: "adapters/ — one directory per port" {
-  runtime: "runtime\ndocker · opensandbox"
+  runtime: "runtime\ndocker"
   agent: "agent\nharness · fake"
   store: "store\nmock (jsonl) · postgres (forze)"
   vcs: "vcs + workspace\ngit"

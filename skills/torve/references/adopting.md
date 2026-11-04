@@ -47,8 +47,8 @@ layout:
   carried: [migrations]  # top-level directories that ride with any change
 ```
 
-Then every check a root project gets — the source-layout gate, the citation
-scan, the spec-quality frontier, the coverage fallback and the `tests`
+Then every check a root project gets — the citation scan, the spec-quality
+frontier, the coverage fallback and the `tests`
 defaults — reads under `app/`, and `migrations/` rides with a change the way
 `tests` and `.torve` already do. A project at the repository root declares
 nothing and changes nothing.

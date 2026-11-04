@@ -39,8 +39,7 @@ uv tool install 'torve[postgres,migrate]'   # a repository installs torve as a t
 One install carries every extra it needs; installing again with other extras
 needs `--force`. The extras: `postgres`, the durable run store and the
 manager's log; `migrate`, `torve migrate` for that store's schema; `mcp`, the
-planning session's read surface; `serve`, the loopback dashboard;
-`opensandbox`, the OpenSandbox runtime adapter.
+planning session's read surface.
 
 From a checkout instead: `uv sync`, then `uv run torve ...`.
 
@@ -73,9 +72,8 @@ torve gates run --format json        # the same, for a machine
 torve gates check                    # the sabotage suite: prove each gate can fail
 ```
 
-The builtin gates are `scope`, `secrets`, `no-test-tampering`,
-`decisions-reported`, `acceptance`, `red-on-base`, `self-audit`,
-`source-layout` and `user-facing-text`. Anything else is a shell command in
+The builtin gates are `scope`, `secrets`, `no-test-tampering`, `acceptance`
+and `suite`. Anything else is a shell command in
 the manifest. Gates that need a task contract report `skipped` without one,
 never a silent green.
 
@@ -149,7 +147,6 @@ torve context                    # the planning report: tasks, escalations,
 torve ledger                     # cost and attempts per landing, per seat and gate
 torve mcp                        # the same facts as a read-only MCP server
 torve doctor                     # configuration and environment checks
-torve shadow T-0001              # replay landed work for harness comparison
 ```
 
 Every attempt appends one telemetry record stamped with a `config_hash` of
