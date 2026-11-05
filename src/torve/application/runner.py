@@ -445,7 +445,7 @@ def _write_attempt_record(run: Dispatch, record: dict[str, Any], attempt: int) -
     numbers."""
 
     payload = record_payload(record, attempt)
-    manifest_rel = load_manifest(layout.gates_file(run.worktree)).telemetry
+    manifest_rel = load_manifest(run.manifest_file).telemetry
 
     append_record(
         run.root / manifest_rel, record_row(payload, task_id=record["task_id"], at=record["at"])
@@ -932,12 +932,15 @@ def _nested_docker(run: Dispatch, role: str) -> NestedDocker | None:
         return None
 
     nested = run.config.runtime.nested
+    # The battery's daemon state is its own, like its cache (S-0122/D-3):
+    # candidate code a gate ran must not leave images for the next attempt.
+    suffix = "-gates" if role == "gates" else ""
 
     return NestedDocker(
         image=nested.image,
         # A shadow run starts cold (S-0035/D-3): no slot volume, so its daemon
         # gets a throwaway one that leaves with the side container.
-        volume="" if run.shadow else f"{nested.cache_volume}-{run.config.worker_slot}",
+        volume="" if run.shadow else f"{nested.cache_volume}-{run.config.worker_slot}{suffix}",
         registry_mirrors=tuple(nested.registry_mirrors),
         ready_s=nested.ready_s,
     )
@@ -960,10 +963,11 @@ def _gates_spec(run: Dispatch, state: RunState) -> SandboxSpec:
         labels=naming.labels(run.task.id, state.run_id, run.root),
         timeout_s=run.config.runtime.sandbox_timeout,
         # The battery pays the toolchain cold tax (mypy, ruff, uv all
-        # run under these gates), so the live gates sandbox carries the
-        # same derived-cache mount the attempt did — an empty dict here
-        # is the cold pass, shadow's the exclusion (S-0035/D-3).
-        volumes=cache_volumes(run),
+        # run under these gates), so the live gates sandbox carries a
+        # derived cache of its own — never the attempt's, which candidate
+        # code run here could seed for the next attempt (S-0122/D-3). An
+        # empty dict is the cold pass, shadow's the exclusion (S-0035/D-3).
+        volumes=cache_volumes(run, "gates"),
         # The gates sandbox gets the nested daemon first (S-0111/D-4).
         nested=_nested_docker(run, "gates"),
     )
@@ -1129,12 +1133,10 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
     the event the board folds. The row is written whether or not anything
     is observing — the record exists before either carrier does."""
 
-    manifest_path = layout.gates_file(run.worktree)
+    manifest_path = run.manifest_file
 
     if not manifest_path.is_file():
-        raise FileNotFoundError(
-            f"no gate manifest in the worktree ({manifest_path}) — gates are fail-closed"
-        )
+        raise FileNotFoundError(f"no gate manifest at {manifest_path} — gates are fail-closed")
 
     manifest = load_manifest(manifest_path)
 
@@ -1168,6 +1170,21 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
             if held.is_file() and not carried.exists():
                 carried.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(held, carried)
+
+        # S-0121/D-3: the contract judged is the root's, over any copy the
+        # agent could have edited in its worktree. With no file at the root
+        # the store holds the contract, and the record dispatched is the one.
+        if not run.shadow:
+            from torve.application.planner import project_contract
+
+            carried = layout.task_file(judge, run.task.id)
+            carried.unlink(missing_ok=True)
+
+            if source.is_file():
+                carried.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(source, carried)
+            else:
+                project_contract(judge, run.task)
 
         # The base is resolved on the host and named to the checkout by the sha
         # of its merge base with the attempt (S-0114/D-1): an ancestor of the
@@ -1561,7 +1578,8 @@ def _repair_gate(run: Dispatch) -> tuple[str, str] | None:
     the ladder's own order."""
 
     try:
-        resolved = load_manifest(layout.gates_file(run.worktree)).resolved_gates()
+        # The battery's own manifest, so the repair is for the gate that convicted.
+        resolved = load_manifest(run.manifest_file).resolved_gates()
 
     except (OSError, ValueError, yaml.YAMLError):
         # Nothing classified, nothing qualified: an unreadable manifest

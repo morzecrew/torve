@@ -158,14 +158,12 @@ def retry_rung_for(
     return ""  # unreachable: convicted holds only axes from the full AXIS_SEVERITY ladder
 
 
-def _retry_gate_axes(worktree: Path) -> Mapping[str, GateAxis]:
-    """Gate name → declared axis, read from the manifest of the tree that
-    convicted — the same file the gate pass loaded, so selection classifies
+def _retry_gate_axes(manifest_path: Path) -> Mapping[str, GateAxis]:
+    """Gate name → declared axis, read from the manifest the gate pass
+    loaded (the one at the merge base, S-0121/D-3), so selection classifies
     each conviction exactly as its declaration labels it. A missing or
     unreadable manifest maps nothing: every failing gate then reads as the
     unlabeled default, functional, the fail-safe that routes up (S-0034/D-4)."""
-
-    manifest_path = layout.gates_file(worktree)
 
     if not manifest_path.is_file():
         return {}
@@ -206,7 +204,11 @@ def advance_tier(run: Dispatch, state: RunState) -> Agent:
     retry_agent = run.deps.retry_agent
 
     if retry_agent is not None and previous_attempt_gate_red(state):
-        rung = retry_rung_for(run.tier, run.convictions, _retry_gate_axes(run.worktree))
+        rung = retry_rung_for(
+            run.tier,
+            run.convictions,
+            _retry_gate_axes(run.manifest_file),
+        )
 
         if rung:
             resolved_name = rung
@@ -460,7 +462,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
                 root,
                 root / config.specs.path,
                 task,
-                layout.gates_file(worktree),
+                layout.gates_file(worktree if shadow else root),
                 replay=shadow,
             ),
         )
@@ -561,6 +563,16 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
                 started_at=attempt_started_at,
             ),
         )
+
+        # S-0122/D-4: what the profile runs over the tree once the agent is
+        # done (a formatter's fixes), before the tree leaves the sandbox.
+        # `run.meta` is one dict for the whole run (T-0187): an earlier
+        # attempt's finish must not read as this one's.
+        run.meta.pop("finish_s", None)
+        run.meta.pop("finish_output", None)
+
+        if run.tier.finish:
+            await _finish(run, handle, spec)
 
         deps.runtime.sync_out(handle, worktree)
 
@@ -797,6 +809,24 @@ def _exclude_equip_root(worktree: Path, equip_root: str) -> None:
 
     with exclude.open("a", encoding="utf-8") as handle:
         handle.write(f"# torve: the harness's equipment root (S-0063/D-19)\n{line}\n")
+
+
+# ....................... #
+
+
+async def _finish(run: Dispatch, handle: SandboxHandle, spec: SandboxSpec) -> None:
+    """The seat's `finish` command over the agent's tree, timed and booked
+    beside the attempt (S-0122/D-4). Its exit convicts nothing: the battery
+    judges the tree it leaves, and a failure is kept as output on the record."""
+
+    started = time.monotonic()
+    result = await asyncio.to_thread(
+        run.deps.runtime.exec, handle, f"cd {spec.workdir} && {run.tier.finish}", spec.timeout_s
+    )
+    run.meta["finish_s"] = round(time.monotonic() - started, 3)
+
+    if result.exit_code != 0:
+        run.meta["finish_output"] = result.output
 
 
 # ....................... #

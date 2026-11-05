@@ -8,6 +8,9 @@
 # (S-0063/D-9). `torve equip` fetches each into the cache host-side, the seat
 # mounts it read-only, and the image's own `equip` turns the manifest into the
 # flags claude takes (S-0063/D-3).
+# The formatter's fixes, applied by the engine once the agent stops and before
+# the tree leaves the sandbox (S-0122/D-4): 27 of 44 lint reds were format-only.
+finish: "uv run ruff format --quiet . && uv run ruff check --fix --exit-zero --quiet ."
 equipment:
 - kind: plugin
   source: github:JuliusBrussee/caveman

@@ -239,6 +239,44 @@ class Dispatch:
     # ....................... #
 
     @property
+    def manifest_file(self) -> Path:
+        """The gate manifest this attempt is judged by (S-0121/D-3): the one
+        committed at the attempt's merge base with its base, or the root's
+        when that commit holds none — never one the attempt could edit in its
+        worktree, and never one the root changed after the cut. A replay
+        judges by the manifest its clone holds."""
+
+        if self.shadow:
+            return layout.gates_file(self.worktree)
+
+        from torve.base import naming
+        from torve.gates.context import GitError, git, resolve_base
+
+        rel = layout.gates_file(Path()).as_posix()
+
+        try:
+            base = resolve_base(self.worktree, self.gates_base or self.config.base)
+            sha = git(self.worktree, "merge-base", base, "HEAD").strip() if base else ""
+
+        except GitError:
+            sha = ""
+
+        # Only a merge base holding no manifest falls back: a blob it holds
+        # and git cannot read fails the pass rather than judge by another.
+        if not sha or not git(
+            self.worktree, "ls-tree", "--full-tree", "--name-only", sha, "--", rel
+        ):
+            return layout.gates_file(self.root)
+
+        held = naming.base_manifest_file(self.root, self.task.id)
+        held.parent.mkdir(parents=True, exist_ok=True)
+        held.write_text(git(self.worktree, "show", f"{sha}:{rel}"), encoding="utf-8")
+
+        return held
+
+    # ....................... #
+
+    @property
     def broker(self) -> Broker | None:
         """The broker only when it is actually open. Every caller needs both
         facts and checking one without the other is how a run reports usage
@@ -683,7 +721,7 @@ def emit(run: Dispatch, kind: str, attempt: int, /, **payload: object) -> None:
 # ....................... #
 
 
-def cache_volumes(run: Dispatch) -> dict[str, str]:
+def cache_volumes(run: Dispatch, role: str = "") -> dict[str, str]:
     """The derived-cache volume this run's current regime mounts (S-0035
     §5.2, S-0035/D-4): named like the auth volume — base plus `-<slot>`, so two
     concurrent workers never share a cache — at the fixed address outside
@@ -692,15 +730,17 @@ def cache_volumes(run: Dispatch) -> dict[str, str]:
 
     Always empty under shadow (S-0035/D-3): a replay measures the cold truth
     even when the tier names a cache, so an eval comparing arms never
-    compares caches. Both the agent's sandbox and the gate battery's read
-    it here, because a pass that judged a different cache than the attempt
-    ran under would be judging a different regime.
+    compares caches. A *role* names a volume of its own: the gate battery's
+    is never the attempt's, because candidate code a gate runs could leave
+    files there for the next attempt to read (S-0122/D-3).
     """
 
     if run.shadow or not run.tier.cache_volume:
         return {}
 
-    return {f"{run.tier.cache_volume}-{run.config.worker_slot}": CACHE_MOUNT}
+    suffix = f"-{role}" if role else ""
+
+    return {f"{run.tier.cache_volume}-{run.config.worker_slot}{suffix}": CACHE_MOUNT}
 
 
 # ....................... #
@@ -711,7 +751,7 @@ def telemetry_target(run: Dispatch) -> Path:
     record must never depend on the manifest existing — a worktree with no
     gates.yaml still burned the money."""
 
-    manifest_file = layout.gates_file(run.worktree)
+    manifest_file = run.manifest_file
     telemetry_rel = (
         load_manifest(manifest_file).telemetry if manifest_file.is_file() else Manifest().telemetry
     )

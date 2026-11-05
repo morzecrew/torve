@@ -1,4 +1,4 @@
-"""Sabotage for the `lint` gate: one red case per half, and a green twin.
+"""Sabotage for the `lint` and `mypy` gates: one red case per half, and a green twin.
 
 The gate exists because the battery had no style check at all for a run with a
 task contract. `ruff check` sat in the `acceptance` gate's fallback `commands`
@@ -89,6 +89,51 @@ def test_an_unformatted_file_reddens(repo):
 def test_clean_and_formatted_passes(repo):
     seed(repo, CLEAN)
     assert outcome(repo) == "pass"
+
+
+# ....................... #
+# The `mypy` gate (S-0122/D-4), same wiring check: a type error reddens it and a
+# typed package passes.
+
+needs_mypy = pytest.mark.skipif(shutil.which("mypy") is None, reason="mypy not installed")
+
+MYPY_MANIFEST = {
+    "schema_version": 1,
+    "scope": {"allow": [], "deny": []},
+    "gates": [
+        {
+            "name": "mypy",
+            "run": "mypy pkg",
+            "state": "blocking",
+            "origin": "S-0122",
+            "input": "worktree",
+            "timeout": 120,
+        }
+    ],
+}
+
+TYPED = "def double(value: int) -> int:\n    return value * 2\n"
+
+MISTYPED = 'def double(value: int) -> int:\n    return "twice"\n'
+
+
+def mypy_outcome(repo, body: str) -> str:
+    repo.seed(MYPY_MANIFEST)
+    repo.write("pkg/thing.py", body)
+    repo.commit("scratch package")
+    manifest = load_manifest(layout.gates_file(repo.root))
+    report = run_gates(build_context(repo.root, manifest, base="main"), only={"mypy"})
+    return report.results[0].outcome
+
+
+@needs_mypy
+def test_a_type_error_reddens_the_mypy_gate(repo):
+    assert mypy_outcome(repo, MISTYPED) == "fail"
+
+
+@needs_mypy
+def test_a_typed_package_passes_the_mypy_gate(repo):
+    assert mypy_outcome(repo, TYPED) == "pass"
 
 
 # ....................... #

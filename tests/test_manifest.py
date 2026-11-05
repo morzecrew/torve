@@ -374,21 +374,40 @@ def test_a_blank_twin_is_refused(tmp_path):
         load_manifest(write_manifest(tmp_path, _gate(sabotage="   ")))
 
 
-def test_this_repositorys_manifest_names_the_projection_gate_and_its_twin():
-    """S-0054 S-0054/D-7: the rendered AGENTS.md sections are drift-checked by a
-    manifest gate; it enters at shadow (S-0002/D-18) and names the test file
-    whose drift case reddens it (S-0036/D-3)."""
+def test_this_repositorys_attempt_battery_judges_code_only():
+    """S-0122/D-4: an attempt here meets the gates that judge code, its rows'
+    checks wait for the document's completion, and the spec checks that left
+    the battery run in CI and at the document's completion instead."""
 
     from pathlib import Path
 
     from torve.config.manifest import load_manifest
 
-    manifest = load_manifest(Path(__file__).resolve().parent.parent / ".torve" / "gates.yaml")
-    gate = next(g for g in manifest.resolved_gates() if g.name == "spec-projection")
+    root = Path(__file__).resolve().parent.parent
+    manifest = load_manifest(root / ".torve" / "gates.yaml")
 
-    assert gate.run == "uv run torve spec project --check"
-    assert gate.state == "shadow" and gate.axis == "form"
-    assert gate.sabotage == "tests/test_colocation.py"
+    assert {g.name for g in manifest.resolved_gates()} == {
+        "scope",
+        "secrets",
+        "no-test-tampering",
+        "lint",
+        "layering",
+        "mypy",
+        "suite",
+        "acceptance",
+    }
+    assert manifest.rows == "completion"
+    gates = {g.name: g for g in manifest.resolved_gates()}
+    assert gates["mypy"].run == "uv run mypy src"
+    # A document's completion battery runs under no contract: the fallback.
+    assert {"uv run torve spec check", "uv run torve spec project --check"} <= set(
+        gates["acceptance"].commands
+    )
+
+    workflow = yaml.safe_load((root / ".github" / "workflows" / "ci.yml").read_text("utf-8"))
+    runs = [step.get("run") for step in workflow["jobs"]["gates"]["steps"]]
+    assert "uv run torve spec check" in runs
+    assert "uv run torve spec project --check" in runs
 
 
 def test_the_computed_order_puts_no_gate_before_one_declaring_less(repo):

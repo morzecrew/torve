@@ -1009,6 +1009,11 @@ def _drive_task(tmp_path: Path, config: RunnerConfig, task: Task, deps) -> objec
     (worktree / ".torve" / "gates.yaml").write_text(
         "schema_version: 1\ngates: []\n", encoding="utf-8"
     )
+    # The battery reads the root's manifest, never the worktree's (S-0121/D-3).
+    (tmp_path / ".torve").mkdir(exist_ok=True)
+    (tmp_path / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
     subprocess.run(["git", "init", "-q"], cwd=worktree, check=True)
     subprocess.run(["git", "-C", str(worktree), "config", "user.email", "t@t"], check=True)
     subprocess.run(["git", "-C", str(worktree), "config", "user.name", "t"], check=True)

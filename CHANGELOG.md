@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- An agent profile's `finish` command runs in the sandbox after the agent stops and
+  before its tree is judged, for example a formatter's fixes. Its exit status never
+  fails the attempt.
+
+- `rows: completion` in the gate manifest runs a contract row's `check` only in the
+  battery that completes its document, instead of on every attempt.
+
+### Security
+
+- The gates read the gate manifest committed at the attempt's merge base, and the
+  contract from the root or the store, never from the attempt's worktree. An attempt
+  could previously edit both and change which gates judged it. A root edit after the
+  cut no longer moves an attempt in flight.
+
+- The gate battery, the lane's included, mounts a cache volume of its own
+  (`<cache_volume>-<slot>-gates`) and a nested Docker daemon's state volume of its
+  own. Code a gate ran could previously leave files or images there for the next
+  attempt to read.
+
 ## [0.8.0] - 2026-11-04
 
 ### Added

@@ -47,10 +47,10 @@ decisions:
   - id: D-4
     grade: ASSUMED
     text: >-
-      The attempt battery is six gates that judge code (`secrets`, `scope` blocking
-      on the fence only, `suite` with attribution, `mypy` on new errors only, `layering`,
-      protected-test tampering), the engine runs ruff's fixes in the sandbox before
-      the snapshot, and no other gate runs on an attempt
+      The attempt battery judges code only: secrets, scope, no-test-tampering, lint,
+      layering, mypy, the suite with attribution and the task's acceptance; a seat's
+      finish command applies the formatter's fixes before the tree leaves the sandbox,
+      and a contract row's check runs at document completion, not on every attempt
     paths:
       - .torve/gates.yaml
       - src/torve/gates/runner.py
@@ -60,6 +60,7 @@ decisions:
       55% of red attempts were red only on bookkeeping gates, and 27 of 44 lint reds
       were formatting the engine can fix itself
     cites: [S-0121/D-25, S-0121/D-26]
+    fingerprint: bad8cda0dd671bb5/1276d8264d4b28b4
   - id: D-5
     grade: ASSUMED
     text: >-

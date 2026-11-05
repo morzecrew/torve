@@ -1,1 +1,5 @@
 The suite runs in parallel (`-n auto`, S-0071/D-1): a test that reaches a shared daemon must name the sandboxes it asserts on rather than filter a listing on a label literal another test also uses — on a parallel run that filter matches every concurrent test's containers too.
+
+<!-- torve:managed tests — rendered from the corpus; do not edit by hand -->
+
+<!-- /torve:managed -->

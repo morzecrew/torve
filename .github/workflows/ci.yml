@@ -31,9 +31,12 @@ jobs:
       - run: uv sync --frozen
       # The sabotage suite: a gate that cannot be shown to fail is not a check.
       - run: uv run torve gates check
-      # The repository's own manifest, on human and agent PRs alike. Task
-      # branches (torve/T-nnnn) auto-discover their contract; without one the
-      # acceptance gate runs the manifest's fallback battery — ruff, mypy,
-      # pytest, rfc check. CI does not run those a second time itself (A-52):
-      # one step, one battery, and the gate is the thing under test.
+      # The corpus and its projections: judged here, once per pull request,
+      # rather than on every attempt (S-0122/D-4).
+      - run: uv run torve spec check
+      - run: uv run torve spec project --check
+      # The repository's own manifest, on human and agent PRs alike: lint,
+      # layering, mypy and the suite run as gates of the battery, and CI does
+      # not run them a second time itself — one step, one battery, and the gate
+      # is the thing under test.
       - run: uv run torve gates run --base origin/main

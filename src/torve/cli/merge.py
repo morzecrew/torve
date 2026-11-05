@@ -462,7 +462,8 @@ def _lane_gates(root: Path, config: RunnerConfig) -> SandboxFactory:
     nested = (
         NestedDocker(
             image=config.runtime.nested.image,
-            volume=f"{config.runtime.nested.cache_volume}-{config.worker_slot}",
+            # The battery's own daemon state, never the attempts' (S-0122/D-3).
+            volume=f"{config.runtime.nested.cache_volume}-{config.worker_slot}-gates",
             registry_mirrors=tuple(config.runtime.nested.registry_mirrors),
             ready_s=config.runtime.nested.ready_s,
         )
@@ -484,8 +485,10 @@ def _lane_gates(root: Path, config: RunnerConfig) -> SandboxFactory:
                 # engine's container as its own.
                 labels=naming.labels(label, "lane", root),
                 timeout_s=config.runtime.sandbox_timeout,
+                # The battery's own cache, never the attempt's: candidate code
+                # a lane battery runs must not seed it (S-0122/D-3).
                 volumes=(
-                    {f"{seat.cache_volume}-{config.worker_slot}": CACHE_MOUNT}
+                    {f"{seat.cache_volume}-{config.worker_slot}-gates": CACHE_MOUNT}
                     if seat.cache_volume
                     else {}
                 ),

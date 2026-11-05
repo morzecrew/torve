@@ -29,6 +29,12 @@ Torve owns the DDL for every relation it uses as owner-grouped, forward-only, ch
 - Paths: `migrations/**` `src/torve/application/migrate.py` `src/torve/cli/migrate.py` `pyproject.toml`
 - Check: `uv run pytest tests/test_migrate.py` (shadow; runs as `decision:S-0121/D-20`, no log entry owed)
 
+### S-0122/D-20 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+The import-linter independence contract covers every adapter package, including the broker and the event store
+
+- Paths: `pyproject.toml`
+
 <!-- /torve:managed -->
 
 <!-- torve:managed root index — rendered from the corpus; do not edit by hand -->
@@ -43,23 +49,33 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `sandboxes/base/` — 1 decision(s)
 - `sandboxes/claude/` — 1 decision(s)
 - `sandboxes/claude/toolkit/` — 1 decision(s)
-- `sandboxes/dsh/` — 1 decision(s)
-- `sandboxes/dsh/toolkit/` — 1 decision(s)
+- `sandboxes/codex/` — 0 decision(s)
+- `sandboxes/dsh/` — 2 decision(s)
+- `sandboxes/dsh/toolkit/` — 2 decision(s)
+- `sandboxes/mimo/` — 1 decision(s)
+- `sandboxes/opencode/` — 0 decision(s)
+- `skills/flag-dont-flip/` — 0 decision(s)
 - `skills/hooks/implement/` — 1 decision(s)
 - `skills/torve/` — 1 decision(s)
+- `skills/verifier/` — 0 decision(s)
+- `skills/working-rules/` — 0 decision(s)
 - `src/torve/` — 1 decision(s)
-- `src/torve/adapters/agent/` — 4 decision(s)
+- `src/torve/_web/` — 0 decision(s)
+- `src/torve/adapters/agent/` — 5 decision(s)
 - `src/torve/adapters/broker/` — 2 decision(s)
 - `src/torve/adapters/eventstore/` — 1 decision(s)
-- `src/torve/adapters/runtime/` — 2 decision(s)
+- `src/torve/adapters/notify/` — 0 decision(s)
+- `src/torve/adapters/runtime/` — 3 decision(s)
 - `src/torve/adapters/store/` — 1 decision(s)
 - `src/torve/adapters/vcs/` — 5 decision(s)
 - `src/torve/adapters/workspace/` — 1 decision(s)
-- `src/torve/application/` — 26 decision(s)
+- `src/torve/application/` — 43 decision(s)
 - `src/torve/base/` — 3 decision(s)
-- `src/torve/cli/` — 10 decision(s)
-- `src/torve/config/` — 12 decision(s)
-- `src/torve/domain/` — 8 decision(s)
-- `src/torve/gates/` — 5 decision(s)
+- `src/torve/cli/` — 11 decision(s)
+- `src/torve/config/` — 14 decision(s)
+- `src/torve/domain/` — 11 decision(s)
+- `src/torve/gates/` — 12 decision(s)
+- `tests/` — 0 decision(s)
+- `web/` — 1 decision(s)
 
 <!-- /torve:managed -->

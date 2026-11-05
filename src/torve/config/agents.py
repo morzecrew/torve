@@ -87,6 +87,10 @@ class AgentProfile(BaseModel):
     built, a cache warmed. Its failure is an infrastructure failure and convicts
     nothing (S-0062/D-7); chained into the harness command it would be booked as a
     gate-red conviction instead."""
+    finish: str = ""
+    """A command run in the sandbox after the agent and before its tree leaves — a
+    formatter's fixes applied (S-0122/D-4). Its exit convicts nothing: the battery
+    judges the tree it leaves."""
     prompt_extras: str = ""
     """Prose appended after the charter's base rules — never before, never replacing
     them (S-0061/D-4). One block, written as it should read: a list rendered one

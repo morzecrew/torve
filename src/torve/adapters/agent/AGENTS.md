@@ -30,4 +30,10 @@ Session traces live under `.torve/traces/`, are never committed, uploaded or put
 - Paths: `src/torve/adapters/agent/harness.py` `src/torve/application/reaper.py` `src/torve/application/contextpack.py`
 - Check: `uv run pytest tests/test_reaper.py::test_retention_touches_nothing_within_both_bounds` (shadow; runs as `decision:S-0121/D-40`, no log entry owed)
 
+### S-0122/D-11 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+
+The engine drives a dsh session through headless `--json` and continues it with `--session-id`, reads tool calls, results and per-step usage from the NDJSON events in place of `report-usage`, and interrupts a session by killing the process and resuming it later
+
+- Paths: `src/torve/adapters/agent/harness.py` `src/torve/adapters/agent/dsh_session.py` `sandboxes/dsh/toolkit/**`
+
 <!-- /torve:managed -->

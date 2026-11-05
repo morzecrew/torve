@@ -194,6 +194,10 @@ class TierConfig(BaseModel):
     """S-0062/D-7: the command run in the sandbox before the agent, on its own clock —
     a non-zero exit is an infrastructure failure and convicts nothing."""
 
+    finish: str = ""
+    """S-0122/D-4: the command run in the sandbox after the agent, before its tree
+    leaves — its exit convicts nothing; the battery judges what it leaves."""
+
     skills: list[str] | None = None
     """S-0029/equipment-on-the-tier, S-0029/D-1: the package-data skill names this seat's
     agent materializes, derived from `equipment` (S-0062/D-1) — `None` is a seat whose
