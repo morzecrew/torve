@@ -1629,16 +1629,6 @@ def _width(run: Dispatch, state: RunState) -> tuple[int, str]:
     return (selection.WIDTHS[size] if critic else 1), size
 
 
-def _head(worktree: Path) -> str:
-    """The commit *worktree* stands at, or "" when git cannot say."""
-
-    try:
-        return git(worktree, "rev-parse", "HEAD").strip()
-
-    except GitError:
-        return ""
-
-
 def _candidate_dispatch(run: Dispatch, start: Dispatch, index: int, base: str) -> Dispatch:
     """Candidate *index*'s own dispatch over its own worktree: the regime and
     the broker are the run's, and the terms are as *start* held them before
@@ -1675,9 +1665,10 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
     reviews: list[str] = []
     run.meta.pop("candidate", None)
     start = replace(run, meta=dict(run.meta), repaired_gates=set(run.repaired_gates))
-    # The unit's one base, read before the first candidate's red can commit
-    # its convicted tree onto the task's worktree (S-0069/D-4).
-    base = await asyncio.to_thread(_head, run.worktree)
+    # The unit's one tree, taken before the first candidate changes it or its
+    # red commits a convicted tree there (S-0069/D-4): a retry's candidates all
+    # start from the work the attempt before them left.
+    base = await asyncio.to_thread(run.deps.workspace.snapshot, run.task.id)
 
     async def launch(index: int, clock: float) -> selection.Candidate:
         crun = (
@@ -1694,6 +1685,19 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         first: list[AgentResult] = []
         held: list[tuple[int, str, str]] = []
 
+        async def judged() -> tuple[int, str, str] | None:
+            # The loop's own gates step, as it reads a pass that raised: the
+            # escalation ends the unit, and a refusal to dispatch goes back.
+            try:
+                return await judge(crun, state)
+
+            except (BlockedDispatch, asyncio.CancelledError):
+                raise
+
+            except Exception as exc:
+                state.escalate(EscalationReason.GATE_INFRASTRUCTURE_FAILURE, repr(exc))
+                return None
+
         async def repair(result: AgentResult) -> str | None:
             first.append(result)
 
@@ -1701,7 +1705,11 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             if state.escalation is not None or halted(crun, state.attempts) is not None:
                 return None
 
-            verdict = await judge(crun, state)
+            verdict = await judged()
+
+            if verdict is None:
+                return None
+
             held.append(verdict)
             mechanical = verdict[0] != 0 and selection.repairable(crun.convictions)
 
@@ -1721,7 +1729,12 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         ):
             # The repair callback judged the tree the first turn left; a turn
             # after it changed the tree, so that one is judged again.
-            verdict = held[0] if held and not candidate.followed_up else await judge(crun, state)
+            verdict = held[0] if held and not candidate.followed_up else await judged()
+
+            if verdict is None:
+                candidate.wall_s = time.monotonic() - started
+                return candidate
+
             crun.preselected = verdict
             candidate.green = verdict[0] == 0
             candidate.patch = crun.last_pass.patch

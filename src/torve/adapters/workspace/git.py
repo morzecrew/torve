@@ -300,12 +300,21 @@ class GitWorkspace:
 
     # ....................... #
 
+    def snapshot(self, task_id: str) -> str:
+        """The task's worktree as it stands, uncommitted work included, as a
+        commit no ref holds (S-0122/D-7): what a unit's candidates all start
+        from when an earlier attempt left its work in the tree."""
+
+        return _snapshot_commit(naming.worktree(self.root, task_id))
+
+    # ....................... #
+
     def create_candidate(self, task_id: str, index: int, base: str) -> Path:
         """Candidate *index*'s worktree (S-0122/D-7), `.wt/<task>~<index>`,
-        detached at *base* — the commit the task's own worktree stood at before
-        any candidate ran, since the first may have committed a convicted tree
-        there since — so every candidate of a unit starts from one base. An
-        empty *base* reads the task's worktree as it stands."""
+        detached at *base* — the task's worktree as `snapshot` took it before
+        any candidate ran, since the first may have changed or committed over
+        it since — so every candidate of a unit starts from one tree. An empty
+        *base* reads the task's worktree HEAD."""
 
         with _worktree_held(self.root):
             key = f"{task_id}~{index}"

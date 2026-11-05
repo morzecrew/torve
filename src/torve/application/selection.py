@@ -107,13 +107,12 @@ def repairable(results: list[GateResult]) -> bool:
 
 
 def normalised(patch: str) -> str:
-    """A diff's changed lines alone, so two candidates that wrote the same
-    change compare equal whatever their headers and trailing blanks say."""
+    """A diff's files and changed lines alone, so two candidates that wrote
+    the same change to the same files compare equal whatever their hunk
+    headers, blob ids and trailing blanks say."""
 
     return "\n".join(
-        line.rstrip()
-        for line in patch.splitlines()
-        if line[:1] in "+-" and not line.startswith(("+++", "---"))
+        line.rstrip() for line in patch.splitlines() if line.startswith(("diff --git", "+", "-"))
     )
 
 

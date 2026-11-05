@@ -217,10 +217,33 @@ def test_a_unit_s_record_reaches_why_and_the_night_and_is_no_attempt(tmp_path):
         "outcome": "selected",
     }
 
+    candidates = [
+        {
+            "schema_version": 1,
+            "at": f"2026-09-02T10:5{index}:00Z",
+            "task_id": "T-0001",
+            "config_hash": "hashA",
+            "agent": {"attempt": 9, "candidate": index, "adapter": "harness", "cost_usd": cost},
+            "results": [],
+            "exit_code": 0,
+        }
+        for index, cost in ((1, 0.25), (2, 0.5))
+    ]
+
     with (root / ".torve" / "telemetry.jsonl").open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(unit) + "\n")
 
     after = why_report(root, "T-0001")
+
+    with (root / ".torve" / "telemetry.jsonl").open("a", encoding="utf-8") as stream:
+        stream.writelines(json.dumps(row) + "\n" for row in candidates)
+
+    # Two candidates of one attempt are two entries, and both are spent.
+    both = why_report(root, "T-0001")
+    ninth = [entry for entry in both["attempts"] if entry.get("attempt") == 9]
+
+    assert [entry.get("candidate") for entry in ninth] == [1, 2]
+    assert both["totals"]["cost_usd"] == round(after["totals"]["cost_usd"] + 0.75, 6)
 
     assert "units" not in before
     assert after["units"] == [unit]

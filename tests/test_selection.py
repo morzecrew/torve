@@ -93,6 +93,13 @@ def test_the_same_diff_collapses_and_the_rank_is_deterministic() -> None:
     assert (large.rank, small.rank) == (1, 2)
 
 
+def test_the_same_edit_to_another_file_is_another_candidate() -> None:
+    one = _candidate(1, patch="diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n+fix")
+    two = _candidate(2, patch="diff --git a/y.py b/y.py\n--- a/y.py\n+++ b/y.py\n+fix")
+
+    assert selection.collapse([one, two]) == [one, two]
+
+
 def test_the_critic_reads_in_rank_order_until_one_is_clean() -> None:
     plans = {1: (False, 0), 2: (True, 50), 3: (True, 10)}
     clocks: list[float] = []
@@ -222,13 +229,15 @@ def test_a_candidate_worktree_starts_at_the_task_s_base_and_takes_its_place(
     own = workspace.create("T-0001", "HEAD")
     (own / "f.txt").write_text("own attempt\n", encoding="utf-8")
 
-    base = git("rev-parse", "HEAD", at=own)
-    # The task's own attempt commits over the base; the candidate still starts there.
+    # The tree as an earlier attempt left it, its work uncommitted.
+    base = workspace.snapshot("T-0001")
+    # The first candidate commits over it; a later one still starts there.
     git("commit", "-q", "-am", "a convicted tree", at=own)
+    (own / "f.txt").write_text("candidate one\n", encoding="utf-8")
     candidate = workspace.create_candidate("T-0001", 2, base)
 
     assert git("rev-parse", "HEAD", at=candidate) == base
-    assert (candidate / "f.txt").read_text(encoding="utf-8") == "one\n"
+    assert (candidate / "f.txt").read_text(encoding="utf-8") == "own attempt\n"
 
     (candidate / "f.txt").write_text("the chosen work\n", encoding="utf-8")
     workspace.promote_candidate("T-0001", 2)
@@ -277,3 +286,28 @@ def test_a_halted_turn_buys_no_repair_and_runs_no_battery(repo, monkeypatch) -> 
 
     assert state.state is TaskState.ESCALATED
     assert passes == [] and agent.follow_ups == 0
+
+
+def test_a_gate_pass_that_raises_inside_selection_escalates_the_run(
+    review_rig,  # noqa: F811
+    monkeypatch,
+) -> None:
+    """The loop's own reading of a battery that raised, inside selection: the
+    run escalates as a gate infrastructure failure and nothing else runs."""
+
+    repo, _runtime, deps_for = review_rig
+    passes: list[int] = []
+
+    def broken(run, _state):
+        passes.append(run.candidate or 1)
+        raise RuntimeError("the gates sandbox would not start")
+
+    monkeypatch.setattr(run_module, "run_gate_pass", broken)
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic"))
+
+    state = run_task(repo.root, task_for(repo), config, deps_for(ScriptedAgent([])))
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "gate_infrastructure_failure"
+    assert passes == [1]

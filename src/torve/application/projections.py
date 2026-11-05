@@ -1682,23 +1682,31 @@ def _group_attempts(rows: list[dict[str, Any]], root: Path) -> list[dict[str, An
     retrofitted number). The list runs chronologically — the timeline's own
     order."""
 
-    by_stamp: dict[int, list[dict[str, Any]]] = {}
+    # A unit's candidates share their attempt's stamp (S-0122/D-7); each is
+    # its own entry, so none of their spend folds into another's.
+    by_stamp: dict[tuple[int, int], list[dict[str, Any]]] = {}
     unstamped: list[dict[str, Any]] = []
 
     for row in sorted(rows, key=lambda r: str(r.get("at") or "")):
-        stamp = _row_agent(row).get("attempt")
+        agent = _row_agent(row)
+        stamp = agent.get("attempt")
+        candidate = agent.get("candidate")
 
         if isinstance(stamp, int) and not isinstance(stamp, bool):
-            by_stamp.setdefault(stamp, []).append(row)
+            key = (stamp, candidate if isinstance(candidate, int) else 0)
+            by_stamp.setdefault(key, []).append(row)
         else:
             unstamped.append(row)
 
-    groups: list[tuple[int | None, list[dict[str, Any]]]] = [
-        *((stamp, group) for stamp, group in by_stamp.items()),
-        *((None, [row]) for row in unstamped),
+    groups: list[tuple[int | None, int, list[dict[str, Any]]]] = [
+        *((stamp, candidate, group) for (stamp, candidate), group in by_stamp.items()),
+        *((None, 0, [row]) for row in unstamped),
     ]
 
-    entries = [_attempt_entry(group, stamp, root) for stamp, group in groups]
+    entries = [
+        {**_attempt_entry(group, stamp, root), **({"candidate": candidate} if candidate else {})}
+        for stamp, candidate, group in groups
+    ]
 
     return sorted(entries, key=lambda entry: str(entry.get("at") or ""))
 
