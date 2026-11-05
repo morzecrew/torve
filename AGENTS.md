@@ -51,6 +51,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `sandboxes/claude/toolkit/` — 1 decision(s)
 - `sandboxes/dsh/` — 2 decision(s)
 - `sandboxes/dsh/toolkit/` — 2 decision(s)
+- `scripts/measure/` — 0 decision(s)
 - `skills/flag-dont-flip/` — 0 decision(s)
 - `skills/hooks/implement/` — 1 decision(s)
 - `skills/torve/` — 1 decision(s)
