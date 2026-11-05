@@ -3,14 +3,23 @@
 #
 # dsh's configuration is one list of plugin entries — `{id, name, config}`,
 # where `name` is an npm package — and `--patch <file>` is how a list reaches
-# it. Two things follow, and both are measured against 0.1.1-rc.2:
+# it. Two things follow, measured against 0.1.1-rc.2 and again on 0.2.1-rc.5:
 #
 #   * `--patch` *configures an entry the profile already carries* and cannot
-#     add one; an unknown id fails at boot with `patch: entry "..." not found`.
-#     So a plugin is installed first and patched after (S-0063/D-17).
+#     add one; an unknown id is skipped with `patch: entry "..." not found` on
+#     stderr (on 0.1.1-rc.2 it failed the boot; on rc.5 the boot goes on
+#     without it). So a plugin is installed first and patched after
+#     (S-0063/D-17).
 #   * A model is a patch like everything else, so no model file is baked: this
 #     renders one from the scalars the engine names (S-0063/D-15, S-0064/D-7).
 set -eu
+
+# The attempt's own homes (S-0122/D-10), emptied before anything is installed
+# into them: `dsh plugin add` below writes the profile `run` boots under
+# `$DSH_HOME`, and nothing an earlier attempt left there is this one's input.
+. /opt/torve/dsh.env
+rm -rf "$DSH_HOME" "$DSH_AGENTS_HOME"
+mkdir -p "$DSH_HOME" "$DSH_AGENTS_HOME"
 
 ARGS=/tmp/torve-equip.args
 MODEL=/tmp/torve-model.yml

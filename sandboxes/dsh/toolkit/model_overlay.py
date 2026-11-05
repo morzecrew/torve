@@ -90,6 +90,11 @@ lines.append("            input: [text]")
 # used, is the shape of every silent drop this image has had — `maxBytes`
 # included. `off:` stays beside it because pi-ai's own schema wants the
 # disabled rung present, and it is the one name that never comes from a record.
+#
+# Measured on 0.2.1-rc.5 against a stand-in endpoint: `max` reaches the request
+# as `reasoning_effort: max`. pi-ai's rungs there are off, minimal, low, medium,
+# high, xhigh and max, so a record's `ultra` passes the engine's check and then
+# fails this map's schema at boot — loudly, `llm-pi-ai` does not activate.
 if effort:
     lines += [
         "            reasoningEfforts:",
