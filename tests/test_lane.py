@@ -3064,6 +3064,90 @@ def test_only_completion_runs_the_document_rows(lane_repo, tmp_path, monkeypatch
     assert "decision:S-0930/D-1=pass" in completing.summary
 
 
+def _one_phase_checked(root: Path, check: str, phases: int = 1) -> None:
+    """S-0930 with one blocking row whose check is *check*, over *phases*
+    phases, committed so the lane reads a clean tree."""
+    from test_decisions import document, place
+
+    place(
+        root / ".torve" / "specs",
+        "0930",
+        document(
+            "0930",
+            rows=[("S-0930/D-1", "ASSUMED", "a term", "one.py", "cheap to revisit")],
+            details={
+                "S-0930/D-1": {
+                    "check": check,
+                    "check_state": "blocking",
+                    "check_twin": "tests/test_one.py",
+                }
+            },
+            phasing=[
+                {"phase": n, "title": f"p{n}", "intent": "Work.", "scope": [f"p{n}.py"]}
+                for n in range(1, phases + 1)
+            ],
+        ),
+    )
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "--no-gpg-sign", "-m", "the document")
+
+
+@pytest.mark.parametrize(("check", "landed"), [("true", True), ("false", False)])
+def test_a_local_landing_that_completes_its_document_runs_the_rows(
+    lane_repo, monkeypatch, check, landed
+):
+    """S-0122/D-4 under `landing: local`: no document branch completes, so the
+    landing that completes the document runs its rows over the tree that would
+    land, and a red row sends the task back instead of moving the base."""
+
+    _one_phase_checked(lane_repo, check)
+    candidate(lane_repo, "T-7361", "one.py", "one = 1\n")
+    _phase_contract(lane_repo, "T-7361", 1)
+    calls = _counting_regate(monkeypatch)
+    before = git(lane_repo, "rev-parse", "main")
+
+    results = process_lane(lane_repo, GitLane())
+
+    assert calls == [None]
+    assert [r.action for r in results] == (["landed"] if landed else ["gates red"])
+    assert landed or "decision:S-0930/D-1=fail" in results[0].detail
+    assert (git(lane_repo, "rev-parse", "main") != before) is landed
+    assert not list((lane_repo / ".wt").glob("lane-rows-*"))
+
+
+def test_a_rebased_local_landing_runs_the_rows_and_a_red_one_restores_the_branch(
+    lane_repo, monkeypatch
+):
+    _one_phase_checked(lane_repo, "false")
+    candidate(lane_repo, "T-7363", "one.py", "one = 1\n")
+    _phase_contract(lane_repo, "T-7363", 1)
+    head = git(lane_repo, "rev-parse", naming.branch("T-7363"))
+    (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
+    git(lane_repo, "commit", "-qam", "the base moves", "--no-gpg-sign")
+    before = git(lane_repo, "rev-parse", "main")
+    calls = _counting_regate(monkeypatch)
+
+    results = process_lane(lane_repo, GitLane())
+
+    # The rebase's regate under the task's contract, then the rows under none.
+    assert calls == ["T-7363", None]
+    assert [r.action for r in results] == ["gates red"]
+    assert git(lane_repo, "rev-parse", "main") == before
+    assert git(lane_repo, "rev-parse", naming.branch("T-7363")) == head
+
+
+def test_a_local_landing_that_leaves_its_document_incomplete_runs_no_rows(lane_repo, monkeypatch):
+    _one_phase_checked(lane_repo, "false", phases=2)
+    candidate(lane_repo, "T-7362", "one.py", "one = 1\n")
+    _phase_contract(lane_repo, "T-7362", 1)
+    calls = _counting_regate(monkeypatch)
+
+    results = process_lane(lane_repo, GitLane())
+
+    assert calls == []
+    assert [r.action for r in results] == ["landed"]
+
+
 def _fileless_document(root: Path, phases: dict[str, object]) -> str:
     """S-0930's branch carrying one landing file per task, naming *phases*,
     and no contract file for any of them — tasks minted into the record whose
