@@ -613,3 +613,27 @@ def test_a_triage_dismissal_stands_only_on_evidence_the_head_holds(repo):
         "triage",
         "pr_threads",
     )
+
+
+def test_a_triage_dismissal_on_a_command_it_never_ran_is_applied(repo):
+    """Only a leading `path:line` citation into the head's tree stands a
+    dismissal; a backticked command with an output nobody ran does not."""
+
+    from torve.application.critic import triage_threads
+
+    worktree, _target = _candidate(repo)
+    answer_text = json.dumps(
+        {
+            "schema": "torve.triage/v1",
+            "threads": [
+                {"thread": "t1", "verdict": "invalid", "evidence": "`pytest -q` — 3 passed"},
+            ],
+        }
+    )
+    seat = ScriptedAgent([AgentResult(exit_code=0, output=answer_text)])
+
+    document = triage_threads(
+        repo.root, worktree, "torve/S-0090", "triage these", critic_config(), MockRuntime(), seat
+    )
+
+    assert document is not None and document.threads[0].verdict == "apply"

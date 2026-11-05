@@ -147,18 +147,38 @@ class TriageDocument(BaseModel):
 
 
 def parse_triage(output: str) -> TriageDocument | None:
-    """The last `torve.triage/v1` document in a seat's answer, or None when it
-    holds none that reads."""
+    """The last `torve.triage/v1` document in a seat's answer that reads, or
+    None when it holds none: a later object of another schema carrying
+    `threads` does not hide it."""
 
-    from torve.application.review import last_document
+    import json
+    import re
 
-    raw = last_document(output, key="threads")
+    from torve.application.review import ANSI, last_document
 
-    if raw is None:
-        return None
+    text = ANSI.sub("", output)
+    decoder = json.JSONDecoder()
+    found: list[object] = []
 
-    try:
-        return TriageDocument.model_validate(raw)
+    for brace in re.finditer(r"\{", text):
+        try:
+            document, _ = decoder.raw_decode(text, brace.start())
 
-    except ValidationError:
-        return None
+        except json.JSONDecodeError:
+            continue
+
+        if isinstance(document, dict) and "threads" in document:
+            found.append(document)
+
+    # A harness envelope carries the answer escaped inside its `result`.
+    if not found and (enveloped := last_document(output, key="threads")) is not None:
+        found.append(enveloped)
+
+    for raw in reversed(found):
+        try:
+            return TriageDocument.model_validate(raw)
+
+        except ValidationError:
+            continue
+
+    return None

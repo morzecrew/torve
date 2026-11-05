@@ -50,6 +50,7 @@ from torve.application.threads import (
     APPLIED,
     WINDOW,
     Finding,
+    ThreadVerdict,
     TriageDocument,
     group_findings,
 )
@@ -1803,10 +1804,13 @@ End with one JSON document:
 {"schema": "torve.triage/v1", "threads": [{"thread": "<id>", "verdict": "apply",
 "evidence": "src/app.py:12 — ...", "duplicate_of": ""}]}"""
 
-# The heads already triaged this process, with the verdict each thread got, so
-# a later pass over the same head makes no second call and still carries what
-# the first one said to apply (S-0122/D-15).
+# The heads already triaged by this manager process, with the verdict each
+# thread got, so a later pass over the same head makes no second call and still
+# carries what the first one said to apply (S-0122/D-15); and the heads whose
+# call gave no answer, which take the ordinary rounds without asking again. A
+# restart asks again, once.
 TRIAGED: dict[tuple[str, str, str], dict[str, str]] = {}
+UNANSWERED: set[tuple[str, str, str]] = set()
 
 # One critic call over a head's bot threads: (branch, the pull request, the
 # prompt) to the critic's answer, or None when its seat gave none.
@@ -1847,12 +1851,16 @@ def _triage(
     and holds back a bot thread raised since for the next head; a seat that
     gave no answer, or threads no fence can carry, leave the leg as it was."""
 
-    bots = [t for t in info.threads if t.author in config.threads.bots and t in raised]
-
-    if not bots:
-        return raised, 0, False
-
+    # A thread flagged as injection is the refusal path's, never the critic's.
+    bots = [
+        t
+        for t in info.threads
+        if t.author in config.threads.bots and t in raised and not injection_reason(collapsed(t))
+    ]
     key = (str(root), branch, info.head_sha)
+
+    if not bots or key in UNANSWERED:
+        return raised, 0, False
 
     sorted_ = TRIAGED.get(key)
 
@@ -1869,10 +1877,29 @@ def _triage(
     document = triage(branch, info, prompt)
 
     if document is None:
+        UNANSWERED.add(key)
         return raised, 0, False
 
-    verdicts = {verdict.thread: verdict for verdict in document.threads}
     asked = {thread.id for thread in bots}
+    verdicts: dict[str, ThreadVerdict] = {}
+
+    # An answer that sorts one thread twice keeps the verdict that applies it.
+    for verdict in document.threads:
+        if verdict.thread in asked and (
+            verdict.thread not in verdicts or verdict.verdict in APPLIED
+        ):
+            verdicts[verdict.thread] = verdict
+
+    # A duplicate stands only on a thread this head applies; any other — of
+    # itself, of a dismissed thread, of nothing asked — is carried as apply.
+    for ident, verdict in list(verdicts.items()):
+        target = verdicts.get(verdict.duplicate_of)
+
+        if verdict.verdict == "duplicate" and (
+            verdict.duplicate_of == ident or target is None or target.verdict not in APPLIED
+        ):
+            verdicts[ident] = verdict.model_copy(update={"verdict": "apply"})
+
     # A thread the answer named no verdict for is carried as apply.
     TRIAGED[key] = {
         ident: verdicts[ident].verdict if ident in verdicts else "apply" for ident in asked
@@ -1881,7 +1908,7 @@ def _triage(
     dismissed = 0
 
     for thread in raised:
-        verdict = verdicts.get(thread.id) if thread.id in asked else None
+        given = verdicts.get(thread.id) if thread.id in asked else None
 
         if thread.id in asked:
             engine_event(
@@ -1892,16 +1919,16 @@ def _triage(
                     "pr": info.number,
                     "sha": info.head_sha,
                     "thread": thread.id,
-                    "verdict": verdict.verdict if verdict is not None else "apply",
+                    "verdict": given.verdict if given is not None else "apply",
                 },
             )
 
-        if verdict is None or verdict.verdict in APPLIED:
+        if given is None or given.verdict in APPLIED:
             kept.append(thread)
             continue
 
-        reason = _DISMISSALS[verdict.verdict].format(duplicate_of=verdict.duplicate_of or "?")
-        forge.reply_thread(thread.id, f"{reason}\n\nEvidence: {verdict.evidence}")
+        reason = _DISMISSALS[given.verdict].format(duplicate_of=given.duplicate_of or "?")
+        forge.reply_thread(thread.id, f"{reason}\n\nEvidence: {given.evidence}")
         forge.resolve_thread(thread.id)
         dismissed += 1
 
