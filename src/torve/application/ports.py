@@ -214,6 +214,10 @@ class AgentContext:
     # composed prompt — the review input, assembled without the author's
     # trace (S-0005/D-3) — the adapter stages it verbatim instead of building one.
     prompt: str | None = None
+    # What a composed prompt puts in system position, staged where the image
+    # reads it (S-0073/D-2): the critic's frozen prompt (S-0122/D-19). None
+    # keeps the file empty, as every composed prompt had it before.
+    system: str | None = None
     # The run's broker handle (S-0021/the-port): a base URL per routed
     # provider and the run-scoped token, substituted into the tier command.
     # None when no broker adapter is in force.

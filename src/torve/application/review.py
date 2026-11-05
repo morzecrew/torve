@@ -20,10 +20,11 @@ import asyncio
 import json
 import re
 import shutil
-from collections.abc import Iterable
+import time
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Generic, TypeVar, cast
 
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
@@ -36,6 +37,7 @@ from torve.application.ports import (
     Broker,
     BrokerBudget,
     BrokerHandle,
+    BrokerUsage,
     PrScm,
     PrVcs,
     Runtime,
@@ -48,6 +50,7 @@ from torve.config import layout
 from torve.config.manifest import Manifest, load_manifest
 from torve.config.runconfig import (
     RunnerConfig,
+    TierConfig,
     agent_timeout_for,
     credential_names,
     effective_skill_sets,
@@ -61,6 +64,10 @@ from torve.domain.task import CONTRACT_SCHEMA_VERSION, Budget, InheritedDecision
 from torve.gates.evidence import CITATION, filter_findings
 
 # ----------------------- #
+
+# A seat's verdict, whatever shape its reader parses: the classic reviewer's
+# findings list or the critic's document.
+V = TypeVar("V")
 
 
 def mint_review_task(
@@ -227,9 +234,8 @@ attempt. Do not spend the window discovering that.
 `.torve/context/index.md` in this workspace lists what the engine wrote
 for this review from the record and the tree, with no model and nothing
 the author of the change wrote. `touched.json` there names the decision
-rows whose paths this diff intersects, the last battery's coverage of the
-changed lines, and what prior reviews found on this task. Nothing in it
-outranks the contract above.
+rows whose paths this diff intersects and the last battery's coverage of
+the changed lines. Nothing in it outranks the contract above.
 
 ## The diff
 
@@ -501,16 +507,17 @@ def promoted_paths(target: Task, diff_text: str) -> list[str]:
 
 
 def touched_file(root: Path, target: Task, diff_text: str) -> dict[str, Any]:
-    """`touched.json` (S-0054/D-13): the rows whose paths the diff intersects,
-    the last battery's coverage of the changed lines, and the findings
-    prior reviews recorded on this target — engine facts about the diff,
-    none of them the author's voice."""
+    """`touched.json` (S-0054/D-13): the rows whose paths the diff intersects
+    and the last battery's coverage of the changed lines — engine facts about
+    the diff, none of them the author's voice.
+
+    Earlier reviews' findings on this target are not among them (S-0122/D-6):
+    handed to the next review, they anchored it to the last one's reading
+    instead of the tree in front of it."""
 
     from xml.etree import ElementTree
 
     from pathspec import GitIgnoreSpec
-
-    from torve.application.specquality import telemetry_file
 
     changed = _changed_lines(diff_text)
     rows = [
@@ -558,32 +565,11 @@ def touched_file(root: Path, target: Task, diff_text: str) -> dict[str, Any]:
                 }
                 coverage.append({"path": path, "changed": len(lines), "covered": len(lines & hit)})
 
-    prior: list[dict[str, Any]] = []
-    stream = telemetry_file(root)
-
-    if stream.is_file():
-        for line in stream.read_text(encoding="utf-8").splitlines():
-            try:
-                record = cast("dict[str, Any]", json.loads(line))
-            except json.JSONDecodeError:
-                continue
-
-            if record.get("kind") == "review" and record.get("target") == target.id:
-                prior.append(
-                    {
-                        "review": record.get("task_id"),
-                        "at": record.get("at"),
-                        "findings": record.get("findings") or [],
-                        "unparseable": bool(record.get("unparseable")),
-                    }
-                )
-
     return {
         "schema_version": 1,
         "changed_paths": sorted(changed),
         "decisions": rows,
         "coverage": coverage,
-        "prior_reviews": prior,
     }
 
 
@@ -741,7 +727,33 @@ def review_items(findings: list[Finding]) -> list[dict[str, Any]]:
 # ....................... #
 
 
-def run_review(
+@dataclass
+class SeatSession(Generic[V]):
+    """One reviewing seat's whole session in its disposable copy: the run
+    state it advanced, the verdict it gave (None when it gave none readable),
+    and the facts the record carries about how it was given. Shared by the
+    classic reviewer and the critic (S-0122/D-6), so the copy, the clock, the
+    retry and the second ask are one mechanism with two prompts."""
+
+    state: RunState
+    tier: TierConfig
+    image: str
+    verdict: V | None
+    refusal: str | None
+    # The last answer, rebuilt with the trace reference the record cites.
+    result: AgentResult
+    trace_refs: list[str]
+    token_counts: dict[str, int]
+    broker_usage: BrokerUsage | None
+    started_at: str
+    ended_at: str
+    wall_time_s: float
+    second_ask: bool
+    # What the caller's `harvest` took from the copy before it died.
+    harvested: Any = None
+
+
+def run_seat(
     root: Path,
     worktree: Path,
     target: Task,
@@ -749,29 +761,26 @@ def run_review(
     config: RunnerConfig,
     runtime: Runtime,
     agent: Agent,
-    diff_text: str,
-    gate_results: list[GateResult],
-    config_digest: str,
-    degraded: bool = False,
+    prompt: str,
+    *,
+    stage: Callable[[Path], None],
+    read: Callable[[str], tuple[V | None, str | None]],
+    harvest: Callable[[Path, V | None], Any] | None = None,
+    system: str | None = None,
     broker: Broker | None = None,
     broker_handle: BrokerHandle | None = None,
-    trigger: str = "task_gated",
-) -> ReviewOutcome:
-    """One review attempt in a disposable copy of the target worktree, which
-    the reviewer may run and write in (S-0005/D-2 as reworded by S-0005/A-4). Produces the
-    review's run state and telemetry record; the caller applies the consequence
-    to the target.
+) -> SeatSession[V]:
+    """Drive one reviewing seat over a disposable copy of *worktree*, which
+    it may run and write in (S-0005/D-2 as reworded by S-0005/A-4).
 
-    The order is the guarantee: the input, the executor's evidence and the
-    mount point are all settled before the copy exists, so no write the
-    reviewer makes can reach anything that was read into the judgment."""
+    The caller composed *prompt* before this is called, and the executor's
+    trace is taken in hand before the copy exists, so no write the seat makes
+    can reach anything that was read into the judgment. *stage* writes the
+    caller's inputs into the fresh copy; *read* turns an answer into
+    (verdict, refusal); *harvest*, when given, reads what the copy still
+    holds once the verdict is in and before the copy dies."""
 
-    from torve.application.telemetry import (
-        RECORD_SCHEMA_VERSION,
-        agent_token_counts,
-        append_record,
-        broker_block,
-    )
+    from torve.application.telemetry import agent_token_counts
 
     tier = tier_for(config, review.tier)
     state = RunState(task_id=review.id, path=naming.state_file(root, review.id))
@@ -780,19 +789,6 @@ def run_review(
     state.save()
 
     image = image_for(config, tier)
-
-    # S-0110/D-10: the elision set is the manifest's own rider files, so a
-    # nested lock rides out of the reviewer's view exactly as the root one does.
-    manifest_path = layout.gates_file(root)
-    manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
-    elided = elided_prefixes(manifest)
-
-    # The reviewer's whole input, composed first (S-0005/D-3: no author trace,
-    # ever) — after this line the diff under judgment is text in a string, and
-    # no state the copy can reach has any part in it. The diff itself is
-    # staged as a file in the copy below (S-0005/A-5): a diff carrying a vendored
-    # bundle exceeds any prompt, and a reviewer with tools reads lazily.
-    prompt = build_review_prompt(target, diff_text, gate_results, degraded=degraded, elided=elided)
 
     # T-0172: the harness names the session trace after the workspace it is
     # given. The executor's trace is taken in hand here, before the copy is
@@ -805,61 +801,34 @@ def run_review(
     # the review's own conventional address (S-0003/D-4), writable, and destroyed
     # with its sandbox.
     copy = stage_review_copy(worktree, naming.worktree(root, review.id))
+    harvested: Any = None
 
-    # S-0005/A-5: the diff rides the copy as a file, not the prompt — composed
-    # above, before the copy existed, so the guarantee is unchanged; the
-    # prompt names the path and the reviewer reads what it needs. Vendored
-    # bulk is elided even here: reading a minified bundle killed a review
-    # from inside the session, and the real bytes sit in the tree anyway.
-    diff_path = copy / ".torve" / "tmp" / "review.diff"
-    diff_path.parent.mkdir(parents=True, exist_ok=True)
-    diff_path.write_text(elide_diff_bulk(diff_text, elided), encoding="utf-8")
+    try:
+        stage(copy)
 
-    # S-0054/D-13: the reviewer reads the pack too — built for the target, as a
-    # replay, so no model-authored entry enters — plus `touched.json`, the
-    # engine's facts about this diff. The copy carried the executor's skill
-    # set; the review role's own replaces it (S-0054/D-14).
-    from torve.application.contextpack import build as build_pack
-    from torve.application.contextpack import materialize as materialize_pack
-    from torve.application.skills import materialize as materialize_skills
+        spec = SandboxSpec(
+            name=naming.sandbox_name(review.id, state.run_id) + "-a1",
+            image=image,
+            labels=naming.labels(review.id, state.run_id, root),
+            # The reviewer seat carries its own clock when its tier names one
+            # (S-0035/the-tier-clock, S-0035/D-6): absent falls through to the globals. That
+            # clock is also the bound on whatever the reviewer executes (S-0005/D-16) —
+            # no budget or timeout of its own exists to widen it.
+            timeout_s=sandbox_timeout_for(config, tier),
+            env_passthrough=credential_names(config, tier),
+        )
 
-    shutil.rmtree(copy / ".torve" / "skills", ignore_errors=True)
-    materialize_skills(
-        review.role,
-        copy / ".torve" / "skills",
-        effective_skill_sets(tier, review.role, config.skills.sets),
-        layout.skills_vendor_dir(copy),
-    )
-    pack = build_pack(root, root / config.specs.path, target, layout.gates_file(root), replay=True)
-    pack["touched.json"] = (
-        json.dumps(touched_file(root, target, diff_text), indent=2, sort_keys=True) + "\n"
-    )
-    pack["index.md"] += (
-        "- `touched.json` — the rows this diff intersects, coverage of the changed lines,"
-        " and prior findings on this task\n"
-    )
-    materialize_pack(copy, pack)
+        handle = runtime.create(spec, copy)
 
-    spec = SandboxSpec(
-        name=naming.sandbox_name(review.id, state.run_id) + "-a1",
-        image=image,
-        labels=naming.labels(review.id, state.run_id, root),
-        # The reviewer seat carries its own clock when its tier names one
-        # (S-0035/the-tier-clock, S-0035/D-6): absent falls through to the globals. That
-        # clock is also the bound on whatever the reviewer executes (S-0005/D-16) —
-        # no budget or timeout of its own exists to widen it.
-        timeout_s=sandbox_timeout_for(config, tier),
-        env_passthrough=credential_names(config, tier),
-    )
+    except BaseException:
+        destroy_review_copy(copy)
+        raise
 
-    handle = runtime.create(spec, copy)
     state.sandbox_id = handle.id
     state.save()
 
-    import time as _time
-
     started_at = stamp()
-    review_clock = _time.monotonic()
+    review_clock = time.monotonic()
 
     try:
         # A transient provider failure (500/529 through the gateway, or a 429
@@ -875,28 +844,32 @@ def run_review(
             workdir=spec.workdir,
             timeout_s=agent_timeout_for(config, tier),
             prompt=prompt,
+            system=system,
             broker=broker_handle,
         )
         result = agent.run(context)
 
         if transient_api_failure(result.output):
-            _time.sleep(15)
+            time.sleep(15)
             result = agent.run(context)
 
-        findings, refusal = read_verdict(result.output)
+        verdict, refusal = read(result.output)
 
-        # S-0086/D-1: an unreadable verdict — no findings document at all, or
-        # one the schema refused — is asked once more of the same reviewer in
-        # this same staged copy, which is why the verdict is read here and not
+        # S-0086/D-1: an unreadable verdict — no document at all, or one the
+        # schema refused — is asked once more of the same reviewer in this
+        # same staged copy, which is why the verdict is read here and not
         # after the copy is gone. A green-gated task was escalated because the
         # reviewer's envelope carried no document; a reviewer that cannot
         # answer twice is broken, and a readable verdict is never re-asked.
         asks = [result]
 
-        if findings is None:
+        if verdict is None:
             result = agent.run(context)
-            findings, refusal = read_verdict(result.output)
+            verdict, refusal = read(result.output)
             asks.append(result)
+
+        if harvest is not None:
+            harvested = harvest(copy, verdict)
 
     finally:
         runtime.destroy(handle)
@@ -940,28 +913,229 @@ def run_review(
         naming.trace_file(review_worktree, ask_number).write_text(ask.output, encoding="utf-8")
         review_trace_refs.append(naming.trace_ref(review_worktree, ask_number))
 
-    review_trace_ref = review_trace_refs[-1] if review_trace_refs else None
-
     # T-0186: the reviewer's self-reported token counts must survive the
     # rebuild below — the rebuilt AgentResult is the base shape and carries
     # no token fields, so read them off the original result first.
     token_counts = agent_token_counts(result)
 
-    result = AgentResult(
+    rebuilt = AgentResult(
         exit_code=result.exit_code,
         output=result.output,
         cost_usd=result.cost_usd,
         model_version=result.model_version,
-        trace_ref=review_trace_ref,
+        trace_ref=review_trace_refs[-1] if review_trace_refs else None,
     )
 
-    broker_usage = (
-        broker.usage(broker_handle) if broker is not None and broker_handle is not None else None
+    return SeatSession(
+        state=state,
+        tier=tier,
+        image=image,
+        verdict=verdict,
+        refusal=refusal,
+        result=rebuilt,
+        trace_refs=review_trace_refs,
+        token_counts=token_counts,
+        broker_usage=(
+            broker.usage(broker_handle)
+            if broker is not None and broker_handle is not None
+            else None
+        ),
+        started_at=started_at,
+        ended_at=stamp(),
+        wall_time_s=round(time.monotonic() - review_clock, 3),
+        # The verdict was read in the copy, so a second ask could still reach
+        # the same reviewer there (S-0086/D-1).
+        second_ask=len(asks) > 1,
+        harvested=harvested,
     )
 
-    # The verdict was read in the copy, so a second ask could still reach the
-    # same reviewer there (S-0086/D-1); what is left here is what it produced.
-    second_ask = len(asks) > 1
+
+# ....................... #
+
+
+def review_record(
+    session: SeatSession[Any],
+    target: Task,
+    review: Task,
+    agent: Agent,
+    config_digest: str,
+    trigger: str,
+    verdict_fields: dict[str, Any],
+    broker: Broker | None = None,
+) -> dict[str, Any]:
+    """The review's telemetry record: who judged what, under which trigger,
+    and how the seat ran, around the verdict's own fields."""
+
+    from torve.application.telemetry import RECORD_SCHEMA_VERSION, broker_block
+
+    tier, result = session.tier, session.result
+
+    return {
+        "schema_version": RECORD_SCHEMA_VERSION,
+        "kind": "review",
+        "at": stamp(),
+        "config_hash": config_digest,
+        "task_id": review.id,
+        "target": target.id,
+        # Which trigger produced this review, because the two have different
+        # lifecycles and the record could not tell them apart (S-0005/A-9): a
+        # task-gated blocker is revised in-run or escalates, a
+        # pull-request one is reported and stops nothing.
+        "trigger": trigger,
+        **verdict_fields,
+        # Which reviews needed a second ask (S-0086/D-1), so the ledger can
+        # count how often a harness fails to produce a findings document.
+        "second_ask": session.second_ask,
+        "agent": {
+            "tier": review.tier,
+            "adapter": getattr(agent, "kind", tier.adapter),
+            "provider": tier.provider or None,
+            "model": tier.model or None,
+            "model_version": result.model_version,
+            "cost_usd": result.cost_usd,
+            "trace_ref": result.trace_ref,
+            # Both asks' traces when there were two (S-0086/D-1): the verdict
+            # that escalated is `trace_ref`, and the unreadable answer before
+            # it is evidence for whoever asks why the harness failed.
+            **({"trace_refs": session.trace_refs} if session.second_ask else {}),
+            # The review's own span (the broker clock covers the whole run,
+            # so it can never answer "how long was the review"): two wall
+            # stamps for the humans, the monotonic duration as the truth.
+            "started_at": session.started_at,
+            "ended_at": session.ended_at,
+            "wall_time_s": session.wall_time_s,
+            # The reviewer's token counts, flat beside cost (T-0186) — only
+            # the reported ones, absent keys omitted (S-0004/D-6).
+            **session.token_counts,
+            # The image tag beside the adapter (S-0017/D-4) — the cost table's
+            # harness column reads it; the attempt records already carry it.
+            "image": session.image,
+            "shadow": False,
+            # The reviewer spends the run's budget on the same handle; its
+            # counts ride the record beside the adapter's report (S-0021/D-5).
+            **(
+                {"broker": broker_block(broker.name, session.broker_usage)}
+                if broker is not None and session.broker_usage is not None
+                else {}
+            ),
+        },
+    }
+
+
+def close_review(
+    root: Path, worktree: Path, session: SeatSession[Any], record: dict[str, Any], fact: str
+) -> None:
+    """Append the record where the target's manifest says telemetry goes,
+    and walk the review's own state to its end."""
+
+    from torve.application.telemetry import append_record
+
+    manifest_file = layout.gates_file(worktree)
+
+    if manifest_file.is_file():
+        append_record(root / load_manifest(manifest_file).telemetry, record)
+
+    state = session.state
+    state.transition(TaskState.GATED, "findings produced")
+    state.transition(TaskState.REVIEWED, fact)
+    state.transition(TaskState.READY, fact)
+    state.save()
+
+
+# ....................... #
+
+
+def run_review(
+    root: Path,
+    worktree: Path,
+    target: Task,
+    review: Task,
+    config: RunnerConfig,
+    runtime: Runtime,
+    agent: Agent,
+    diff_text: str,
+    gate_results: list[GateResult],
+    config_digest: str,
+    degraded: bool = False,
+    broker: Broker | None = None,
+    broker_handle: BrokerHandle | None = None,
+    trigger: str = "task_gated",
+) -> ReviewOutcome:
+    """One review attempt in a disposable copy of the target worktree, which
+    the reviewer may run and write in (S-0005/D-2 as reworded by S-0005/A-4). Produces the
+    review's run state and telemetry record; the caller applies the consequence
+    to the target.
+
+    The order is the guarantee: the input, the executor's evidence and the
+    mount point are all settled before the copy exists, so no write the
+    reviewer makes can reach anything that was read into the judgment."""
+
+    # S-0110/D-10: the elision set is the manifest's own rider files, so a
+    # nested lock rides out of the reviewer's view exactly as the root one does.
+    manifest_path = layout.gates_file(root)
+    manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
+    elided = elided_prefixes(manifest)
+
+    # The reviewer's whole input, composed first (S-0005/D-3: no author trace,
+    # ever) — after this line the diff under judgment is text in a string, and
+    # no state the copy can reach has any part in it. The diff itself is
+    # staged as a file in the copy below (S-0005/A-5): a diff carrying a vendored
+    # bundle exceeds any prompt, and a reviewer with tools reads lazily.
+    prompt = build_review_prompt(target, diff_text, gate_results, degraded=degraded, elided=elided)
+
+    def stage(copy: Path) -> None:
+        # S-0005/A-5: the diff rides the copy as a file, not the prompt —
+        # composed above, before the copy existed, so the guarantee is
+        # unchanged; the prompt names the path and the reviewer reads what it
+        # needs. Vendored bulk is elided even here: reading a minified bundle
+        # killed a review from inside the session, and the real bytes sit in
+        # the tree anyway.
+        diff_path = copy / ".torve" / "tmp" / "review.diff"
+        diff_path.parent.mkdir(parents=True, exist_ok=True)
+        diff_path.write_text(elide_diff_bulk(diff_text, elided), encoding="utf-8")
+
+        # S-0054/D-13: the reviewer reads the pack too — built for the target, as a
+        # replay, so no model-authored entry enters — plus `touched.json`, the
+        # engine's facts about this diff. The copy carried the executor's skill
+        # set; the review role's own replaces it (S-0054/D-14).
+        from torve.application.contextpack import build as build_pack
+        from torve.application.contextpack import materialize as materialize_pack
+        from torve.application.skills import materialize as materialize_skills
+
+        shutil.rmtree(copy / ".torve" / "skills", ignore_errors=True)
+        materialize_skills(
+            review.role,
+            copy / ".torve" / "skills",
+            effective_skill_sets(tier_for(config, review.tier), review.role, config.skills.sets),
+            layout.skills_vendor_dir(copy),
+        )
+        pack = build_pack(
+            root, root / config.specs.path, target, layout.gates_file(root), replay=True
+        )
+        pack["touched.json"] = (
+            json.dumps(touched_file(root, target, diff_text), indent=2, sort_keys=True) + "\n"
+        )
+        pack["index.md"] += (
+            "- `touched.json` — the rows this diff intersects and coverage of the changed lines\n"
+        )
+        materialize_pack(copy, pack)
+
+    session = run_seat(
+        root,
+        worktree,
+        target,
+        review,
+        config,
+        runtime,
+        agent,
+        prompt,
+        stage=stage,
+        read=read_verdict,
+        broker=broker,
+        broker_handle=broker_handle,
+    )
+
+    findings, refusal, result = session.verdict, session.refusal, session.result
     unparseable = findings is None and refusal is None
     # No verdict because the seat itself failed: the record and the escalation
     # name the provider's error, not an unreadable answer nobody gave.
@@ -998,69 +1172,23 @@ def run_review(
     else:
         fact = "review clean"
 
-    record: dict[str, Any] = {
-        "schema_version": RECORD_SCHEMA_VERSION,
-        "kind": "review",
-        "at": stamp(),
-        "config_hash": config_digest,
-        "task_id": review.id,
-        "target": target.id,
-        # Which trigger produced this review, because the two have different
-        # lifecycles and the record could not tell them apart (S-0005/A-9): a
-        # task-gated blocker is revised in-run or escalates, a
-        # pull-request one is reported and stops nothing.
-        "trigger": trigger,
-        "findings": [f.model_dump() for f in kept],
-        "discarded": discarded,
-        "unparseable": unparseable,
-        "refusal": refusal,
-        # Which reviews needed a second ask (S-0086/D-1), so the ledger can
-        # count how often a harness fails to produce a findings document.
-        "second_ask": second_ask,
-        "agent": {
-            "tier": review.tier,
-            "adapter": getattr(agent, "kind", tier.adapter),
-            "provider": tier.provider or None,
-            "model": tier.model or None,
-            "model_version": result.model_version,
-            "cost_usd": result.cost_usd,
-            "trace_ref": result.trace_ref,
-            # Both asks' traces when there were two (S-0086/D-1): the verdict
-            # that escalated is `trace_ref`, and the unreadable answer before
-            # it is evidence for whoever asks why the harness failed.
-            **({"trace_refs": review_trace_refs} if second_ask else {}),
-            # The review's own span (the broker clock covers the whole run,
-            # so it can never answer "how long was the review"): two wall
-            # stamps for the humans, the monotonic duration as the truth.
-            "started_at": started_at,
-            "ended_at": stamp(),
-            "wall_time_s": round(_time.monotonic() - review_clock, 3),
-            # The reviewer's token counts, flat beside cost (T-0186) — only
-            # the reported ones, absent keys omitted (S-0004/D-6).
-            **token_counts,
-            # The image tag beside the adapter (S-0017/D-4) — the cost table's
-            # harness column reads it; the attempt records already carry it.
-            "image": image,
-            "shadow": False,
-            # The reviewer spends the run's budget on the same handle; its
-            # counts ride the record beside the adapter's report (S-0021/D-5).
-            **(
-                {"broker": broker_block(broker.name, broker_usage)}
-                if broker is not None and broker_usage is not None
-                else {}
-            ),
+    record = review_record(
+        session,
+        target,
+        review,
+        agent,
+        config_digest,
+        trigger,
+        {
+            "mode": "classic",
+            "findings": [f.model_dump() for f in kept],
+            "discarded": discarded,
+            "unparseable": unparseable,
+            "refusal": refusal,
         },
-    }
-
-    manifest_file = layout.gates_file(worktree)
-
-    if manifest_file.is_file():
-        append_record(root / load_manifest(manifest_file).telemetry, record)
-
-    state.transition(TaskState.GATED, "findings produced")
-    state.transition(TaskState.REVIEWED, fact)
-    state.transition(TaskState.READY, fact)
-    state.save()
+        broker,
+    )
+    close_review(root, worktree, session, record, fact)
 
     return ReviewOutcome(
         review_id=review.id,
@@ -1070,7 +1198,7 @@ def run_review(
         discarded=discarded,
         unparseable=unparseable,
         refusal=refusal,
-        second_ask=second_ask,
+        second_ask=session.second_ask,
         seat_error=seat_error,
     )
 
