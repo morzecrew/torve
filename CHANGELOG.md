@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rows: completion` in the gate manifest runs a contract row's `check` only in the
   battery that completes its document, instead of on every attempt.
 
+### Changed
+
+- The dsh image moves to dsh 0.2.1-rc.5. It now shuts out project instruction files
+  and the default skill roots, gives a shell command up to 900 s in the foreground,
+  and reports usage and tool calls from dsh's v4 session log.
+
 ### Removed
 
 - `torve eval` and `torve shadow` are gone, with the eval arms and shadow replays they
@@ -51,6 +57,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The configuration keys `notify`, `verify`, `unmeasured_images`, `runtime.opensandbox`
   and `loop.standing_max_per_tick`, and a seat on the mimo, codex or opencode harness,
   still load in this release: torve ignores them and warns.
+
+### Fixed
+
+- The dsh seat's door against `AGENTS.md`, `CLAUDE.md` and the default skill roots had
+  no effect: it patched keys dsh does not read, so those files reached every attempt.
 
 ### Security
 

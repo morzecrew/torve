@@ -978,3 +978,28 @@ def test_a_contract_with_no_rows_is_not_recorded():
 
     assert "contract" not in row["agent"]
     validate_payload(EventKind.ATTEMPT_FINISHED, record_payload(row, 1))
+
+
+def test_a_dsh_seats_lower_case_tools_classify_like_claudes():
+    """dsh 0.2.1-rc.5 names its tools in lower case with the same arguments:
+    each one lands in the class its claude counterpart does, never `other`."""
+
+    profile = classify_tool_calls(
+        [
+            {"name": "read", "input": {"file_path": "src/app.py"}},
+            {"name": "glob", "input": {"pattern": "**/*.py"}},
+            {"name": "edit", "input": {"file_path": "src/app.py"}},
+            {"name": "str_replace_editor", "input": {"path": "src/app.py"}},
+            {"name": "bash", "input": {"command": "uv run pytest -q"}},
+            {"name": "bash", "input": {"command": "uv run ruff check ."}},
+        ],
+        scope=["src/**"],
+    )
+
+    assert profile["classes"] == {
+        "in_scope_read": 1,
+        "orientation": 1,
+        "edit": 2,
+        "test_run": 1,
+        "lint_run": 1,
+    }

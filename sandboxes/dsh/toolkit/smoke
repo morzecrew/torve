@@ -1,13 +1,27 @@
 #!/bin/sh
-# Does the profile this image ships actually boot? (S-0066/D-1's door, the
-# hook plugin, and the model overlay are all patches, and a patch that drops a
+# Does the profile this image ships actually boot, and does every patch say
+# what it is meant to? (S-0066/D-1's door, the hook plugin, the persona, the
+# tool set and the model overlay are all patches, and a patch that drops a
 # required key fails at boot rather than at build — which is three attempts
 # dead at `wall 0s` and nothing in the repository the wiser.)
 #
+# Booting is not enough, which is the half of this check 0.2.1-rc.5 added
+# (S-0122/D-10). dsh drops a config key it does not know without a word, skips
+# a patch whose entry it cannot find with one line on stderr, and turns a
+# plugin whose dsh requirements miss into `disabled: true` the same way — all
+# three boot green. The door shipped open for exactly that reason. So the
+# composed tree is read back out of `--dump-config` and each value the seat
+# relies on is asserted there, and either stderr line fails the build.
+#
 # Run at build time, so `just image dsh` fails instead. Every input is the real
-# one: the door file the seat patches, `equip_patch.py` driven by a manifest,
-# and `model_overlay.py`. Nothing here restates what those write.
+# one: the door, tool and persona files the seat patches, `equip_patch.py`
+# driven by a manifest, and `model_overlay.py`, in `run`'s order. Nothing here
+# restates what those write.
 set -eu
+
+. /opt/torve/dsh.env
+rm -rf "$DSH_HOME" "$DSH_AGENTS_HOME"
+mkdir -p "$DSH_HOME" "$DSH_AGENTS_HOME"
 
 export TORVE_MODEL=smoke
 export TORVE_BASE_URL=http://127.0.0.1:1
@@ -16,26 +30,80 @@ export TORVE_EQUIP_ROOT=/tmp/smoke/skills
 
 mkdir -p /tmp/smoke/skills /tmp/smoke/hook
 printf '{"items":[{"kind":"hook","path":"/tmp/smoke/hook"}]}' > /tmp/smoke/manifest.json
+# A stand-in for the rules the engine stages, appended the way `run` appends them.
+RULES='Smoke: the staged rules reach the persona prefix.'
+printf '%s\n' "$RULES" > /tmp/smoke/rules.md
 
 python3 /opt/torve/model_overlay.py /tmp/smoke/model.yml
 python3 /opt/torve/equip_patch.py /tmp/smoke/manifest.json /tmp/smoke/equipment.yml
 sed "s|@EQUIP_ROOT@|$TORVE_EQUIP_ROOT|" /opt/torve/door.yml > /tmp/smoke/door.yml
+{ cat /opt/torve/persona.yml; sed 's/^/      /' /tmp/smoke/rules.md; } > /tmp/smoke/persona.yml
 
-out=$(dsh --profile headless \
+set -- --profile headless \
     --patch /tmp/smoke/model.yml \
     --patch /tmp/smoke/door.yml \
     --patch /opt/torve/tools.yml \
-    --patch /tmp/smoke/equipment.yml \
-    "smoke" 2>&1 || true)
+    --patch /tmp/smoke/persona.yml \
+    --patch /tmp/smoke/equipment.yml
+
+fail() {
+    printf 'smoke: %s\n\n%s\n' "$1" "$2" >&2
+    exit 1
+}
+
+out=$(dsh "$@" "smoke" 2>&1 || true)
 
 # The credential is deliberately absent, so a profile that boots ends exactly
 # here. Anything else — a plugin tree that failed to load, an entry that failed
 # its schema, a package that would not resolve — is a broken image.
 case "$out" in
     *MISSING_CREDENTIAL*) ;;
-    *) printf 'smoke: the profile did not boot\n\n%s\n' "$out" >&2; exit 1 ;;
+    *) fail 'the profile did not boot' "$out" ;;
 esac
 
-# The profile this wrote is build residue: HOME differs at runtime, but an
-# image that ships a half-built profile is an image nobody can reason about.
-rm -rf /tmp/smoke "$HOME/.dsh"
+dump=$(dsh "$@" --dump-config 2>/tmp/smoke/dump.err) || fail 'dsh --dump-config failed' "$(cat /tmp/smoke/dump.err)"
+
+# The two lines dsh prints instead of failing: a patch naming an entry the
+# profile does not carry, and a plugin it switched off.
+dropped=$(printf '%s\n' "$out" | cat - /tmp/smoke/dump.err | grep -E 'patch: entry ".*" not found|disabling profile plugin' || true)
+[ -z "$dropped" ] || fail 'a patch or a plugin was dropped' "$dropped"
+
+# One entry's rows in the dump: its `- id:` line up to the next entry or the
+# next layer's comment.
+entry() {
+    printf '%s\n' "$dump" | awk -v id="- id: $1" '$0 == id { on = 1; next } on && /^(- |# )/ { exit } on'
+}
+
+has() {
+    entry "$1" | grep -qxF -- "$2" || fail "\`$1\` does not carry \`$2\`" "$(entry "$1")"
+}
+
+# The door: no project instruction file, and the engine's skill root alone.
+has agent-instructions '    instructionFileCandidates: []'
+has agent-instructions '    localInstructionFileCandidates: []'
+has skill-filesystem '    includeDefaultRoots: false'
+has skill-filesystem '    customSkillDirs:'
+has skill-filesystem "      - $TORVE_EQUIP_ROOT"
+
+# The persona: the bundle's sentence restated, and the staged rules under it.
+entry system-prompt | grep -q '^    personaPrefix:' || fail 'no personaPrefix' "$(entry system-prompt)"
+entry system-prompt | grep -qF 'You are a coding agent powered by the {{model}} model.' \
+    || fail 'the persona prefix lost the bundle sentence' "$(entry system-prompt)"
+entry system-prompt | grep -qF "$RULES" || fail 'the staged rules are not in the persona prefix' "$(entry system-prompt)"
+
+# The tools: the shell's clock, and a foreground that stays a foreground.
+has bash-sandbox '    timeoutMs: 900000'
+has bash-sandbox '    maxTimeoutMs: 900000'
+has tool-bash '    enableRunInBackground: false'
+has tool-bash '    promoteOnTimeout: false'
+
+# The hook plugin `equip` installed and inserted, and not switched off.
+has scope-guard-policy "  name: '@torve/scope-guard-policy'"
+if entry scope-guard-policy | grep -q 'disabled: true'; then
+    fail 'the scope-guard plugin is disabled' "$(entry scope-guard-policy)"
+fi
+
+# The profile and homes this wrote are build residue: the attempt's own are
+# made fresh by `equip`, and an image that ships a half-built profile is an
+# image nobody can reason about.
+rm -rf /tmp/smoke "$DSH_HOME" "$DSH_AGENTS_HOME"
