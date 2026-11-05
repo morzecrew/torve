@@ -481,9 +481,9 @@ over stdio. It registers four tools and all four are read-only
 (S-0067/D-5, LOCKED): `context`, `show`, `why` — and `pack`.
 
 `pack` takes a task id, and optionally one file name, and answers with the
-very files a dispatched sandbox is handed on disk: `index.md`,
-`decisions.json`, `gates.json`, `tests.json`, `attempts.json`,
-`contended.json`, `schema/*.json`. They are built there by the same pure
+very files a dispatched sandbox is handed on disk: `index.md`, `map.md`,
+`scope.md`, `decisions.json`, `attempts.json`, `symbols.txt`,
+`schema/*.json`. They are built there by the same pure
 function dispatch calls — the builder derives and the caller writes, so a
 query materializes nothing: no file on disk moves because you asked.
 
