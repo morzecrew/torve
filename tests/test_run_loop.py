@@ -81,6 +81,23 @@ class MockWorkspace:
     def list_worktrees(self):
         return []
 
+    # S-0122/D-7: a candidate beside the task's worktree, and the one chosen
+    # moved into its place.
+    def snapshot(self, task_id):
+        return ""
+
+    def create_candidate(self, task_id, index, base):
+        path = self.root / ".wt" / f"{task_id}~{index}"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def promote_candidate(self, task_id, index):
+        import shutil
+
+        own = self.root / ".wt" / task_id
+        shutil.rmtree(own, ignore_errors=True)
+        (self.root / ".wt" / f"{task_id}~{index}").rename(own)
+
     # S-0114/D-2: the gates read the judge checkout, not the worktree. This
     # double has no snapshot of its own, so the worktree stands in for it.
     def judge_checkout(self, task_id):

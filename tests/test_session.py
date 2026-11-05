@@ -836,7 +836,7 @@ def _repair_loop(repo, monkeypatch, agent, repair, config=None):
     session = run_module.run_agent_session
     monkeypatch.setattr(run_module, "run_gate_pass", gates)
     monkeypatch.setattr(
-        run_module, "run_agent_session", lambda run, state: session(run, state, repair)
+        run_module, "run_agent_session", lambda run, state, _own=None: session(run, state, repair)
     )
     run_task(repo.root, task_for(repo), config or RunnerConfig(), deps)
 

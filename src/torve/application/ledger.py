@@ -59,7 +59,8 @@ LEDGER_SCHEMA_VERSION = 1
 # measures a regime and merges nothing, so it lands nothing and belongs to
 # no landing rate. `review` and `intake` are another task's spend under this
 # task's id, the same exclusion `projections` draws one step earlier.
-EXCLUDED_KINDS = frozenset({"shadow", "skill-eval", "engine", "review", "intake"})
+# `unit.closed` (S-0122/D-16) describes candidates whose own rows are counted.
+EXCLUDED_KINDS = frozenset({"shadow", "skill-eval", "engine", "review", "intake", "unit.closed"})
 
 # A conviction is a blocking gate that failed (the pairing `projections`
 # uses): a shadow gate's red convicts nobody, and an `error` is the battery

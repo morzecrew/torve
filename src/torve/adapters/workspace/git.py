@@ -300,6 +300,65 @@ class GitWorkspace:
 
     # ....................... #
 
+    def snapshot(self, task_id: str) -> str:
+        """The task's worktree as it stands, uncommitted work included, as a
+        commit no ref holds (S-0122/D-7): what a unit's candidates all start
+        from when an earlier attempt left its work in the tree."""
+
+        return _snapshot_commit(naming.worktree(self.root, task_id))
+
+    # ....................... #
+
+    def create_candidate(self, task_id: str, index: int, base: str) -> Path:
+        """Candidate *index*'s worktree (S-0122/D-7), `.wt/<task>~<index>`,
+        detached at *base* — the task's worktree as `snapshot` took it before
+        any candidate ran, since the first may have changed or committed over
+        it since — so every candidate of a unit starts from one tree. An empty
+        *base* reads the task's worktree HEAD."""
+
+        with _worktree_held(self.root):
+            key = f"{task_id}~{index}"
+            path = naming.worktree(self.root, key)
+
+            if path.exists():
+                self._remove_locked(key)
+
+            base = base or _git_at(naming.worktree(self.root, task_id), "rev-parse", "HEAD").strip()
+            self._git("worktree", "add", "--detach", str(path), base)
+
+            return path
+
+    # ....................... #
+
+    def promote_candidate(self, task_id: str, index: int) -> None:
+        """Candidate *index*'s worktree becomes the task's: the task's own is
+        removed, the candidate's moved into its place with its uncommitted
+        work and the engine's files beside it, and the task's branch set on
+        it when the task's own held the branch."""
+
+        with _worktree_held(self.root):
+            own = naming.worktree(self.root, task_id)
+            branch = naming.branch(task_id)
+            held = (
+                subprocess.run(
+                    ["git", *NO_HOOKS, "-C", str(own), "symbolic-ref", "-q", "HEAD"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                ).stdout.strip()
+                == f"refs/heads/{branch}"
+            )
+
+            self._remove_locked(task_id)
+            candidate = naming.worktree(self.root, f"{task_id}~{index}")
+            self._git("worktree", "move", str(candidate), str(own))
+
+            if held:
+                # Free now its worktree is gone; `-B` at HEAD keeps the work.
+                _git_at(own, "checkout", "-q", "-B", branch)
+
+    # ....................... #
+
     def list_worktrees(self) -> list[tuple[str, Path]]:
         wt_root = self.root / naming.WORKTREE_DIR
 

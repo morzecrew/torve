@@ -218,6 +218,24 @@ class Dispatch:
     # replay hands its own.
     judge: JudgePort | None = None
 
+    # S-0122/D-7: which of a unit's candidates this dispatch runs — the second
+    # and later ones work in `<task>~<k>` worktrees, 0 and 1 in the task's own —
+    # the clock selection hands it, and what selection already judged of the
+    # tree the loop goes on with, so the loop's own gates and review read it
+    # rather than run again.
+    candidate: int = 0
+    clock: float | None = None
+    preselected: tuple[int, str, str] | None = None
+    preselected_review: Any = None
+
+    # ....................... #
+
+    @property
+    def workspace_key(self) -> str:
+        """The key this dispatch's worktree and judge checkout are named by."""
+
+        return f"{self.task.id}~{self.candidate}" if self.candidate > 1 else self.task.id
+
     # ....................... #
 
     @property

@@ -178,3 +178,90 @@ def test_the_stream_re_exports_are_gone():
         "attempted_tasks",
     ):
         assert not hasattr(projections, name)
+
+
+# ....................... #
+# S-0122/D-16: a unit's `unit.closed` record.
+
+
+def test_a_unit_s_record_reaches_why_and_the_night_and_is_no_attempt(tmp_path):
+    import json
+    from datetime import UTC, datetime
+
+    from test_context import seed_why_facts
+    from test_plan import PHASING, written
+
+    from torve.application.projections import units, why_report
+    from torve.application.streams import stream_rows
+
+    root = _repo(tmp_path)
+    written(root / ".torve" / "specs", "0090", "Widgets", phasing=PHASING)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "corpus")
+    seed_why_facts(root)
+    before = why_report(root, "T-0001")
+    unit = {
+        "kind": "unit.closed",
+        "schema_version": 2,
+        "at": "2026-09-02T11:00:00Z",
+        "task_id": "T-0001",
+        "attempt": 2,
+        "class": "M",
+        "width": 2,
+        "candidates": [
+            {"index": 1, "green": False, "verdict": None},
+            {"index": 2, "green": True, "verdict": "clean", "cost_usd": 0.4},
+        ],
+        "selected": 2,
+        "critic_calls": 1,
+        "outcome": "selected",
+    }
+
+    candidates = [
+        {
+            "schema_version": 1,
+            "at": f"2026-09-02T10:5{index}:00Z",
+            "task_id": "T-0001",
+            "config_hash": "hashA",
+            "agent": {"attempt": 9, "candidate": index, "adapter": "harness", "cost_usd": cost},
+            "results": [],
+            "exit_code": 0,
+        }
+        for index, cost in ((1, 0.25), (2, 0.5))
+    ]
+
+    with (root / ".torve" / "telemetry.jsonl").open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(unit) + "\n")
+
+    after = why_report(root, "T-0001")
+
+    with (root / ".torve" / "telemetry.jsonl").open("a", encoding="utf-8") as stream:
+        stream.writelines(json.dumps(row) + "\n" for row in candidates)
+
+    # Two candidates of one attempt are two entries, and both are spent.
+    both = why_report(root, "T-0001")
+    ninth = [entry for entry in both["attempts"] if entry.get("attempt") == 9]
+
+    assert [entry.get("candidate") for entry in ninth] == [1, 2]
+    assert both["totals"]["cost_usd"] == round(after["totals"]["cost_usd"] + 0.75, 6)
+
+    assert "units" not in before
+    assert after["units"] == [unit]
+    # The candidates' own rows are the attempts; the unit adds none.
+    assert after["attempts"] == before["attempts"]
+    assert after["totals"] == before["totals"]
+
+    rows = stream_rows(root)
+
+    assert units(rows, since=datetime(2026, 9, 2, tzinfo=UTC)) == [unit]
+    assert units(rows, since=datetime(2026, 9, 3, tzinfo=UTC)) == []
+
+    from typer.testing import CliRunner
+
+    from torve.cli import app
+
+    shown = CliRunner().invoke(app, ["why", "T-0001", "--root", str(root)])
+
+    assert shown.exit_code == 0, shown.output
+    assert "2 candidate(s) · selected · candidate 2 chosen" in shown.output
+    assert "candidate 2: green, critic clean" in shown.output

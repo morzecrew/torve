@@ -24,8 +24,9 @@ import asyncio
 import os
 import re
 import shutil
+import time
 from collections.abc import Awaitable, Callable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path, PurePosixPath
@@ -39,7 +40,7 @@ from forze.application.contracts.durable.function import (
 from forze.application.execution import ExecutionContext
 from forze.base.primitives import JsonDict
 
-from torve.application import decisions
+from torve.application import decisions, selection
 from torve.application.dispatch import (
     BARE,
     CONFIGURED,
@@ -53,6 +54,7 @@ from torve.application.dispatch import (
     open_broker,
     open_dispatch,
     review_gated,
+    telemetry_target,
 )
 from torve.application.forge import compose_pr
 from torve.application.manager import in_flight_fences, project
@@ -65,7 +67,7 @@ from torve.application.ports import (
     SandboxSpec,
     judge_ref,
 )
-from torve.application.review import review_step, reviewer_for
+from torve.application.review import mint_review_task, review_step, reviewer_for
 from torve.application.runstate import Escalation, RunState
 from torve.application.session import (
     AXIS_SEVERITY,
@@ -85,10 +87,10 @@ from torve.application.telemetry import (
     record_row,
 )
 from torve.base import naming
-from torve.base.clock import parse
+from torve.base.clock import parse, stamp
 from torve.config import layout
 from torve.config.manifest import UNLABELED_AXIS, Gate, Manifest, load_manifest
-from torve.config.runconfig import RunnerConfig
+from torve.config.runconfig import RunnerConfig, agent_timeout_for
 from torve.config.spec import TRACKED_LIST, write_tracked_files
 from torve.domain.attempt import GateResult
 from torve.domain.states import BlockedDispatch, EscalationReason, TaskState
@@ -859,13 +861,13 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
     ignored = _ignored_writes(run)
 
     opener = run.judge or run.deps.workspace
-    judge = opener.judge_checkout(run.task.id)
+    judge = opener.judge_checkout(run.workspace_key)
 
     try:
         # A replay's checkout is fetched whole from its clone, whose history
         # already ends at the replayed parent; the root holds no ref of it.
         if not run.shadow:
-            _deepen_judge(judge, run.root, run.task.id)
+            _deepen_judge(judge, run.root, run.workspace_key)
 
         # The engine's own files for the task — its contract, the agent's log —
         # live under an ignored directory, so no snapshot carries them. The
@@ -989,7 +991,7 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
         # S-0114/D-5: a judge checkout outlives no battery. The record is
         # built below from the context, so this runs after the battery ends,
         # green or red.
-        opener.remove_judge(run.task.id)
+        opener.remove_judge(run.workspace_key)
 
     digest = config_hash(manifest_path, run.worktree, run.config, image_digest=run.image_digest)
     record = build_record(ctx, _with_ignored_writes(report, ignored), digest, agent=run.meta)
@@ -1173,6 +1175,12 @@ async def judge(run: Dispatch, state: RunState) -> tuple[int, str, str]:
     rest of the run reads off it: the convictions retry selection uses
     (S-0034/D-5), the pass the reviewer is handed, and — on a red — whether
     the next attempt is routed as a repair."""
+
+    # S-0122/D-7: selection judged the tree this attempt goes on with, and
+    # stamped what the rest of the run reads; its verdict is this pass's.
+    if run.preselected is not None:
+        verdict, run.preselected = run.preselected, None
+        return verdict
 
     # Deliberately not guarded: a sync that fails leaves the battery judging
     # a log nobody vouched for, and the gates are fail-closed. The raise
@@ -1587,6 +1595,238 @@ def checkpoint(run: Dispatch, final: RunState) -> None:
 # ....................... #
 
 
+# ....................... #
+# S-0122/D-7, D-8: the attempt as a unit's candidates. The order and the
+# choosing are `selection`'s; what one candidate is — a session in its own
+# worktree, its repair turn, its gate pass, its critic call — is here.
+
+# A history fact per critic call, which the unit's budget of calls counts.
+CRITIC_MARKER = "critic reviewed candidate "
+
+
+def selects(run: Dispatch) -> bool:
+    """Whether this dispatch's attempt runs through selection: a live
+    implement run whose critic judges candidates, or whose seat can give a
+    red candidate a repair turn in its own session."""
+
+    if run.shadow or run.arm != CONFIGURED or run.task.role != "implement":
+        return False
+
+    critic = run.config.review.mode == "critic" and review_gated(run.config, run.task, run.shadow)
+
+    return critic or getattr(run.deps.agent, "follow_up", None) is not None
+
+
+def _width(run: Dispatch, state: RunState) -> tuple[int, str]:
+    """The unit's width and class (S-0122/D-7). Several candidates only when a
+    critic chooses between them."""
+
+    revision = (run.worktree / ".torve" / "feedback.md").is_file()
+    escalated = any(entry.get("to") == str(TaskState.ESCALATED) for entry in state.history)
+    size = selection.unit_class(run.task, run.worktree, revision=revision, escalated=escalated)
+    critic = run.config.review.mode == "critic" and review_gated(run.config, run.task, run.shadow)
+
+    return (selection.WIDTHS[size] if critic else 1), size
+
+
+def _candidate_dispatch(run: Dispatch, start: Dispatch, index: int, base: str) -> Dispatch:
+    """Candidate *index*'s own dispatch over its own worktree: the regime and
+    the broker are the run's, and the terms are as *start* held them before
+    any candidate ran — an earlier candidate's red routes the next attempt,
+    never a sibling (S-0069/D-3). The facts a gate pass stamps are its own."""
+
+    return replace(
+        run,
+        worktree=run.deps.workspace.create_candidate(run.task.id, index, base),
+        candidate=index,
+        task=start.task,
+        meta=dict(start.meta),
+        convictions=[],
+        last_pass=GatePass(),
+        evidence=None,
+        repaired_gates=set(start.repaired_gates),
+        preselected=None,
+        preselected_review=None,
+    )
+
+
+async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
+    """One attempt as the unit's candidates (S-0122/D-7, D-8): each runs in
+    turn and is judged, a red one whose conviction is mechanical first gets
+    its repair turn, and the critic reads the green ones in rank order. The
+    one chosen is left in the task's worktree with its gate pass and its
+    verdict stamped on the run, which the loop's gates and review then read
+    instead of running again; the rest are removed, and the unit's record is
+    written."""
+
+    width, size = _width(run, state)
+    agent_clock = agent_timeout_for(run.config, run.tier)
+    critic = run.config.review.mode == "critic" and review_gated(run.config, run.task, run.shadow)
+    reviews: list[str] = []
+    run.meta.pop("candidate", None)
+    start = replace(run, meta=dict(run.meta), repaired_gates=set(run.repaired_gates))
+    # The unit's one tree, taken before the first candidate changes it or its
+    # red commits a convicted tree there (S-0069/D-4): a retry's candidates all
+    # start from the work the attempt before them left.
+    base = await asyncio.to_thread(run.deps.workspace.snapshot, run.task.id) if width > 1 else ""
+
+    async def launch(index: int, clock: float) -> selection.Candidate:
+        crun = (
+            run
+            if index == 1
+            else await asyncio.to_thread(_candidate_dispatch, run, start, index, base)
+        )
+        crun.clock = clock if clock < agent_clock else None
+
+        if width > 1:
+            crun.meta["candidate"] = index
+
+        started = time.monotonic()
+        first: list[AgentResult] = []
+        held: list[tuple[int, str, str]] = []
+
+        async def judged() -> tuple[int, str, str] | None:
+            # The loop's own gates step, as it reads a pass that raised: the
+            # escalation ends the unit, and a refusal to dispatch goes back.
+            try:
+                return await judge(crun, state)
+
+            except (BlockedDispatch, asyncio.CancelledError):
+                raise
+
+            except Exception as exc:
+                state.escalate(EscalationReason.GATE_INFRASTRUCTURE_FAILURE, repr(exc))
+                return None
+
+        async def repair(result: AgentResult) -> str | None:
+            first.append(result)
+
+            # A turn that escalated or halted is judged by nobody and buys nothing.
+            if state.escalation is not None or halted(crun, state.attempts) is not None:
+                return None
+
+            verdict = await judged()
+
+            if verdict is None:
+                return None
+
+            held.append(verdict)
+            mechanical = verdict[0] != 0 and selection.repairable(crun.convictions)
+
+            return verdict[1] if mechanical else None
+
+        result = await run_agent_session(crun, state, repair)
+        crun.clock = None
+        candidate = selection.Candidate(index=index, result=result, run=crun)
+        candidate.followed_up = bool(first) and result is not first[0]
+
+        if (
+            state.escalation is None
+            and result.refused is None
+            and not result.timed_out
+            and result.exit_code == 0
+            and halted(crun, state.attempts) is None
+        ):
+            # The repair callback judged the tree the first turn left; a turn
+            # after it changed the tree, so that one is judged again.
+            verdict = held[0] if held and not candidate.followed_up else await judged()
+
+            if verdict is None:
+                candidate.wall_s = time.monotonic() - started
+                return candidate
+
+            crun.preselected = verdict
+            candidate.green = verdict[0] == 0
+            candidate.patch = crun.last_pass.patch
+            package = crun.last_pass.evidence
+
+            if package is not None:
+                candidate.failing = len(package.failing_items())
+                candidate.flags = len(package.flags)
+                candidate.lines = sum(f.added + f.removed for f in package.files)
+                candidate.widened = len(package.outside_files)
+
+        candidate.wall_s = time.monotonic() - started
+
+        return candidate
+
+    async def review(candidate: selection.Candidate) -> bool:
+        from torve.application.critic import judge as critic_judge
+
+        taken = [*(run.deps.taken() if run.deps.taken is not None else ()), *reviews]
+        review_task = mint_review_task(run.root, run.task, taken=taken)
+        reviews.append(review_task.id)
+        verdict = await asyncio.to_thread(critic_judge, candidate.run, review_task)
+        candidate.verdict = verdict
+        state.history.append(
+            {
+                "at": state.heartbeat,
+                "from": str(state.state),
+                "to": str(state.state),
+                "fact": f"{CRITIC_MARKER}{candidate.index}: {verdict.review_id}",
+            }
+        )
+        state.save()
+
+        return not verdict.blockers and not verdict.unparseable and verdict.refusal is None
+
+    spent = sum(str(entry.get("fact", "")).startswith(CRITIC_MARKER) for entry in state.history)
+    candidates: list[selection.Candidate] = []
+    chosen = 1
+
+    async def tracked(index: int, clock: float) -> selection.Candidate:
+        candidates.append(await launch(index, clock))
+        return candidates[-1]
+
+    try:
+        chosen_round = await selection.select(
+            width,
+            tracked,
+            review if critic else None,
+            agent_clock=agent_clock,
+            seed=run.task.id,
+            critic_budget=max(0, selection.CRITIC_CALLS - spent),
+            stop=lambda: state.escalation is not None,
+        )
+        winner = chosen_round.chosen
+        chosen = winner.index
+
+        if chosen > 1:
+            await asyncio.to_thread(run.deps.workspace.promote_candidate, run.task.id, chosen)
+            picked: Dispatch = winner.run
+            run.task, run.repaired_gates = picked.task, picked.repaired_gates
+            run.last_pass, run.convictions = picked.last_pass, picked.convictions
+            run.evidence, run.preselected = picked.evidence, picked.preselected
+            run.meta.clear()
+            run.meta.update(picked.meta)
+
+        run.preselected_review = winner.verdict if winner.reviewed else None
+
+        if width > 1:
+            append_record(
+                telemetry_target(run),
+                selection.unit_record(
+                    chosen_round,
+                    task_id=run.task.id,
+                    attempt=state.attempts,
+                    width=width,
+                    size=size,
+                    at=stamp(),
+                ),
+            )
+
+        result: AgentResult = winner.result
+
+        return result
+
+    finally:
+        for candidate in candidates:
+            if candidate.index > 1 and candidate.index != chosen:
+                await asyncio.to_thread(
+                    run.deps.workspace.remove, f"{run.task.id}~{candidate.index}"
+                )
+
+
 def real_hooks(
     root: Path,
     task: Task,
@@ -1644,7 +1884,13 @@ def real_hooks(
     # sandbox — but the gates still run in theirs and the landing carries
     # the revert's own provenance. Its targets resolve now, so an
     # unresolvable one fails here rather than at attempt three.
-    attempt = revert_leg(run) if task.role == "revert" else partial(run_agent_session, run)
+    attempt = (
+        revert_leg(run)
+        if task.role == "revert"
+        else partial(select_attempt, run)
+        if selects(run)
+        else partial(run_agent_session, run)
+    )
 
     # Review follows execution (S-0005/D-11): minted by the run, never by the
     # planner, and never for a shadow replay — a replay measures the

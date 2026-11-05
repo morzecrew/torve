@@ -357,6 +357,62 @@ def bare_prompt(task: Task) -> str:
 # ....................... #
 
 
+async def _stamp_turn(
+    run: Dispatch, state: RunState, result: AgentResult, started_at: str, clock: float
+) -> None:
+    """What a turn's result puts on the run's record: its regime, its cost and
+    its clock, the counts the adapter reported and the broker's, and the log
+    rewritten from the record. Again after a repair turn, which reports the
+    whole session's (S-0122/D-8)."""
+
+    run.meta.update(
+        model_version=result.model_version,
+        cost_usd=result.cost_usd,
+        trace_ref=result.trace_ref,
+        started_at=started_at,
+        ended_at=stamp(),
+        wall_time_s=round(time.monotonic() - clock, 3),
+    )
+    # The attempt's self-reported token counts ride the same block
+    # (T-0186): only the counts the adapter reported — absent keys
+    # stay absent, never zeroed (S-0004/D-6's self-reported regime).
+    #
+    # Cleared first, because `run.meta` is one dict for the whole run
+    # (T-0187): "absent stays absent" holds within an attempt and not
+    # across them, so an attempt whose adapter reported nothing
+    # inherited the previous attempt's counts and showed them beside
+    # its own `cost_usd: null`. Unreported must read as unreported.
+    for stale in (*TOKEN_FIELDS, "burn"):
+        run.meta.pop(stale, None)
+
+    run.meta.update(agent_token_counts(result))
+    # The burn profile rides the block beside those totals (S-0039
+    # §5.3): what the adapter derived at capture time from the
+    # store's full bytes; a stream with no per-turn facts contributes
+    # no key at all — no stream, no block (S-0039/D-4).
+    run.meta.update(agent_burn(result))
+
+    # The broker's live counts ride the attempt record beside the
+    # adapter's self-report (S-0021/D-5). A budget refusal escalates in
+    # progress, on the run that overspent (S-0021/D-6): the next request
+    # would be refused too, so the loop stops here.
+    broker, wire = run.deps.broker, run.broker_handle
+
+    if broker is not None and wire is not None:
+        _record_broker_usage(state, broker, wire, run.meta)
+
+    # A brokered `torve abort` reaches the record, not the file: the log
+    # is rewritten from the record before the halt is read, or the gates
+    # would judge an attempt that stopped. A sync that fails here fails
+    # again, closed, before the gate pass.
+    if run.deps.journal is not None:
+        with contextlib.suppress(Exception):
+            await asyncio.to_thread(run.deps.journal, run.worktree)
+
+
+# ....................... #
+
+
 async def run_agent_session(
     run: Dispatch,
     state: RunState,
@@ -561,7 +617,7 @@ async def run_agent_session(
             # Same resolution as the sandbox bound above: one tier,
             # one clock, for both the agent and the platform over it
             # (S-0035/D-6).
-            timeout_s=agent_timeout_for(config, run.tier),
+            timeout_s=min(agent_timeout_for(config, run.tier), run.clock or float("inf")),
             broker=run.broker_handle,
             resume=resume,
             # The arm's prompt travels as a property of the replay
@@ -584,6 +640,8 @@ async def run_agent_session(
             await _finish(run, handle, spec)
 
         deps.runtime.sync_out(handle, worktree)
+
+        await _stamp_turn(run, state, result, attempt_started_at, attempt_clock)
 
         # S-0122/D-8: one repair turn in the candidate's own session, while
         # the sandbox it ran in lives. The tree it leaves is finished the
@@ -608,50 +666,7 @@ async def run_agent_session(
                     await _finish(run, handle, spec)
 
                 deps.runtime.sync_out(handle, worktree)
-
-        run.meta.update(
-            model_version=result.model_version,
-            cost_usd=result.cost_usd,
-            trace_ref=result.trace_ref,
-            started_at=attempt_started_at,
-            ended_at=stamp(),
-            wall_time_s=round(time.monotonic() - attempt_clock, 3),
-        )
-        # The attempt's self-reported token counts ride the same block
-        # (T-0186): only the counts the adapter reported — absent keys
-        # stay absent, never zeroed (S-0004/D-6's self-reported regime).
-        #
-        # Cleared first, because `run.meta` is one dict for the whole run
-        # (T-0187): "absent stays absent" holds within an attempt and not
-        # across them, so an attempt whose adapter reported nothing
-        # inherited the previous attempt's counts and showed them beside
-        # its own `cost_usd: null`. Unreported must read as unreported.
-        for stale in (*TOKEN_FIELDS, "burn"):
-            run.meta.pop(stale, None)
-
-        run.meta.update(agent_token_counts(result))
-        # The burn profile rides the block beside those totals (S-0039
-        # §5.3): what the adapter derived at capture time from the
-        # store's full bytes; a stream with no per-turn facts contributes
-        # no key at all — no stream, no block (S-0039/D-4).
-        run.meta.update(agent_burn(result))
-
-        # The broker's live counts ride the attempt record beside the
-        # adapter's self-report (S-0021/D-5). A budget refusal escalates in
-        # progress, on the run that overspent (S-0021/D-6): the next request
-        # would be refused too, so the loop stops here.
-        broker, wire = deps.broker, run.broker_handle
-
-        if broker is not None and wire is not None:
-            _record_broker_usage(state, broker, wire, run.meta)
-
-        # A brokered `torve abort` reaches the record, not the file: the log
-        # is rewritten from the record before the halt is read, or the gates
-        # would judge an attempt that stopped. A sync that fails here fails
-        # again, closed, before the gate pass.
-        if deps.journal is not None:
-            with contextlib.suppress(Exception):
-                await asyncio.to_thread(deps.journal, worktree)
+                await _stamp_turn(run, state, result, attempt_started_at, attempt_clock)
 
         # Every path out of this hook ends in exactly one row (S-0038/D-1).
         # The endings are inspected in the order the loop itself reads

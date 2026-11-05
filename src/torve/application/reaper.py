@@ -117,11 +117,11 @@ def _sweep_worktrees(
         # the same way the task's own worktree is, so a live battery's
         # survives and a pass that died leaves both to the sweep together.
         if name.endswith(JUDGE_SUFFIX):
-            task_id = name.removesuffix(JUDGE_SUFFIX)
+            key = name.removesuffix(JUDGE_SUFFIX)
 
-            if _collectable(by_task.get(task_id), escalated):
+            if _collectable(by_task.get(key.partition("~")[0]), escalated):
                 if not dry_run:
-                    workspace.remove_judge(task_id)
+                    workspace.remove_judge(key)
 
                 report.worktrees_removed.append(name)
 
@@ -130,8 +130,9 @@ def _sweep_worktrees(
         # An intake/decompose drafting run's worktree carries a distinct
         # suffix (naming.INTAKE_SUFFIX) from the state file it is named
         # after — unstripped, every live drafting run reads as convention
-        # debris and a concurrent pass destroys it mid-run.
-        task_id = name.removesuffix(naming.INTAKE_SUFFIX)
+        # debris and a concurrent pass destroys it mid-run. A unit's later
+        # candidates (`<task>~<k>`, S-0122/D-7) live as long as their task's run.
+        task_id = name.removesuffix(naming.INTAKE_SUFFIX).partition("~")[0]
 
         if _collectable(by_task.get(task_id), escalated):
             if not dry_run:

@@ -1503,7 +1503,12 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
     review_task = mint_review_task(run.root, run.task, taken=taken)
     outcome: ReviewOutcome
 
-    if run.config.review.mode == "critic":
+    if run.preselected_review is not None:
+        # S-0122/D-7: the critic judged this candidate while selection chose
+        # it; its verdict is this review's, never asked for twice.
+        outcome, run.preselected_review = run.preselected_review, None
+
+    elif run.config.review.mode == "critic":
         # S-0122/D-6: the critic judges the candidate from the evidence the
         # gate pass measured; what follows treats its verdict as any review's.
         from torve.application.critic import judge

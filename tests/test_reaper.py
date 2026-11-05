@@ -225,6 +225,41 @@ def test_a_left_judge_checkout_and_its_ref_are_swept_a_live_battery_s_kept(tmp_p
     assert not ref_missing(root, "T-9702")
 
 
+def test_a_live_unit_s_candidates_are_kept_and_a_dead_one_s_swept(tmp_path):
+    """S-0122/D-7: a unit's later candidate works in `.wt/<task>~<k>`, judged
+    in `.wt/<task>~<k>.judge` under a ref git can hold. Both live as long as
+    their task's run does."""
+
+    root = tmp_path / "repo"
+    root.mkdir()
+
+    def git(*args):
+        subprocess.run(["git", "-C", str(root), *args], capture_output=True, check=True)
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "t@t")
+    git("config", "user.name", "t")
+    (root / "f.txt").write_text("one\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-q", "-m", "base")
+
+    workspace = GitWorkspace(root)
+    state_at(root, "T-9703", TaskState.RUNNING)
+
+    for task_id in ("T-9703", "T-9704"):
+        workspace.create(task_id, "HEAD")
+        workspace.create_candidate(task_id, 2, "")
+        workspace.judge_checkout(f"{task_id}~2")
+
+    report = reap(root, RunnerConfig(), MockRuntime(), workspace)
+
+    assert {"T-9704~2", "T-9704~2.judge"} <= set(report.worktrees_removed)
+    assert ref_missing(root, "T-9704~2")
+    assert not {"T-9703~2", "T-9703~2.judge"} & set(report.worktrees_removed)
+    assert (root / ".wt" / "T-9703~2").is_dir()
+    assert not ref_missing(root, "T-9703~2")
+
+
 def ref_missing(root, task_id):
     return (
         subprocess.run(

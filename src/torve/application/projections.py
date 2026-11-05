@@ -45,7 +45,7 @@ from torve.domain.task import DISPATCHABLE_ROLES, Task
 from torve.domain.vocabulary import GATE_AXES
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Sequence
+    from collections.abc import Collection, Iterable, Mapping, Sequence
 
     from torve.domain.events import EventRecord
 
@@ -704,7 +704,7 @@ def _costs(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 # shadow replays are the measurement machinery comparing two regimes, not
 # spend under either one, skill evals are S-0009's own population, and
 # engine events carry no agent block at all (S-0027 S-0027/D-5).
-_HARNESS_EXCLUDED_KINDS = {"shadow", "skill-eval", "engine"}
+_HARNESS_EXCLUDED_KINDS = {"shadow", "skill-eval", "engine", "unit.closed"}
 
 
 def _task_tier_name(record: dict[str, Any]) -> str:
@@ -1682,23 +1682,31 @@ def _group_attempts(rows: list[dict[str, Any]], root: Path) -> list[dict[str, An
     retrofitted number). The list runs chronologically — the timeline's own
     order."""
 
-    by_stamp: dict[int, list[dict[str, Any]]] = {}
+    # A unit's candidates share their attempt's stamp (S-0122/D-7); each is
+    # its own entry, so none of their spend folds into another's.
+    by_stamp: dict[tuple[int, int], list[dict[str, Any]]] = {}
     unstamped: list[dict[str, Any]] = []
 
     for row in sorted(rows, key=lambda r: str(r.get("at") or "")):
-        stamp = _row_agent(row).get("attempt")
+        agent = _row_agent(row)
+        stamp = agent.get("attempt")
+        candidate = agent.get("candidate")
 
         if isinstance(stamp, int) and not isinstance(stamp, bool):
-            by_stamp.setdefault(stamp, []).append(row)
+            key = (stamp, candidate if isinstance(candidate, int) else 0)
+            by_stamp.setdefault(key, []).append(row)
         else:
             unstamped.append(row)
 
-    groups: list[tuple[int | None, list[dict[str, Any]]]] = [
-        *((stamp, group) for stamp, group in by_stamp.items()),
-        *((None, [row]) for row in unstamped),
+    groups: list[tuple[int | None, int, list[dict[str, Any]]]] = [
+        *((stamp, candidate, group) for (stamp, candidate), group in by_stamp.items()),
+        *((None, 0, [row]) for row in unstamped),
     ]
 
-    entries = [_attempt_entry(group, stamp, root) for stamp, group in groups]
+    entries = [
+        {**_attempt_entry(group, stamp, root), **({"candidate": candidate} if candidate else {})}
+        for stamp, candidate, group in groups
+    ]
 
     return sorted(entries, key=lambda entry: str(entry.get("at") or ""))
 
@@ -1726,6 +1734,28 @@ def _why_events(rows: list[dict[str, Any]], task_id: str) -> list[dict[str, Any]
         found.append(entry)
 
     return sorted(found, key=lambda entry: str(entry.get("at") or ""))
+
+
+def units(
+    rows: Iterable[Mapping[str, Any]],
+    *,
+    task_id: str | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """The units selection closed (S-0122/D-16), as their records hold them:
+    one task's, or those inside a night's window."""
+
+    if since is not None:
+        from torve.application.manager import windowed
+
+        rows = windowed(rows, since=since, until=until)
+
+    return [
+        dict(row)
+        for row in rows
+        if row.get("kind") == "unit.closed" and task_id in (None, row.get("task_id"))
+    ]
 
 
 def _why_reviews(rows: list[dict[str, Any]], task_id: str) -> list[dict[str, Any]]:
@@ -2095,6 +2125,7 @@ def why_report(
         "attempts": attempts,
         "events": events,
         "reviews": _why_reviews(rows, task_id),
+        **({"units": closed} if (closed := units(rows, task_id=task_id)) else {}),
         "totals": _why_totals(attempts, human_minutes),
         "regime": _why_regime(task_rows, rows),
     }
