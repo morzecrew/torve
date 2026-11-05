@@ -3,10 +3,12 @@ for harness envelopes — a clip landing inside the one JSON line that carries
 the verdict destroyed a review (T-0220)."""
 
 import json
+import time
+from pathlib import Path
 
 from torve.application.contextpack import OUTPUT_TAIL
 from torve.application.telemetry import RECORDED_OUTPUT
-from torve.base.shell import FINAL_LINE_LIMIT, OUTPUT_LIMIT, clip, truncate
+from torve.base.shell import FINAL_LINE_LIMIT, OUTPUT_LIMIT, clip, host_executor, truncate
 
 # ----------------------- #
 
@@ -151,3 +153,53 @@ def test_a_failure_report_already_in_the_tail_keeps_the_plain_tail() -> None:
     text = "noise\n" * 2_000 + "=" * 10 + " FAILURES " + "=" * 10 + "\nE   boom\n1 failed"
 
     assert clip(text, 200) == text[-200:]
+
+
+def _still_running(pid: int) -> bool:
+    """Whether *pid* is a live process — a zombie has ended and only waits to be
+    reaped, so it counts as gone."""
+
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text()
+
+    except FileNotFoundError:
+        return False
+
+    # `pid (comm) state ...`: comm may hold spaces and parentheses, so the
+    # state is the first field after the last ')'.
+    return stat[stat.rindex(")") + 2] != "Z"
+
+
+def test_a_timed_out_command_leaves_no_live_process_group(tmp_path: Path) -> None:
+    """S-0123/D-6: a line that times out takes every process it started with
+    it. The shell leads a session of its own, and the timeout kills the whole
+    group — a background sleep does not outlive the command that spawned it."""
+
+    pid_file = tmp_path / "sleep.pid"
+    code, output = host_executor(tmp_path)(
+        f"sleep 30 & echo $! > {pid_file}; wait",
+        0.5,
+    )
+
+    assert code is None
+    assert output == "timed out after 0s"
+
+    pid = int(pid_file.read_text())
+    deadline = time.monotonic() + 10
+
+    while _still_running(pid) and time.monotonic() < deadline:
+        time.sleep(0.05)
+
+    assert not _still_running(pid)
+
+
+def test_a_descendant_that_left_the_session_does_not_hold_the_timeout(tmp_path: Path) -> None:
+    """S-0123/D-6: the timeout kills the group and reaps the shell; a process
+    that escaped the session with the pipes still open does not keep the
+    executor waiting for it."""
+
+    started = time.monotonic()
+    code, _ = host_executor(tmp_path)("setsid sleep 6 & wait", 0.5)
+
+    assert code is None
+    assert time.monotonic() - started < 3
