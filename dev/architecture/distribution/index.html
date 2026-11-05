@@ -1100,9 +1100,9 @@ list.</p>
 <td><code>why</code>, <code>status</code> and <code>context</code> answer from the record when a partition is named, and name the carrier they used</td>
 </tr>
 <tr>
-<td>one manager, one repository</td>
-<td>a process and a hand-typed partition per repo</td>
-<td>one resident process over the operator's fleet manifest, which now names the board each root mints onto</td>
+<td>the partition is typed on every report</td>
+<td>a hand-typed partition per repo</td>
+<td>the configuration's <code>scm.repo</code> names the board a repository's nights are served under</td>
 </tr>
 <tr>
 <td>the corpus is only readable by re-parsing it</td>
@@ -1172,47 +1172,21 @@ everybody must maintain is worse than a subsystem that is gone and recorded.
 The design survives in its document for whoever rebuilds it.</p>
 <p>Item 4 — run state and telemetry as files — is crossed off. <code>torve why</code>,
 <code>torve status</code> and <code>torve context</code> answer from the record when a partition
-is named and say in the report which carrier answered, and the two surfaces
-that re-expose them — the served dashboard and the MCP tool — take the same
-partition and read it per request (S-0032 S-0032/A-3). <code>--dsn</code> defaults to the
+is named and say in the report which carrier answered, and the surface
+that re-exposes them — the MCP tool — takes the same partition and reads it
+per request (S-0032 S-0032/A-3). <code>--dsn</code> defaults to the
 DSN the configuration names, so naming the partition is the whole of it.</p>
 <p>What stays on files by shape rather than by schedule: the findings ledger,
 because the record carries a claim only for a blocker, and operator
 feedback, because no event kind carries it. Moving either is a change to
 the event vocabulary, not a change of source.</p>
 <h2 id="how-a-second-repository-gets-served">How a second repository gets served<a class="headerlink" href="#how-a-second-repository-gets-served" title="Permanent link">&para;</a></h2>
-<p>One process, one manifest, one log. The operator's fleet manifest already
-listed every repository, in a deterministic order, with a trust class each
-and one attention budget across all of them; it now also names the partition
-a repository's contracts are minted onto.</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># ~/.config/torve/fleet.yaml</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">repositories</span><span class="p">:</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">root</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">~/GitLibrary/Morze/torve</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">trust</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">own</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">morzecrew/torve</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">root</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">~/work/atlas</span>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="nt">trust</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">reviewed</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">acme/atlas</span>
-</span></code></pre></div>
-<div class="language-console highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="gp">$ </span>torve<span class="w"> </span>fleet<span class="w"> </span>serve<span class="w"> </span>--dsn<span class="w"> </span><span class="s2">"</span><span class="nv">$TORVE_PG_DSN</span><span class="s2">"</span>
-</span></code></pre></div>
-<p>The partition is declared there and never derived, for the reason the trust
-class is: a repository under work configures nothing about the engine that
-works on it, and a repository that chose its own partition could mint onto a
-board it was never given. Deriving it from the git remote is convenient and
-wrong for a repository with no remote, with two, or with one that changed.</p>
-<p>A round surveys every queue, decides one pause for the fleet total, then
-gives each repository a single pass under its own trust class. A repository
-with no partition, or whose configuration asks for more than its class
-allows, or that fails outright, is recorded and the round carries on — a
-manager that stopped serving four healthy repositories because a fifth was
-broken would be worse than one that says so.</p>
-<p><strong>Rounds are serial.</strong> One long attempt delays every other partition's next
-pass by its whole duration. Running partitions at once is the obvious next
-move and is deliberately not built: it needs a seat allocator that will not
-run two workers under one cache volume, a broker per worker, and a decision
-about how many attempts an operator wants running unattended. It is worth
-doing when someone feels the delay, not before.</p>
+<p>One manager per partition: each repository runs its own <code>torve manager serve</code>
+over the same log, under its own configuration. The fleet that ticked every
+root in one round left in 0.9.0 with nothing serving more than one repository
+through it (S-0122/D-17); serving several at once in one process waits on a
+seat allocator, a broker per worker and a decision about how many attempts an
+operator wants running unattended.</p>
 <h2 id="the-wall-that-is-not-a-file">The wall that is not a file<a class="headerlink" href="#the-wall-that-is-not-a-file" title="Permanent link">&para;</a></h2>
 <p>Landing throughput (item 2) is the one that does not dissolve by moving a
 reader, and it is now the <em>only</em> one. Landings serialize within a partition
