@@ -817,6 +817,7 @@ def land(
         {
             "task": task.id,
             "phase": task.phase,
+            "phases": task.phases,
             "attempt": attempt,
             "base": base,
             "commit": commit,

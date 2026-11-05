@@ -424,6 +424,9 @@ class Landing(Item):
     """The task that landed, `T-NNNN`."""
     phase: int = 0
     """The phase its contract was minted from; 0 when none was."""
+    phases: list[int] = Field(default_factory=list)
+    """Every phase a whole-document contract covers (S-0122/D-13); empty when
+    it was one phase's own."""
     attempt: int = Field(default=1, ge=1)
     """The attempt that landed."""
     base: str = ""

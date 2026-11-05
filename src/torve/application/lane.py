@@ -2156,9 +2156,10 @@ def _unpublished(root: Path, vcs: LaneVcs, branch: str, remote: str) -> bool:
 # ....................... #
 
 
-def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int, int]]:
-    """*(at, task, commit, attempt, phase)* for the landing files *branch*
-    carries, in landing order (S-0099/D-2). The landing file is the carrier of what a
+def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int, list[int]]]:
+    """*(at, task, commit, attempt, phases)* for the landing files *branch*
+    carries, in landing order (S-0099/D-2): the phases are every one a
+    whole-document contract covered (S-0122/D-13), or the one phase. The landing file is the carrier of what a
     document branch holds — a phase finished by hand, or one whose publication
     the forge refused, rides in the tree exactly as a lane landing does.
 
@@ -2176,7 +2177,7 @@ def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int, 
     document = branch.rsplit("/", 1)[-1]
     directory = f"{layout.SPECS_DIR}/{document}/{EXECUTION_DIR}"
     refs = [branch] if branch.startswith(("origin/", "refs/")) else [f"origin/{branch}", branch]
-    found: dict[tuple[str, str, int], tuple[str, int]] = {}
+    found: dict[tuple[str, str, int], tuple[str, list[int]]] = {}
 
     for ref in refs:
         proc = subprocess.run(
@@ -2212,7 +2213,7 @@ def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int, 
                 continue
 
             commit = ""
-            phase = 0
+            covered: list[int] = []
             body = subprocess.run(
                 ["git", *NO_HOOKS, "-C", str(root), "show", f"{ref}:{path}"],
                 capture_output=True,
@@ -2225,22 +2226,26 @@ def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int, 
                     raw = yaml.safe_load(body.stdout) or {}
                     if isinstance(raw, dict):
                         commit = str(raw.get("commit") or "")
-                        number = raw.get("phase")
+                        listed = raw.get("phases")
+                        numbers = (
+                            listed if isinstance(listed, list) and listed else [raw.get("phase")]
+                        )
                         # Only a real integer is a phase: `1.9` or `true` would
                         # otherwise count as a landed phase 1.
-                        phase = (
+                        covered = [
                             number
-                            if isinstance(number, int) and not isinstance(number, bool)
-                            else 0
-                        )
+                            for number in numbers
+                            if isinstance(number, int) and not isinstance(number, bool) and number
+                        ]
 
                 except (yaml.YAMLError, TypeError, ValueError):
-                    commit, phase = "", 0
+                    commit, covered = "", []
 
-            found[key] = (commit, phase)
+            found[key] = (commit, covered)
 
     return sorted(
-        (at, task, commit, attempt, phase) for (at, task, attempt), (commit, phase) in found.items()
+        (at, task, commit, attempt, covered)
+        for (at, task, attempt), (commit, covered) in found.items()
     )
 
 
@@ -2284,14 +2289,15 @@ def carried_tasks(root: Path, branch: str) -> list[str]:
     ]
 
 
-def landed_phases(root: Path, branch: str) -> dict[str, int]:
-    """The phase each carried task's newest landing file names; 0 when none."""
+def landed_phases(root: Path, branch: str) -> dict[str, list[int]]:
+    """The phases each carried task's newest landing file names; none when it
+    names none."""
 
-    return {task: phase for _at, task, _commit, _attempt, phase in _branch_landings(root, branch)}
+    return {task: phases for _at, task, _commit, _attempt, phases in _branch_landings(root, branch)}
 
 
 def carried_contract(
-    root: Path, branch: str, task_id: str, phases: Mapping[str, int] | None = None
+    root: Path, branch: str, task_id: str, phases: Mapping[str, list[int]] | None = None
 ) -> Task:
     """The contract a carried task landed under: the corpus's file, or the
     projection in its run's worktree (`contract_file`). A task minted into the
@@ -2307,10 +2313,13 @@ def carried_contract(
     if path.is_file():
         return load_task(path)
 
+    covered = (landed_phases(root, branch) if phases is None else phases).get(task_id, [])
+
     return Task(
         id=task_id,
         spec=branch.rsplit("/", 1)[-1],
-        phase=(landed_phases(root, branch) if phases is None else phases).get(task_id, 0),
+        phase=covered[0] if covered else 0,
+        phases=covered if len(covered) > 1 else [],
         decisions=[],
     )
 

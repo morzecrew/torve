@@ -184,6 +184,14 @@
       "title": "Phase",
       "type": "integer"
     },
+    "phases": {
+      "description": "Every phase a whole-document contract covers (S-0122/D-13); empty when\nit was one phase's own.",
+      "items": {
+        "type": "integer"
+      },
+      "title": "Phases",
+      "type": "array"
+    },
     "task": {
       "description": "The task that landed, `T-NNNN`.",
       "title": "Task",

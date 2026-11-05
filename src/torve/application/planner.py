@@ -538,12 +538,18 @@ def plan_document(
 
     # S-0122/D-13: a whole-document contract is the phasing folded into one
     # entry. `--phase` names entries, so it mints them; and a refresh keeps the
-    # shape a document was minted in, or the first phase's contract would be
-    # refreshed to every phase's scope.
+    # shape the implementing contracts were minted in, whatever the phasing now
+    # says, or a phase's contract would be refreshed to every phase's scope and
+    # a whole one to its first phase's.
     whole = doc.whole() and phases is None
+    implementing = [
+        task
+        for task in (minted_contracts(root, doc.id, board).values() if refresh else [])
+        if task.role == "implement"
+    ]
 
-    if whole and refresh:
-        whole = all(task.phases for task in minted_contracts(root, doc.id, board).values())
+    if implementing:
+        whole = phases is None and all(task.phases for task in implementing)
 
     covered = sorted({entry.phase for entry in entries}) if whole else []
 
@@ -788,7 +794,15 @@ async def mint_contracts(
 # the derived `Task`'s fields minus identity (`id`, `spec`, `phase`, `role`,
 # `title`) and edges (`depends_on`), which the mint decided and a refresh
 # keeps.
-REFRESHED_FIELDS = ("intent", "scope", "acceptance", "decisions", "tier_variant", "character")
+REFRESHED_FIELDS = (
+    "intent",
+    "phases",
+    "scope",
+    "acceptance",
+    "decisions",
+    "tier_variant",
+    "character",
+)
 
 
 @dataclass(frozen=True)

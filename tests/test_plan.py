@@ -1276,3 +1276,28 @@ def test_a_refresh_keeps_the_shape_a_document_was_minted_in(plan_repo):
 
     assert [one.task_id for one in report.tasks] == ["T-0001", "T-0002", "T-0003"]
     assert all("scope" not in one.changed for one in report.tasks)
+
+
+def test_a_refresh_keeps_a_whole_contract_whole_and_covers_an_added_phase(plan_repo):
+    """A whole-document contract stays whole when its document grows past
+    three phases, and the refresh rewrites the phases it covers."""
+
+    from torve.application.planner import refresh_document
+
+    root, write_doc, git = plan_repo
+    write_doc("0091", "Small", rows=[], phasing=PHASING, unit=None)
+    git("add", "-A")
+    git("commit", "-qm", "small")
+    write_contracts(root, plan_document(root, root / ".torve" / "specs", "0091"))
+    grown = [
+        *PHASING,
+        {"phase": 3, "title": "p3", "intent": "Phase 3.", "scope": ["src/p3.py"]},
+        {"phase": 4, "title": "p4", "intent": "Phase 4.", "scope": ["src/p4.py"]},
+    ]
+    write_doc("0091", "Small", rows=[], phasing=grown, unit=None)
+    git("add", "-A")
+    git("commit", "-qm", "grown")
+
+    [refreshed] = refresh_document(root, root / ".torve" / "specs", "0091").tasks
+
+    assert "phases" in refreshed.changed and "scope" in refreshed.changed
