@@ -143,6 +143,7 @@ contract_example:
   id: T-0331
   spec: S-0063
   phase: 1
+  phases: []
   role: implement
   title: >-
     the definitions move, and the layer they duplicate is inherited
@@ -152,7 +153,7 @@ contract_example:
   depends_on: []
   targets: []
   scope:
-    allow:
+    files:
       - sandboxes/**
       - .torve/sandbox/**
       - bake.hcl
@@ -177,7 +178,8 @@ contract_example:
       - .dockerignore
       - AGENTS.md
       - CHANGELOG.md
-    deny: []
+    tests: []
+    fence: []
   acceptance:
     - uv run pytest
     - uv run mypy src

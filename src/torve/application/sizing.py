@@ -58,8 +58,8 @@ def estimate_scope(scope: Scope, acceptance: list[str], carried: Iterable[str] =
 
     reasons: list[str] = []
 
-    if len(scope.allow) > MAX_ALLOW_GLOBS:
-        reasons.append(f"{len(scope.allow)} allow globs (threshold {MAX_ALLOW_GLOBS})")
+    if len(scope.files) > MAX_ALLOW_GLOBS:
+        reasons.append(f"{len(scope.files)} allow globs (threshold {MAX_ALLOW_GLOBS})")
 
     if len(acceptance) > MAX_ACCEPTANCE:
         reasons.append(f"{len(acceptance)} acceptance commands (threshold {MAX_ACCEPTANCE})")
@@ -75,7 +75,7 @@ def estimate_scope(scope: Scope, acceptance: list[str], carried: Iterable[str] =
     # alone, and 33 stay oversized for reasons that are real. `carried` names
     # the directories a repository keeps that ride with code the same way
     # (S-0110/D-9) — a migration tree beside the module it migrates.
-    modules = {module for glob in scope.allow if (module := _module_of(glob))} - CARRIED
+    modules = {module for glob in scope.files if (module := _module_of(glob))} - CARRIED
     modules -= set(carried)
 
     if len(modules) > MAX_MODULES:
@@ -85,7 +85,7 @@ def estimate_scope(scope: Scope, acceptance: list[str], carried: Iterable[str] =
     if reasons:
         return SizeVerdict(size="too_large", reasons=reasons)
 
-    if not scope.allow and not acceptance:
+    if not scope.files and not acceptance:
         return SizeVerdict(
             size="too_small",
             reasons=["no scope and no acceptance — not worth the machinery"],

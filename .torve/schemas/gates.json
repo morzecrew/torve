@@ -144,10 +144,10 @@
     },
     "ManifestScope": {
       "additionalProperties": false,
-      "description": "The manifest's scope (S-0104/D-5): the task scope's `allow`, `deny` and\n`contingent`, plus `derived` \u2014 the files that ride with a source, in both\ndirections. A lock file rides with its manifest, a golden with its\nproducer, a generated schema with its model; a derived path is allowed\nwherever its source is, and its source wherever a derived path is. The\ndefault is the lock-file table the scope gate used to hard-code\n(`DEFAULT_DERIVED`).",
+      "description": "The manifest's scope (S-0104/D-5): `allow`, `deny` and `contingent` for a\nrun with no task, plus `derived` \u2014 the files that ride with a source, in\nboth directions. A lock file rides with its manifest, a golden with its\nproducer, a generated schema with its model; a derived path is allowed\nwherever its source is, and its source wherever a derived path is. The\ndefault is the lock-file table the scope gate used to hard-code\n(`DEFAULT_DERIVED`). A contract's own scope split into files, tests and a\nfence (S-0122/D-12); the repository's kept these names, and `deny` is what\na contract's fence starts from.",
       "properties": {
         "allow": {
-          "description": "Globs of what the task may touch, gitwildmatch; empty means unconstrained.",
+          "description": "Globs a run with no task may touch, gitwildmatch; empty means unconstrained.",
           "items": {
             "type": "string"
           },
@@ -155,7 +155,7 @@
           "type": "array"
         },
         "contingent": {
-          "description": "Literal paths the change is likely to reach beyond its phase \u2014 importers,\nimported first-party modules, paired tests, package `__init__` and the\ndocument's other phases' matches (S-0104/D-1). Derived at mint and refresh;\nnever counted for disjointness or sizing.",
+          "description": "Literal paths beyond `allow` a run with no task is licensed to reach.",
           "items": {
             "type": "string"
           },
@@ -163,7 +163,7 @@
           "type": "array"
         },
         "deny": {
-          "description": "Globs the task may not touch; deny wins over allow.",
+          "description": "Globs no run may touch: every contract's fence carries them.",
           "items": {
             "type": "string"
           },

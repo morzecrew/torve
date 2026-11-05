@@ -73,6 +73,8 @@ def written(spec_dir: Path, number: str = "0090", title: str = "Widgets", **kwar
 
     kwargs.setdefault("rows", TABLE)
     kwargs.setdefault("implementation", "none")
+    # These fixtures mint one contract per entry; a whole document has its own tests.
+    kwargs.setdefault("unit", "phase")
 
     return place(spec_dir, number, document(number, title=title, **kwargs))
 
@@ -1136,3 +1138,141 @@ def test_the_plan_table_shows_the_contingent_count(plan_repo):
 
     assert result.exit_code == 0, result.output
     assert "contingent" in result.output
+
+
+# ....................... #
+# Contract v3 (S-0122/D-12) and the whole-document contract (S-0122/D-13).
+
+
+def test_a_contract_licenses_its_paired_tests_and_fences_what_it_does_not_own(plan_repo):
+    root, write_doc, git = plan_repo
+    (root / "src" / "frob").mkdir(parents=True)
+    (root / "src" / "frob" / "thing.py").write_text("thing = 1\n", encoding="utf-8")
+    (root / "tests").mkdir()
+    (root / "tests" / "test_thing.py").write_text("def test_thing():\n    pass\n", encoding="utf-8")
+    (root / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\nscope:\n  deny: [vendor/**]\n", encoding="utf-8"
+    )
+    owning = phasing()
+    owning[2]["scope"] = [".torve/schemas/**"]
+    write_doc("0090", "Widgets", phasing=owning)
+    git("add", "-A")
+    git("commit", "-qm", "source")
+
+    report = plan_document(root, root / ".torve" / "specs", "0090")
+    frob = report.tasks[1].task.scope
+
+    assert frob.files == ["src/frob/**"]
+    assert frob.tests == ["tests/test_thing.py"]
+    assert "tests/test_thing.py" not in frob.contingent
+    assert frob.allow == ["src/frob/**", "tests/test_thing.py"]
+    assert frob.fence[0] == "vendor/**"
+    assert {".torve/gates.yaml", ".torve/schemas/**"} <= set(frob.fence)
+    # A phase that owns an engine path is not fenced out of it.
+    assert ".torve/schemas/**" not in report.tasks[2].task.scope.fence
+
+
+def test_a_version_2_scope_loads_as_files_and_fence():
+    task = Task.model_validate(
+        {
+            "id": "T-0001",
+            "intent": "x",
+            "scope": {"allow": ["src/**"], "deny": ["vendor/**"], "contingent": ["a.py"]},
+            "decisions": [],
+        }
+    )
+
+    assert task.scope.model_dump() == {
+        "files": ["src/**"],
+        "tests": [],
+        "fence": ["vendor/**"],
+        "contingent": ["a.py"],
+    }
+
+
+def test_a_small_document_mints_one_contract_for_every_phase(plan_repo):
+    root, write_doc, git = plan_repo
+    write_doc("0091", "Small", rows=[], phasing=PHASING, unit=None)
+    git("add", "-A")
+    git("commit", "-qm", "small")
+
+    [planned] = plan_document(root, root / ".torve" / "specs", "0091").tasks
+    task = planned.task
+
+    assert (task.phase, task.phases, task.covered) == (1, [1, 2], [1, 2])
+    assert task.title == "Small"
+    assert task.scope.files == ["src/widget/**", "tests/widget/**", "src/frob/**", "src/app.py"]
+    assert task.acceptance == ["make test"]
+    assert "Phase 2, wire-together: Wire core and frobnicator together." in task.intent
+
+
+@pytest.mark.parametrize(("unit", "contracts"), [(None, 4), ("document", 1)])
+def test_a_larger_document_mints_per_phase_unless_it_says_document(plan_repo, unit, contracts):
+    root, write_doc, git = plan_repo
+    four = [
+        {"phase": n, "title": f"p{n}", "intent": f"Phase {n}.", "scope": [f"src/p{n}.py"]}
+        for n in range(1, 5)
+    ]
+    write_doc("0091", "Larger", rows=[], phasing=four, unit=unit)
+    git("add", "-A")
+    git("commit", "-qm", "larger")
+
+    report = plan_document(root, root / ".torve" / "specs", "0091")
+
+    assert len(report.tasks) == contracts
+
+
+def test_a_whole_contract_s_landing_completes_every_phase(plan_repo):
+    from torve.application.forge import DocumentLanding, document_complete
+
+    root, write_doc, git = plan_repo
+    write_doc("0091", "Small", rows=[], phasing=PHASING, unit=None)
+    git("add", "-A")
+    git("commit", "-qm", "small")
+    [planned] = plan_document(root, root / ".torve" / "specs", "0091").tasks
+
+    assert document_complete("S-0091", [DocumentLanding(task=planned.task)], root)
+    # A per-phase landing covers its own phase alone.
+    one = planned.task.model_copy(update={"phases": []})
+    assert not document_complete("S-0091", [DocumentLanding(task=one)], root)
+
+
+def test_a_contract_carries_other_documents_locked_rows_without_their_checks(plan_repo):
+    root, write_doc, git = plan_repo
+    rows = [(f"S-0091/D-{n}", "LOCKED", f"Frob rule {n}", "`src/frob/**`") for n in range(1, 13)]
+    rows.append(("S-0091/D-13", "ASSUMED", "Frobs are lazy", "`src/frob/**`"))
+    write_doc(
+        "0091",
+        "Frobs",
+        rows=rows,
+        details={"S-0091/D-1": {"check": "uv run pytest -q"}},
+        implementation="complete",
+    )
+    git("add", "-A")
+    git("commit", "-qm", "frobs")
+
+    report = plan_document(root, root / ".torve" / "specs", "0090")
+    frob = report.tasks[1].task
+    foreign = [row for row in frob.decisions if row.id.startswith("S-0091/")]
+
+    assert [row.id for row in foreign] == [f"S-0091/D-{n}" for n in range(1, 11)]
+    assert all(row.check is None for row in foreign)
+    assert not any(row.id.startswith("S-0091/") for row in report.tasks[0].task.decisions)
+
+
+def test_a_refresh_keeps_the_shape_a_document_was_minted_in(plan_repo):
+    """A document minted per phase stays per phase when its phasing would now
+    mint it whole, or its first contract would be refreshed to every scope."""
+
+    from torve.application.planner import refresh_document
+
+    root, write_doc, git = plan_repo
+    minted(root)
+    write_doc("0090", "Widgets", unit=None)
+    git("add", "-A")
+    git("commit", "-qm", "unit dropped")
+
+    report = refresh_document(root, root / ".torve" / "specs", "0090")
+
+    assert [one.task_id for one in report.tasks] == ["T-0001", "T-0002", "T-0003"]
+    assert all("scope" not in one.changed for one in report.tasks)

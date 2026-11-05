@@ -132,30 +132,38 @@
     },
     "Scope": {
       "additionalProperties": false,
-      "description": "allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty\nallow means unconstrained (S-0002/scope-in-detail).",
+      "description": "What a task owns, what it is licensed beyond that, and what convicts\n(S-0122/D-12). Globs read on gitwildmatch semantics; an empty `files`\nmeans unconstrained. A version 2 scope's `allow` and `deny` load as\n`files` and `fence`, for one release.",
       "properties": {
-        "allow": {
-          "description": "Globs of what the task may touch, gitwildmatch; empty means unconstrained.",
-          "items": {
-            "type": "string"
-          },
-          "title": "Allow",
-          "type": "array"
-        },
         "contingent": {
-          "description": "Literal paths the change is likely to reach beyond its phase \u2014 importers,\nimported first-party modules, paired tests, package `__init__` and the\ndocument's other phases' matches (S-0104/D-1). Derived at mint and refresh;\nnever counted for disjointness or sizing.",
+          "description": "Literal paths the change is likely to reach beyond its files \u2014 importers,\nimported first-party modules, package `__init__` and the document's other\nphases' matches (S-0104/D-1). Names only: never counted for disjointness or\nsizing.",
           "items": {
             "type": "string"
           },
           "title": "Contingent",
           "type": "array"
         },
-        "deny": {
-          "description": "Globs the task may not touch; deny wins over allow.",
+        "fence": {
+          "description": "Globs an edit to convicts: the manifest's deny list and the engine's own\npaths. An edit outside `files` and `tests` is evidence, never a conviction.",
           "items": {
             "type": "string"
           },
-          "title": "Deny",
+          "title": "Fence",
+          "type": "array"
+        },
+        "files": {
+          "description": "Globs of what the task owns: the disjointness key between tasks.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "tests": {
+          "description": "The owned files' paired tests, derived at mint and licensed with them.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tests",
           "type": "array"
         }
       },
@@ -241,6 +249,14 @@
       "title": "Phase",
       "type": "integer"
     },
+    "phases": {
+      "description": "Every phase a whole-document contract covers (S-0122/D-13); empty when it\nis one phase's own.",
+      "items": {
+        "type": "integer"
+      },
+      "title": "Phases",
+      "type": "array"
+    },
     "role": {
       "default": "implement",
       "description": "What the run does: implement, review (S-0005/D-9), revert (S-0010) or draft\n(S-0020).",
@@ -254,7 +270,7 @@
       "type": "string"
     },
     "schema_version": {
-      "default": 2,
+      "default": 3,
       "description": "The contract's shape version: 2 names the document as `spec` (S-0059/D-1).",
       "title": "Schema Version",
       "type": "integer"

@@ -221,7 +221,7 @@ def _case_outcome(
     target = Task(
         id=f"corpus-{name}",
         intent=str(document.get("intent", "")),
-        scope=Scope(allow=list(document.get("scope", []))),
+        scope=Scope(files=list(document.get("scope", []))),
         decisions=document.get("decisions", []),
     )
 

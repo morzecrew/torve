@@ -460,7 +460,7 @@ def test_no_shape_borrows_another_shape_s_version():
 
     from torve.domain import task
 
-    assert task.CONTRACT_SCHEMA_VERSION == 2
+    assert task.CONTRACT_SCHEMA_VERSION == 3
     assert not hasattr(task, "SCHEMA_VERSION")
 
     # Each shape says its own, and they are free to disagree.

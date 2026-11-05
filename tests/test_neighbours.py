@@ -13,7 +13,12 @@ from pathlib import Path
 from hypothesis import given
 from hypothesis import strategies as st
 
-from torve.application.neighbours import acceptance_runs, contingent_paths, phase_reach
+from torve.application.neighbours import (
+    acceptance_runs,
+    contingent_paths,
+    paired_tests,
+    phase_reach,
+)
 from torve.domain.spec import Corpus, Document, Phase
 
 # ----------------------- #
@@ -75,6 +80,17 @@ def test_contingent_is_the_importers_callees_tests_init_and_union(tmp_path: Path
             "tests/unit/test_core.py",  # the matched module's nested test
         ]
     )
+
+
+def test_the_paired_tests_are_the_matched_modules_tests_at_any_depth(tmp_path: Path) -> None:
+    """S-0122/D-12: what a contract licenses beside its files. Only a matched
+    module's own test, and never a path the scope already names."""
+
+    root = tree(tmp_path)
+
+    assert paired_tests(root, ["src/pkg/core.py"]) == ["tests/unit/test_core.py"]
+    assert paired_tests(root, ["src/pkg/helper.py"]) == []
+    assert paired_tests(root, ["src/pkg/core.py", "tests/**"]) == []
 
 
 def test_contingent_omits_the_scope_it_already_covers(tmp_path: Path) -> None:

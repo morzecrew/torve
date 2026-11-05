@@ -96,6 +96,7 @@ def document(
     editorial: list[dict[str, Any]] | None = None,
     landings: list[dict[str, Any]] | None = None,
     contract_example: dict[str, Any] | None = None,
+    unit: str | None = None,
     schema_version: int = 4,
     extra: dict[str, Any] | None = None,
 ) -> Doc:
@@ -170,7 +171,7 @@ def document(
             head[name] = value
 
     head.update(extra or {})
-    plan: dict[str, Any] = {}
+    plan: dict[str, Any] = {"unit": unit} if unit else {}
 
     for name, value in (("phasing", phasing), ("contract_example", contract_example)):
         if value:

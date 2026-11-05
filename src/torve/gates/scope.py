@@ -1,9 +1,11 @@
-"""`scope` — files outside `allow` or inside `deny` (S-0002/scope-in-detail).
+"""`scope` — files inside the fence (S-0122/D-12, S-0002/scope-in-detail).
 
-deny wins over allow; an empty allow means unconstrained. The task's scope
-governs when a task exists; the manifest's scope otherwise. The task's own
-contract and log files are implicitly in scope — other gates require the log
-to exist, so a scope that forbids writing it would deadlock the task.
+Only the fence convicts: a contract's `fence`, the manifest's `deny` on a run
+with no task. A file outside the task's files and their tests is evidence, not
+a conviction: the gate passes and names it, and the critic reads it in the
+evidence package. An empty `files` means unconstrained. The task's own contract
+and log files are implicitly in scope — other gates require the log to exist,
+so a scope that forbids writing it would deadlock the task.
 
 Three rules admit a path the declared globs do not, each reported as
 *promoted* (S-0104/D-7): a task's contingent neighbours (S-0104/D-1), a file
@@ -11,11 +13,6 @@ the manifest's `scope.derived` map pairs with an in-scope source (S-0104/D-5),
 and a managed `AGENTS.md` beside a path in scope (S-0104/D-6), which `torve
 spec project` writes. Nothing is widened silently: the gate names every path
 it let through.
-
-A modified file outside allow whose change is only whitespace — at line ends,
-a final newline, blank lines — is still a touch outside the scope, and red
-(S-0055/D-17), but reported apart: it is a formatter's reach, not a scope drawn
-too narrow, and the remedy is to undo it.
 """
 
 from __future__ import annotations
@@ -26,7 +23,7 @@ import pathspec
 
 from torve.config import layout
 from torve.config.manifest import Gate
-from torve.gates.context import GateContext, GitError, git
+from torve.gates.context import GateContext
 from torve.gates.contract import BuiltinOutcome, spec
 
 # ----------------------- #
@@ -55,34 +52,6 @@ def _derived_allowed(
 
         if any(held(rider) for rider in riders):
             found.add(source)
-
-    return found
-
-
-def _whitespace_only(ctx: GateContext, paths: set[str]) -> set[str]:
-    """The modified *paths* whose change is whitespace alone: at line ends, a
-    final newline, blank lines — what end-of-file and trailing-whitespace
-    fixers write. Indentation counts, since in Python it is the code. Compared
-    here, not by `git diff --ignore-space-at-eol --name-only`: an older git
-    still lists such a file there."""
-
-    if ctx.merge_base is None:
-        return set()
-
-    def lines(text: str) -> list[str]:
-        return [line.rstrip() for line in text.splitlines() if line.strip()]
-
-    found: set[str] = set()
-
-    for path in paths:
-        try:
-            before = git(ctx.root, "show", f"{ctx.merge_base}:{path}")
-            after = (ctx.root / path).read_text(encoding="utf-8")
-        except (GitError, OSError, UnicodeDecodeError):
-            continue  # unreadable on either side: judged as any other touch
-
-        if lines(before) == lines(after):
-            found.add(path)
 
     return found
 
@@ -164,27 +133,21 @@ def check_scope(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
             else:
                 outside.append(path)
 
-    if not denied and not outside:
-        source = "task scope" if ctx.task is not None else "manifest scope"
+    source = "task scope" if ctx.task is not None else "manifest scope"
+    beyond = []
+
+    if outside:
+        beyond.append(f"outside files and tests, as evidence: {', '.join(sorted(set(outside)))}")
+
+    if promoted:
+        beyond.append(f"promoted: {', '.join(sorted(promoted))}")
+
+    if not denied:
         constraint = "unconstrained" if not scope.allow and not scope.deny else "clean"
         note = f"{len(ctx.diff)} changed path(s), {constraint} ({source})"
 
-        if promoted:
-            note += f"; promoted: {', '.join(sorted(promoted))}"
+        return BuiltinOutcome("pass", "; ".join([note, *beyond]))
 
-        return BuiltinOutcome("pass", note)
+    lines = [f"fenced path: {p}" for p in sorted(set(denied))]
 
-    modified = {entry.path for entry in ctx.diff if entry.status == "M"}
-    whitespace = _whitespace_only(ctx, set(outside) & modified)
-
-    lines = [f"denied path: {p}" for p in sorted(set(denied))]
-    lines += [f"outside allow: {p}" for p in sorted(set(outside) - whitespace)]
-    lines += [f"outside allow, whitespace only: {p}" for p in sorted(whitespace)]
-
-    if whitespace:
-        lines.append("undo the whitespace change in those files: the task does not own them")
-
-    if promoted:
-        lines.append(f"promoted: {', '.join(sorted(promoted))}")
-
-    return BuiltinOutcome("fail", "\n".join(lines))
+    return BuiltinOutcome("fail", "\n".join([*lines, *beyond]))

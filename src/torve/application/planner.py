@@ -268,6 +268,58 @@ def _derived(root: Path) -> dict[str, list[str]]:
         return ManifestScope().derived
 
 
+# The engine's own paths an attempt never edits unless its phase owns them
+# (S-0122/D-12): the battery's manifest, the configuration, the profiles and
+# harnesses, and the documents with their schemas.
+ENGINE_FENCE = (
+    ".torve/gates.yaml",
+    ".torve/config.yaml",
+    ".torve/agents/**",
+    ".torve/harnesses/**",
+    ".torve/schemas/**",
+    ".torve/specs/**",
+    ".torve/archive/**",
+)
+
+
+def _fence(root: Path, scope: list[str]) -> list[str]:
+    """A contract's fence (S-0122/D-12): the manifest's deny list, and every
+    engine path the phase does not own."""
+
+    from torve.config.manifest import load_manifest
+
+    path = layout.gates_file(root)
+
+    try:
+        deny = load_manifest(path).scope.deny if path.is_file() else []
+
+    except ValueError:
+        deny = []
+
+    return [*deny, *(glob for glob in ENGINE_FENCE if not overlap([glob], scope))]
+
+
+# At most this many LOCKED rows of other documents ride on a contract (S-0122/D-13).
+FOREIGN_LOCKED = 10
+
+
+def _foreign_locked(rfc_dir: Path, document: str, scope: list[str]) -> list[InheritedDecision]:
+    """The LOCKED rows of other documents whose paths a contract's files touch
+    (S-0122/D-13), at most `FOREIGN_LOCKED`, in corpus order. They ride as
+    constraints: their checks run with their own documents, never this one's."""
+
+    rows = [
+        row
+        for row in standing_decisions(rfc_dir, scope)
+        if row.grade == "LOCKED" and not row.id.startswith(f"{document}/")
+    ]
+
+    return [
+        row.model_copy(update={"check": None, "check_state": "shadow", "check_twin": None})
+        for row in rows[:FOREIGN_LOCKED]
+    ]
+
+
 def _already_minted(
     root: Path, document: str, phases: set[int] | None, board: Board | None = None
 ) -> list[str]:
@@ -290,7 +342,7 @@ def _already_minted(
         if contract is None or not contract.spec or contract.role not in DISPATCHABLE_ROLES:
             continue
 
-        if phases is not None and contract.phase not in phases:
+        if phases is not None and not set(contract.covered) & phases:
             continue
 
         if document_of(contract.spec) == wanted:
@@ -318,7 +370,9 @@ def _already_minted(
 
         minted = document_of(str(record.get("spec") or ""))
 
-        if minted == wanted and (phases is None or record.get("phase") in phases):
+        held = record.get("phases") or [record.get("phase")]
+
+        if minted == wanted and (phases is None or set(held) & phases):
             clashes.append(str(record.get("id", path.parent.name)))
 
     return sorted(set(clashes))
@@ -482,6 +536,20 @@ def plan_document(
                     f"{doc_path.name}: phase {entry.phase} depends_on {dep}, which no entry defines"
                 )
 
+    # S-0122/D-13: a whole-document contract is the phasing folded into one
+    # entry. `--phase` names entries, so it mints them; and a refresh keeps the
+    # shape a document was minted in, or the first phase's contract would be
+    # refreshed to every phase's scope.
+    whole = doc.whole() and phases is None
+
+    if whole and refresh:
+        whole = all(task.phases for task in minted_contracts(root, doc.id, board).values())
+
+    covered = sorted({entry.phase for entry in entries}) if whole else []
+
+    if whole:
+        entries = [doc.as_one_phase()]
+
     # Same-phase scopes must not intersect (§3): overlapping tasks cannot run
     # in parallel and the plan silently serialises.
     by_phase: dict[int, list[Phase]] = {}
@@ -517,7 +585,8 @@ def plan_document(
 
         entries = [e for e in entries if e.phase in phases]
 
-    clashes = [] if refresh else _already_minted(root, document, {e.phase for e in entries}, board)
+    minting = set(covered) or {e.phase for e in entries}
+    clashes = [] if refresh else _already_minted(root, document, minting, board)
 
     if clashes:
         raise PlanError(
@@ -582,6 +651,12 @@ def plan_document(
         # none is where the other document's landing has to be waited on.
         within = [tid for p in entry.depends_on for tid in ids_by_phase.get(p, [])]
         depends = within or list(after_tasks)
+        # S-0122/D-12: the paired tests are licensed beside the files, and the
+        # contingent set names what is left.
+        tests = neighbours.paired_tests(root, entry.scope, pairs)
+        contingent = neighbours.contingent_paths(
+            root, entry.scope, document=doc, phase=entry.phase, derived=derived, pair=pairs
+        )
 
         task = Task(
             id=task_id,
@@ -592,20 +667,16 @@ def plan_document(
             # the work commit's subject names the phase, not its intent (#199).
             title=entry.title,
             intent=entry.intent.strip(),
+            phases=covered,
             depends_on=depends,
             scope=Scope(
-                allow=list(entry.scope),
-                contingent=neighbours.contingent_paths(
-                    root,
-                    entry.scope,
-                    document=doc,
-                    phase=entry.phase,
-                    derived=derived,
-                    pair=pairs,
-                ),
+                files=list(entry.scope),
+                tests=tests,
+                fence=_fence(root, entry.scope),
+                contingent=[path for path in contingent if path not in tests],
             ),
             acceptance=list(entry.acceptance),
-            decisions=decisions,
+            decisions=[*decisions, *_foreign_locked(rfc_dir, document, entry.scope)],
             tier_variant=entry.tier_variant or None,
             character=entry.character or None,
         )

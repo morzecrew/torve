@@ -16,7 +16,7 @@ from torve.base.globs import matches
 from torve.base.model import STRICT, SchemaVersion
 from torve.config import layout as layout_module
 from torve.domain.spec import is_citation
-from torve.domain.task import Scope
+from torve.domain.task import refuse_negation
 from torve.domain.vocabulary import GateAxis, GateInput, GateState
 
 # ----------------------- #
@@ -423,16 +423,30 @@ class SecretsConfig(BaseModel):
 # ....................... #
 
 
-class ManifestScope(Scope):
-    """The manifest's scope (S-0104/D-5): the task scope's `allow`, `deny` and
-    `contingent`, plus `derived` — the files that ride with a source, in both
-    directions. A lock file rides with its manifest, a golden with its
+class ManifestScope(BaseModel):
+    """The manifest's scope (S-0104/D-5): `allow`, `deny` and `contingent` for a
+    run with no task, plus `derived` — the files that ride with a source, in
+    both directions. A lock file rides with its manifest, a golden with its
     producer, a generated schema with its model; a derived path is allowed
     wherever its source is, and its source wherever a derived path is. The
     default is the lock-file table the scope gate used to hard-code
-    (`DEFAULT_DERIVED`)."""
+    (`DEFAULT_DERIVED`). A contract's own scope split into files, tests and a
+    fence (S-0122/D-12); the repository's kept these names, and `deny` is what
+    a contract's fence starts from."""
 
     model_config = STRICT
+
+    allow: list[str] = Field(default_factory=list)
+    """Globs a run with no task may touch, gitwildmatch; empty means unconstrained."""
+    deny: list[str] = Field(default_factory=list)
+    """Globs no run may touch: every contract's fence carries them."""
+    contingent: list[str] = Field(default_factory=list)
+    """Literal paths beyond `allow` a run with no task is licensed to reach."""
+
+    @field_validator("allow", "deny")
+    @classmethod
+    def _no_negation(cls, globs: list[str]) -> list[str]:
+        return refuse_negation(globs, "deny")
 
     derived: dict[str, list[str]] = Field(
         default_factory=lambda: {

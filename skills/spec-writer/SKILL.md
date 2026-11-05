@@ -25,7 +25,7 @@ files split by who writes each, and the landings beside them:
 | File | Writer | Holds |
 |---|---|---|
 | `document.yaml` | you | the header facts (`change:` among them), the typed prose (`summary` … `risks`), the `design` list, the extras, `alternatives`, `questions` |
-| `phasing.yaml` | you; the planner reads it | `phasing`, `after`, `contract_example` |
+| `phasing.yaml` | you; the planner reads it | `phasing`, `after`, `unit`, `contract_example` |
 | `decisions.yaml` | you; the tool stamps it | `decisions`, `invariants`, `retired` |
 | `amendments.yaml` | `torve spec amend` and `spec fix` | `amendments`, `editorial` |
 | `execution/` | the landing | one file per landing — `<task>-<attempt>-<instant>.yaml` — what each task found, entry by entry |
@@ -137,6 +137,15 @@ arrives first, invisibly.
    `character_routing` sends to one. The size estimate is advice and moves
    neither.
 
+2a. **Size a phase by component.** A phase is one component a reviewer can
+   judge whole: the modules that change together, with the callers their
+   acceptance can turn red. One contract for the whole document is the
+   default for three phases or fewer, and `unit: document` in `phasing.yaml`
+   asks for it at any size; `unit: phase` keeps one contract per
+   entry. Split a document into phases only where a later one builds on an
+   earlier one's landed tree, or where two components run in parallel on
+   disjoint files.
+
 3. **Non-overlapping scope within a phase.** Entries with the same phase
    number must not share globs — overlapping tasks cannot run in parallel and
    the plan silently serialises. Say it while writing, when it is free to fix.
@@ -144,11 +153,14 @@ arrives first, invisibly.
    bare `README.md` matches at any depth and overlaps every other scope.
 
 3b. **A phase owns every file its acceptance can turn red.** A scope that is
-   too narrow is the most common reason an attempt halts. The scope names the
-   modules and, beside each, its existing test file (the planner refuses a
-   contract that allows a module without its test), the tests that enumerate
+   too narrow still costs an attempt: an edit outside the contract's files and
+   tests is evidence the critic reads, and only the fence — the manifest's
+   `scope.deny` and the engine's own paths the phase does not own — convicts.
+   The scope names the modules, the tests that enumerate
    artifacts, generated snapshots, docs pages a test compares against, the lock
-   file beside a manifest, and re-export modules. Acceptance commands judge
+   file beside a manifest, and re-export modules. Each module's existing paired
+   test is licensed at mint into the contract's `tests`: name a test file in
+   the scope only when the phase writes a new one. Acceptance commands judge
    the tree: the tests the phase touches, the type checker, `torve spec
    check`. A command that reads the host (a running service, a database, the
    network, the installed CLI) is refused at planning.
@@ -170,10 +182,10 @@ arrives first, invisibly.
 
 3c. **The scope's neighbours are derived, not listed.** Do not pad a phase's
    `scope` with every caller, importer or paired test it might touch: the
-   planner derives each contract a **contingent** set at mint and at refresh —
-   the scoped files' importers in source and tests, their first-party imports,
-   their tests paired at any depth, their packages' `__init__`, and the paths
-   the document's other phases match. A contingent path is promoted on its
+   planner licenses the scoped files' paired tests, and derives each contract
+   a **contingent** set at mint and at refresh — the scoped files' importers in
+   source and tests, their first-party imports, their packages' `__init__`,
+   and the paths the document's other phases match. A contingent path is promoted on its
    first write, recorded and reported, and fenced against tasks in flight; one
    another task holds requeues the attempt rather than halting it. The globs
    still name what the phase *owns* — a contingent path is a likely reach, not
@@ -240,7 +252,8 @@ reports what differs from the serializer's form and writes nothing.
 the tree; `torve spec check --fix-rot` retires them through an amendment
 per document with the reason recorded. For a document nothing has landed
 from, it lists each LOCKED row of a `depends_on` document that a phase's
-scope touches. A contract carries its own document's rows only, so an
+scope touches. A contract carries its own document's rows and at most ten
+LOCKED rows of other documents whose paths it touches, so an
 executor meets a contradiction there at its first attempt and halts: read
 the list before the owner accepts, and settle each conflict in the phase or
 by amending the inherited document. Coverage per path — governed,

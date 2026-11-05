@@ -203,6 +203,18 @@ def contingent_paths(
     return sorted(found - own)
 
 
+def paired_tests(tree: Path, scope: list[str], pair: list[str] | None = None) -> list[str]:
+    """The existing tests paired with what *scope* matches, which a contract
+    licenses beside its files (S-0122/D-12); sorted, never the scope's own."""
+
+    files = tree_files(tree)
+    own = {p.as_posix() for p in files if _matched(p, scope)}
+    names = [p.as_posix() for p in files]
+    found = {test for path in own for test in paired_test_files(path, names, pair)}
+
+    return sorted(found - own)
+
+
 # ....................... #
 # S-0119/D-12: a test file is run by an acceptance command only when the
 # command launches the tests and names the file, a directory above it, or no

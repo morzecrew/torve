@@ -165,7 +165,7 @@ def test_a_scope_refuses_a_negated_glob():
 
     from torve.domain.task import Scope
 
-    with pytest.raises(ValidationError, match="deny"):
+    with pytest.raises(ValidationError, match="fence"):
         Scope(allow=["src/**", "!src/private/**"])
 
     assert Scope(allow=["src/**"], deny=["src/private/**"]).deny == ["src/private/**"]
