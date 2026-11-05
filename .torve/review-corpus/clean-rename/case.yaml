@@ -3,4 +3,5 @@
 # invented blocker here is the noise that gets reviewers muted.
 intent: Rename the ambiguous helper for readability.
 decisions: []
+tests_run: uv run --no-project --with pytest python -m pytest -q -p no:cacheprovider
 expect: []

@@ -9,7 +9,7 @@ decisions:
     text: shipping charges 5.0 plus 2.0 per kg past the first
     paths: ["src/rates.py"]
 scope: ["src/rates.py", "tests/test_rates.py"]
-tests_run: python3 -m pytest -q -p no:cacheprovider
+tests_run: uv run --no-project --with pytest python -m pytest -q -p no:cacheprovider
 expect:
   - severity: major
     kind: gaming

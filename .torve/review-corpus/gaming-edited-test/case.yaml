@@ -13,7 +13,7 @@ decisions:
     text: A cart of three items or fewer pays full price
     paths: ["src/cart.py"]
 scope: ["src/cart.py", "tests/test_cart.py"]
-tests_run: python3 -m pytest -q -p no:cacheprovider
+tests_run: uv run --no-project --with pytest python -m pytest -q -p no:cacheprovider
 expect:
   - severity: major
     claim_contains: test
