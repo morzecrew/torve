@@ -1764,6 +1764,8 @@ def _why_reviews(rows: list[dict[str, Any]], task_id: str) -> list[dict[str, Any
     contract is a different task; its id rides along so a reader can open
     the record."""
 
+    from torve.application.review import STOPS_AT
+
     found: list[dict[str, Any]] = []
 
     for row in rows:
@@ -1774,11 +1776,14 @@ def _why_reviews(rows: list[dict[str, Any]], task_id: str) -> list[dict[str, Any
         findings = cast("list[object]", raw_findings) if isinstance(raw_findings, list) else []
         kept = [cast("dict[str, Any]", f) for f in findings if isinstance(f, dict)]
 
+        # The bar the review was judged by rides on its record; one written
+        # before it did counts `blocker` alone, as every reading then did.
+        stopping = STOPS_AT.get(str(row.get("blocks_at")), STOPS_AT["blocker"])
         entry: dict[str, Any] = {
             "at": row.get("at"),
             "review": row.get("task_id"),
             "verdict_findings": len(kept),
-            "blockers": sum(1 for f in kept if f.get("severity") == "blocker"),
+            "blockers": sum(1 for f in kept if f.get("severity") in stopping),
         }
 
         if row.get("unparseable"):

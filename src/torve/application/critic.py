@@ -644,6 +644,7 @@ def run_critic(
         trigger,
         {
             "mode": "critic",
+            "blocks_at": config.review.blocks_at,
             "prompt": PROMPT_VERSION,
             "prompt_sha": sha,
             "findings": [
