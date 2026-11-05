@@ -83,6 +83,46 @@ def test_snapshot_stages_tracked_and_new_files_but_never_an_ignored_one(tmp_path
 # ....................... #
 
 
+def test_clean_snapshot_is_the_worktree_head(tmp_path):
+    """S-0123/D-3: a worktree whose stageable tree HEAD already holds
+    snapshots to HEAD, so a unit that starts clean lands no empty snapshot
+    commit."""
+
+    root = repo(tmp_path)
+    workspace = GitWorkspace(root)
+    worktree = workspace.create("T-1004", "HEAD")
+    head = out(worktree, "rev-parse", "HEAD")
+
+    assert workspace.snapshot("T-1004") == head
+    # Snapshotting moved neither the branch nor the index.
+    assert out(worktree, "rev-parse", "HEAD") == head
+    assert out(worktree, "status", "--porcelain") == ""
+
+
+# ....................... #
+
+
+def test_a_clean_snapshot_commits_dirty_work_over_head(tmp_path):
+    """S-0123/D-3: uncommitted work still snapshots to a new commit whose
+    parent is HEAD, carrying the tracked change and the new file but never
+    the ignored one."""
+
+    root = repo(tmp_path)
+    worktree = task_worktree(root, "T-1005")
+    head = out(worktree, "rev-parse", "HEAD")
+
+    snapshot = GitWorkspace(root).snapshot("T-1005")
+
+    assert snapshot != head
+    assert out(root, "rev-parse", f"{snapshot}^") == head
+    assert out(root, "show", f"{snapshot}:tracked.txt") == "changed"
+    assert out(root, "show", f"{snapshot}:added.txt") == "new"
+    assert code(root, "cat-file", "-e", f"{snapshot}:ignored.txt") != 0
+
+
+# ....................... #
+
+
 def test_the_checkout_is_a_standalone_detached_snapshot(tmp_path):
     root = repo(tmp_path)
     worktree = task_worktree(root, "T-1002")
