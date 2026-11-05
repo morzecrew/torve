@@ -1,0 +1,105 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0123
+title: What the first 0.9.0 run left
+kind: design
+change:
+  type: fix
+  scope: engine
+status: draft
+implementation: none
+depends_on: [S-0122]
+informed_by: []
+supersedes: []
+superseded_by: null
+owner: misery7100
+schema_version: 4
+summary: |
+  Six small repairs that the 0.9.0 scratch run and the critic's corpus replay turned up, and the
+  first document the 0.9.0 night builds. They cover the unit's $3 and 90-minute caps, an empty
+  snapshot commit in landed history, review ids minted and never used, corpus cases whose tests
+  cannot run, host commands whose children outlive their timeout, and an archive that drops a
+  document's landing files.
+motivation: |
+  S-0122 shipped as 0.9.0 with known gaps. The scratch run before the tag, three served runs
+  of a two-phase document on dsh with the Opus critic, found two more, fixed by hand in #277
+  and #278, and left the rest here. Each is small, has a test that can fail, and touches one
+  or two modules, which is the shape a first night on a new engine should get.
+current_state: |
+  - S-0122/D-8 stops a unit at five critic calls, $3 notional spend or 90 minutes. Only the
+    critic-call count is enforced (`selection.CRITIC_CALLS`). A dsh seat on ModelStudio reports
+    no cost and its models carry no `list_price`.
+  - `select_attempt` snapshots the task worktree as the candidates' base whenever the width is
+    above one. On a first attempt the tree is clean, so the snapshot is an empty commit, and
+    the winning candidate's history carries it into the landing.
+  - `review_step` mints its review task before it looks for the verdict selection already
+    holds. Every unit the critic selected leaves one minted review id that nothing ran.
+  - Three corpus cases name `python3 -m pytest` as their `tests_run`, and the other three take
+    the same default. No image torve ships installs pytest for the system Python, so the
+    critic's replay builds its evidence package with no test results.
+  - `host_executor` runs a shell line with `subprocess.run(..., timeout=...)`. On a timeout the
+    shell dies and anything it started keeps running.
+  - `torve spec archive` rewrites the document's four files into the archive and deletes the
+    directory, so its `execution/` landing files are lost. #263 restored 299 of them by hand.
+goals: |
+  - The unit's notional spend and wall time stop it as S-0122/D-8 says.
+  - A clean unit lands no empty commit.
+  - Every review id in the record belongs to a review that ran.
+  - The corpus replay judges the critic on evidence that holds test results.
+  - A timed-out host command leaves no process behind.
+  - An archived document keeps its landing files.
+non_goals: |
+  - Running candidates side by side. They stay sequential, as S-0122 shipped them.
+  - Reading a document's phasing from the candidate tree when the lane decides completion.
+    Both lanes read it at the root today, and they change together or not at all.
+  - S-0122/D-9, the dsh-or-Opus revision question, which waits on 20 units of records.
+tests: |
+  Each phase writes the tests its row's check selects, beside the module it changes, and keeps
+  the full suite green. The corpus phase's own check is a test over the case files; whether the
+  critic's recall moves is read from a live replay after it lands, not in the suite.
+docs: |
+  The changelog's Fixed section, one entry per phase whose effect a user can see.
+out_of_scope: ''
+risks: |
+  - The $3 cap counts only what is priced. Until ModelStudio's models carry a `list_price`
+    (Q-1), a dsh candidate counts nothing toward it and the cap reads the critic's spend alone.
+  - The 90-minute default applies to every critic-mode task that names no clock of its own,
+    including a large phase that used to run longer. Such a task now escalates and needs a
+    contract that names a longer `wallclock_minutes`.
+design:
+  - key: the-unit-budget
+    md: |
+      The run already escalates `budget_exhausted` before an attempt when the contract's
+      `budget.wallclock_minutes` has elapsed. Under `review.mode: critic` that bound defaults to
+      90 minutes when the contract names none. The $3 cap is a notional spend the unit
+      accumulates across its attempts, as the critic-call count already is, from every candidate
+      and critic call: the reported `cost_usd`, else the token counts priced at the model's
+      `list_price` as `torve ledger` prices them, else nothing. Selection checks it before it
+      launches a candidate and before each critic call, and the run escalates naming the spend.
+  - key: the-candidate-base
+    md: |
+      `GitWorkspace.snapshot` compares the tree `git add -A` would stage with HEAD's. When they
+      are the same it returns HEAD, so the candidates start from the task's own commit; otherwise
+      it makes the snapshot commit it makes today.
+  - key: review-ids
+    md: |
+      `review_step` asks the record for a review id only on the paths that run a reviewer. A
+      verdict selection already holds keeps the id its critic call was minted under.
+  - key: corpus-tests
+    md: |
+      Every case names `tests_run: uv run --no-project --with pytest python -m pytest -q -p
+      no:cacheprovider`. The seat images carry uv, and the trees have no project of their own.
+  - key: host-processes
+    md: |
+      `host_executor` starts the shell with `start_new_session=True`. On a timeout it sends
+      SIGKILL to the session's process group, collects the shell, and reports the timeout as it
+      does now.
+  - key: archive-landings
+    md: |
+      `torve spec archive` moves the document's `execution/` directory beside the archived files
+      in the same transaction, unchanged, so a red check moves nothing and a green one moves both.
+questions:
+  - id: Q-1
+    text: >-
+      What `list_price` should `.torve/providers/modelstudio.yaml` carry for
+      deepseek-v4.1-flash and qwen3.8-flash, so a dsh candidate counts toward the $3 cap?
+    status: open
