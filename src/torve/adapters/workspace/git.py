@@ -300,10 +300,12 @@ class GitWorkspace:
 
     # ....................... #
 
-    def create_candidate(self, task_id: str, index: int) -> Path:
+    def create_candidate(self, task_id: str, index: int, base: str) -> Path:
         """Candidate *index*'s worktree (S-0122/D-7), `.wt/<task>~<index>`,
-        detached at the commit the task's own worktree was cut at, so every
-        candidate of a unit starts from one base."""
+        detached at *base* — the commit the task's own worktree stood at before
+        any candidate ran, since the first may have committed a convicted tree
+        there since — so every candidate of a unit starts from one base. An
+        empty *base* reads the task's worktree as it stands."""
 
         with _worktree_held(self.root):
             key = f"{task_id}~{index}"
@@ -312,7 +314,7 @@ class GitWorkspace:
             if path.exists():
                 self._remove_locked(key)
 
-            base = _git_at(naming.worktree(self.root, task_id), "rev-parse", "HEAD").strip()
+            base = base or _git_at(naming.worktree(self.root, task_id), "rev-parse", "HEAD").strip()
             self._git("worktree", "add", "--detach", str(path), base)
 
             return path

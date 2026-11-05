@@ -1629,7 +1629,17 @@ def _width(run: Dispatch, state: RunState) -> tuple[int, str]:
     return (selection.WIDTHS[size] if critic else 1), size
 
 
-def _candidate_dispatch(run: Dispatch, start: Dispatch, index: int) -> Dispatch:
+def _head(worktree: Path) -> str:
+    """The commit *worktree* stands at, or "" when git cannot say."""
+
+    try:
+        return git(worktree, "rev-parse", "HEAD").strip()
+
+    except GitError:
+        return ""
+
+
+def _candidate_dispatch(run: Dispatch, start: Dispatch, index: int, base: str) -> Dispatch:
     """Candidate *index*'s own dispatch over its own worktree: the regime and
     the broker are the run's, and the terms are as *start* held them before
     any candidate ran — an earlier candidate's red routes the next attempt,
@@ -1637,7 +1647,7 @@ def _candidate_dispatch(run: Dispatch, start: Dispatch, index: int) -> Dispatch:
 
     return replace(
         run,
-        worktree=run.deps.workspace.create_candidate(run.task.id, index),
+        worktree=run.deps.workspace.create_candidate(run.task.id, index, base),
         candidate=index,
         task=start.task,
         meta=dict(start.meta),
@@ -1665,10 +1675,15 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
     reviews: list[str] = []
     run.meta.pop("candidate", None)
     start = replace(run, meta=dict(run.meta), repaired_gates=set(run.repaired_gates))
+    # The unit's one base, read before the first candidate's red can commit
+    # its convicted tree onto the task's worktree (S-0069/D-4).
+    base = await asyncio.to_thread(_head, run.worktree)
 
     async def launch(index: int, clock: float) -> selection.Candidate:
         crun = (
-            run if index == 1 else await asyncio.to_thread(_candidate_dispatch, run, start, index)
+            run
+            if index == 1
+            else await asyncio.to_thread(_candidate_dispatch, run, start, index, base)
         )
         crun.clock = clock if clock < agent_clock else None
 
@@ -1681,6 +1696,11 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
 
         async def repair(result: AgentResult) -> str | None:
             first.append(result)
+
+            # A turn that escalated or halted is judged by nobody and buys nothing.
+            if state.escalation is not None or halted(crun, state.attempts) is not None:
+                return None
+
             verdict = await judge(crun, state)
             held.append(verdict)
             mechanical = verdict[0] != 0 and selection.repairable(crun.convictions)

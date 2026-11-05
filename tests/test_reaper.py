@@ -248,7 +248,7 @@ def test_a_live_unit_s_candidates_are_kept_and_a_dead_one_s_swept(tmp_path):
 
     for task_id in ("T-9703", "T-9704"):
         workspace.create(task_id, "HEAD")
-        workspace.create_candidate(task_id, 2)
+        workspace.create_candidate(task_id, 2, "")
         workspace.judge_checkout(f"{task_id}~2")
 
     report = reap(root, RunnerConfig(), MockRuntime(), workspace)

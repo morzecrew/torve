@@ -222,9 +222,12 @@ def test_a_candidate_worktree_starts_at_the_task_s_base_and_takes_its_place(
     own = workspace.create("T-0001", "HEAD")
     (own / "f.txt").write_text("own attempt\n", encoding="utf-8")
 
-    candidate = workspace.create_candidate("T-0001", 2)
+    base = git("rev-parse", "HEAD", at=own)
+    # The task's own attempt commits over the base; the candidate still starts there.
+    git("commit", "-q", "-am", "a convicted tree", at=own)
+    candidate = workspace.create_candidate("T-0001", 2, base)
 
-    assert git("rev-parse", "HEAD", at=candidate) == git("rev-parse", "HEAD", at=own)
+    assert git("rev-parse", "HEAD", at=candidate) == base
     assert (candidate / "f.txt").read_text(encoding="utf-8") == "one\n"
 
     (candidate / "f.txt").write_text("the chosen work\n", encoding="utf-8")
@@ -233,3 +236,44 @@ def test_a_candidate_worktree_starts_at_the_task_s_base_and_takes_its_place(
     assert not candidate.exists()
     assert (own / "f.txt").read_text(encoding="utf-8") == "the chosen work\n"
     assert git("symbolic-ref", "HEAD", at=own) == "refs/heads/torve/T-0001"
+
+
+def test_a_halted_turn_buys_no_repair_and_runs_no_battery(repo, monkeypatch) -> None:
+    """A turn that halted is judged by nobody: the repair callback runs no
+    gate pass and asks for no second turn (S-0122/D-8)."""
+
+    from test_run_loop import OK, MockRuntime, MockScm, MockVcs, MockWorkspace
+
+    from torve.adapters.store.durable import open_store
+    from torve.application.dispatch import RunDeps
+
+    class HaltingSession(ScriptedAgent):
+        kind = "harness"
+
+        def __init__(self) -> None:
+            super().__init__([OK], halted_on_attempt=1)
+            self.follow_ups = 0
+
+        def follow_up(self, ctx, previous, text):
+            self.follow_ups += 1
+            return None
+
+    repo.seed()
+    passes: list[int] = []
+    monkeypatch.setattr(
+        run_module, "run_gate_pass", lambda run, _state: passes.append(1) or (0, "", "", [], "")
+    )
+    agent = HaltingSession()
+    deps = RunDeps(
+        workspace=MockWorkspace(repo.root),
+        runtime=MockRuntime(),  # type: ignore[arg-type]
+        agent=agent,
+        vcs=MockVcs(),  # type: ignore[arg-type]
+        scm=MockScm(),  # type: ignore[arg-type]
+        store=open_store,
+    )
+
+    state = run_task(repo.root, task_for(repo), RunnerConfig(), deps)
+
+    assert state.state is TaskState.ESCALATED
+    assert passes == [] and agent.follow_ups == 0

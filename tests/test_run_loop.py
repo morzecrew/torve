@@ -83,7 +83,7 @@ class MockWorkspace:
 
     # S-0122/D-7: a candidate beside the task's worktree, and the one chosen
     # moved into its place.
-    def create_candidate(self, task_id, index):
+    def create_candidate(self, task_id, index, base):
         path = self.root / ".wt" / f"{task_id}~{index}"
         path.mkdir(parents=True, exist_ok=True)
         return path
