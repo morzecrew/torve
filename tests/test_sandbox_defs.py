@@ -858,7 +858,7 @@ def test_the_dsh_persona_patch_carries_the_sentence_and_the_rules(tmp_path: Path
     rules.write_text("Rule one.\n\nRule two: `x`.\n", encoding="utf-8")
     patch = tmp_path / "persona.yml"
     rendered = subprocess.run(
-        ["sh", "-c", f"cat {toolkit_dir / 'persona.yml'}; sed 's/^/      /' {rules}"],
+        ["sh", "-c", 'cat "$1"; sed "s/^/      /" "$2"', "sh", toolkit_dir / "persona.yml", rules],
         capture_output=True,
         text=True,
         check=True,

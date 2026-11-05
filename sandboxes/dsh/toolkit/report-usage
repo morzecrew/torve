@@ -102,7 +102,13 @@ for (const line of text.split("\n")) {
     // The call as `tool/call` names it — the dispatched one, once — with its
     // name, which is what the engine's per-call facts are keyed by.
     toolCounts[data.name] = (toolCounts[data.name] || 0) + 1;
-    stream.push({ type: "tool-call", name: data.name });
+    // The arguments arrive as a JSON string; the engine classifies a call by
+    // what it was given (the command, the path), so they go out as an object.
+    let input;
+    try { input = JSON.parse(data.arguments); } catch { input = undefined; }
+    const call = { type: "tool-call", name: data.name };
+    if (input && typeof input === "object" && !Array.isArray(input)) call.input = input;
+    stream.push(call);
   }
 }
 

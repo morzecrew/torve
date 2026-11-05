@@ -571,7 +571,10 @@ _V4_LOG = [
         },
     },
     {"type": "tool/call", "data": {"callId": "c2", "name": "read", "arguments": "{}"}},
-    {"type": "tool/call", "data": {"callId": "c3", "name": "bash", "arguments": "{}"}},
+    {
+        "type": "tool/call",
+        "data": {"callId": "c3", "name": "bash", "arguments": '{"command": "uv run pytest -q"}'},
+    },
     {
         "type": "assistant/message",
         "data": {"usage": {"inputTokens": 200, "outputTokens": 9, "cacheReadTokens": 900}},
@@ -621,7 +624,10 @@ def test_report_usage_reads_the_v4_log_into_what_the_parsers_take(
 
     assert burn is not None
     assert (burn.turns, burn.tool_calls) == (3, 3)
-    assert [fact["name"] for fact in parse_tool_calls(trace)] == ["bash", "read", "bash"]
+    calls = parse_tool_calls(trace)
+    assert [fact["name"] for fact in calls] == ["bash", "read", "bash"]
+    # The arguments reach the engine, so the call reads as the test run it was.
+    assert calls[2]["input"] == {"command": "uv run pytest -q"}
 
     # Priced, a cache write bills as input: (1100 + 30) in at 1, 66 out at 2,
     # 1100 cache reads at 0.1.
