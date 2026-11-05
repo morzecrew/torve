@@ -1668,7 +1668,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
     # The unit's one tree, taken before the first candidate changes it or its
     # red commits a convicted tree there (S-0069/D-4): a retry's candidates all
     # start from the work the attempt before them left.
-    base = await asyncio.to_thread(run.deps.workspace.snapshot, run.task.id)
+    base = await asyncio.to_thread(run.deps.workspace.snapshot, run.task.id) if width > 1 else ""
 
     async def launch(index: int, clock: float) -> selection.Candidate:
         crun = (
