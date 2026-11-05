@@ -779,3 +779,28 @@ def test_an_ordinary_contracts_prompt_stays_under_35_kb(tmp_path: Path) -> None:
     assert "def far_0()" not in prompt and "- `src/app/neighbour.py`" in prompt
     assert size < 35_000, size
     assert (len(module) + len(test)) / size > 0.5
+
+
+def test_rows_checked_at_completion_are_not_listed_as_attempt_gates(tmp_path: Path) -> None:
+    """S-0122/D-4: under `rows: completion` the attempt's battery runs no
+    row's check, so the battery `torve brief` prints names none as a gate."""
+
+    from torve.application.contextpack import gates_file
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "rows": "completion",
+                "gates": [
+                    {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = gates_file(tmp_path, _task(), manifest)
+
+    assert [g["name"] for g in payload["gates"]] == ["scope"]

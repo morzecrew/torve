@@ -128,6 +128,18 @@ def test_gates_list_shows_the_resolved_battery_and_the_contract_s_own(repo, tmp_
     assert missing.exit_code != 0
     assert "no gate manifest" in missing.output
 
+    # S-0122/D-4: under `rows: completion` no attempt runs the row's check.
+    manifest_file = repo.root / ".torve" / "gates.yaml"
+    manifest_file.write_text(
+        manifest_file.read_text(encoding="utf-8") + "rows: completion\n", encoding="utf-8"
+    )
+    deferred = CliRunner().invoke(
+        app,
+        ["gates", "list", "--root", str(repo.root), "--task", str(task_file), "--format", "json"],
+    )
+    assert deferred.exit_code == 0, deferred.output
+    assert "decision:S-0002/D-1" not in deferred.stdout
+
 
 def test_gates_check_json_is_schema_versioned():
     result = CliRunner().invoke(app, ["gates", "check", "--format", "json"])
