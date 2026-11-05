@@ -3141,6 +3141,26 @@ def test_a_rebased_local_landing_runs_the_rows_and_a_red_one_restores_the_branch
     assert git(lane_repo, "rev-parse", naming.branch("T-7363")) == head
 
 
+def test_a_carried_contract_the_loader_refuses_does_not_stop_a_local_landing(
+    lane_repo, monkeypatch
+):
+    _one_phase_checked(lane_repo, "true", phases=2)
+    candidate(lane_repo, "T-7364", "one.py", "one = 1\n")
+    _phase_contract(lane_repo, "T-7364", 1)
+    process_lane(lane_repo, GitLane())
+    # The projection a served run leaves in its worktree, once the root's is swept.
+    projected = lane_repo / ".wt" / "T-7364" / ".torve" / "tasks" / "T-7364" / "contract.yaml"
+    projected.parent.mkdir(parents=True)
+    projected.write_text("id: T-7364\n", encoding="utf-8")
+    candidate(lane_repo, "T-7365", "two.py", "two = 2\n")
+    _phase_contract(lane_repo, "T-7365", 2)
+
+    results = process_lane(lane_repo, GitLane(), only="T-7365")
+
+    # T-7364's phase counts for nothing, so the document reads incomplete.
+    assert [r.action for r in results] == ["landed"]
+
+
 def test_a_local_landing_that_leaves_its_document_incomplete_runs_no_rows(lane_repo, monkeypatch):
     _one_phase_checked(lane_repo, "false", phases=2)
     candidate(lane_repo, "T-7362", "one.py", "one = 1\n")

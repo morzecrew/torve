@@ -3037,10 +3037,15 @@ def _local_completion(
 
     branch = naming.document_branch(document)
     phases = {t: covered for _at, t, _c, _a, covered in _branch_landings(root, head, document)}
-    landings = [
-        DocumentLanding(task=carried_contract(root, branch, carried, phases))
-        for carried in dict.fromkeys([*phases, task_id])
-    ]
+    landings = []
+
+    # A carried contract the loader refuses counts no phase, as in `_completes`.
+    for carried in dict.fromkeys([*phases, task_id]):
+        try:
+            landings.append(DocumentLanding(task=carried_contract(root, branch, carried, phases)))
+
+        except (OSError, ValueError):
+            continue
 
     if not document_complete(document, landings, root):
         return None
