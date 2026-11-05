@@ -301,6 +301,10 @@ _LEG: contextvars.ContextVar[str] = contextvars.ContextVar("torve_lane_leg", def
 #: refs can share (S-0118/D-9).
 _BRANCH: contextvars.ContextVar[str] = contextvars.ContextVar("torve_lane_branch", default="")
 
+#: The document branch whose rows a completion battery runs, when the checkout
+#: it judges stands on no such branch: a local landing's (S-0122/D-4).
+_DOCUMENT: contextvars.ContextVar[str] = contextvars.ContextVar("torve_lane_document", default="")
+
 
 def _hand_judged(
     base: str,
@@ -465,9 +469,9 @@ def _regate(
         if task_id is None and _LEG.get() == "completion":
             # S-0122/D-4: a row's check runs when its document completes, and
             # in no other lane battery. S-0114/D-3: the judge checkout is
-            # detached, so the branch the document is named by is read off the
-            # rebased worktree.
-            _document_inputs(ctx, _branch_of(workdir))
+            # detached, so the branch the document is named by is the one a
+            # local landing set, or else read off the rebased worktree.
+            _document_inputs(ctx, _DOCUMENT.get() or _branch_of(workdir))
 
         if judge is not None:
             ctx.execute = judge.execute
@@ -2145,7 +2149,9 @@ def _unpublished(root: Path, vcs: LaneVcs, branch: str, remote: str) -> bool:
 # ....................... #
 
 
-def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int, list[int]]]:
+def _branch_landings(
+    root: Path, branch: str, document: str | None = None
+) -> list[tuple[str, str, str, int, list[int]]]:
     """*(at, task, commit, attempt, phases)* for the landing files *branch*
     carries, in landing order (S-0099/D-2): the phases are every one a
     whole-document contract covered (S-0122/D-13), or the one phase. The landing file is the carrier of what a
@@ -2157,13 +2163,14 @@ def _branch_landings(root: Path, branch: str) -> list[tuple[str, str, str, int, 
     reads, and a landing this host made but has not published yet still
     counts. Only the branch's own document's execution directory is listed.
     A tree that is no checkout, or a branch git cannot resolve, contributes
-    nothing."""
+    nothing. *document* names the execution directory when *branch* is not
+    the document's own, as a local landing's candidate is not."""
 
     import yaml
 
     from torve.domain.spec import EXECUTION_DIR, LANDING_FILE
 
-    document = branch.rsplit("/", 1)[-1]
+    document = document or branch.rsplit("/", 1)[-1]
     directory = f"{layout.SPECS_DIR}/{document}/{EXECUTION_DIR}"
     refs = [branch] if branch.startswith(("origin/", "refs/")) else [f"origin/{branch}", branch]
     found: dict[tuple[str, str, int], tuple[str, list[int]]] = {}
@@ -3004,6 +3011,94 @@ def _candidate_citations(
 # ....................... #
 
 
+def _local_completion(
+    root: Path,
+    vcs: LaneVcs,
+    task_id: str,
+    head: str,
+    base_tip: str,
+    gates: SandboxFactory | None = None,
+) -> str | None:
+    """S-0122/D-4 under a local landing: no document branch completes, so the
+    landing that leaves its document complete runs the document's rows over
+    the tree that would land, in a detached worktree as the citation scan
+    does, against the base it lands on: a local landing never moves
+    `origin/main`, which the default base would prefer. The red summary, or
+    None when green, when the task names no document, or when the document
+    has phases still to land."""
+
+    from torve.application.forge import DocumentLanding, document_complete
+    from torve.gates.context import load_task
+
+    path = contract_file(root, task_id)
+
+    try:
+        document = load_task(path).spec if path.is_file() else None
+
+    # A contract the loader refuses names no document, as `_completes` reads it.
+    except (OSError, ValueError):
+        document = None
+
+    if document is None:
+        return None
+
+    branch = naming.document_branch(document)
+    phases = {t: covered for _at, t, _c, _a, covered in _branch_landings(root, head, document)}
+    landings = []
+
+    # A carried contract the loader refuses counts no phase, as in `_completes`.
+    for carried in dict.fromkeys([*phases, task_id]):
+        try:
+            landings.append(DocumentLanding(task=carried_contract(root, branch, carried, phases)))
+
+        except (OSError, ValueError):
+            continue
+
+    if not document_complete(document, landings, root):
+        return None
+
+    workdir = root / naming.WORKTREE_DIR / f"lane-rows-{task_id}"
+
+    if workdir.exists():
+        vcs.remove_worktree(root, workdir)
+
+    added = subprocess.run(
+        ["git", *NO_HOOKS, "-C", str(root), "worktree", "add", "--detach", str(workdir), head],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if added.returncode != 0:
+        return f"the document's rows did not run — {added.stderr.strip() or 'worktree add failed'}"
+
+    outcome: object = ()
+
+    try:
+        # The judgment is the candidate's, recorded on its task; the rows are
+        # its document's.
+        token, branch_token = _LEG.set("completion"), _BRANCH.set(naming.branch(task_id))
+        document_token = _DOCUMENT.set(branch)
+
+        try:
+            outcome = _regate(workdir, base_tip, None, gates)
+
+        finally:
+            _DOCUMENT.reset(document_token)
+            _BRANCH.reset(branch_token)
+            _LEG.reset(token)
+
+    finally:
+        vcs.remove_worktree(root, workdir)
+
+    exit_code, summary = _unpack(outcome)
+
+    return summary if exit_code != 0 else None
+
+
+# ....................... #
+
+
 def _land_fast_forward(
     root: Path,
     vcs: LaneVcs,
@@ -3065,10 +3160,10 @@ def _land_fast_forward(
     # as a red re-gate does.
     problems = _candidate_citations(root, vcs, task_id, branch_tip, specs)
 
-    if problems:
-        _record_red(
-            root, state, task_id, branch, branch_tip, base_tip, "; ".join(problems), status, results
-        )
+    red = "; ".join(problems) or _local_completion(root, vcs, task_id, branch_tip, base_tip, gates)
+
+    if red:
+        _record_red(root, state, task_id, branch, branch_tip, base_tip, red, status, results)
 
         return
 
@@ -3268,6 +3363,14 @@ def _land_rebased(
                 root, publish, task_id, branch, rebased_tip, "rebased", approver, results
             )
 
+        return
+
+    head = vcs.tip(root, branch) or branch
+    rows_red = _local_completion(root, vcs, task_id, head, base_tip, gates)
+
+    if rows_red is not None:
+        vcs.reset_branch(root, branch, before_rebase)
+        _record_red(root, state, task_id, branch, branch_tip, base_tip, rows_red, status, results)
         return
 
     vcs.adopt_identical(root, branch)
