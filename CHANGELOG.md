@@ -29,14 +29,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
-- The gates read the gate manifest and the task's contract from the repository root,
-  never from the attempt's worktree. With no contract file at the root, they judge the
-  contract the store dispatched. An attempt could previously edit both and change
-  which gates judged it. A replay still reads the manifest its clone holds.
+- The gates read the gate manifest committed at the attempt's merge base, and the
+  contract from the root or the store, never from the attempt's worktree. An attempt
+  could previously edit both and change which gates judged it. A root edit after the
+  cut no longer moves an attempt in flight.
 
-- The gate battery mounts a cache volume of its own (`<cache_volume>-<slot>-gates`),
-  and a nested Docker daemon's state volume of its own. Code a gate ran could
-  previously leave files or images there for the next attempt to read.
+- The gate battery, the lane's included, mounts a cache volume of its own
+  (`<cache_volume>-<slot>-gates`) and a nested Docker daemon's state volume of its
+  own. Code a gate ran could previously leave files or images there for the next
+  attempt to read.
 
 ## [0.8.0] - 2026-11-04
 
