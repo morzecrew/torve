@@ -20,6 +20,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when the rows, the intent and the tests cannot all hold. A halt on a LOCKED row goes
   to the owner; any other goes back to the author as underspecified.
 
+- `review.mode: critic` reviews a gate-green candidate with the critic: a frozen prompt
+  over the diff, the base tree and what the engine measured. The engine blocks on its
+  located findings and violated rows, never its stated verdict. `classic` stays default.
+
+- A gate pass the critic will read writes `.torve/review/evidence.yaml`: changed tests
+  run on the base and the head, a status per owned row, unrun acceptance, edits to
+  existing tests, and flags for gaming or text aimed at a reviewer.
+
+- `torve review corpus --mode classic|critic` replays the corpus through either seat and
+  reports whether each case would have blocked. Three cases join: a weak test, a test
+  edited to pass, and code that special-cases `PYTEST_CURRENT_TEST`.
+
 ### Changed
 
 - The context pack carries the files a task changes and their paired tests first and
@@ -33,6 +45,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An attempt is no longer asked for attestation entries: `torve log divergence` refuses
   `decided` and `resolved`, the prompt and `AGENTS.md` sections name no owed entry, and
   the finish hook runs only the acceptance. Logs written before still read.
+
+- A review no longer sees what earlier reviews of the same task found: `touched.json`
+  drops `prior_reviews`, which anchored each review to the last one's reading.
 
 ### Removed
 
