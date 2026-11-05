@@ -212,8 +212,8 @@ class Model(BaseModel):
     list_price: Price | None = None
     """The vendor's published rate card, for a seat that is not billed by it — a
     subscription. `torve ledger` prices the seat's attempts at it from their token counts and
-    marks the figure an estimate; the attempt's own cost stays unreported, and no budget
-    reads it."""
+    marks the figure an estimate; the unit's notional-spend cap reads it the same way
+    (S-0123/D-1) and never as the attempt's own cost."""
 
 
 # ....................... #

@@ -343,6 +343,13 @@ class CriticVerdict(ReviewOutcome):
     prompt_sha: str = ""
     # A kept probe's text by its path in the copy, for the revision to read.
     probes: dict[str, str] = field(default_factory=dict)
+    # What the call cost the unit (S-0123/D-1): the seat's reported cost, the
+    # counts it reported, and the model they were spent on — the facts the
+    # notional-spend cap prices.
+    cost_usd: float | None = None
+    token_counts: dict[str, int] = field(default_factory=dict)
+    provider: str | None = None
+    model: str | None = None
 
 
 def _as_finding(finding: CriticFinding) -> Finding:
@@ -688,6 +695,10 @@ def run_critic(
         prompt_sha=sha,
         probes=probes,
         measured=package.failing_items() or None,
+        cost_usd=session.result.cost_usd,
+        token_counts=session.token_counts,
+        provider=session.tier.provider or None,
+        model=session.tier.model or None,
     )
     verdict.threads = revision_threads(verdict)
 

@@ -21,12 +21,13 @@ the same code the runner does.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from torve.base.globs import matches
+from torve.config.providers import Price
 from torve.domain.attempt import GateResult
 from torve.domain.task import Task
 
@@ -46,8 +47,40 @@ REPAIRABLE_GATES = frozenset({"suite", "mypy"})
 # A unit stops after this many critic calls (S-0122/D-8).
 CRITIC_CALLS = 5
 
+# What a unit may spend, notionally, across its attempts (S-0122/D-8,
+# S-0123/D-1), and the clock a critic-mode task gets when its contract names
+# none (S-0123/D-2).
+UNIT_BUDGET_USD = 3.0
+UNIT_MINUTES = 90
+
 # What an S unit's files may be: documentation and configuration.
 _LIGHT = ("*.md", "*.rst", "*.txt", "*.yaml", "*.yml", "*.toml", "*.json", "docs/**")
+
+
+# ....................... #
+
+
+def notional_spend(
+    agent: Mapping[str, Any], list_prices: Mapping[tuple[str, str], Price]
+) -> float | None:
+    """What one candidate or critic call costs the unit (S-0123/D-1): the cost
+    its block reports, else its token counts at its model's list price — the
+    ledger's estimate — else nothing, which adds nothing.
+
+    A subscription seat reports no cost and may carry no list price; that is
+    unreported, not zero, and the cap reads only what can be priced. A
+    candidate's block is the priced one the record is built from, so a
+    roster-priced seat's cost is torve's arithmetic rather than the adapter's
+    claim."""
+
+    cost = agent.get("cost_usd")
+
+    if isinstance(cost, int | float) and not isinstance(cost, bool):
+        return float(cost)
+
+    price = list_prices.get((str(agent.get("provider") or ""), str(agent.get("model") or "")))
+
+    return None if price is None else price.cost(agent)
 
 
 # ....................... #
@@ -141,6 +174,10 @@ class Candidate:
     clean: bool = False
     verdict: Any = None
     run: Any = None
+    # What this candidate and the critic call that read it cost the unit
+    # notionally (S-0123/D-1); None when nothing priced them.
+    spend: float | None = None
+    critic_spend: float | None = None
 
 
 # ....................... #
@@ -195,6 +232,10 @@ class Selection:
     ranked: list[Candidate] = field(default_factory=list)
     winner: Candidate | None = None
     critic_calls: int = 0
+    # The unit's notional spend after this round (S-0123/D-1), and whether the
+    # bound stopped a candidate or critic call the unit still needed.
+    spent_usd: float = 0.0
+    exhausted: bool = False
 
     @property
     def chosen(self) -> Candidate:
@@ -227,29 +268,44 @@ async def select(
     seed: str,
     critic_budget: int = CRITIC_CALLS,
     stop: Callable[[], bool] = lambda: False,
+    spent: float = 0.0,
+    budget_usd: float = UNIT_BUDGET_USD,
 ) -> Selection:
     """Run *width* candidates one after another, then ask *review* — the
     critic, or None when no critic judges this unit — about the green ones in
-    rank order until one is clean or *critic_budget* calls are spent. *stop*
-    ends the round early, when the run itself has escalated."""
+    rank order until one is clean, *critic_budget* calls are spent, or the
+    unit's notional spend reaches *budget_usd*. *spent* is what its earlier
+    attempts already spent; each candidate's and critic call's own spend is
+    added as it is known (S-0123/D-1), and a bound that stops a call the unit
+    still needed leaves *exhausted* set. *stop* ends the round early, when the
+    run itself has escalated."""
 
     candidates: list[Candidate] = []
     first_green: float | None = None
+    total = spent
+    exhausted = False
 
     for index in range(1, width + 1):
+        if total >= budget_usd:
+            exhausted = True
+            break
+
         clock = agent_clock if first_green is None else straggler_clock(first_green, agent_clock)
         candidate = await launch(index, clock)
         candidates.append(candidate)
 
+        if candidate.spend is not None:
+            total += candidate.spend
+
         if stop():
-            return Selection(candidates)
+            return Selection(candidates, spent_usd=total)
 
         if candidate.green and first_green is None:
             first_green = candidate.wall_s
 
     # A protected-test edit is a red blocking gate, so a green one made none.
     pool = collapse([c for c in candidates if c.green])
-    selection = Selection(candidates, prerank(pool, seed))
+    selection = Selection(candidates, prerank(pool, seed), spent_usd=total, exhausted=exhausted)
 
     if review is None:
         selection.winner = selection.ranked[0] if selection.ranked else None
@@ -259,9 +315,18 @@ async def select(
         if selection.critic_calls >= critic_budget:
             break
 
+        if total >= budget_usd:
+            selection.exhausted = True
+            break
+
         candidate.reviewed = True
         candidate.clean = await review(candidate)
         selection.critic_calls += 1
+
+        if candidate.critic_spend is not None:
+            total += candidate.critic_spend
+
+        selection.spent_usd = total
 
         if candidate.clean:
             selection.winner = candidate

@@ -83,6 +83,7 @@ from torve.application.telemetry import (
     build_record,
     config_hash,
     engine_event,
+    priced,
     record_payload,
     record_row,
 )
@@ -90,6 +91,7 @@ from torve.base import naming
 from torve.base.clock import parse, stamp
 from torve.config import layout
 from torve.config.manifest import UNLABELED_AXIS, Gate, Manifest, load_manifest
+from torve.config.providers import Price
 from torve.config.runconfig import RunnerConfig, agent_timeout_for
 from torve.config.spec import TRACKED_LIST, write_tracked_files
 from torve.domain.attempt import GateResult
@@ -197,6 +199,12 @@ async def drive_attempts(
     ceiling = config.poison_ceiling
     iterations = task.budget.iterations
     wallclock_minutes = task.budget.wallclock_minutes
+
+    # S-0123/D-2: under the critic a unit's contract may name no clock, and
+    # then the unit gets the 90 minutes S-0122/D-8 gives it. A contract that
+    # names its own bound keeps it.
+    if wallclock_minutes is None and config.review.mode == "critic":
+        wallclock_minutes = selection.UNIT_MINUTES
 
     try:
         result = await _attempt_loop(state, task, hooks, ceiling, iterations, wallclock_minutes)
@@ -1603,6 +1611,59 @@ def checkpoint(run: Dispatch, final: RunState) -> None:
 # A history fact per critic call, which the unit's budget of calls counts.
 CRITIC_MARKER = "critic reviewed candidate "
 
+# A history fact per priced candidate or critic call, which the unit's
+# notional-spend cap sums across its attempts (S-0123/D-1). The amount leads,
+# so the sum reads the same number the record names.
+SPEND_MARKER = "unit spend "
+
+
+def _list_prices(config: RunnerConfig) -> dict[tuple[str, str], Price]:
+    """The list prices the provider table carries, by provider and roster key
+    — the two names an attempt's agent block records its seat by."""
+
+    return {
+        (name, key): model.list_price
+        for name, record in config.provider_records.items()
+        for key, model in record.models.items()
+        if model.list_price is not None
+    }
+
+
+def _unit_spend(state: RunState) -> float:
+    """The unit's notional spend across its attempts (S-0123/D-1): every
+    priced candidate and critic call the run's history carries."""
+
+    total = 0.0
+
+    for entry in state.history:
+        fact = str(entry.get("fact", ""))
+
+        if not fact.startswith(SPEND_MARKER):
+            continue
+
+        try:
+            total += float(fact[len(SPEND_MARKER) :].split()[0])
+
+        except (ValueError, IndexError):
+            continue
+
+    return total
+
+
+def _record_spend(state: RunState, spend: float, what: str) -> None:
+    """Append one priced call's notional spend to the run's history, so the
+    next attempt carries it as it carries the critic-call count."""
+
+    state.history.append(
+        {
+            "at": state.heartbeat,
+            "from": str(state.state),
+            "to": str(state.state),
+            "fact": f"{SPEND_MARKER}{spend:.6f} {what}",
+        }
+    )
+    state.save()
+
 
 def selects(run: Dispatch) -> bool:
     """Whether this dispatch's attempt runs through selection: a live
@@ -1662,6 +1723,8 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
     width, size = _width(run, state)
     agent_clock = agent_timeout_for(run.config, run.tier)
     critic = run.config.review.mode == "critic" and review_gated(run.config, run.task, run.shadow)
+    prices = _list_prices(run.config) if critic else {}
+    budget_spent = _unit_spend(state) if critic else 0.0
     reviews: list[str] = []
     run.meta.pop("candidate", None)
     start = replace(run, meta=dict(run.meta), repaired_gates=set(run.repaired_gates))
@@ -1720,6 +1783,16 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         candidate = selection.Candidate(index=index, result=result, run=crun)
         candidate.followed_up = bool(first) and result is not first[0]
 
+        if critic:
+            # S-0123/D-1: what this candidate cost the unit. The block is the
+            # one the record is built from, priced by the engine, so a
+            # roster-priced seat's cost is torve's arithmetic and a seat with
+            # none falls back to its tokens at the ledger's list price.
+            candidate.spend = selection.notional_spend(priced(crun.meta), prices)
+
+            if candidate.spend is not None:
+                _record_spend(state, candidate.spend, f"candidate {index}")
+
         if (
             state.escalation is None
             and result.refused is None
@@ -1758,6 +1831,23 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         reviews.append(review_task.id)
         verdict = await asyncio.to_thread(critic_judge, candidate.run, review_task)
         candidate.verdict = verdict
+
+        if critic:
+            # S-0123/D-1: the critic call costs the unit too, priced the same
+            # way the candidate it read was.
+            candidate.critic_spend = selection.notional_spend(
+                {
+                    "cost_usd": verdict.cost_usd,
+                    "provider": verdict.provider,
+                    "model": verdict.model,
+                    **verdict.token_counts,
+                },
+                prices,
+            )
+
+            if candidate.critic_spend is not None:
+                _record_spend(state, candidate.critic_spend, f"critic {candidate.index}")
+
         state.history.append(
             {
                 "at": state.heartbeat,
@@ -1787,7 +1877,22 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             seed=run.task.id,
             critic_budget=max(0, selection.CRITIC_CALLS - spent),
             stop=lambda: state.escalation is not None,
+            spent=budget_spent,
+            budget_usd=selection.UNIT_BUDGET_USD,
         )
+
+        # S-0123/D-1: the $3 cap stopped a candidate or critic call the unit
+        # still needed. There is no winner to land, so the run escalates and
+        # names what it spent.
+        if chosen_round.exhausted and chosen_round.winner is None:
+            state.escalate(
+                EscalationReason.BUDGET_EXHAUSTED,
+                f"unit budget exhausted: ${chosen_round.spent_usd:.2f} spent of "
+                f"${selection.UNIT_BUDGET_USD:.2f}",
+            )
+
+            return AgentResult(exit_code=1, output="")
+
         winner = chosen_round.chosen
         chosen = winner.index
 

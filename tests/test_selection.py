@@ -159,6 +159,89 @@ def test_with_no_green_candidate_the_first_is_handed_on() -> None:
 
 
 # ....................... #
+# The unit's budget (S-0123/D-1).
+
+
+def test_unit_budget_stops_before_the_next_candidate() -> None:
+    """A unit that already spent most of its bound runs no further candidate:
+    the one call that crosses the bound is counted, and the round says the
+    bound stopped it."""
+
+    launched: list[int] = []
+
+    async def launch(index: int, _clock: float) -> selection.Candidate:
+        launched.append(index)
+        candidate = _candidate(index, green=False)
+        candidate.spend = 0.5
+
+        return candidate
+
+    async def review(_candidate: selection.Candidate) -> bool:
+        return False
+
+    chosen = asyncio.run(
+        selection.select(3, launch, review, agent_clock=60, seed="T-0001", spent=2.75)
+    )
+
+    assert launched == [1]
+    assert chosen.spent_usd == 3.25 and chosen.exhausted
+    assert chosen.winner is None
+
+
+def test_unit_budget_stops_before_the_next_critic_call() -> None:
+    """The critic call counts as the candidate does: once adding one would
+    reach the bound, the next candidate is never read."""
+
+    read: list[int] = []
+
+    async def launch(index: int, _clock: float) -> selection.Candidate:
+        candidate = _candidate(index, lines=index)
+        candidate.spend = 0.25
+        candidate.critic_spend = 1.5
+
+        return candidate
+
+    async def review(candidate: selection.Candidate) -> bool:
+        read.append(candidate.index)
+        return False
+
+    chosen = asyncio.run(
+        selection.select(3, launch, review, agent_clock=60, seed="T-0001", budget_usd=3.0)
+    )
+
+    assert read == [1, 2]
+    assert chosen.critic_calls == 2
+    assert chosen.spent_usd == 3.75 and chosen.exhausted
+    assert chosen.winner is None
+
+
+def test_unit_budget_prices_a_call_from_its_cost_else_its_list_price() -> None:
+    """A call's spend is the cost its block reports, else its tokens at the
+    model's list price, else nothing — never an invented zero."""
+
+    from torve.config.providers import Price
+
+    prices = {("p", "m"): Price(input=2.0, output=10.0)}
+
+    assert selection.notional_spend({"cost_usd": 0.4}, prices) == 0.4
+    assert (
+        selection.notional_spend(
+            {"cost_usd": None, "provider": "p", "model": "m", "input_tokens": 1_000_000}, prices
+        )
+        == 2.0
+    )
+    assert (
+        selection.notional_spend(
+            {"cost_usd": None, "provider": "q", "model": "m", "input_tokens": 100}, prices
+        )
+        is None
+    )
+    assert (
+        selection.notional_spend({"cost_usd": None, "provider": "p", "model": "m"}, prices) is None
+    )
+
+
+# ....................... #
 
 
 def test_the_runner_leaves_the_chosen_candidate_in_the_task_s_worktree(
