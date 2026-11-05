@@ -14,9 +14,9 @@ and nothing here should be read as more.
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from pathlib import Path
-
-from torve.domain.attempt import Finding
+from typing import Protocol, TypeVar
 
 # ----------------------- #
 
@@ -78,15 +78,33 @@ def locate(evidence: str, root: Path) -> str | None:
 # ....................... #
 
 
+class Located(Protocol):
+    """What the filter reads off a finding: the classic reviewer's `Finding`
+    and the critic's richer one (S-0122/D-1) both carry these, so one filter
+    serves both and neither can drift from the other's rule."""
+
+    @property
+    def severity(self) -> str: ...
+
+    @property
+    def claim(self) -> str: ...
+
+    @property
+    def evidence(self) -> str: ...
+
+
+F = TypeVar("F", bound=Located)
+
+
 def filter_findings(
-    findings: list[Finding],
+    findings: Sequence[F],
     root: Path,
-) -> tuple[list[Finding], list[str]]:
+) -> tuple[list[F], list[str]]:
     """(kept, discard reasons): findings whose evidence locates under *root*,
     and one recorded reason per discarded finding — discarded is a counted
     outcome (the noise rate), never a silent drop."""
 
-    kept: list[Finding] = []
+    kept: list[F] = []
     discarded: list[str] = []
 
     for finding in findings:

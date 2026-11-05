@@ -388,7 +388,7 @@ def test_a_green_suite_never_extracts_the_base(repo, monkeypatch):
     def extracted(*_args):
         raise AssertionError("the base was extracted for a green suite")
 
-    monkeypatch.setattr(suite, "_extract_base", extracted)
+    monkeypatch.setattr(suite, "extract_base", extracted)
     repo.seed(suite_manifest())
     repo.write("src/other.py", "VALUE = 3\n")
     repo.commit("a green change")
