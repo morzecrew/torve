@@ -208,15 +208,11 @@ def render_section(
             if row.consequence:
                 lines.append(f"- Consequence: {row.consequence}")
 
+            # No line asks for a log entry (S-0122/D-14): touching a governed
+            # file owes none, and a LOCKED row is halted on, not attested to.
             if row.check:
                 lines.append(
-                    f"- Check: `{row.check}` ({row.check_state}; runs as `decision:{row.id}`, "
-                    "no log entry owed)"
-                )
-            elif row.grade == "LOCKED":
-                lines.append(
-                    "- Touching these paths owes a divergence entry: "
-                    "`torve log owed <task> --touched <files>` before you finish"
+                    f"- Check: `{row.check}` ({row.check_state}; runs as `decision:{row.id}`)"
                 )
 
             lines.append("")

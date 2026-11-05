@@ -36,12 +36,15 @@ NATIVE = ("working-rules", "torve")
 
 
 def test_every_shipped_skill_carries_the_specialisation_header_and_a_gate():
+    """A specialised skill names the gate that enforces it, when one does:
+    `flag-dont-flip` names none since `decisions-reported` went (S-0122/D-17)."""
+
     for name in available():
         if name in NATIVE:
             continue
         text = (skills_root() / name / "SKILL.md").read_text(encoding="utf-8")
         assert "**Specialisation.**" in text, f"{name}: missing specialisation header"
-        assert "\ngate: " in text, f"{name}: missing gate: frontmatter"
+        assert ("\ngate: " in text) is (name != "flag-dont-flip"), f"{name}: gate: frontmatter"
         assert "do not reconcile" in text, f"{name}: missing the no-reconcile rule"
 
 
@@ -84,8 +87,8 @@ def test_the_working_rules_ship_as_one_skill_carrying_the_three_new_rules():
     text = (skills_root() / "working-rules" / "SKILL.md").read_text(encoding="utf-8")
 
     assert "working-rules" in available()
-    assert "A scope naming a module names that module's test file" in text
-    assert "A scope never names the changelog" in text
+    # S-0122 phase 3 cut the two scope rules: they were the scope author's,
+    # not the executor's, and the executor's rules are what this skill holds.
     assert "A test may not assume it is the only one on the machine" in text
     # The contract still governs, wherever the rules are read from.
     assert "Nothing here outranks the contract" in text
@@ -101,8 +104,10 @@ def test_the_working_rules_carry_the_three_rules_the_burn_profile_counts():
 
     assert "Issue independent reads and greps in one message" in text
     assert "Run the contract's acceptance commands as written, once, after your edits" in text
-    assert "Record every divergence in one call" in text
-    assert "`torve log owed` is answered by the finishing check before you stop" in text
+    # S-0122/D-14: the bookkeeping the third rule batched is gone, so the
+    # rules name no owed check and no attestation.
+    assert "torve log owed" not in text
+    assert "--action decided" not in text and "--kind resolved" not in text
 
 
 def test_the_working_rules_teach_the_batch_form_the_verb_actually_takes():
@@ -373,12 +378,16 @@ def test_no_shipped_skill_cites_torve_s_own_corpus():
 
 def test_the_divergence_mechanics_live_in_working_rules_alone():
     """S-0100/D-6: flag-dont-flip says what an entry must say; how to record
-    one is working-rules', so the two cannot contradict each other."""
+    one is working-rules', so the two cannot contradict each other. It
+    describes halts, through `torve abort`, and departures, and nothing that
+    attests (S-0122/D-14)."""
 
     text = (skills_root() / "flag-dont-flip" / "SKILL.md").read_text(encoding="utf-8")
 
     assert "torve log divergence" not in text
     assert "torve log owed" not in text
+    assert "torve abort" in text
+    assert "`decided`" not in text and "`resolved`" not in text
 
 
 def test_the_operator_skill_states_the_rails_and_ships_its_references():

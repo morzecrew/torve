@@ -111,18 +111,15 @@ def test_a_governed_directory_gets_a_section_and_an_ungoverned_one_none(tmp_path
 
     assert "### S-0001/D-1 — `LOCKED` (Document 0001)" in cli
     assert "- Consequence: because" in cli
-    assert (
-        "- Check: `pytest tests/test_cli.py` (shadow; runs as `decision:S-0001/D-1`, no log entry owed)"
-        in cli
-    )
+    assert "- Check: `pytest tests/test_cli.py` (shadow; runs as `decision:S-0001/D-1`)" in cli
+    # S-0122/D-14: no section asks for a log entry, LOCKED or not.
+    assert "owe" not in cli
     assert "- **S-0001/I-1**: one lander" in cli
     assert cli.endswith(MARK_CLOSE + "\n")
 
     gates = (tmp_path / "src/torve/gates/AGENTS.md").read_text(encoding="utf-8")
 
-    assert (
-        "S-0001/D-2" in gates and "Touching these paths owes" not in gates
-    )  # ASSUMED owes nothing
+    assert "S-0001/D-2" in gates and "owe" not in gates
 
     # a phase reaches the domain directory: a section with no rows, so the
     # index names it and the file carries only the markers

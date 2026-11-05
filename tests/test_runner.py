@@ -2516,9 +2516,11 @@ def test_a_cold_run_mounts_nothing_at_all(repo, monkeypatch):
     assert gate_caches == [{}]
 
 
-def test_the_prompt_renders_the_consequence_and_names_the_checkable_row():
-    """S-0054 S-0054/D-1, S-0054/D-3: the executor reads the reason after each row,
-    and a checkable row says the battery judges it and no entry is owed."""
+def test_the_prompt_renders_the_consequence_and_names_no_check_to_run():
+    """S-0054 S-0054/D-1: the executor reads the reason after each row. A row's
+    check is not named (S-0122/D-4, S-0122/D-14): it runs at document
+    completion, and the line was read as one more command to run and one more
+    entry owed."""
 
     from torve.adapters.agent.harness import build_prompt
     from torve.domain.task import InheritedDecision, Task
@@ -2540,10 +2542,7 @@ def test_the_prompt_renders_the_consequence_and_names_the_checkable_row():
     prompt = build_prompt(task)
 
     assert "  - why: because it holds" in prompt
-    assert (
-        "checked by the battery as `decision:D-1` (shadow): `pytest tests/test_x.py` — no log entry owed"
-        in prompt
-    )
+    assert "pytest tests/test_x.py" not in prompt and "owed" not in prompt
     assert "a plain row\n" in prompt and prompt.count("- why:") == 1
 
 

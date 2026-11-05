@@ -394,17 +394,12 @@ def build_prompt(
             paths = f" — paths: {', '.join(decision.paths)}" if decision.paths else ""
             lines.append(f"- `{decision.id}` ({decision.grade}): {decision.text}{paths}")
 
-            # S-0054/D-1: the reason the row exists reaches the executor; a
-            # checkable row says so, because its compliance is the battery's
-            # to prove and no attestation is owed for it (S-0054/D-3).
+            # S-0054/D-1: the reason the row exists reaches the executor. Its
+            # check does not: a row's check runs at document completion
+            # (S-0122/D-4), and a line naming it was read as one more command
+            # to run before stopping.
             if decision.consequence:
                 lines.append(f"  - why: {decision.consequence}")
-
-            if decision.check:
-                lines.append(
-                    f"  - checked by the battery as `decision:{decision.id}` "
-                    f"({decision.check_state}): `{decision.check}` — no log entry owed"
-                )
     else:
         lines.append("- none apply (explicitly).")
 
@@ -472,6 +467,22 @@ def reading_advice() -> str:
     )
 
 
+# What an executor may not do to a test, and the one way out when the task cannot
+# hold (S-0122/D-2, S-0122/D-3, S-0122/D-14). In every rules section, equipped or
+# not: it is the paragraph the evidence package and the protected-path gate
+# enforce, and an attempt should read it before it meets them. Adapted from the
+# ImpossibleBench finding that an honest exit cuts cheating: a gamed test is what
+# a model reaches for when stopping looks like failing.
+NO_GAMING = (
+    "Tests outside this contract's scope and the other protected paths (`conftest.py`,"
+    " the pytest configuration, `.torve/`) are read-only: run them, never change them."
+    " Do not edit an existing test to make it pass, skip or xfail a test, or write code"
+    " that behaves differently under test. If the rows, the intent and a test cannot all"
+    ' hold, run `torve abort --row <id> --claim "…" --evidence "path:line — …"` and stop.'
+    " A justified abort is a successful attempt. A gamed test is discarded."
+)
+
+
 def working_rules(prompt_extras: str = "", skills: str = "", equipped: bool = True) -> str:
     """The rules section, built once and reached by both channels it travels
     (S-0073/D-2): the prompt this module composes, and the system file the
@@ -506,16 +517,16 @@ def working_rules(prompt_extras: str = "", skills: str = "", equipped: bool = Tr
             "## Working rules",
             "",
             bullet,
-            # S-0073/D-1: the skill's own text is not restated here. The seven
-            # bullets this bullet replaced were the skill inlined — the
-            # divergence verbs, the owed check, the pack, the spec verbs, notes,
-            # the writing rule and the finishing rule — and two copies of the
-            # text that governs behaviour is one copy too many (S-0067/D-3).
+            "",
+            # S-0073/D-1: the skill's own text is not restated here; this
+            # paragraph is not the skill's, it is the engine's, and it holds
+            # for a role equipped with nothing.
+            NO_GAMING,
             # S-0029/equipment-on-the-tier, S-0029/D-1: a persona's extra working rules, appended
             # after the charter's base rules above — never before, never
             # replacing them. Verbatim (S-0061/A-5): the profile wrote prose, and
             # bulleting it here would decide a shape the operator already chose.
-            *([(prompt_extras or "").strip()] if (prompt_extras or "").strip() else []),
+            *(["", (prompt_extras or "").strip()] if (prompt_extras or "").strip() else []),
             "",
             *([skills.strip(), ""] if skills.strip() else []),
         ]

@@ -687,3 +687,72 @@ def test_the_pack_pairs_a_go_test_by_the_manifest(tmp_path: Path) -> None:
     payload = tests_file(tmp_path, task, TestsConfig(pair=["{dir}/{stem}_test.go"]))
 
     assert {"module": "src/foo/bar.go", "test": "src/foo/bar_test.go"} in payload["named_tests"]
+
+
+def test_an_ordinary_contracts_prompt_stays_under_35_kb(tmp_path: Path) -> None:
+    """S-0122/the-evidence-package: an implement prompt measured 98.9 KB, about
+    5% of it the task, and still cut the files the task edited. For an
+    ordinary contract — one module and its test, a large contingent
+    neighbour, four rows — the first message and the system file together
+    stay under 35 KB, and the task's own files are most of it. A pack file
+    handed over again, or a neighbour carried whole, breaks this."""
+
+    from torve.adapters.agent.harness import (
+        build_prompt,
+        pack_handover,
+        skills_handover,
+        working_rules,
+    )
+    from torve.application.skills import materialize as materialize_skills
+
+    module = "".join(
+        f"def step_{n}(value: int) -> int:\n    return value + {n}\n\n\n" for n in range(120)
+    )
+    test = "".join(
+        f"def test_step_{n}() -> None:\n    assert step_{n}(1) == {n + 1}\n\n\n" for n in range(220)
+    )
+    neighbour = "".join(f"def far_{n}():\n    return {n}\n\n\n" for n in range(1600))
+
+    for rel, text in (
+        ("src/app/service.py", module),
+        ("tests/test_service.py", test),
+        ("src/app/neighbour.py", neighbour),
+        ("docs/index.md", "# Docs\n"),
+    ):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+
+    rule = "A rule that governs how the service steps a value, stated at the length rows run to. "
+    task = Task(
+        id="T-0900",
+        intent="Every step clamps its result to the configured ceiling before returning it.",
+        decisions=[
+            InheritedDecision(
+                id=f"S-0001/D-{n}",
+                grade="LOCKED" if n % 2 else "ASSUMED",
+                text=rule * 3,
+                paths=["src/app/**"],
+                consequence="a step that overflows corrupts every later step",
+            )
+            for n in range(1, 5)
+        ],
+        scope=Scope(allow=["src/app/service.py"], contingent=["src/app/neighbour.py"]),
+        acceptance=["uv run pytest tests/test_service.py"],
+    )
+    extras = "Prefer the smallest change that makes the acceptance commands pass.\n"
+
+    materialize(tmp_path, build(tmp_path, tmp_path / "specs", task, tmp_path / "gates.yaml"))
+    materialize_skills(
+        "implement",
+        tmp_path / ".torve" / "skills",
+        {"implement": ["working-rules", "flag-dont-flip"]},
+    )
+
+    prompt = build_prompt(task, prompt_extras=extras, pack=pack_handover(tmp_path))
+    system = working_rules(extras, skills_handover(tmp_path))
+    size = len(prompt.encode()) + len(system.encode())
+
+    assert module.rstrip("\n") in prompt and test.rstrip("\n") in prompt
+    assert "def far_0()" not in prompt and "- `src/app/neighbour.py`" in prompt
+    assert size < 35_000, size
+    assert (len(module) + len(test)) / size > 0.5

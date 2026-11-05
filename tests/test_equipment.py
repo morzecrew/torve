@@ -1118,46 +1118,10 @@ def test_a_failing_command_s_output_reaches_the_attempt_by_its_tail(tmp_path: Pa
     assert "…" in problem  # the head that went is marked, not silently dropped
 
 
-def test_drift_is_owed_only_inside_the_contract_s_scope(tmp_path: Path) -> None:
-    """Drift on the base is not the attempt's: an attempt cut from a base
-    whose projection is stale is asked to project only what its scope lets
-    it write, and nothing at all when every drifting file is outside it."""
-
-    check = _hook_script("finish_check")
-    contract = tmp_path / "contract.yaml"
-    contract.write_text(
-        "scope:\n  allow:\n  - pages/**\n  deny:\n  - pages/private/**\n", encoding="utf-8"
-    )
-    drifted = ["pages/AGENTS.md", "pages/private/AGENTS.md", "src/torve/AGENTS.md"]
-
-    (problem,) = check.drift_owed(contract, drifted)
-
-    # The command names the owed file: a bare `torve spec project` rewrites
-    # every drifted projection, the out-of-scope ones included.
-    assert "`torve spec project --only pages/AGENTS.md`" in problem
-    assert "pages/AGENTS.md" in problem
-    assert "pages/private/AGENTS.md" not in problem
-    assert "src/torve/AGENTS.md" not in problem
-    assert check.drift_owed(contract, ["src/torve/AGENTS.md"]) == []
-    assert check.drift_owed(contract, []) == []
-
-    # No scope declared is unconstrained, the scope gate's own reading: every
-    # drifting file is the attempt's to project.
-    unconstrained = tmp_path / "open.yaml"
-    unconstrained.write_text("acceptance: []\n", encoding="utf-8")
-
-    (problem,) = check.drift_owed(unconstrained, drifted)
-
-    assert all(rel in problem for rel in drifted)
-
-
-def test_the_finish_asks_the_acceptance_even_when_the_diff_cannot_be_read(
-    tmp_path: Path, monkeypatch
-) -> None:
-    """The three questions are independent: a worktree whose git status or
-    engine cannot answer still gets its acceptance run, because a block
-    spent without it would leave the ceiling empty and the suite unrun for
-    the rest of the attempt."""
+def test_the_finish_asks_the_acceptance_and_nothing_else(tmp_path: Path, monkeypatch) -> None:
+    """S-0122/D-14: the finish runs the contract's acceptance and asks no
+    more — no owed log entry, no projection drift, so an engine that answers
+    nothing and a worktree with no repository change nothing about it."""
 
     import os
 
@@ -1168,101 +1132,19 @@ def test_the_finish_asks_the_acceptance_even_when_the_diff_cannot_be_read(
         "acceptance:\n- echo the-suite-is-red; exit 1\n", encoding="utf-8"
     )
 
-    # No repository here and an engine that answers nothing: the owed and
-    # drift questions go unanswered, which is not a finding either way.
-    refuser = tmp_path / "bin"
-    refuser.mkdir()
-    (refuser / "uv").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
-    (refuser / "uv").chmod(0o755)
-    monkeypatch.setenv("PATH", str(refuser) + os.pathsep + os.environ.get("PATH", ""))
+    asked = tmp_path / "asked"
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    (fake / "torve").write_text(f"#!/bin/sh\ntouch {asked}\nexit 1\n", encoding="utf-8")
+    (fake / "torve").chmod(0o755)
+    monkeypatch.setenv("PATH", str(fake) + os.pathsep + os.environ.get("PATH", ""))
     monkeypatch.chdir(tmp_path)
 
     (problem,) = check.question()
 
     assert "the-suite-is-red" in problem
-
-
-def _scratch_repo(where: Path) -> None:
-    """A repository with a `main` and a task branch ahead of it, so a diff
-    against the base carries committed work the status would not show."""
-
-    import subprocess
-
-    def git(*args: str) -> None:
-        subprocess.run(
-            ["git", "-c", "user.email=t@t", "-c", "user.name=t", *args],
-            cwd=where,
-            check=True,
-            capture_output=True,
-        )
-
-    git("init", "-q", "-b", "main", ".")
-    git("commit", "-q", "--allow-empty", "-m", "base")
-    git("checkout", "-q", "-b", "task")
-
-
-def test_the_finish_reads_the_diff_the_battery_will_read_not_the_status(tmp_path: Path) -> None:
-    """S-0077/D-2: committed work, uncommitted work and an untracked file are
-    all in the set the gate convicts over, so all three reach the silence
-    check — a status-only answer would go quiet the moment an attempt
-    committed."""
-
-    import subprocess
-
-    check = _hook_script("finish_check")
-    _scratch_repo(tmp_path)
-    (tmp_path / "committed.py").write_text("x = 1\n", encoding="utf-8")
-    subprocess.run(["git", "add", "committed.py"], cwd=tmp_path, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "work"],
-        cwd=tmp_path,
-        check=True,
-        capture_output=True,
-    )
-    (tmp_path / "dirty.py").write_text("y = 2\n", encoding="utf-8")
-    subprocess.run(["git", "add", "dirty.py"], cwd=tmp_path, check=True, capture_output=True)
-    (tmp_path / "untracked.py").write_text("z = 3\n", encoding="utf-8")
-
-    assert check.touched_paths(tmp_path) == ["committed.py", "dirty.py", "untracked.py"]
-
-    # A directory that is no repository answers nothing, and nothing is not a
-    # finding: the gate stays the judge.
-    assert check.touched_paths(tmp_path / "committed.py") == []
-
-
-def test_the_owed_rows_arrive_named_with_the_one_call_that_writes_them(
-    tmp_path: Path, monkeypatch
-) -> None:
-    """S-0077/D-2: the block carries the engine's own account of each LOCKED
-    row the diff touches with no entry, plus how to write them in one call —
-    the set being complete is what removes the poll. Nothing touched, or an
-    engine that cannot answer, is silence. The stub is a bare `torve`, because
-    that is how the hook reaches the engine (S-0110/D-3)."""
-
-    import os
-
-    check = _hook_script("finish_check")
-    fake = tmp_path / "bin"
-    fake.mkdir()
-    (fake / "torve").write_text(
-        "#!/bin/sh\n"
-        'printf \'{"owed": ["decision D-9: LOCKED, and the diff touches 1 file(s)"],'
-        ' "skipped": []}\'\n',
-        encoding="utf-8",
-    )
-    (fake / "torve").chmod(0o755)
-    monkeypatch.setenv("PATH", str(fake) + os.pathsep + os.environ.get("PATH", ""))
-
-    named, howto = check.owed_entries(tmp_path, "T-0001", ["src/a.py"])
-
-    assert "decision D-9: LOCKED" in named
-    assert "torve log divergence T-0001" in howto
-
-    assert check.owed_entries(tmp_path, "T-0001", []) == []
-
-    (fake / "torve").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
-
-    assert check.owed_entries(tmp_path, "T-0001", ["src/a.py"]) == []
+    assert not asked.exists(), "the finish asked the engine something"
+    assert not hasattr(check, "owed_entries") and not hasattr(check, "drift_owed")
 
 
 # ............................. #

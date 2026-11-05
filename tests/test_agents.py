@@ -58,6 +58,26 @@ def load(root: Path, text: str):
 
 
 # ....................... #
+# This repository's own profiles (S-0122/D-14)
+
+
+REPO = Path(__file__).resolve().parent.parent
+
+
+@pytest.mark.parametrize("path", sorted((REPO / TORVE_DIR / "agents").glob("*.yaml")), ids=str)
+def test_no_profile_of_this_repository_asks_for_attestation(path: Path):
+    """S-0122/D-14: the log keeps halts and departures, so a profile's extra
+    rules ask for no `torve log owed`, no `decided` or `resolved` entry and no
+    run of the decision rows' checks — the battery and document completion
+    run those. Each profile still loads, `finish` included."""
+
+    extras = load_profile(REPO, path.stem).prompt_extras or ""
+
+    for asked in ("torve log owed", "decided", "resolved", "decision row"):
+        assert asked not in extras, asked
+
+
+# ....................... #
 # The seat names one of each, and what they carry is merged onto it
 
 

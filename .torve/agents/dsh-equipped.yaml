@@ -5,18 +5,13 @@
 # own: the role's profile supplies the skills and the hook, and dsh's half of
 # the hook is the scope guard alone (S-0072/D-3).
 #
-# What claude's Stop hook does for a claude seat, running `torve log owed` and
-# blocking on its answer, nothing does in dsh, so the prompt asks for it. On
-# S-0119 every phase's first deepseek attempt was thrown away on
-# `decisions-reported` alone: a LOCKED row whose check selects code a later
-# phase builds, with no entry naming it.
+# The prompt used to ask this seat for what claude's Stop hook did — `torve log
+# owed`, attestation entries, every decision row's check. All three went with
+# the attestations (S-0122/D-14); the engine's `finish` below applies the
+# formatter, and the battery runs the acceptance.
 # The formatter's fixes, applied by the engine once the agent stops and before
 # the tree leaves the sandbox (S-0122/D-4): 27 of 44 lint reds were format-only.
 finish: "uv run ruff format --quiet . && uv run ruff check --fix --exit-zero --quiet ."
 equipment: []
 prompt_extras: |
   Prefer the smallest change that makes the acceptance commands pass.
-  This harness runs no finishing check, so do it yourself before you stop:
-  - Run `torve log owed <task> --touched <each file you changed>` and record what it names with `torve log divergence`.
-  - Run each decision row's `check` from the contract. A LOCKED row whose check fails still needs a log entry naming it, even when another phase builds what it checks: kind `resolved`, class `discovery`, action `decided`, and the claim names the phase that settles it.
-  - Run `uv run ruff format` and `uv run ruff check --fix` on the files you changed, then every acceptance command.
