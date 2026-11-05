@@ -538,17 +538,30 @@ def plan_document(
 
     # S-0122/D-13: a whole-document contract is the phasing folded into one
     # entry. `--phase` names entries, so it mints them; and a refresh keeps the
-    # shape a document was minted in, or the first phase's contract would be
-    # refreshed to every phase's scope.
+    # shape the implementing contracts were minted in, whatever the phasing now
+    # says, or a phase's contract would be refreshed to every phase's scope and
+    # a whole one to its first phase's.
     whole = doc.whole() and phases is None
+    implementing = [
+        task
+        for task in (minted_contracts(root, doc.id, board).values() if refresh else [])
+        if task.role == "implement"
+    ]
 
-    if whole and refresh:
-        whole = all(task.phases for task in minted_contracts(root, doc.id, board).values())
+    # A phase an amendment added and `--phase` minted on its own is not the
+    # whole contract's: it stays its own entry beside the fold.
+    separate: set[int] = set()
 
-    covered = sorted({entry.phase for entry in entries}) if whole else []
+    if implementing:
+        whole = phases is None and any(task.phases for task in implementing)
+        separate = {task.phase for task in implementing if not task.phases}
 
-    if whole:
-        entries = [doc.as_one_phase()]
+    folded = [entry for entry in entries if entry.phase not in separate]
+    covered = sorted({entry.phase for entry in folded}) if whole else []
+    merged = doc.as_one_phase(folded) if whole else None
+
+    if merged is not None:
+        entries = [merged, *(e for e in entries if e.phase in separate)]
 
     # Same-phase scopes must not intersect (§3): overlapping tasks cannot run
     # in parallel and the plan silently serialises.
@@ -667,7 +680,7 @@ def plan_document(
             # the work commit's subject names the phase, not its intent (#199).
             title=entry.title,
             intent=entry.intent.strip(),
-            phases=covered,
+            phases=covered if entry is merged else [],
             depends_on=depends,
             scope=Scope(
                 files=list(entry.scope),
@@ -788,7 +801,15 @@ async def mint_contracts(
 # the derived `Task`'s fields minus identity (`id`, `spec`, `phase`, `role`,
 # `title`) and edges (`depends_on`), which the mint decided and a refresh
 # keeps.
-REFRESHED_FIELDS = ("intent", "scope", "acceptance", "decisions", "tier_variant", "character")
+REFRESHED_FIELDS = (
+    "intent",
+    "phases",
+    "scope",
+    "acceptance",
+    "decisions",
+    "tier_variant",
+    "character",
+)
 
 
 @dataclass(frozen=True)

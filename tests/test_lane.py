@@ -3087,6 +3087,21 @@ def test_a_document_whose_contracts_left_no_file_is_still_complete(lane_repo):
     assert lane._completes(lane_repo, "T-7392", document)
 
 
+def test_a_whole_contract_s_landing_counts_every_phase_it_covered(lane_repo):
+    """S-0122/D-13: a whole-document contract's landing file names the phases
+    it covered, so once its contract file is reaped the lane still sees the
+    document complete."""
+
+    import torve.application.lane as lane
+
+    # The helper writes `phase: <value>`; the value carries the `phases` line too.
+    document = _fileless_document(lane_repo, {"T-7395": "1\nphases: [1, 2]"})
+
+    assert lane.landed_phases(lane_repo, document) == {"T-7395": [1, 2]}
+    assert lane.carried_contract(lane_repo, document, "T-7395").covered == [1, 2]
+    assert lane._completes(lane_repo, "T-7395", document)
+
+
 def test_a_landing_phase_that_is_not_an_integer_counts_for_nothing(lane_repo):
     """A `phase: true` or `phase: 1.9` is no phase: coerced, it would read as a
     landed phase 1 and clear the draft flag."""
@@ -3095,7 +3110,7 @@ def test_a_landing_phase_that_is_not_an_integer_counts_for_nothing(lane_repo):
 
     document = _fileless_document(lane_repo, {"T-7393": "true", "T-7394": 2})
 
-    assert lane.landed_phases(lane_repo, document) == {"T-7393": 0, "T-7394": 2}
+    assert lane.landed_phases(lane_repo, document) == {"T-7393": [], "T-7394": [2]}
     assert not lane._completes(lane_repo, "T-7394", document)
 
 
