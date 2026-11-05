@@ -201,6 +201,7 @@ contract_example:
   id: T-0307
   spec: S-0057
   phase: 4
+  phases: []
   role: implement
   title: the links close
   intent: >-
@@ -209,12 +210,13 @@ contract_example:
   depends_on: [T-0306]
   targets: []
   scope:
-    allow:
+    files:
       - src/torve/config/spec.py
       - src/torve/cli/spec.py
       - tests/test_rfc_check.py
       - tests/test_cli_spec.py
-    deny: []
+    tests: []
+    fence: []
   acceptance:
     - >-
       uv run pytest tests/test_rfc_check.py tests/test_cli_spec.py

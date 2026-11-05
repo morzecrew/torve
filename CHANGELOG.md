@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `unit: document` in a document's `phasing.yaml` mints one contract for the whole
+  document, and is the default for three phases or fewer; `unit: phase` keeps one
+  contract per entry. A whole-document contract's landing completes every phase.
+
 - An agent profile's `finish` command runs in the sandbox after the agent stops and
   before its tree is judged, for example a formatter's fixes. Its exit status never
   fails the attempt.
@@ -33,6 +37,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   edited to pass, and code that special-cases `PYTEST_CURRENT_TEST`.
 
 ### Changed
+
+- A task contract's scope is now `files`, `tests`, `fence` and `contingent`. Only an
+  edit inside the fence fails the scope gate or meets the pre-write hook; one outside the
+  files and their tests is listed as evidence. Version 2 contracts load for this release.
+
+- `torve plan` licenses each scoped module's existing paired tests in the contract,
+  fences the manifest's `scope.deny` and the engine's own `.torve` paths the phase does
+  not own, and adds up to ten LOCKED rows of other documents the scope touches.
 
 - The dsh image moves to dsh 0.2.1-rc.5. It now shuts out project instruction files
   and the default skill roots, gives a shell command up to 900 s in the foreground,

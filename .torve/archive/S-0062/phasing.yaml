@@ -121,6 +121,7 @@ contract_example:
   id: T-0326
   spec: S-0062
   phase: 1
+  phases: []
   role: implement
   title: ''
   intent: >-
@@ -129,11 +130,12 @@ contract_example:
   depends_on: []
   targets: []
   scope:
-    allow:
+    files:
       - src/torve/config/equipment.py
       - src/torve/config/agents.py
       - tests/test_equipment.py
-    deny: []
+    tests: []
+    fence: []
   acceptance:
     - uv run pytest
   decisions:

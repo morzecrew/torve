@@ -64,37 +64,38 @@ def test_scope_implicitly_allows_task_and_log_files(repo):
 
 
 def test_scope_untracked_file_is_visible(repo):
-    """A stray new file that was never committed must still redden scope."""
+    """A stray new file that was never committed is still named, as evidence
+    (S-0122/D-12)."""
     repo.seed()
     repo.task(base_task(allow=["src/**"]), log_document())
     repo.commit("task branch")
     (repo.root / "stray.txt").write_text("uncommitted\n", encoding="utf-8")
     result = check_scope(GATE, context_for(repo))
-    assert result.outcome == "fail"
-    assert "stray.txt" in result.output
+    assert "outside files and tests, as evidence: stray.txt" in result.output
 
 
-def test_scope_names_a_whitespace_only_touch_apart_and_still_fails(repo):
-    """A formatter's final newline or trailing whitespace on a file outside
-    allow is still a touch outside the scope, and red (S-0055/D-17), but named
-    apart so the retry undoes it rather than reads its scope as too narrow.
-    Indentation is code, so a re-indented file stays a plain finding."""
+def test_only_the_fence_convicts(repo):
+    """S-0122/D-12: an edit outside the task's files and tests is evidence,
+    named on a passing gate; an edit inside the fence is the one conviction."""
     repo.seed()
-    repo.task(base_task(allow=["src/new.py"]), log_document())
-    gitignore = (repo.root / ".gitignore").read_text(encoding="utf-8")
-    repo.write(".gitignore", gitignore.rstrip("\n"))  # the final newline, dropped
-    repo.write("src/app.py", "print('hello')  \n\n\n")  # trailing spaces, blank lines
+    task = base_task(allow=["src/new.py"])
+    task["scope"]["deny"] = ["vendor/**"]
+    repo.task(task, log_document())
     repo.write("tests/test_app.py", "def test_app():\n        assert True\n")
-    repo.commit("a formatter ran")
+    repo.commit("a reach beyond the files")
 
-    result = check_scope(GATE, context_for(repo))
+    reached = check_scope(GATE, context_for(repo))
 
-    assert result.outcome == "fail"
-    assert "outside allow, whitespace only: .gitignore" in result.output
-    assert "outside allow, whitespace only: src/app.py" in result.output
-    assert "outside allow: src/app.py" not in result.output
-    assert "outside allow: tests/test_app.py" in result.output
-    assert "undo the whitespace change" in result.output
+    assert reached.outcome == "pass"
+    assert "outside files and tests, as evidence: tests/test_app.py" in reached.output
+
+    repo.write("vendor/lib.py", "x = 1\n")
+    repo.commit("an edit inside the fence")
+
+    fenced = check_scope(GATE, context_for(repo))
+
+    assert fenced.outcome == "fail"
+    assert "fenced path: vendor/lib.py" in fenced.output
 
 
 def test_the_patch_carries_an_untracked_file(repo):
@@ -959,7 +960,7 @@ def test_scope_admits_the_lock_file_of_a_manifest_it_admits(repo):
     """A scope that admits `pyproject.toml` admits the `uv.lock` a dependency
     change rewrites; refusing the lock refuses the change the scope allowed
     (bloomery T-0008, 2026-09-19). A lock without its manifest in scope is
-    still outside."""
+    still outside, which is evidence (S-0122/D-12)."""
     repo.seed()
     repo.task(base_task(allow=["pyproject.toml", "src/**"]), log_document())
     repo.write("pyproject.toml", "[project]\nname = 'x'\n")
@@ -972,7 +973,9 @@ def test_scope_admits_the_lock_file_of_a_manifest_it_admits(repo):
     repo.write("uv.lock", "version = 2\n")
     repo.commit("the lock alone")
     result = check_scope(GATE, context_for(repo))
-    assert result.outcome == "fail" and "uv.lock" in result.output
+    assert result.outcome == "pass"
+    assert "outside files and tests, as evidence:" in result.output
+    assert "uv.lock" in result.output
 
 
 def test_a_contingent_write_passes_the_gate_and_is_listed_as_promoted(repo):
@@ -1042,7 +1045,7 @@ def test_a_managed_agents_md_beside_a_scoped_path_passes(repo):
 
 def test_a_managed_agents_md_with_no_scoped_neighbour_is_outside(repo):
     """S-0104/D-6: *beside a path in scope*. A projection in a directory the
-    contract does not reach is refused like any other out-of-scope file."""
+    contract does not reach is evidence like any other out-of-scope file."""
     repo.seed()
     repo.task(base_task(allow=["src/other.py"]), log_document())
     repo.write("src/other.py", "y = 1\n")
@@ -1051,8 +1054,8 @@ def test_a_managed_agents_md_with_no_scoped_neighbour_is_outside(repo):
 
     result = check_scope(GATE, context_for(repo))
 
-    assert result.outcome == "fail", result.output
-    assert "src/torve/gates/AGENTS.md" in result.output
+    assert "outside files and tests, as evidence: src/torve/gates/AGENTS.md" in result.output
+    assert "promoted" not in result.output
 
 
 def test_an_empty_allow_is_unconstrained_and_promotes_nothing(repo):

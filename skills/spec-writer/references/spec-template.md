@@ -78,6 +78,7 @@ questions:
 
 ```yaml
 # yaml-language-server: $schema=../../schemas/phasing.json
+unit: phase   # optional: one contract for the whole document is the default at three phases or fewer
 phasing:
   - phase: 1
     title: <a short unit name>
@@ -85,7 +86,7 @@ phasing:
       One paragraph: what changes and why, naming the public surface its
       tests drive — the functions, types or commands it introduces or
       changes. This is the contract's intent.
-    scope: [src/example/**, tests/test_example.py]   # a module and its existing test file
+    scope: [src/example/**]   # a module; its paired tests are licensed at mint
     acceptance: [uv run pytest tests/test_example.py]
     depends_on: []
     character: structural   # optional: structural | routine

@@ -53,6 +53,10 @@ from torve.domain.vocabulary import (
 
 SCHEMA_VERSION = 4  # S-0058/D-4: the typed anatomy and phasing.yaml; 3 was the flat section list
 
+# A document with this many phases or fewer mints one contract unless its
+# phasing says `unit: phase` (S-0122/D-13).
+WHOLE_UNTIL = 3
+
 FINGERPRINT_LENGTH = 16
 
 # ----------------------- #
@@ -589,6 +593,9 @@ class Document(Item):
     """The documents whose landed tree this one's work builds on, as document ids
     — never phases (S-0085/D-1, S-0085/D-5); `depends_on` keeps its one meaning,
     decision inheritance, and says nothing about trees."""
+    unit: Literal["phase", "document"] | None = None
+    """What one contract covers (S-0122/D-13): a phasing entry, or the whole
+    document. Unset is `document` for three phases or fewer, `phase` beyond."""
     phasing: list[Phase] = Field(default_factory=list)
     """The mintable units `torve plan` derives contracts from."""
     contract_example: Task | None = None
@@ -656,6 +663,35 @@ class Document(Item):
         """The one line that routes a reader to this document."""
 
         return routing_line(self.summary)
+
+    def whole(self) -> bool:
+        """Whether one contract covers the whole document (S-0122/D-13)."""
+
+        if self.unit is not None:
+            return self.unit == "document"
+
+        return len({entry.phase for entry in self.phasing}) <= WHOLE_UNTIL
+
+    def as_one_phase(self) -> Phase:
+        """The phasing folded into the one entry a whole-document contract is
+        minted from: every phase's scope and acceptance in phasing order, each
+        intent under its phase's title, the first variant and character named."""
+
+        entries = sorted(self.phasing, key=lambda entry: entry.phase)
+
+        return Phase(
+            phase=entries[0].phase,
+            title=self.title,
+            intent="\n\n".join(
+                f"Phase {entry.phase}, {entry.title}: {entry.intent.strip()}" for entry in entries
+            ),
+            scope=list(dict.fromkeys(glob for entry in entries for glob in entry.scope)),
+            acceptance=list(
+                dict.fromkeys(command for entry in entries for command in entry.acceptance)
+            ),
+            tier_variant=next((e.tier_variant for e in entries if e.tier_variant), ""),
+            character=next((e.character for e in entries if e.character), None),
+        )
 
     def prose(self) -> list[DesignSection]:
         """Every prose section in reading order: the typed keys that have
@@ -740,7 +776,7 @@ FILE_FIELDS: dict[str, tuple[str, ...]] = {
         "questions",
     ),
     DECISIONS_FILE: ("decisions", "invariants", "retired"),
-    PHASING_FILE: ("after", "phasing", "contract_example"),
+    PHASING_FILE: ("after", "unit", "phasing", "contract_example"),
     AMENDMENTS_FILE: ("amendments", "editorial"),
 }
 

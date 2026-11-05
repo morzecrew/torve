@@ -155,8 +155,10 @@ def test_bypass_is_appended_to_the_task_log(repo):
     repo.seed(
         manifest_with([{"name": "scope", "run": "@scope"}], scope={"allow": ["src/**"], "deny": []})
     )
-    repo.task(base_task(allow=["src/**"]), log_document())
-    repo.write("rogue.txt", "outside\n")
+    task = base_task(allow=["src/**"])
+    task["scope"]["deny"] = ["vendor/**"]
+    repo.task(task, log_document())
+    repo.write("vendor/rogue.txt", "fenced\n")
     repo.git("add", "-A")
     repo.git(
         "commit", "-q", "--no-gpg-sign", "-m", "widen\n\nTorve-Bypass: scope: allow list is stale"

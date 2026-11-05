@@ -468,6 +468,28 @@ def test_two_wildcard_scopes_that_share_a_path_fence_each_other():
     run(scenario)
 
 
+def test_tasks_sharing_only_a_licensed_test_are_never_in_flight_together():
+    """S-0121/D-27 over S-0122/D-12: a paired test two contracts both license
+    is written as surely as a file, so the second task is held off."""
+
+    async def scenario(log):
+        shared = ["tests/test_app.py"]
+        await minted(
+            log, Task(id="T-1", decisions=[], scope=Scope(files=["src/a.py"], tests=shared))
+        )
+        await minted(
+            log, Task(id="T-2", decisions=[], scope=Scope(files=["src/b.py"], tests=shared))
+        )
+        await claim(log, "T-1")
+
+        board = project(await log.since(partition=PARTITION))
+
+        assert overlaps(board.tasks["T-2"].contract, board) == ["T-1"]
+        assert dispatchable(board, PARTITION) == []
+
+    run(scenario)
+
+
 def test_a_promoted_contingent_path_is_on_the_board_and_fences_a_second_task():
     """S-0104/D-2: a contingent path the attempt wrote is folded onto the
     board's own task and joins that task's fence. A second task whose scope

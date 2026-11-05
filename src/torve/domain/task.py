@@ -17,12 +17,13 @@ from torve.domain.vocabulary import Character, CheckState, Grade, Role, Tier
 
 # ----------------------- #
 
-# The contract's own shape version (S-0059/D-1): 2 names the document as
-# `spec: S-NNNN`; 1 carried `rfc`, a path. Every other shape the engine writes
+# The contract's own shape version (S-0059/D-1): 3 splits the scope into files,
+# tests, fence and contingent (S-0122/D-12); 2 names the document as `spec:
+# S-NNNN`; 1 carried `rfc`, a path. Every other shape the engine writes
 # declares its own beside its own model (T-0321) — one constant shared across
 # unrelated shapes means bumping any of them bumps all of them, which is what
 # happened when this went to 2 and the telemetry and survey suites reddened.
-CONTRACT_SCHEMA_VERSION = 2
+CONTRACT_SCHEMA_VERSION = 3
 
 # The document grammar (S-0058/D-1), spelled here because `domain/spec.py`
 # imports this module for the contract example and compiles the pattern from it.
@@ -32,40 +33,81 @@ SPEC_PATTERN = r"^S-\d{4}$"
 # ....................... #
 
 
+def refuse_negation(globs: list[str], keep_out: str) -> list[str]:
+    """A `!glob` is refused: gitignore's negation turns on whether a glob met
+    the path itself or a directory above it, and the readers of a scope (the
+    gate, the pre-write hook, the fence) would answer it differently. Paths a
+    scope keeps out are named in *keep_out*. A literal path list such as
+    `contingent` is not passed here: a leading `!` is part of a file's name."""
+
+    negated = [glob for glob in globs if glob.startswith("!")]
+
+    if negated:
+        raise ValueError(
+            f"scope globs may not start with '!' ({', '.join(negated)}): "
+            f"name the paths to keep out in `{keep_out}`"
+        )
+
+    return globs
+
+
+# ....................... #
+
+
 class Scope(BaseModel):
-    """allow/deny globs, gitwildmatch semantics. deny wins over allow; an empty
-    allow means unconstrained (S-0002/scope-in-detail)."""
+    """What a task owns, what it is licensed beyond that, and what convicts
+    (S-0122/D-12). Globs read on gitwildmatch semantics; an empty `files`
+    means unconstrained. A version 2 scope's `allow` and `deny` load as
+    `files` and `fence`, for one release."""
 
     model_config = STRICT
 
-    allow: list[str] = Field(default_factory=list)
-    """Globs of what the task may touch, gitwildmatch; empty means unconstrained."""
-    deny: list[str] = Field(default_factory=list)
-    """Globs the task may not touch; deny wins over allow."""
+    files: list[str] = Field(default_factory=list)
+    """Globs of what the task owns, and what sizing counts."""
+    tests: list[str] = Field(default_factory=list)
+    """The owned files' paired tests, derived at mint and licensed with them."""
+    fence: list[str] = Field(default_factory=list)
+    """Globs an edit to convicts: the manifest's deny list and the engine's own
+    paths. An edit outside `files` and `tests` is evidence, never a conviction."""
     contingent: list[str] = Field(default_factory=list)
-    """Literal paths the change is likely to reach beyond its phase — importers,
-    imported first-party modules, paired tests, package `__init__` and the
-    document's other phases' matches (S-0104/D-1). Derived at mint and refresh;
-    never counted for disjointness or sizing."""
+    """Literal paths the change is likely to reach beyond its files — importers,
+    imported first-party modules, package `__init__` and the document's other
+    phases' matches (S-0104/D-1). Names only: never counted for disjointness or
+    sizing."""
 
-    @field_validator("allow", "deny")
+    @model_validator(mode="before")
+    @classmethod
+    def _version_2(cls, data: Any) -> Any:
+        """`allow` was the files, `deny` the fence (S-0122/D-12)."""
+
+        if isinstance(data, dict) and ("allow" in data or "deny" in data):
+            data = dict(data)
+            data.setdefault("files", data.pop("allow", []))
+            data.setdefault("fence", data.pop("deny", []))
+            data.pop("allow", None)
+            data.pop("deny", None)
+
+        return data
+
+    @field_validator("files", "tests", "fence")
     @classmethod
     def _no_negation(cls, globs: list[str]) -> list[str]:
-        """A `!glob` is refused: gitignore's negation turns on whether a glob
-        met the path itself or a directory above it, and the readers of a scope
-        (the gate, the pre-write hook, the fence) would answer it differently.
-        Paths a scope keeps out are named in `deny`. `contingent` holds literal
-        paths, where a leading `!` is part of a file's name."""
+        return refuse_negation(globs, "fence")
 
-        negated = [glob for glob in globs if glob.startswith("!")]
+    @property
+    def allow(self) -> list[str]:
+        """What the task may touch: its files and their tests, or nothing, which
+        is unconstrained, when it owns no files. Two tasks whose `allow`
+        intersect are never in flight together (S-0121/D-27): a licensed test
+        is written as surely as a file."""
 
-        if negated:
-            raise ValueError(
-                f"scope globs may not start with '!' ({', '.join(negated)}): "
-                "name the paths to keep out in `deny`"
-            )
+        return [*self.files, *self.tests] if self.files else []
 
-        return globs
+    @property
+    def deny(self) -> list[str]:
+        """What convicts."""
+
+        return self.fence
 
 
 # ....................... #
@@ -213,6 +255,9 @@ class Task(BaseModel):
     `operator`."""
     phase: int = 0
     """The phasing entry the contract was minted from; 0 when no phase minted it."""
+    phases: list[int] = Field(default_factory=list)
+    """Every phase a whole-document contract covers (S-0122/D-13); empty when it
+    is one phase's own."""
     role: Role = "implement"
     """What the run does: implement, review (S-0005/D-9), revert (S-0010) or draft
     (S-0020)."""
@@ -285,6 +330,14 @@ class Task(BaseModel):
         every contract that is not a round."""
 
         return self._round
+
+    # ....................... #
+
+    @property
+    def covered(self) -> list[int]:
+        """The phases this contract's landing completes (S-0122/D-13)."""
+
+        return self.phases or ([self.phase] if self.phase else [])
 
     # ....................... #
 

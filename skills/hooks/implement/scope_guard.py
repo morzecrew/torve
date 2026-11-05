@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-"""Refuse a write outside the contract's scope, before the bytes land (S-0066/D-5).
+"""Refuse a write inside the contract's fence, before the bytes land (S-0066/D-5).
 
 A PreToolUse hook: claude hands the tool call on stdin, this reads the one
-task contract the worktree carries, and a `Write`/`Edit` aimed outside every
-`scope.allow` glob, or inside a `scope.deny` glob, is refused with the reason.
-Deny wins over allow and an empty allow is unconstrained — the scope gate's
-own reading (S-0002), so the hook never refuses what the gate would pass.
+task contract the worktree carries, and a `Write`/`Edit` aimed inside its
+`scope.fence` — or outside the worktree — is refused with the reason. Only the
+fence convicts (S-0122/D-12): a write beyond the contract's files and tests is
+evidence the critic reads, so the hook lets it through as the scope gate does.
+The hook decides no outcome — the battery stays the judge and convicts on the
+diff either way; this only moves the same answer to before the file is
+written, so the attempt spends a turn redirecting instead of a run red-lining.
 
-Three rules admit a write beyond the declared globs, the same three the scope
-gate admits (S-0104): a contingent path the planner named (D-1), a file the
-manifest's `scope.derived` map pairs with an in-scope source (D-5), and a
-managed `AGENTS.md` beside a path in scope (D-6). The hook decides no outcome
-— the battery stays the judge and convicts on the diff either way; this only
-moves the same answer to before the file is written, so the attempt spends a
-turn redirecting instead of a run red-lining.
+`is_allowed` keeps the wider reading — the files and tests, the contingent
+paths the planner named (S-0104/D-1) and a managed `AGENTS.md` beside a path in
+scope (D-6) — for the read guard, which answers a large read of anything else
+with its shape.
 
 Deliberately forgiving on its own failures: no contract, no payload, a shape
 it cannot read — each passes. A hook that misfires by blocking turns the
@@ -38,18 +38,6 @@ PATH_KEYS = ("file_path", "notebook_path")
 # The managed projection beside a directory's code (S-0054/D-7); allowed
 # beside any path in scope (S-0104/D-6).
 AGENTS_FILE = "AGENTS.md"
-
-# The lock files a manifest's change rewrites, by manifest (S-0104/D-5): the
-# default `scope.derived` map the scope gate applies when the manifest names
-# none. This side of the seam carries its own copy — no YAML library and no
-# import of the engine is available here — so the two tables must agree.
-DEFAULT_DERIVED: dict[str, list[str]] = {
-    "pyproject.toml": ["uv.lock", "poetry.lock", "pdm.lock"],
-    "Pipfile": ["Pipfile.lock"],
-    "package.json": ["package-lock.json", "pnpm-lock.yaml", "yarn.lock"],
-    "Cargo.toml": ["Cargo.lock"],
-    "go.mod": ["go.sum"],
-}
 
 
 def scope_patterns(contract: Path, key: str) -> list[str]:
@@ -86,65 +74,25 @@ def scope_patterns(contract: Path, key: str) -> list[str]:
 
 
 def allow_patterns(contract: Path) -> list[str]:
+    """What the contract licenses: its files and their tests (S-0122/D-12), or
+    a version 2 contract's `allow`. No files is unconstrained."""
+
+    files = scope_patterns(contract, "files")
+
+    if files:
+        return [*files, *scope_patterns(contract, "tests")]
+
     return scope_patterns(contract, "allow")
 
 
 def deny_patterns(contract: Path) -> list[str]:
-    return scope_patterns(contract, "deny")
+    """The fence (S-0122/D-12), or a version 2 contract's `deny`."""
+
+    return scope_patterns(contract, "fence") or scope_patterns(contract, "deny")
 
 
 def contingent_patterns(contract: Path) -> list[str]:
     return scope_patterns(contract, "contingent")
-
-
-def derived_map(root: Path) -> dict[str, list[str]]:
-    """The manifest's `scope.derived` map (S-0104/D-5), read line-wise.
-
-    The map names files that ride with a source, in both directions. Read the
-    same way the contract's scope is: `derived:` then `source:` keys with
-    `- rider` lines, until a line that is neither. A manifest that names no
-    `derived:` block — or one the hook cannot read — yields the default lock
-    table the scope gate applies, so the hook never refuses what the gate
-    would pass.
-    """
-
-    try:
-        lines = (root / ".torve" / "gates.yaml").read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return dict(DEFAULT_DERIVED)
-
-    found: dict[str, list[str]] = {}
-    source: str | None = None
-    inside = False
-    # The `derived:` key's own indentation: a key back at it or left of it is a
-    # sibling (`allow:`, `deny:`) and ends the block, wherever it is written.
-    level = 0
-
-    for line in lines:
-        stripped = line.strip()
-
-        if not stripped or stripped.startswith("#"):
-            continue
-
-        indent = len(line) - len(line.lstrip())
-
-        if not inside:
-            inside = stripped == "derived:"
-            level = indent
-            continue
-
-        if stripped.startswith("- "):
-            if source is not None:
-                found.setdefault(source, []).append(stripped[2:].strip().strip("'\""))
-            continue
-
-        if stripped.endswith(":") and indent > level:
-            source = stripped[:-1].strip().strip("'\"")
-            continue
-
-        break  # a line that is neither a source nor a rider: the block ended
-
-    return found if inside else dict(DEFAULT_DERIVED)
 
 
 def _beside_scoped(
@@ -198,26 +146,15 @@ def is_allowed(
     return _beside_scoped(rel, patterns, contingent)
 
 
-def refusal(
-    target: str,
-    patterns: list[str],
-    deny: list[str] | tuple[str, ...] = (),
-    contingent: list[str] | tuple[str, ...] = (),
-) -> str:
+def refusal(target: str, deny: list[str] | tuple[str, ...] = ()) -> str:
     if globs.matches(target, deny):
         return (
-            f"refused: {target} is inside this task's scope.deny ({', '.join(deny)}). "
-            "The scope gate will convict on it. Work outside the denied paths, "
+            f"refused: {target} is inside this task's fence ({', '.join(deny)}). "
+            "The scope gate will convict on it. Work outside the fenced paths, "
             "or say in your reply why the task cannot be done without one."
         )
 
-    listed = ", ".join([*patterns, *contingent]) if patterns or contingent else "(unconstrained)"
-
-    return (
-        f"refused: {target} is outside this task's scope (allowed: {listed}). "
-        "The scope gate will convict on it. Work inside the allowed paths, "
-        "or say in your reply why the task cannot be done without one."
-    )
+    return f"refused: {target} is outside the worktree, where this task writes nothing."
 
 
 def main() -> int:
@@ -241,28 +178,17 @@ def main() -> int:
     if len(contracts) != 1:
         return 0  # not one unambiguous contract to read a scope from
 
-    patterns = allow_patterns(contracts[0])
     deny = deny_patterns(contracts[0])
-    contingent = contingent_patterns(contracts[0])
-
-    # S-0104/D-5: a derived file rides with its source, both directions. Fold
-    # the hits into the contingent list so one predicate decides.
-    for source, riders in derived_map(root).items():
-        if is_allowed(source, patterns, deny, contingent):
-            contingent = [*contingent, *riders]
-
-        if any(is_allowed(rider, patterns, deny, contingent) for rider in riders):
-            contingent = [*contingent, source]
 
     try:
         rel = str(Path(target).resolve().relative_to(root))
     except (ValueError, OSError):
         rel = ""  # outside the worktree entirely: never allowed
 
-    if rel and is_allowed(rel, patterns, deny, contingent):
+    if rel and not globs.matches(rel, deny):
         return 0
 
-    sys.stderr.write(refusal(rel or target, patterns, deny, contingent) + "\n")
+    sys.stderr.write(refusal(rel or target, deny) + "\n")
     return 2  # exit 2 feeds the reason back to the model and blocks the call
 
 

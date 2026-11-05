@@ -125,6 +125,7 @@ contract_example:
   id: T-0290
   spec: S-0053
   phase: 0
+  phases: []
   role: implement
   title: ''
   intent: >-
@@ -134,12 +135,13 @@ contract_example:
   depends_on: []
   targets: []
   scope:
-    allow:
+    files:
       - src/torve/domain/spec.py
       - src/torve/config/spec.py
       - tests/test_spec.py
       - tests/test_spec_load.py
-    deny: []
+    tests: []
+    fence: []
   acceptance:
     - >-
       uv run pytest tests/test_spec.py tests/test_spec_load.py

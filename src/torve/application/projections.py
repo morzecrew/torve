@@ -312,6 +312,7 @@ def _tasks(root: Path) -> list[dict[str, Any]]:
             # the engine's state machine: no run state exists, but a shipping
             # commit cites the task.
             "phase": record.get("phase", 0),
+            **({"phases": record["phases"]} if record.get("phases") else {}),
             "role": record.get("role", "implement"),
             # A drafting contract (intake, decompose) with no live run was
             # consumed by its adoption; a review contract with no live run
@@ -1142,7 +1143,9 @@ def _programme(root: Path, rfc_dir: Path, tasks: list[dict[str, Any]]) -> list[d
             if task.get("role") in ("draft", "review"):
                 continue
 
-            phases.setdefault(int(task["phase"]), []).append(str(task["state"]))
+            # A whole-document contract covers every phase (S-0122/D-13).
+            for covered in task.get("phases") or [task["phase"]]:
+                phases.setdefault(int(covered), []).append(str(task["state"]))
 
         progress = {phase: _phase_progress(states) for phase, states in sorted(phases.items())}
 
@@ -1352,6 +1355,7 @@ def tasks_from_events(events: Sequence[EventRecord]) -> list[dict[str, Any]]:
             "id": task_id,
             "spec": view.contract.spec,
             "phase": view.contract.phase,
+            **({"phases": view.contract.phases} if view.contract.phases else {}),
             "role": view.contract.role,
             "state": _entry_state(view, view.contract),
             "attempts": view.attempts,

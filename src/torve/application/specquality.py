@@ -160,7 +160,7 @@ class TaskFacts:
         a historical population must read under today's rule the same way a
         fresh dispatch does."""
 
-        return estimate_scope(Scope(allow=self.scope_allow), self.acceptance, self.carried).size
+        return estimate_scope(Scope(files=self.scope_allow), self.acceptance, self.carried).size
 
     # ....................... #
 

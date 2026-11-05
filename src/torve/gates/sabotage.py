@@ -209,9 +209,10 @@ class Case:
 
 
 def _scope_bad(repo: Repo) -> None:
-    manifest = dict(BASE_MANIFEST, scope={"allow": ["src/**"], "deny": []})
+    # Only the fence convicts (S-0122/D-12): a file merely outside `allow` is evidence.
+    manifest = dict(BASE_MANIFEST, scope={"allow": ["src/**"], "deny": ["vendor/**"]})
     repo.seed(manifest)
-    repo.write("rogue.txt", "outside the allowed area\n")
+    repo.write("vendor/rogue.txt", "inside the fence\n")
     repo.commit("rogue file")
 
 
@@ -531,7 +532,7 @@ def _suite_reports(repo: Repo) -> None:
 # ....................... #
 
 CASES: list[Case] = [
-    Case("scope: file outside allow", "scope", "fail", _scope_bad),
+    Case("scope: file inside the fence", "scope", "fail", _scope_bad),
     Case("scope: clean twin", "scope", "pass", _scope_clean),
     Case(
         "scope: contingent neighbour is promoted",

@@ -993,7 +993,18 @@ def test_the_refusal_reads_the_contract_and_blocks_only_inside_scope(tmp_path: P
     assert guard.is_allowed("src/torve/other.py", allow, deny)
     assert guard.is_allowed("anything/at/all.py", [], [])
     assert not guard.is_allowed("src/torve/secrets/key.py", [], deny)
-    assert "scope.deny" in guard.refusal("src/torve/secrets/key.py", allow, deny)
+    assert "fence" in guard.refusal("src/torve/secrets/key.py", deny)
+
+    # A version 3 contract licenses its files and tests, and fences (S-0122/D-12).
+    v3 = tmp_path / "v3.yaml"
+    v3.write_text(
+        "scope:\n  files:\n  - src/**\n  tests:\n  - tests/test_a.py\n"
+        "  fence:\n  - vendor/**\n  contingent: []\n",
+        encoding="utf-8",
+    )
+
+    assert guard.allow_patterns(v3) == ["src/**", "tests/test_a.py"]
+    assert guard.deny_patterns(v3) == ["vendor/**"]
 
 
 def test_a_large_out_of_scope_read_is_answered_with_the_files_shape(tmp_path: Path) -> None:
@@ -1410,45 +1421,38 @@ def test_the_pre_write_hook_reads_contingent_paths_and_projections_as_the_gate(
     # Beside a contingent-only file.
     assert guard.is_allowed("docs/AGENTS.md", ["src/**"], [], ["docs/notes.md"])
 
-    (tmp_path / ".torve").mkdir()
-    (tmp_path / ".torve" / "gates.yaml").write_text(
-        "scope:\n  derived:\n    pyproject.toml:\n    - uv.lock\n  allow:\n  - src/**\n",
+
+def test_the_pre_write_hook_refuses_the_fence_alone(tmp_path: Path) -> None:
+    """S-0122/D-12: a write beyond the contract's files and tests is evidence
+    the scope gate passes, so the hook lets it through; a write inside the
+    fence is refused before it lands."""
+
+    guard = _hook_script("scope_guard")
+    contract = tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml"
+    contract.parent.mkdir(parents=True)
+    contract.write_text(
+        "scope:\n  files:\n  - pyproject.toml\n  tests: []\n  fence:\n  - vendor/**\n",
         encoding="utf-8",
     )
 
-    assert guard.derived_map(tmp_path) == {"pyproject.toml": ["uv.lock"]}
+    def write(rel: str) -> subprocess.CompletedProcess[str]:
+        payload = json.dumps({"tool_input": {"file_path": str(tmp_path / rel)}})
+        return subprocess.run(
+            [sys.executable, str(HOOK_DIR / "scope_guard.py")],
+            input=payload,
+            text=True,
+            capture_output=True,
+            cwd=tmp_path,
+        )
 
+    assert write("uv.lock").returncode == 0
+    assert write("src/elsewhere.py").returncode == 0
 
-def test_the_pre_write_hook_falls_back_to_the_default_lock_table(tmp_path: Path) -> None:
-    """S-0104/D-5: a manifest that names no `derived:` block — this repo's own
-    — leaves the hook on the default lock table the scope gate applies, so a
-    scope that allows `pyproject.toml` admits the `uv.lock` beside it rather
-    than refusing what the gate would pass. The hook's copy of the table is
-    its own, so it is pinned to the engine's."""
+    fenced = write("vendor/lib.py")
 
-    from torve.config.manifest import DEFAULT_DERIVED
-
-    guard = _hook_script("scope_guard")
-
-    assert {k: list(v) for k, v in DEFAULT_DERIVED.items()} == guard.DEFAULT_DERIVED
-
-    contract = tmp_path / ".torve" / "tasks" / "T-1" / "contract.yaml"
-    contract.parent.mkdir(parents=True)
-    contract.write_text("scope:\n  allow:\n  - pyproject.toml\n  deny: []\n", encoding="utf-8")
-    (tmp_path / ".torve" / "gates.yaml").write_text("gates: []\n", encoding="utf-8")
-
-    assert guard.derived_map(tmp_path) == guard.DEFAULT_DERIVED
-
-    payload = json.dumps({"tool_input": {"file_path": str(tmp_path / "uv.lock")}})
-    done = subprocess.run(
-        [sys.executable, str(HOOK_DIR / "scope_guard.py")],
-        input=payload,
-        text=True,
-        capture_output=True,
-        cwd=tmp_path,
-    )
-
-    assert done.returncode == 0, done.stderr
+    assert fenced.returncode == 2
+    assert "inside this task's fence" in fenced.stderr
+    assert guard.deny_patterns(contract) == ["vendor/**"]
 
 
 def test_the_pre_write_hook_reads_its_globs_through_the_engine_s_own() -> None:

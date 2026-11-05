@@ -368,7 +368,7 @@ def document_complete(document: str, landings: list[DocumentLanding], root: Path
     is complete when anything landed: nothing says otherwise."""
     _, phasing, _, _ = _phasing(root, document)
     numbers = {number for number, _ in phasing}
-    landed = {landing.task.phase for landing in landings if landing.task.phase}
+    landed = {number for landing in landings for number in landing.task.covered}
     return not (numbers - landed)
 
 
@@ -385,7 +385,7 @@ def compose_document_pr(
     the open; nothing an agent wrote as prose reaches it."""
 
     doc_title, phasing, change, fixes = _phasing(root, document)
-    landed = {landing.task.phase for landing in landings if landing.task.phase}
+    landed = {number for landing in landings for number in landing.task.covered}
     # A phase may hold several entries, so the count is over phase numbers —
     # what a reviewer counts merges of, not contracts.
     numbers = {number for number, _ in phasing}

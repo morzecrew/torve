@@ -88,6 +88,7 @@ contract_example:
   id: T-0512
   spec: S-0084
   phase: 2
+  phases: []
   role: implement
   title: review round 1 on torve/S-0084
   intent: |
@@ -111,8 +112,9 @@ contract_example:
   depends_on: []
   targets: []
   scope:
-    allow: [src/torve/application/lane.py, tests/test_lane.py, .torve/tasks/T-0512/**]
-    deny: []
+    files: [src/torve/application/lane.py, tests/test_lane.py, .torve/tasks/T-0512/**]
+    tests: []
+    fence: []
   acceptance:
     - uv run pytest tests/test_lane.py
     - uv run mypy src
