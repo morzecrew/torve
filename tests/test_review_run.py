@@ -1276,7 +1276,7 @@ def test_the_reviewer_gets_the_pack_touched_and_its_own_skills(repo):
     touched = json.loads(reviewer.seen["touched.json"])
     assert touched["changed_paths"] == ["src/app.py"]
     assert [row["id"] for row in touched["decisions"]] == ["S-0001/D-1"]
-    assert touched["prior_reviews"] == []
+    assert "prior_reviews" not in touched
     assert "touched.json" in reviewer.seen["index.md"]
     # a replay: nothing model-authored, not even this task's own attempts
     assert "attempts.json" not in reviewer.seen
@@ -1285,7 +1285,10 @@ def test_the_reviewer_gets_the_pack_touched_and_its_own_skills(repo):
     assert not (worktree / ".torve" / "context").exists()
 
 
-def test_touched_file_reads_coverage_and_prior_reviews(repo):
+def test_touched_file_reads_coverage_and_never_earlier_findings(repo):
+    """S-0122/D-6: an earlier review's findings on the same target are in
+    the record and never in the next review's input — they anchored it."""
+
     repo.seed()
     target = Task(id="T-9001", intent="x", decisions=[])
     (repo.root / "coverage.xml").write_text(
@@ -1315,8 +1318,8 @@ def test_touched_file_reads_coverage_and_prior_reviews(repo):
     )
 
     assert payload["coverage"] == [{"path": "src/app.py", "changed": 2, "covered": 1}]
-    assert [p["review"] for p in payload["prior_reviews"]] == ["T-0227"]
-    assert payload["prior_reviews"][0]["findings"][0]["severity"] == "major"
+    assert "prior_reviews" not in payload
+    assert "T-0227" not in json.dumps(payload)
 
 
 def test_touched_file_reads_coverage_under_the_project_directory(repo):

@@ -1910,9 +1910,10 @@ class HarnessAgent:
         # System position (S-0073/D-2), from the same producer the prompt's own
         # section comes from. A composed prompt — the review input, the base
         # arm's intent (S-0074/D-2) — is staged verbatim and carries no rules of
-        # this engine's, so its file is empty rather than absent.
+        # this engine's, so its file holds only what its composer put there
+        # (the critic's frozen prompt, S-0122/D-19), empty rather than absent.
         (ctx.workspace / SYSTEM_RELPATH).write_text(
-            ""
+            (ctx.system or "")
             if ctx.prompt is not None
             else working_rules(self.tier.prompt_extras, skills_handover(ctx.workspace), equipped),
             encoding="utf-8",

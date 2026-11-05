@@ -1,0 +1,251 @@
+{
+  "$defs": {
+    "Contradiction": {
+      "description": "Your judgment of the contradiction the author flagged, if any.",
+      "properties": {
+        "verdict": {
+          "enum": [
+            "valid",
+            "invalid"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "evidence": {
+          "title": "Evidence",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "verdict",
+        "evidence"
+      ],
+      "title": "Contradiction",
+      "type": "object"
+    },
+    "CriticFinding": {
+      "description": "One finding.",
+      "properties": {
+        "id": {
+          "description": "Short and unique within this answer, e.g. F1.",
+          "title": "Id",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "blocker",
+            "major",
+            "minor",
+            "nit"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "bug",
+            "regression",
+            "weak_test",
+            "contract",
+            "scope",
+            "gaming",
+            "style"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "row": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The row this finding is about, when it is about one.",
+          "title": "Row"
+        },
+        "claim": {
+          "description": "What is wrong, in one or two sentences.",
+          "title": "Claim",
+          "type": "string"
+        },
+        "evidence": {
+          "description": "`path:line — one sentence` against the tree as it arrived, or a backticked\ncommand followed by what it printed. Evidence that does not locate is discarded.",
+          "title": "Evidence",
+          "type": "string"
+        },
+        "verified": {
+          "description": "executed when a command you ran showed it; read when you only read the code.",
+          "enum": [
+            "executed",
+            "read"
+          ],
+          "title": "Verified",
+          "type": "string"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "repro": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Repro"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fix_hint": {
+          "default": "",
+          "description": "Where a fix belongs, in a sentence; never a patch.",
+          "title": "Fix Hint",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "severity",
+        "kind",
+        "claim",
+        "evidence",
+        "verified",
+        "confidence"
+      ],
+      "title": "CriticFinding",
+      "type": "object"
+    },
+    "Repro": {
+      "description": "How to see the finding for yourself.",
+      "properties": {
+        "command": {
+          "description": "The command that shows it, run from the workspace root.",
+          "title": "Command",
+          "type": "string"
+        },
+        "file": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The probe it runs, as a path under probes/; kept only when named here.",
+          "title": "File"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "title": "Repro",
+      "type": "object"
+    },
+    "RowVerdict": {
+      "description": "Your verdict on one row you were given.",
+      "properties": {
+        "row": {
+          "description": "The row's id exactly as given, `S-NNNN/D-n`.",
+          "title": "Row",
+          "type": "string"
+        },
+        "verdict": {
+          "description": "holds, violated, or unknown when you could not establish either.",
+          "enum": [
+            "holds",
+            "violated",
+            "unknown"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "evidence": {
+          "default": "",
+          "description": "`path:line — one sentence`, or a backticked command followed by what it printed.",
+          "title": "Evidence",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "description": "For unknown, what you could not establish and why.",
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row",
+        "verdict"
+      ],
+      "title": "RowVerdict",
+      "type": "object"
+    }
+  },
+  "description": "torve.critic/v1: the one JSON document your answer ends with.",
+  "properties": {
+    "schema": {
+      "const": "torve.critic/v1",
+      "default": "torve.critic/v1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "rows": {
+      "description": "One verdict per owned row.",
+      "items": {
+        "$ref": "#/$defs/RowVerdict"
+      },
+      "title": "Rows",
+      "type": "array"
+    },
+    "findings": {
+      "description": "Empty is a valid, complete review.",
+      "items": {
+        "$ref": "#/$defs/CriticFinding"
+      },
+      "title": "Findings",
+      "type": "array"
+    },
+    "contradiction": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Contradiction"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Set only when the evidence carries an author_claim."
+    },
+    "unknowns": {
+      "description": "What you could not establish about the change as a whole, and why.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Unknowns",
+      "type": "array"
+    }
+  },
+  "required": [
+    "rows",
+    "findings"
+  ],
+  "title": "CriticDocument",
+  "type": "object"
+}

@@ -15,6 +15,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from torve.config import layout
 
 # ----------------------- #
@@ -22,6 +24,7 @@ from torve.config import layout
 FEEDBACK_FILE = "feedback.md"
 FEEDBACK_THREADS = "feedback-threads.json"
 DIFF_HEADING = "## The superseded candidate's diff"
+MEASURED_HEADING = "## What the engine measured"
 OPERATOR = "operator"
 # Bytes of rendered threads-and-diff a record may hold; past it the
 # record says so (S-0005/D-12) — a silently dropped finding makes it lie.
@@ -61,10 +64,17 @@ def _thread_block(thread: dict[str, Any]) -> list[str]:
 # ....................... #
 
 
-def render_feedback(task_id: str, diff: str, threads: list[dict[str, Any]]) -> str:
+def render_feedback(
+    task_id: str,
+    diff: str,
+    threads: list[dict[str, Any]],
+    measured: dict[str, Any] | None = None,
+) -> str:
     """One markdown record: threads first (the critique is the point),
-    the superseded diff after. Threads arrive already allow-listed by
-    the adapter; each is {path, line, comments: [{author, body}]}."""
+    then what the engine measured on the candidate when a critic judged it
+    (S-0122/D-8), the superseded diff after. Threads arrive already
+    allow-listed by the adapter; each is {path, line, comments: [{author,
+    body}]}."""
 
     lines = [
         f"# Revision feedback for {task_id}",
@@ -82,6 +92,20 @@ def render_feedback(task_id: str, diff: str, threads: list[dict[str, Any]]) -> s
 
     for thread in threads:
         lines += _thread_block(thread)
+
+    if measured:
+        lines += [
+            MEASURED_HEADING,
+            "",
+            "Measured by the engine on the superseded candidate and its base, not",
+            "written by any model: the rows and tests red at its head, the",
+            "acceptance it failed, the edits to existing tests and the flags.",
+            "",
+            "```yaml",
+            yaml.safe_dump(measured, sort_keys=False, allow_unicode=True).rstrip(),
+            "```",
+            "",
+        ]
 
     lines += [
         DIFF_HEADING,
@@ -104,7 +128,13 @@ def render_feedback(task_id: str, diff: str, threads: list[dict[str, Any]]) -> s
 # ....................... #
 
 
-def capture_feedback(root: Path, task_id: str, diff: str, threads: list[dict[str, Any]]) -> bool:
+def capture_feedback(
+    root: Path,
+    task_id: str,
+    diff: str,
+    threads: list[dict[str, Any]],
+    measured: dict[str, Any] | None = None,
+) -> bool:
     """Write the record beside the contract; False when there is nothing
     worth carrying (no threads and no diff — an escalation that never
     reached a branch captures nothing, honestly). A capture REPLACES the
@@ -123,7 +153,7 @@ def capture_feedback(root: Path, task_id: str, diff: str, threads: list[dict[str
         return False
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_feedback(task_id, diff, threads), encoding="utf-8")
+    path.write_text(render_feedback(task_id, diff, threads, measured), encoding="utf-8")
 
     addresses = [
         {"pr": t["pr"], "id": t["id"], "path": t.get("path"), "line": t.get("line")}

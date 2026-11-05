@@ -193,3 +193,27 @@ def test_a_fresh_capture_supersedes_stale_reply_addresses(root):
     assert capture_feedback(root, "T-8007", "", THREADS) is True
     assert feedback_file(root, "T-8007").exists()
     assert not threads_file(root, "T-8007").exists()
+
+
+def test_a_critics_revision_reads_what_the_engine_measured_before_the_diff(root):
+    """S-0122/D-8: the failing package items ride the record between the
+    threads and the superseded diff, and an operator's note still lands
+    before the diff without displacing them."""
+
+    measured = {"test_changes": [{"test": "tests/t.py::test_x", "change": "assert_removed"}]}
+
+    assert capture_feedback(root, "T-0042", "diff --git a/x b/x\n", THREADS, measured=measured)
+    record_operator_note(root, "T-0042", "look at the edited test first")
+
+    text = feedback_file(root, "T-0042").read_text(encoding="utf-8")
+    measured_at = text.index("## What the engine measured")
+    assert text.index("Off-by-one in median") < measured_at
+    assert measured_at < text.index("look at the edited test first")
+    assert text.index("look at the edited test first") < text.index("## The superseded")
+    assert "assert_removed" in text
+
+
+def test_a_classic_record_carries_no_measured_section(root):
+    capture_feedback(root, "T-0042", "diff\n", THREADS)
+
+    assert "## What the engine measured" not in feedback_file(root, "T-0042").read_text()

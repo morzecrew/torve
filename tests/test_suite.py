@@ -4,7 +4,9 @@ beside it without convicting."""
 
 from __future__ import annotations
 
+import os
 import shutil
+import time
 from typing import Any
 
 from conftest import context_for
@@ -13,7 +15,7 @@ from hypothesis import strategies as st
 
 from torve.gates.runner import run_gates
 from torve.gates.sabotage import SUITE_TEST_RUN, Repo
-from torve.gates.suite import _reading, attribution, failing_ids
+from torve.gates.suite import _reading, archive_tree, attribution, failing_ids
 
 TASK_ID = "T-9001"
 SUITE_ID = "tests/test_app.py::test_app"
@@ -388,9 +390,28 @@ def test_a_green_suite_never_extracts_the_base(repo, monkeypatch):
     def extracted(*_args):
         raise AssertionError("the base was extracted for a green suite")
 
-    monkeypatch.setattr(suite, "_extract_base", extracted)
+    monkeypatch.setattr(suite, "extract_base", extracted)
     repo.seed(suite_manifest())
     repo.write("src/other.py", "VALUE = 3\n")
     repo.commit("a green change")
 
     assert judged(repo).outcome == "pass"
+
+
+def test_a_timed_out_archive_leaves_no_process_writing(tmp_path, monkeypatch):
+    """The timeout kills the pipeline, not only its shell: an orphan would go
+    on writing after its caller moved on."""
+
+    marker = tmp_path / "still-running"
+    shim = tmp_path / "bin" / "git"
+    shim.parent.mkdir()
+    shim.write_text(f"#!/bin/sh\nsleep 1\ntouch {marker}\n", encoding="utf-8")
+    shim.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{shim.parent}:{os.environ['PATH']}")
+
+    problem = archive_tree(tmp_path, "HEAD", tmp_path / "base", timeout=0.2)
+    time.sleep(1.5)
+
+    assert problem == "the base tree was not extracted within 0s"
+    assert not marker.exists()
+    assert not (tmp_path / "base").exists()

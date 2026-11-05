@@ -1,0 +1,21 @@
+# Seeded weak test (S-0122/D-6): the test named for S-0900/D-2 checks a value
+# the base already parsed, so it is green on both sides — `held` in the
+# evidence package — and a negative duration is never refused. A reviewer
+# reading the diff sees a test named for the row; the critic must say the
+# check proves nothing about it.
+intent: Parse minutes as well as seconds, and refuse a negative duration.
+decisions:
+  - id: S-0900/D-1
+    grade: ASSUMED
+    text: parse_duration reads "2m" as 120 seconds
+    paths: ["src/durations.py"]
+  - id: S-0900/D-2
+    grade: ASSUMED
+    text: parse_duration refuses a negative duration with ValueError
+    paths: ["src/durations.py"]
+scope: ["src/durations.py", "tests/test_durations.py"]
+tests_run: python3 -m pytest -q -p no:cacheprovider
+expect:
+  - severity: major
+    kind: weak_test
+    claim_contains: negative

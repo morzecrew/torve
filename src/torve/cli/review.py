@@ -25,6 +25,7 @@ import io
 import re
 import subprocess
 import tarfile
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
@@ -170,6 +171,35 @@ def _load_case(case_dir: Path) -> dict[str, Any]:
 # ....................... #
 
 
+class ReviewMode(StrEnum):
+    """Which seat a replay judges with (S-0122/D-6): the classic reviewer or
+    the critic over a measured evidence package."""
+
+    CLASSIC = "classic"
+    CRITIC = "critic"
+
+
+# Severities by weight, for an expectation met by a finding at least as grave.
+_RANK = {"nit": 0, "minor": 1, "major": 2, "blocker": 3}
+
+
+def _caught(expected: dict[str, str], found: list[dict[str, Any]]) -> bool:
+    """Whether a kept finding meets an expectation: at or above its severity,
+    its claim carrying the phrase, and — for a critic, whose findings have
+    one — of its kind when the case names a kind."""
+
+    severity = str(expected.get("severity", ""))
+    needle = str(expected.get("claim_contains", "")).lower()
+    kind = expected.get("kind")
+
+    return any(
+        _RANK.get(str(f.get("severity")), -1) >= _RANK.get(severity, 99)
+        and needle in str(f.get("claim", "")).lower()
+        and (kind is None or "kind" not in f or f["kind"] == kind)
+        for f in found
+    )
+
+
 def _case_outcome(
     case_dir: Path,
     document: dict[str, Any],
@@ -178,11 +208,12 @@ def _case_outcome(
     agent: Any,
     root: Path,
     broker: Any = None,
+    mode: ReviewMode = ReviewMode.CLASSIC,
 ) -> dict[str, Any]:
     from torve.application.dispatch import run_routing
     from torve.application.ports import BrokerBudget
-    from torve.application.review import run_review
-    from torve.domain.task import Budget, Task
+    from torve.application.review import ReviewOutcome, run_review
+    from torve.domain.task import Budget, Scope, Task
 
     expectations: list[dict[str, str]] = list(document.get("expect", []))
     name = case_dir.name
@@ -190,6 +221,7 @@ def _case_outcome(
     target = Task(
         id=f"corpus-{name}",
         intent=str(document.get("intent", "")),
+        scope=Scope(allow=list(document.get("scope", []))),
         decisions=document.get("decisions", []),
     )
 
@@ -215,46 +247,78 @@ def _case_outcome(
         else None
     )
 
+    rows: list[dict[str, Any]] = []
+    outcome: ReviewOutcome
+
     try:
-        outcome = run_review(
-            root,
-            case_dir / "tree",
-            target,
-            review,
-            config,
-            runtime,
-            agent,
-            (case_dir / "diff.patch").read_text(encoding="utf-8"),
-            [],
-            "corpus",
-            degraded=bool(document.get("degraded", False)),
-            broker=broker,
-            broker_handle=handle,
-        )
+        if mode is ReviewMode.CRITIC:
+            from torve.application.critic import replay_case
+
+            verdict = replay_case(
+                root,
+                case_dir,
+                target,
+                review,
+                config,
+                runtime,
+                agent,
+                tests_run=document.get("tests_run"),
+                broker=broker,
+                broker_handle=handle,
+            )
+            outcome = verdict
+            decision = verdict.decision
+            blocked = bool(decision and decision.blocked)
+            found = [f.model_dump() for f in decision.kept] if decision else []
+            # A violated row blocks as a finding does (S-0122/D-1), so it can
+            # meet an expectation too, as a contract finding: `verdict.kept`
+            # is the critic's findings followed by its violated rows.
+            found += [{**f.model_dump(), "kind": "contract"} for f in verdict.kept[len(found) :]]
+            rows = decision.rows if decision else []
+
+        else:
+            outcome = run_review(
+                root,
+                case_dir / "tree",
+                target,
+                review,
+                config,
+                runtime,
+                agent,
+                (case_dir / "diff.patch").read_text(encoding="utf-8"),
+                [],
+                "corpus",
+                degraded=bool(document.get("degraded", False)),
+                broker=broker,
+                broker_handle=handle,
+            )
+            blocked = bool(outcome.blockers)
+            found = [f.model_dump() for f in outcome.kept]
 
     finally:
         if broker is not None and handle is not None:
             broker.close(handle)
 
-    missed: list[str] = []
-
-    for expected in expectations:
-        severity = str(expected.get("severity", ""))
-        needle = str(expected.get("claim_contains", "")).lower()
-        caught = any(f.severity == severity and needle in f.claim.lower() for f in outcome.kept)
-
-        if not caught:
-            missed.append(f"{severity}: …{needle}…")
+    missed = [
+        f"{expected.get('severity', '')}: …{str(expected.get('claim_contains', '')).lower()}…"
+        for expected in expectations
+        if not _caught(expected, found)
+    ]
 
     false_blockers = [f.claim for f in outcome.kept if f.severity == "blocker" and not expectations]
 
     return {
         "case": name,
+        "mode": str(mode),
         "expected": len(expectations),
         "caught": len(expectations) - len(missed),
         "missed": missed,
         "false_blockers": false_blockers,
-        "findings": [f.model_dump() for f in outcome.kept],
+        # What the engine would have done with the candidate: the recall a
+        # classic and a critic replay are compared on (S-0122/tests).
+        "blocked": blocked,
+        "findings": found,
+        "rows": rows,
         "discarded": len(outcome.discarded),
         "unparseable": outcome.unparseable,
         "seat_error": outcome.seat_error,
@@ -271,6 +335,7 @@ def _replay(
     runtime_name: RuntimeName | None,
     fmt: Format,
     case: str | None = None,
+    mode: ReviewMode | None = None,
 ) -> None:
     """One replay body, shared by the bare group invocation (every case) and
     the `case` subcommand (one case): the verb this repository has always
@@ -281,6 +346,9 @@ def _replay(
     root = root.resolve()
     config = load_config(root, config_path)
     corpus_root = root / ".torve" / CORPUS_DIR
+    # The configured seat unless the replay names one, so a recall comparison
+    # runs both over one corpus without editing the configuration.
+    seat = mode or ReviewMode(config.review.mode)
 
     cases = (
         sorted(d for d in corpus_root.iterdir() if d.is_dir() and (d / "case.yaml").is_file())
@@ -318,18 +386,18 @@ def _replay(
         except UnwrittenFinding as exc:
             raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
 
-        return _case_outcome(case_dir, document, config, runtime, agent, root, broker)
+        return _case_outcome(case_dir, document, config, runtime, agent, root, broker, seat)
 
     results = [replayed(case_dir) for case_dir in cases]
 
     passed = all(r["ok"] for r in results)
 
     if fmt is Format.JSON:
-        emit_json({"schema_version": 1, "ok": passed, "cases": results})
+        emit_json({"schema_version": 1, "ok": passed, "mode": str(seat), "cases": results})
         raise typer.Exit(EXIT_OK if passed else EXIT_GATES_RED)
 
     console = out(fmt)
-    header(console, "review corpus", f"{len(results)} case(s)")
+    header(console, "review corpus", f"{len(results)} case(s), {seat}")
     table = make_table("", "case", "caught", "notes")
 
     for result in results:
@@ -349,6 +417,8 @@ def _replay(
 
         if result["discarded"]:
             notes.append(f"{result['discarded']} discarded")
+
+        notes.append("blocked" if result["blocked"] else "passed")
 
         table.add_row(
             mark("pass" if result["ok"] else "fail"),
@@ -371,6 +441,15 @@ def _replay(
 # ....................... #
 
 
+ModeOption = Annotated[
+    ReviewMode | None,
+    typer.Option(
+        "--mode",
+        help="Replay through the classic reviewer or the critic; review.mode when omitted.",
+    ),
+]
+
+
 @corpus_app.callback(invoke_without_command=True)
 def corpus_group(
     ctx: typer.Context,
@@ -378,13 +457,14 @@ def corpus_group(
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
+    mode: ModeOption = None,
 ) -> None:
     """Replay the seeded-defect corpus through the reviewer tier and report
     which expected findings were caught. A dropped catch or an invented
     blocker on a clean case is a regression — exit 1."""
 
     if ctx.invoked_subcommand is None:
-        _replay(root, config_path, runtime_name, fmt)
+        _replay(root, config_path, runtime_name, fmt, mode=mode)
         return
 
     # Flags parsed at the group level flow to the resolved subcommand as its
@@ -396,6 +476,7 @@ def corpus_group(
             "config_path": config_path,
             "root": root,
             "fmt": fmt,
+            "mode": mode,
         }
     }
 
@@ -410,12 +491,13 @@ def corpus_case(
     config_path: ConfigOption = None,
     root: RootOption = Path("."),
     fmt: FormatOption = Format.TEXT,
+    mode: ModeOption = None,
 ) -> None:
     """Replay the seeded-defect corpus through the reviewer tier and report
     which expected findings were caught. A dropped catch or an invented
     blocker on a clean case is a regression — exit 1."""
 
-    _replay(root, config_path, runtime_name, fmt, case)
+    _replay(root, config_path, runtime_name, fmt, case, mode)
 
 
 # ....................... #

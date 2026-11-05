@@ -20,9 +20,11 @@ exit codes never convict (S-0118/D-3).
 
 from __future__ import annotations
 
+import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import tempfile
 from collections.abc import Iterable
@@ -79,6 +81,30 @@ def collection_errors(output: str) -> list[str]:
     return list(
         dict.fromkeys(m.group(1) for m in _SUMMARY.finditer(output) if "::" not in m.group(1))
     )
+
+
+# The suite's own verdict lines, read back by the evidence package
+# (S-0122/D-5): the gate result carries the inherited ids as a field and the
+# convicted and flaky ones only as these sentences, which `check_suite` below
+# writes and nothing else does.
+_CONVICTED = re.compile(
+    r"^the change broke \d+ test\(s\) the base tree passes \(or cannot run\): (.+)$",
+    re.MULTILINE,
+)
+_FLAKY = re.compile(
+    r"^flaky: \d+ test\(s\) passed on the rerun, not convicting: (.+)$", re.MULTILINE
+)
+
+
+def settled_ids(output: str) -> tuple[list[str], list[str]]:
+    """(convicted, flaky): the ids a suite result's verdict lines name, the
+    last of each kind, since the head's own output precedes them."""
+
+    def last(pattern: re.Pattern[str]) -> list[str]:
+        found = pattern.findall(output)
+        return [one.strip() for one in found[-1].split(", ")] if found else []
+
+    return last(_CONVICTED), last(_FLAKY)
 
 
 # ....................... #
@@ -164,7 +190,46 @@ def _with_base(command: str, ctx: GateContext) -> str | None:
 # ....................... #
 
 
-def _extract_base(ctx: GateContext, timeout: float) -> tuple[Path | None, str | None]:
+def archive_tree(repo: Path, sha: str, destination: Path, timeout: float) -> str | None:
+    """Extract the tree of *sha* from *repo* into *destination*, on the host,
+    with git's hooks off: None when it landed, else why it did not. The one
+    mechanism behind every base tree the engine builds — the suite's base
+    reading (S-0118/D-11), the evidence package's base runs and the critic's
+    `.torve/review/base/` (S-0122/D-5, S-0122/D-6) — so the three read the
+    same bytes. Bounded by *timeout*, so a slow archive cannot outlast its
+    caller; a failure leaves *destination* removed."""
+
+    destination.mkdir(parents=True, exist_ok=True)
+
+    # Its own session, so a timeout kills the pipeline's `git` and `tar` with
+    # the shell: an orphaned `tar` would write into *destination* after it is
+    # removed.
+    with subprocess.Popen(
+        f"git -c core.hooksPath=/dev/null -C {shlex.quote(str(repo))} archive "
+        f"{shlex.quote(sha)} | tar -x -C {shlex.quote(str(destination))}",
+        shell=True,  # nosec B602 — the sha comes from git, the paths are quoted
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    ) as archive:
+        try:
+            _, stderr = archive.communicate(timeout=timeout)
+
+        except subprocess.TimeoutExpired:
+            os.killpg(archive.pid, signal.SIGKILL)
+            archive.communicate()
+            shutil.rmtree(destination, ignore_errors=True)
+            return f"the base tree was not extracted within {timeout:.0f}s"
+
+    if archive.returncode != 0:
+        shutil.rmtree(destination, ignore_errors=True)
+        return f"the base tree could not be extracted: {stderr.strip()}"
+
+    return None
+
+
+def extract_base(ctx: GateContext, timeout: float) -> tuple[Path | None, str | None]:
     """Extract the merge base tree into a fresh directory in the checkout, on
     the host: the gate sandbox runs no git (S-0113/D-2), and a bind mount shows
     the sandbox what the host writes into the workspace before it starts.
@@ -174,7 +239,7 @@ def _extract_base(ctx: GateContext, timeout: float) -> tuple[Path | None, str | 
     The checkout is the candidate's, so its `.torve/tmp` is refused unless it
     resolves where it is written: a symlink the candidate planted there would
     send the host's extraction outside the workspace. The archive is bounded
-    by the gate's own timeout, so a slow one cannot outlast the battery."""
+    by the caller's timeout, so a slow one cannot outlast the battery."""
 
     if ctx.merge_base is None:
         return None, "no merge base is resolvable"
@@ -191,27 +256,9 @@ def _extract_base(ctx: GateContext, timeout: float) -> tuple[Path | None, str | 
         return None, f"{parent.relative_to(root)} resolves outside the checkout"
 
     destination = Path(tempfile.mkdtemp(prefix=f"{BASE_NAME}-", dir=parent))
+    problem = archive_tree(ctx.root, ctx.merge_base, destination, timeout)
 
-    try:
-        archive = subprocess.run(
-            f"git -C {shlex.quote(str(ctx.root))} archive {shlex.quote(ctx.merge_base)} "
-            f"| tar -x -C {shlex.quote(str(destination))}",
-            shell=True,  # nosec B602 — the sha comes from git, the paths are quoted
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout,
-        )
-
-    except subprocess.TimeoutExpired:
-        shutil.rmtree(destination, ignore_errors=True)
-        return None, f"the base tree was not extracted within {timeout:.0f}s"
-
-    if archive.returncode != 0:
-        shutil.rmtree(destination, ignore_errors=True)
-        return None, f"the base tree could not be extracted: {archive.stderr.strip()}"
-
-    return destination, None
+    return (None, problem) if problem is not None else (destination, None)
 
 
 # ....................... #
@@ -297,7 +344,7 @@ def check_suite(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
         if still_red:
             # The base is extracted only now: a green suite, or a red the
             # rerun cleared, never pays for archiving the whole tree.
-            base_dir, base_note = _extract_base(ctx, timeout)
+            base_dir, base_note = extract_base(ctx, timeout)
 
             if base_dir is not None:
                 # A file the base tree lacks has no reading and its ids
