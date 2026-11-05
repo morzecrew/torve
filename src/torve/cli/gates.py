@@ -165,7 +165,7 @@ def gates_list(
         typer.Option(
             "--task",
             exists=True,
-            help="Task contract; adds the gates the contract itself carries.",
+            help="Task contract the battery is listed for; named in the header.",
         ),
     ] = None,
     manifest_path: Annotated[
@@ -176,9 +176,8 @@ def gates_list(
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """The battery as it will run: every gate with its input, timeout and axis
-    resolved, cheapest first. With a task, the gates the contract carries are
-    listed too — a manifest read alone cannot show them, because they exist
-    only for the length of one contract."""
+    resolved, cheapest first. A contract's row checks are not among them: they
+    run in the battery that completes the document (S-0122/D-4)."""
 
     root = root.resolve()
     manifest_path = layout.gates_file(root) if manifest_path is None else manifest_path

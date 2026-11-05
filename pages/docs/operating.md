@@ -293,25 +293,22 @@ and the results. **A red re-gate's output is read from `torve why`**: each
 failing gates' output, beside every gate result's `inherited_failures`, so the
 failing test is named with no reproduction on the host.
 
-## A row's check, its twin, and the invariants the battery runs
+## A row's check and its twin
 
 A decision row may carry a `check` — a command whose exit code judges the
-row — and the battery runs each as a `decision:<id>` gate under the row's
-`check_state`: shadow until an amendment promotes it on soak evidence, then
-blocking. A check that **selects nothing** — pytest's exit 5, or the "no
+row — and the battery that completes the document runs each as a
+`decision:<id>` gate under the row's `check_state`: shadow until an amendment
+promotes it on soak evidence, then blocking. No attempt's battery runs one,
+and neither does a document branch's rebase regate (S-0122/D-4). A check that **selects nothing** — pytest's exit 5, or the "no
 tests ran" summary `acceptance` already reads — fails as vacuous under the
 row's state (S-0106/D-1): a `-k` filter matching no test has judged nothing,
 and it is seen the first time it runs rather than left as a quiet green. The
 `decision:<id>` gates run first.
 
-A row's paths are its gate's, as an invariant's are: a `decision:<id>` gate
-whose row declares paths, none of which the diff touches, is reported
-skipped. The files the check's command names count too, so an edit to its
+A row's paths are its gate's: a `decision:<id>` gate whose row declares
+paths, none of which the document's diff touches, is reported skipped. The files the check's command names count too, so an edit to its
 test runs it, and a renamed file counts at both its old and its new path. A
-row with no paths runs on every diff. Every phase of a document carries all
-of its rows, so without this a row a later phase builds fails its check in
-each earlier phase. The phase that builds the row touches its paths, and the
-completion battery reads the whole document's diff.
+row with no paths runs on every diff.
 
 No row owes a divergence entry for being touched: the silence check and the
 attestations it demanded are gone (S-0122/D-14), and a red check is the
@@ -325,17 +322,8 @@ non-zero, and `torve spec check` refuses a blocking row that names no twin,
 as the planner already refuses one at mint (S-0106/D-3). A row is never
 blocking on a check nobody has shown can fail.
 
-The same battery carries the document's **invariants**. A standing
-invariant — an `I-n` with a `statement`, `paths` and a `check` — enters as
-an `invariant:<id>` gate, always shadow: an invariant is a statement to read,
-not a wall, until an operator promotes a decision from it. The completion
-battery and the document-branch regate run the `decision:<id>` gates of
-every row the document's phases inherited, and an `invariant:<id>` gate for
-every invariant whose declared paths the diff reaches; an invariant the diff
-never touches is reported skipped rather than run for nothing (S-0106/D-2).
-One reader fills both batteries, so a row is judged the same way on an
-attempt and on the whole document, and a task's own attempt battery is
-otherwise unchanged.
+A standing **invariant** — an `I-n` with a `statement`, `paths` and a
+`check` — is a statement to read: no battery runs its check (S-0122/D-4).
 
 A repository whose tests are not Python says how they are found, paired and
 run through the manifest's `tests:` block: `run`, the command a list of test
