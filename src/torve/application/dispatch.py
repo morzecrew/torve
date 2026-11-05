@@ -239,6 +239,16 @@ class Dispatch:
     # ....................... #
 
     @property
+    def manifest_file(self) -> Path:
+        """The gate manifest this attempt is judged by (S-0121/D-3): the
+        root's, never one the attempt could edit in its worktree. A replay
+        judges by the manifest its clone holds."""
+
+        return layout.gates_file(self.worktree if self.shadow else self.root)
+
+    # ....................... #
+
+    @property
     def broker(self) -> Broker | None:
         """The broker only when it is actually open. Every caller needs both
         facts and checking one without the other is how a run reports usage
@@ -713,7 +723,7 @@ def telemetry_target(run: Dispatch) -> Path:
     record must never depend on the manifest existing — a worktree with no
     gates.yaml still burned the money."""
 
-    manifest_file = layout.gates_file(run.worktree if run.shadow else run.root)
+    manifest_file = run.manifest_file
     telemetry_rel = (
         load_manifest(manifest_file).telemetry if manifest_file.is_file() else Manifest().telemetry
     )

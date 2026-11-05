@@ -1140,15 +1140,25 @@ def test_a_finish_command_runs_after_the_agent_and_convicts_nothing(rig, monkeyp
     from torve.application.ports import ExecResult
 
     repo, deps, runtime, _, _ = rig
-    ran: list[str] = []
+    calls: list[str] = []
     monkeypatch.setattr(
         runtime,
         "exec",
         lambda h, command, t: (
-            ran.append(command),
+            calls.append(command),
             ExecResult(exit_code=1, output="left a residue", duration_s=0.0),
         )[1],
     )
+    monkeypatch.setattr(runtime, "sync_out", lambda handle, workspace: calls.append("sync_out"))
+    real_run = deps.agent.run
+    monkeypatch.setattr(deps.agent, "run", lambda ctx: (calls.append("agent"), real_run(ctx))[1])
+    seen: list[dict] = []
+
+    def scripted(run, _state):
+        seen.append(dict(run.meta))
+        return 0, "scripted", "cafecafe1234", [], ""
+
+    monkeypatch.setattr(run_module, "run_gate_pass", scripted)
     config = RunnerConfig(
         tiers={"executor": TierConfig(finish="ruff format ."), "planner": TierConfig()}
     )
@@ -1156,7 +1166,10 @@ def test_a_finish_command_runs_after_the_agent_and_convicts_nothing(rig, monkeyp
     state = run_task(repo.root, task_for(repo), config, deps)
 
     assert state.state is TaskState.READY
-    assert len(ran) == 1 and "ruff format ." in ran[0]
+    finishes = [c for c in calls if "ruff format ." in c]
+    assert len(finishes) == 1
+    assert calls.index("agent") < calls.index(finishes[0]) < calls.index("sync_out")
+    assert seen[0]["finish_output"] == "left a residue"
 
 
 def test_a_failed_finish_is_not_reported_on_a_later_attempt(rig, monkeypatch):
