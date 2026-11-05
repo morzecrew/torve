@@ -103,7 +103,7 @@ on 6:
 root=...              # torve's checkout, the tree the chain moves
 config=...            # this night's configuration
 engine=$HOME/.torve-engines/torve-self
-images=0.8.0          # the release the harness images were baked for
+images=0.9.0          # the release the harness images were baked for
 while :; do
   uv venv --allow-existing -q "$engine"
   SETUPTOOLS_SCM_PRETEND_VERSION=$images \
@@ -118,7 +118,7 @@ done
 `images` pins the installed engine's version. A harness image written
 `claude-sandbox:{torve}` names the engine's version, and images are baked for
 releases; built from a commit past the tag, the engine would read as
-`0.8.1.devN+g…` and every seat would name an image that does not exist.
+`0.9.1.devN+g…` and every seat would name an image that does not exist.
 
 Installed from the checkout's tree, the engine no longer imports from it, so
 the chain fast-forwards and plans like any repository's. The shared

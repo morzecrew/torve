@@ -70,7 +70,7 @@ A night is a subject in the event log whose terms are recorded whole at open; a 
 - Paths: `src/torve/application/residency.py` `src/torve/cli/manager.py`
 - Check: `uv run pytest tests/test_residency.py -k "day or axis or broken_leg or night_with_nothing_to_start"` (shadow; runs as `decision:S-0121/D-37`)
 
-### S-0122/D-14 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+### S-0122/D-14 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
 
 The divergence log keeps `halted`, written by `torve abort`, and `departed` with a proposal; a justified abort is never counted as a failure, and the `decided` and `resolved` attestations, `torve log owed` and the silence check are removed
 

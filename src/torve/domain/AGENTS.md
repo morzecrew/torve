@@ -58,19 +58,19 @@ The engine never changes its own code under a running process: a chain whose `to
 - Paths: `src/torve/cli/manager.py` `src/torve/domain/states.py` `src/torve/config/runconfig.py`
 - Check: `uv run pytest tests/test_manager.py -k "engine_moved or imports_from_the_root"` (shadow; runs as `decision:S-0121/D-36`)
 
-### S-0122/D-12 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+### S-0122/D-12 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
 
 Contract v3 splits scope into `files`, `tests` (paired tests derived at mint and licensed), `fence` and `contingent`; only the fence convicts, edits outside files and tests become evidence, and a v2 contract loads mapped for one release
 
 - Paths: `src/torve/domain/task.py` `src/torve/application/planner.py` `src/torve/application/neighbours.py` `src/torve/gates/scope.py`
 
-### S-0122/D-13 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+### S-0122/D-13 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
 
 A phasing file may set `unit: document` to mint one contract for the whole document, the default when it has three phases or fewer, and a contract carries its own document's rows plus at most ten LOCKED rows of other documents whose paths it touches
 
 - Paths: `src/torve/application/planner.py` `src/torve/domain/spec.py`
 
-### S-0122/D-14 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+### S-0122/D-14 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
 
 The divergence log keeps `halted`, written by `torve abort`, and `departed` with a proposal; a justified abort is never counted as a failure, and the `decided` and `resolved` attestations, `torve log owed` and the silence check are removed
 

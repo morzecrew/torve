@@ -6,7 +6,7 @@ change:
   type: feat
   scope: engine
 status: accepted
-implementation: none
+implementation: partial
 depends_on: [S-0121]
 informed_by: []
 supersedes: []
