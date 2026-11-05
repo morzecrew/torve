@@ -1540,3 +1540,30 @@ def test_a_review_numbers_past_the_record_when_a_store_holds_the_tasks(repo):
     assert mint_review_task(repo.root, target, taken=("T-0603", "T-0609")).id == "T-0610"
     # Without a store the files are the record, and the review just minted counts.
     assert mint_review_task(repo.root, target).id == "T-0611"
+
+
+def test_mints_no_review(review_rig):
+    """S-0123/D-4: a verdict selection already holds is the review that ran,
+    so `review_step` mints no second review task and records that one's id."""
+
+    repo, _runtime, deps_for = review_rig
+    critic = ScriptedAgent(
+        [
+            AgentResult(
+                exit_code=0,
+                output=json.dumps({"schema": "torve.critic/v1", "rows": [], "findings": []}),
+            )
+        ]
+    )
+
+    state = run_task(
+        repo.root,
+        task_for(repo),
+        RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic")),
+        deps_for(critic),
+    )
+
+    assert state.state is TaskState.READY
+    minted = sorted((repo.root / ".torve" / "tasks").glob("T-*/contract.yaml"))
+    assert len(minted) == 1
+    assert state.reviewed_by == minted[0].parent.name

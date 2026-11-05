@@ -1501,12 +1501,13 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
     unparseable verdict or a broker refusal escalates the target."""
 
     taken = run.deps.taken() if run.deps.taken is not None else ()
-    review_task = mint_review_task(run.root, run.task, taken=taken)
     outcome: ReviewOutcome
 
     if run.preselected_review is not None:
         # S-0122/D-7: the critic judged this candidate while selection chose
-        # it; its verdict is this review's, never asked for twice.
+        # it; its verdict is this review's, never asked for twice. Its own
+        # review id is the one that ran, so no task is minted here
+        # (S-0123/D-4).
         outcome, run.preselected_review = run.preselected_review, None
 
     elif run.config.review.mode == "critic":
@@ -1514,9 +1515,11 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
         # gate pass measured; what follows treats its verdict as any review's.
         from torve.application.critic import judge
 
+        review_task = mint_review_task(run.root, run.task, taken=taken)
         outcome = await asyncio.to_thread(judge, run, review_task)
 
     else:
+        review_task = mint_review_task(run.root, run.task, taken=taken)
         outcome = await asyncio.to_thread(
             run_review,
             run.root,
