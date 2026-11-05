@@ -528,6 +528,17 @@ def _checked(check: str, state: str = "shadow", twin: str | None = None) -> list
     ]
 
 
+def completing(repo):
+    """The context the battery completing the contract's document reads: its
+    rows handed in, as the lane hands the document's (S-0122/D-4)."""
+
+    ctx = context_for(repo)
+    assert ctx.task is not None
+    ctx.inherited = list(ctx.task.decisions)
+
+    return ctx
+
+
 def test_a_failing_shadow_check_is_recorded_and_blocks_nothing(repo):
     """D-1: the check convicts nothing under its shadow state; its red verdict
     is the finding, recorded under the row's own state."""
@@ -538,7 +549,7 @@ def test_a_failing_shadow_check_is_recorded_and_blocks_nothing(repo):
     repo.write("src/app.py", "print('x')\n")
     repo.commit("change")
 
-    report = run_gates(context_for(repo))
+    report = run_gates(completing(repo))
     by_name = {r.name: r for r in report.results}
 
     assert by_name["decision:S-0009/D-1"].outcome == "fail"
@@ -558,7 +569,7 @@ def test_a_check_the_diff_does_not_reach_is_skipped(repo):
     repo.write("src/app.py", "print('x')\n")
     repo.commit("change")
 
-    report = run_gates(context_for(repo))
+    report = run_gates(completing(repo))
     by_name = {r.name: r for r in report.results}
 
     assert by_name["decision:S-0009/D-1"].outcome == "skipped"
@@ -652,7 +663,7 @@ def test_a_passing_check_covers_its_row(repo):
     repo.write("src/app.py", "print('x')\n")
     repo.commit("change")
 
-    report = run_gates(context_for(repo))
+    report = run_gates(completing(repo))
     by_name = {r.name: r for r in report.results}
 
     assert by_name["decision:S-0009/D-1"].outcome == "pass"
@@ -664,7 +675,7 @@ def test_a_decision_check_that_selects_nothing_fails_as_vacuous(tmp_path):
     with "no tests ran", and the gate fails by its own name — still under the
     row's shadow state, so it records rather than blocks."""
     from torve.config.manifest import Manifest
-    from torve.domain.task import InheritedDecision, Task
+    from torve.domain.task import InheritedDecision
     from torve.gates.context import DiffEntry, GateContext
     from torve.gates.runner import run_gates
 
@@ -675,7 +686,6 @@ def test_a_decision_check_that_selects_nothing_fails_as_vacuous(tmp_path):
         paths=["src/**"],
         check="uv run pytest -k nothing",
     )
-    task = Task(id="T-0001", role="implement", decisions=[row], acceptance=[])
     ctx = GateContext(
         root=tmp_path,
         manifest=Manifest(gates=[]),
@@ -684,48 +694,12 @@ def test_a_decision_check_that_selects_nothing_fails_as_vacuous(tmp_path):
         merge_base=None,
         # A change under the row's paths, so its check is one the diff reaches.
         diff=[DiffEntry(status="M", path="src/app.py")],
-        task=task,
+        inherited=[row],
         execute=lambda command, timeout: (5, "no tests ran in 0.01s\n"),
     )
 
     report = run_gates(ctx)
     gate = next(r for r in report.results if r.name == "decision:S-0009/D-1")
-
-    assert gate.outcome == "fail"
-    assert "the check selected nothing" in gate.output
-    assert gate.state == "shadow"
-    assert report.exit_code == 0  # shadow still convicts nothing by itself
-
-
-def test_an_invariant_check_that_selects_nothing_fails_as_vacuous(tmp_path):
-    """D-6: an invariant gate reads an empty selection the way a decision gate
-    does — pytest's exit 5 is "the check selected nothing", still shadow, so a
-    stale `-k` filter records rather than reads as a broken rule."""
-    from torve.config.manifest import Manifest
-    from torve.domain.spec import Invariant
-    from torve.gates.context import DiffEntry, GateContext
-    from torve.gates.runner import run_gates
-
-    ctx = GateContext(
-        root=tmp_path,
-        manifest=Manifest(gates=[]),
-        head_sha="",
-        base=None,
-        merge_base=None,
-        diff=[DiffEntry(status="M", path="src/app.py")],
-        invariants=[
-            Invariant(
-                id="S-0009/I-1",
-                statement="the rule holds",
-                paths=["src/**"],
-                check="uv run pytest -k nothing",
-            )
-        ],
-        execute=lambda command, timeout: (5, "no tests ran in 0.01s\n"),
-    )
-
-    report = run_gates(ctx)
-    gate = next(r for r in report.results if r.name == "invariant:S-0009/I-1")
 
     assert gate.outcome == "fail"
     assert "the check selected nothing" in gate.output
@@ -758,7 +732,7 @@ def test_a_promoted_checkable_row_blocks_when_its_check_is_red(repo):
     repo.write("src/app.py", "print('x')\n")
     repo.commit("change")
 
-    report = run_gates(context_for(repo))
+    report = run_gates(completing(repo))
     gate = next(r for r in report.results if r.name == "decision:S-0009/D-1")
 
     assert gate.outcome == "fail" and gate.state == "blocking"
@@ -766,7 +740,7 @@ def test_a_promoted_checkable_row_blocks_when_its_check_is_red(repo):
 
 
 def test_decision_gates_carry_their_row_as_origin_and_the_compliance_axis(repo):
-    from torve.gates.runner import decision_gates
+    from torve.gates.runner import row_gates
 
     repo.seed()
     repo.task(
@@ -777,38 +751,18 @@ def test_decision_gates_carry_their_row_as_origin_and_the_compliance_axis(repo):
     repo.write("src/app.py", "print('x')\n")
     repo.commit("change")
 
-    (gate,) = decision_gates(context_for(repo).task)
+    task = context_for(repo).task
+    assert task is not None
+    (gate,) = row_gates(task.decisions)
 
     assert gate.name == "decision:S-0009/D-1" and gate.run == "true"
     assert gate.origin == "S-0009/D-1" and gate.axis == "compliance"
     assert gate.sabotage == "tests/test_x.py" and gate.input == "worktree"
 
 
-def test_a_tasks_battery_carries_no_document_rows_or_invariants(repo):
-    """S-0106/D-2: only a document-branch battery runs the document's rows and
-    the standing invariants; a task's own attempt battery reads its contract
-    alone."""
-
-    from torve.gates.runner import decision_gates
-
-    repo.seed()
-    repo.task(
-        base_task(allow=["src/**"], decisions=_checked("true", twin="tests/test_x.py")),
-        log_document(),
-    )
-    repo.write("src/app.py", "print('x')\n")
-    repo.commit("change")
-
-    ctx = context_for(repo)
-
-    assert ctx.task is not None
-    assert ctx.inherited == [] and ctx.invariants == []
-    assert [gate.name for gate in decision_gates(ctx.task)] == ["decision:S-0009/D-1"]
-
-
-def test_a_manifest_that_runs_rows_at_completion_gives_an_attempt_none(repo):
-    """S-0122/D-4: `rows: completion` keeps a contract's checked rows out of
-    the attempt battery; the document's completion battery runs them."""
+def test_an_attempt_s_battery_runs_no_row_s_check(repo):
+    """S-0122/D-4: a row's check runs when its document completes. A task's
+    own battery carries none, whatever its contract holds."""
 
     from torve.gates.runner import battery
 
@@ -821,10 +775,28 @@ def test_a_manifest_that_runs_rows_at_completion_gives_an_attempt_none(repo):
     repo.commit("change")
 
     ctx = context_for(repo)
-    assert "decision:S-0009/D-1" in [gate.name for gate in battery(ctx)]
 
-    ctx.manifest = ctx.manifest.model_copy(update={"rows": "completion"})
+    assert ctx.task is not None and ctx.task.decisions
+    assert ctx.inherited == []
     assert not [gate.name for gate in battery(ctx) if gate.name.startswith("decision:")]
+    assert "decision:S-0009/D-1" in [gate.name for gate in battery(completing(repo))]
+
+
+def test_a_manifest_still_naming_rows_loads_with_a_warning(tmp_path):
+    """The key that chose where rows ran is gone; a manifest naming it loads
+    for this release and says so."""
+
+    import pytest
+
+    from torve.config.manifest import load_manifest
+
+    path = tmp_path / "gates.yaml"
+    path.write_text("schema_version: 1\nrows: attempt\ngates: []\n", encoding="utf-8")
+
+    with pytest.warns(FutureWarning, match="`rows` is ignored"):
+        manifest = load_manifest(path)
+
+    assert manifest.gates == []
 
 
 # ----------------------- #

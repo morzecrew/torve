@@ -781,9 +781,9 @@ def test_an_ordinary_contracts_prompt_stays_under_35_kb(tmp_path: Path) -> None:
     assert (len(module) + len(test)) / size > 0.5
 
 
-def test_rows_checked_at_completion_are_not_listed_as_attempt_gates(tmp_path: Path) -> None:
-    """S-0122/D-4: under `rows: completion` the attempt's battery runs no
-    row's check, so the battery `torve brief` prints names none as a gate."""
+def test_no_row_is_listed_as_an_attempt_gate(tmp_path: Path) -> None:
+    """S-0122/D-4: an attempt's battery runs no row's check, so the battery
+    `torve brief` prints names none as a gate, whatever the contract holds."""
 
     from torve.application.contextpack import gates_file
 
@@ -792,7 +792,6 @@ def test_rows_checked_at_completion_are_not_listed_as_attempt_gates(tmp_path: Pa
         yaml.safe_dump(
             {
                 "schema_version": 1,
-                "rows": "completion",
                 "gates": [
                     {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"}
                 ],
@@ -801,6 +800,6 @@ def test_rows_checked_at_completion_are_not_listed_as_attempt_gates(tmp_path: Pa
         encoding="utf-8",
     )
 
-    payload = gates_file(tmp_path, _task(), manifest)
+    payload = gates_file(manifest)
 
     assert [g["name"] for g in payload["gates"]] == ["scope"]

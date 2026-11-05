@@ -118,14 +118,10 @@ IDLE_SECONDS = 15.0
 # at another width is comparable against this one.
 NIGHT_WIDTH = 1
 
-# S-0079/D-1's kinds belong to this document's phase 1, which is not in this
-# tree — `EventKind` carries no `night.*` member and `SubjectType` no `NIGHT`.
-# Resolved by name so the open and the close land the moment phase 1 does,
-# and skipped until then: what the night refuses, stops on and closes at is
-# decided here and does not wait on the log's vocabulary.
-NIGHT_OPENED = getattr(EventKind, "NIGHT_OPENED", None)
-NIGHT_CLOSED = getattr(EventKind, "NIGHT_CLOSED", None)
-NIGHT_SUBJECT = getattr(SubjectType, "NIGHT", None)
+# S-0079/D-1: the night's open and close, and the subject they are recorded under.
+NIGHT_OPENED = EventKind.NIGHT_OPENED
+NIGHT_CLOSED = EventKind.NIGHT_CLOSED
+NIGHT_SUBJECT = SubjectType.NIGHT
 
 
 # ....................... #
@@ -1043,16 +1039,15 @@ async def open_night(
         knobs=knobs,
     )
 
-    if NIGHT_OPENED is not None and NIGHT_SUBJECT is not None:
-        await log.record(
-            NIGHT_OPENED,
-            partition=partition,
-            subject_type=NIGHT_SUBJECT,
-            subject_id=night.night_id,
-            actor_kind=ActorKind.MANAGER,
-            actor_id=actor_id,
-            payload=night.terms(),
-        )
+    await log.record(
+        NIGHT_OPENED,
+        partition=partition,
+        subject_type=NIGHT_SUBJECT,
+        subject_id=night.night_id,
+        actor_kind=ActorKind.MANAGER,
+        actor_id=actor_id,
+        payload=night.terms(),
+    )
 
     return night
 
@@ -1083,21 +1078,20 @@ async def close_night(
     # holds the bound in `reason` and the class in `detail`.
     bound, _, detail = reason.partition(":")
 
-    if NIGHT_CLOSED is not None and NIGHT_SUBJECT is not None:
-        await log.record(
-            NIGHT_CLOSED,
-            partition=partition,
-            subject_type=NIGHT_SUBJECT,
-            subject_id=night.night_id,
-            actor_kind=ActorKind.MANAGER,
-            actor_id=actor_id,
-            payload={
-                "reason": bound,
-                "detail": detail,
-                "handled": handled,
-                "overran_seconds": max(0.0, (closed_at - night.ends_at).total_seconds()),
-            },
-        )
+    await log.record(
+        NIGHT_CLOSED,
+        partition=partition,
+        subject_type=NIGHT_SUBJECT,
+        subject_id=night.night_id,
+        actor_kind=ActorKind.MANAGER,
+        actor_id=actor_id,
+        payload={
+            "reason": bound,
+            "detail": detail,
+            "handled": handled,
+            "overran_seconds": max(0.0, (closed_at - night.ends_at).total_seconds()),
+        },
+    )
 
     return reason
 

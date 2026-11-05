@@ -87,7 +87,7 @@ def brief_cmd(
     # (S-0054/D-10). The battery is no longer in it (S-0122/the-evidence-package),
     # so it is read from the manifest the same way the pack used to.
     pack = materialize_pack(root, build_pack(root, specs, task, layout.gates_file(root)))
-    battery: list[dict[str, Any]] = gates_file(root, task, layout.gates_file(root))["gates"]
+    battery: list[dict[str, Any]] = gates_file(layout.gates_file(root))["gates"]
 
     if fmt is Format.JSON:
         emit_json(

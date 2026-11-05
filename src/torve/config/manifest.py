@@ -7,7 +7,7 @@ from __future__ import annotations
 import warnings
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
-from typing import Annotated, Literal
+from typing import Annotated
 
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -482,9 +482,6 @@ class Manifest(BaseModel):
     telemetry: str = ".torve/telemetry.jsonl"
     """The path, relative to the repository root, the gate run appends its telemetry
     records to."""
-    rows: Literal["attempt", "completion"] = "attempt"
-    """Where a contract row's `check` runs (S-0122/D-4): on every attempt as a
-    `decision:<id>` gate, or only in the battery that completes its document."""
     gates: list[Gate] = Field(default_factory=list)
     """The battery itself: every gate entry, run in the order the resolver puts them
     in."""
@@ -571,6 +568,17 @@ def load_manifest(path: Path) -> Manifest:
 
     if not isinstance(raw, dict):
         raise ValueError(f"{path}: manifest must be a mapping")
+
+    # S-0122/D-4: a row's check runs when its document completes, always, so
+    # the key that chose it is gone; a manifest naming it loads for this release.
+    if "rows" in raw:
+        warnings.warn(
+            f"{path}: `rows` is ignored since 0.9.0 — a row's check runs when its "
+            "document completes; delete the key from the manifest",
+            FutureWarning,
+            stacklevel=2,
+        )
+        raw = {key: value for key, value in raw.items() if key != "rows"}
 
     try:
         manifest = Manifest.model_validate(raw)

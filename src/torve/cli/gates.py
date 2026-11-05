@@ -42,7 +42,7 @@ from torve.config.manifest import load_manifest, read_layout
 from torve.domain.states import EXIT_CONFIG, EXIT_GATES_RED, EXIT_INFRASTRUCTURE, EXIT_OK
 from torve.gates import sabotage
 from torve.gates.context import GitError, build_context, load_task
-from torve.gates.runner import decision_gates, run_gates
+from torve.gates.runner import run_gates
 
 # ----------------------- #
 
@@ -192,8 +192,7 @@ def gates_list(
     try:
         manifest = load_manifest(manifest_path)
         task = load_task(task_path) if task_path is not None else None
-        rows = decision_gates(task) if manifest.rows == "attempt" else []
-        gates = [*manifest.resolved_gates(), *rows]
+        gates = manifest.resolved_gates()
 
     except (ValueError, yaml.YAMLError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc

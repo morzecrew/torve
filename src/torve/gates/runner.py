@@ -23,8 +23,7 @@ from torve.base.globs import matches
 from torve.base.shell import run_command
 from torve.config.manifest import SHELL_GATE_TIMEOUT, Gate
 from torve.domain.attempt import BypassRecord, GateResult
-from torve.domain.spec import Invariant
-from torve.domain.task import InheritedDecision, Task
+from torve.domain.task import InheritedDecision
 from torve.domain.vocabulary import GateOutcome
 from torve.gates import BUILTINS
 from torve.gates.acceptance import selected_nothing
@@ -36,9 +35,6 @@ from torve.gates.contract import BuiltinOutcome
 #: Every contract-borne gate's name carries this prefix (`decision:<id>`), so
 #: the runner tells a row's check from a manifest entry by name alone.
 DECISION_PREFIX = "decision:"
-#: A standing invariant's check as a gate (`invariant:<id>`), likewise told
-#: from a manifest entry by name alone (S-0106/D-2).
-INVARIANT_PREFIX = "invariant:"
 
 
 @dataclass
@@ -182,42 +178,6 @@ def _words(command: str) -> list[str]:
         return command.split()
 
 
-def decision_gates(task: Task | None) -> list[Gate]:
-    """The contract's checkable rows as gates (S-0054 S-0054/D-2).
-
-    Contract-borne: never written into the manifest, and gone with the
-    contract. Read from the contract alone, never the corpus (S-0007/D-18).
-    Takes the contract rather than the run context: the same list answers
-    `torve gates list`, which has no repository to build a context against."""
-
-    if task is None:
-        return []
-
-    return row_gates(task.decisions)
-
-
-def invariant_gates(invariants: Iterable[Invariant]) -> list[Gate]:
-    """Standing invariants as gates (S-0106/D-2): one `invariant:<id>` shell
-    gate per invariant, always `shadow` — an invariant is a statement with a
-    check, never a grade to block under. Its paths are the gate's, so an
-    invariant the diff does not reach is reported skipped rather than run for
-    nothing."""
-
-    return [
-        Gate(
-            name=f"{INVARIANT_PREFIX}{invariant.id}",
-            run=invariant.check,
-            state="shadow",
-            origin=invariant.id,
-            axis="compliance",
-            input="worktree",
-            timeout=SHELL_GATE_TIMEOUT,
-            paths=list(invariant.paths),
-        )
-        for invariant in invariants
-    ]
-
-
 # ....................... #
 
 
@@ -230,16 +190,13 @@ def _execute(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     command = _substitute_base(gate, ctx)
     result = run_command(command, ctx.root, gate.timeout or 600.0, execute=ctx.execute)
 
-    # A contract-borne gate whose command selects no test proves nothing: for a
-    # decision gate, nothing about its row (S-0106/D-1); for an invariant gate,
-    # nothing about the rule, so a stale `-k` selection reads as stale rather
-    # than as a broken rule (S-0113/D-6). pytest's exit 5, or a summary
-    # reporting no test ran — the reading `acceptance` makes — is a failure by
-    # its own name, under the gate's own state. Any other shell gate keeps the
-    # plain exit-code verdict.
-    if gate.name.startswith((DECISION_PREFIX, INVARIANT_PREFIX)) and selected_nothing(
-        result.exit_code, result.output
-    ):
+    # A row's check whose command selects no test proves nothing about its row
+    # (S-0106/D-1), so a stale `-k` selection reads as stale rather than as a
+    # broken rule (S-0113/D-6). pytest's exit 5, or a summary reporting no test
+    # ran — the reading `acceptance` makes — is a failure by its own name, under
+    # the gate's own state. Any other shell gate keeps the plain exit-code
+    # verdict.
+    if gate.name.startswith(DECISION_PREFIX) and selected_nothing(result.exit_code, result.output):
         return BuiltinOutcome(
             "fail",
             f"the check selected nothing\n\n{result.output}",
@@ -340,12 +297,9 @@ def _judges_anything(gate: Gate, ctx: GateContext) -> bool:
 def battery(ctx: GateContext, only: set[str] | None = None) -> list[Gate]:
     """The gates a pass over *ctx* runs, in the order it runs them."""
 
-    gates = [
-        *ctx.manifest.resolved_gates(),
-        *(decision_gates(ctx.task) if ctx.manifest.rows == "attempt" else []),
-        *row_gates(ctx.inherited),
-        *invariant_gates(ctx.invariants),
-    ]
+    # A row's check runs only in the battery completing its document, which
+    # hands it the document's rows (S-0122/D-4).
+    gates = [*ctx.manifest.resolved_gates(), *row_gates(ctx.inherited)]
 
     if only is not None:
         unknown = only - {g.name for g in gates}
