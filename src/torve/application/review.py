@@ -792,7 +792,7 @@ def run_seat(
     can reach anything that was read into the judgment. *stage* writes the
     caller's inputs into the fresh copy; *read* turns an answer into
     (verdict, refusal); *harvest*, when given, reads what the copy still
-    holds once the verdict is in and before the copy dies."""
+    holds once the verdict is in and the sandbox is gone, before the copy dies."""
 
     from torve.application.telemetry import agent_token_counts
 
@@ -843,6 +843,7 @@ def run_seat(
 
     started_at = stamp()
     review_clock = time.monotonic()
+    answered = False
 
     try:
         # A transient provider failure (500/529 through the gateway, or a 429
@@ -882,26 +883,33 @@ def run_seat(
             verdict, refusal = read(result.output)
             asks.append(result)
 
-        if harvest is not None:
-            harvested = harvest(copy, verdict)
+        answered = True
 
     finally:
         runtime.destroy(handle)
         state.sandbox_id = None
         state.save()
 
-        # The copy goes with the sandbox: whatever the reviewer wrote, built
-        # or broke reaches no one, because it is no longer anywhere (S-0005/D-2).
-        destroy_review_copy(copy)
+        try:
+            # The harvest reads the copy only once the sandbox is gone: a
+            # process the seat left running could otherwise swap a path it
+            # checked for a link before it reads.
+            if answered and harvest is not None:
+                harvested = harvest(copy, verdict)
 
-        # The reviewer's session may have been written over the executor's
-        # trace path before anything else could fail — put the executor's
-        # evidence back either way (or drop the review's session from a path
-        # that never held one before).
-        if saved_executor_trace is not None:
-            executor_trace.write_bytes(saved_executor_trace)
-        else:
-            executor_trace.unlink(missing_ok=True)
+        finally:
+            # The copy goes with the sandbox: whatever the reviewer wrote, built
+            # or broke reaches no one, because it is no longer anywhere (S-0005/D-2).
+            destroy_review_copy(copy)
+
+            # The reviewer's session may have been written over the executor's
+            # trace path before anything else could fail — put the executor's
+            # evidence back either way (or drop the review's session from a path
+            # that never held one before).
+            if saved_executor_trace is not None:
+                executor_trace.write_bytes(saved_executor_trace)
+            else:
+                executor_trace.unlink(missing_ok=True)
 
     # The review's session lives under its own id — which, since the copy sits
     # at the review's own worktree address, is the name the harness gives it

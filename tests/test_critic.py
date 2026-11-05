@@ -15,11 +15,13 @@ import yaml
 from test_review_run import SequencedReviewer, review_rig  # noqa: F401 — the fixture, by name
 from test_run_loop import OK, MockRuntime, ScriptedAgent, task_for
 
+import torve.application.critic as critic_module
 import torve.application.runner as run_module
 from torve.application.critic import (
     PROMPT_FILE,
     SCHEMA_FILE,
     CriticDocument,
+    corpus_repository,
     critic_prompt,
     critic_schema,
     decide,
@@ -100,6 +102,7 @@ TABLE = [
     ("owned row holds", [{"row": OWNED, "verdict": "holds", "evidence": LOCATED}], [], "major", False),
     ("locked constraint violated", [{"row": LOCKED, "verdict": "violated", "evidence": LOCATED}], [], "major", True),
     ("a row nobody gave violated", [{"row": "S-0700/D-9", "verdict": "violated", "evidence": LOCATED}], [], "major", False),
+    ("a later holds keeps a located violation", [{"row": OWNED, "verdict": "violated", "evidence": LOCATED}, {"row": OWNED, "verdict": "holds", "evidence": LOCATED}], [], "major", True),
     ("nothing at all", [], [], "major", False),
 ]  # fmt: skip
 
@@ -381,6 +384,57 @@ def test_one_call_stages_the_evidence_scrubs_the_author_and_keeps_named_probes(r
     # Nothing the critic wrote survived.
     assert not (worktree / "probes").exists()
     assert not (repo.root / ".wt" / review.id).exists()
+
+
+def test_the_probes_are_read_only_once_the_critics_sandbox_is_gone(repo, monkeypatch):
+    """A process the critic left running could swap a probe for a link to a
+    host file between the containment check and the read."""
+
+    worktree, target = _candidate(repo)
+    runtime = MockRuntime()
+    destroyed_at_harvest: list[list[str]] = []
+
+    def harvest(copy, document):
+        destroyed_at_harvest.append(list(runtime.destroyed))
+        return {}
+
+    monkeypatch.setattr(critic_module, "_keep_probes", harvest)
+
+    run_critic(
+        repo.root,
+        worktree,
+        target,
+        mint_review_task(repo.root, target),
+        critic_config(),
+        runtime,
+        ScriptedAgent([AgentResult(exit_code=0, output=answer())]),
+        "",
+        None,
+        "digest",
+    )
+
+    assert len(destroyed_at_harvest) == 1 and destroyed_at_harvest[0]
+
+
+def test_a_corpus_case_that_deletes_a_file_replays_without_it(tmp_path):
+    case = tmp_path / "case"
+    (case / "tree" / "src").mkdir(parents=True)
+    (case / "tree" / "src" / "kept.py").write_text("kept\n", encoding="utf-8")
+    (case / "diff.patch").write_text(
+        "diff --git a/src/old.py b/src/old.py\ndeleted file mode 100644\n"
+        "--- a/src/old.py\n+++ /dev/null\n@@ -1 +0,0 @@\n-gone\n",
+        encoding="utf-8",
+    )
+    repo = tmp_path / "repo"
+
+    assert corpus_repository(case, repo) is None
+
+    shown = subprocess.run(
+        ["git", "-C", str(repo), "show", "main:src/old.py"], capture_output=True, text=True
+    )
+    assert shown.stdout == "gone\n"
+    assert not (repo / "src" / "old.py").exists()
+    assert (repo / "src" / "kept.py").read_text(encoding="utf-8") == "kept\n"
 
 
 # ....................... #

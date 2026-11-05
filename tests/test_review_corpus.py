@@ -500,6 +500,32 @@ def test_a_critic_finding_of_another_kind_misses_a_kinded_expectation(tmp_path, 
     assert json.loads(result.stdout)["cases"][0]["missed"]
 
 
+def test_a_violated_row_meets_a_contract_expectation(tmp_path, monkeypatch):
+    root = critic_corpus(tmp_path)
+    case = root / ".torve" / "review-corpus" / "gaming" / "case.yaml"
+    document = yaml.safe_load(case.read_text(encoding="utf-8"))
+    document["expect"] = [{"severity": "major", "kind": "contract", "claim_contains": "pytest"}]
+    case.write_text(yaml.safe_dump(document), encoding="utf-8")
+    answer = json.dumps(
+        {
+            "rows": [
+                {
+                    "row": "S-0902/D-1",
+                    "verdict": "violated",
+                    "evidence": "src/rates.py:5 — branches on PYTEST_CURRENT_TEST",
+                    "note": "the charge exists only while pytest runs",
+                }
+            ],
+            "findings": [],
+        }
+    )
+
+    result = invoke_critic_corpus(root, monkeypatch, ReadingCritic(answer))
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["cases"][0]["caught"] == 1
+
+
 def test_the_classic_replay_reports_whether_it_would_block(tmp_path, monkeypatch):
     root = seed_corpus(tmp_path)
     output = json.dumps(

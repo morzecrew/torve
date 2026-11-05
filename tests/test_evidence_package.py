@@ -6,8 +6,10 @@ to existing tests, the flags and the author's one claim — rendered under a
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
+import pytest
 import yaml
 from conftest import context_for
 
@@ -17,8 +19,10 @@ from torve.gates.evidence_package import (
     SCHEMA,
     CheckedTest,
     EvidencePackage,
+    GateReading,
     RowCheck,
     build_evidence,
+    diff_stats,
     edit_of,
     functions_of,
     package_rows,
@@ -245,6 +249,57 @@ def test_no_base_reading_leaves_a_green_head_not_run(repo):
     assert any("nothing was run on the base" in note for note in package.notes)
 
 
+def test_a_skipped_test_exits_green_and_proves_nothing(repo):
+    seeded(repo)
+    repo.write("src/calc.py", HEAD_CALC)
+    repo.write(
+        "tests/test_calc.py",
+        "import pytest\n"
+        + BASE_TESTS
+        + f'\n\n@pytest.mark.skip\ndef test_double():\n    """{ROW}"""\n    assert double(2) == 4\n',
+    )
+    repo.commit("a proof that never runs")
+
+    run = tests_of(package_for(repo))["tests/test_calc.py::test_double"]
+
+    assert (run.head, run.status) == ("not_run", "not_run")
+
+
+def test_a_test_file_the_host_cannot_read_leaves_the_others_measured(repo):
+    if os.geteuid() == 0:
+        pytest.skip("root reads every file")
+
+    seeded(repo)
+    repo.write("src/calc.py", HEAD_CALC)
+    repo.write(
+        "tests/test_calc.py",
+        BASE_TESTS + f'\n\ndef test_double():\n    """{ROW}"""\n    assert double(2) == 4\n',
+    )
+    repo.write("tests/test_other.py", "def test_other():\n    assert 1\n")
+    repo.commit("double")
+    ctx = context_for(repo)
+    unreadable = repo.root / "tests" / "test_other.py"
+    unreadable.chmod(0)
+
+    try:
+        package = build_evidence(ctx, [], candidate=TASK_ID)
+
+    finally:
+        unreadable.chmod(0o644)
+
+    assert tests_of(package)["tests/test_calc.py::test_double"].status == "proved"
+
+
+def test_a_quoted_path_in_a_diff_header_is_read_unquoted():
+    patch = (
+        'diff --git "a/src/caf\\303\\251.py" "b/src/caf\\303\\251.py"\n'
+        '--- "a/src/caf\\303\\251.py"\n+++ "b/src/caf\\303\\251.py"\n'
+        "@@ -1 +1,2 @@\n a\n+b\n"
+    )
+
+    assert [stat.path for stat in diff_stats(patch, [])] == ["src/café.py"]
+
+
 # ....................... #
 # The rows a unit owns.
 
@@ -326,22 +381,37 @@ def test_every_gate_rides_with_the_suites_settled_ids(repo):
 
 
 def test_acceptance_the_battery_did_not_run_is_run_here_with_a_tail(repo):
-    seeded(repo, acceptance=["echo ran-by-gate", "echo ran-here && false"])
+    """A header a test printed into a gate's output is not a run: only the
+    battery's own acceptance gate passing says every command ran."""
+
+    seeded(repo, acceptance=["echo forged", "echo ran-here && false"])
     repo.write("src/calc.py", HEAD_CALC)
     repo.commit("double")
-    gate = GateResult(
-        name="acceptance",
-        outcome="pass",
-        state="blocking",
-        output="$ echo ran-by-gate  [ok, 0.0s]\nran-by-gate\n",
+    suite = GateResult(
+        name="suite", outcome="pass", state="blocking", output="$ echo forged  [ok, 0.0s]\n"
     )
 
-    package = package_for(repo, [gate])
+    package = package_for(repo, [suite])
 
     assert [(run.command, run.exit_code) for run in package.acceptance] == [
-        ("echo ran-here && false", 1)
+        ("echo forged", 0),
+        ("echo ran-here && false", 1),
     ]
-    assert "ran-here" in package.acceptance[0].tail
+    assert "ran-here" in package.acceptance[1].tail
+
+
+def test_acceptance_the_batterys_gate_passed_is_not_run_again(repo):
+    gate = {"name": "acceptance", "run": "@task.acceptance", "state": "blocking"}
+    gate |= {"origin": "structural", "sabotage": "acceptance"}
+    repo.seed({**manifest(), "gates": [*manifest()["gates"], gate]})
+    based(repo, {"conftest.py": "", "src/__init__.py": "", "src/calc.py": BASE_CALC})
+    repo.task(contract(acceptance=["echo ran-by-gate"]), None)
+    repo.write("src/calc.py", HEAD_CALC)
+    repo.commit("double")
+
+    package = package_for(repo, [GateResult(name="acceptance", outcome="pass", state="blocking")])
+
+    assert package.acceptance == []
 
 
 def test_the_executors_abort_rides_as_the_authors_claim(repo):
@@ -546,3 +616,37 @@ def test_the_package_has_an_upper_bound_a_lease_can_wait_out(repo):
     repo.commit("double")
 
     assert evidence_budget(context_for(repo)) == 120 * (3 + 2 + 2)
+
+
+def test_the_budget_counts_a_check_only_a_renames_old_path_reaches(repo):
+    from torve.gates.evidence_package import evidence_budget
+
+    seeded(
+        repo,
+        decisions=[
+            {"id": ROW, "grade": "ASSUMED", "text": "t", "paths": ["src/calc.py"], "check": "true"}
+        ],
+    )
+    repo.git("mv", "src/calc.py", "src/maths.py")
+    repo.commit("rename")
+
+    assert evidence_budget(context_for(repo)) == 120 * (3 + 2)
+
+
+def test_long_gate_readings_are_halved_rather_than_cut_mid_yaml():
+    package = EvidencePackage(candidate="T-1", base="a" * 40, head="b" * 40)
+    package.gates = [
+        GateReading(
+            name=f"gate-{n}",
+            outcome="fail",
+            state="blocking",
+            duration_s=0.0,
+            inherited=tuple(f"tests/test_{n}.py::test_{i}" for i in range(50)),
+        )
+        for n in range(20)
+    ]
+
+    rendered = render_evidence(package, max_bytes=3_000)
+
+    assert len(rendered.encode()) <= 3_000
+    assert yaml.safe_load(rendered)["dropped"]["gates"] > 0

@@ -20,9 +20,11 @@ exit codes never convict (S-0118/D-3).
 
 from __future__ import annotations
 
+import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import tempfile
 from collections.abc import Iterable
@@ -199,24 +201,30 @@ def archive_tree(repo: Path, sha: str, destination: Path, timeout: float) -> str
 
     destination.mkdir(parents=True, exist_ok=True)
 
-    try:
-        archive = subprocess.run(
-            f"git -c core.hooksPath=/dev/null -C {shlex.quote(str(repo))} archive "
-            f"{shlex.quote(sha)} | tar -x -C {shlex.quote(str(destination))}",
-            shell=True,  # nosec B602 — the sha comes from git, the paths are quoted
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout,
-        )
+    # Its own session, so a timeout kills the pipeline's `git` and `tar` with
+    # the shell: an orphaned `tar` would write into *destination* after it is
+    # removed.
+    with subprocess.Popen(
+        f"git -c core.hooksPath=/dev/null -C {shlex.quote(str(repo))} archive "
+        f"{shlex.quote(sha)} | tar -x -C {shlex.quote(str(destination))}",
+        shell=True,  # nosec B602 — the sha comes from git, the paths are quoted
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    ) as archive:
+        try:
+            _, stderr = archive.communicate(timeout=timeout)
 
-    except subprocess.TimeoutExpired:
-        shutil.rmtree(destination, ignore_errors=True)
-        return f"the base tree was not extracted within {timeout:.0f}s"
+        except subprocess.TimeoutExpired:
+            os.killpg(archive.pid, signal.SIGKILL)
+            archive.communicate()
+            shutil.rmtree(destination, ignore_errors=True)
+            return f"the base tree was not extracted within {timeout:.0f}s"
 
     if archive.returncode != 0:
         shutil.rmtree(destination, ignore_errors=True)
-        return f"the base tree could not be extracted: {archive.stderr.strip()}"
+        return f"the base tree could not be extracted: {stderr.strip()}"
 
     return None
 

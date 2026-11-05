@@ -270,6 +270,10 @@ def _case_outcome(
             decision = verdict.decision
             blocked = bool(decision and decision.blocked)
             found = [f.model_dump() for f in decision.kept] if decision else []
+            # A violated row blocks as a finding does (S-0122/D-1), so it can
+            # meet an expectation too, as a contract finding: `verdict.kept`
+            # is the critic's findings followed by its violated rows.
+            found += [{**f.model_dump(), "kind": "contract"} for f in verdict.kept[len(found) :]]
             rows = decision.rows if decision else []
 
         else:

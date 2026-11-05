@@ -36,6 +36,7 @@ says it was cut. The raw outputs ride beside it as logs, never inside it.
 from __future__ import annotations
 
 import ast
+import codecs
 import configparser
 import re
 import shlex
@@ -81,6 +82,11 @@ Status = Literal["proved", "held", "broken", "failing", "unlinked", "not_run"]
 _STATUS_ORDER: tuple[Status, ...] = ("broken", "failing", "proved", "held", "not_run")
 
 _RED: frozenset[Reading] = frozenset({"fail", "error"})
+
+#: What the package adds to the manifest's test launcher: the short summary
+#: names failures, errors and passes, so a test that never ran reads as such.
+_REPORT_CHARS = "-rfEp"
+_PASSED = re.compile(r"^PASSED (\S+)", re.MULTILINE)
 
 # Added text that addresses whoever judges the change rather than whoever
 # reads the code: a reviewer, a critic, a model. Case-blind, whole words.
@@ -253,7 +259,7 @@ def _patch_sections(patch: str) -> Iterator[tuple[str, list[str]]]:
             if path is not None:
                 yield path, lines
 
-            path = line.split(" b/", 1)[-1].strip() if " b/" in line else ""
+            path = _new_path(line)
             lines = []
             continue
 
@@ -262,6 +268,17 @@ def _patch_sections(patch: str) -> Iterator[tuple[str, list[str]]]:
 
     if path is not None:
         yield path, lines
+
+
+def _new_path(header: str) -> str:
+    """The new-side path of a `diff --git` header. Git C-quotes a path that
+    holds a quote, a backslash, a control or a non-ASCII byte."""
+
+    if header.endswith('"') and ' "b/' in header:
+        quoted = header[header.rindex(' "b/') + 2 : -1].encode("utf-8")
+        return codecs.escape_decode(quoted)[0].decode("utf-8", "replace")[2:]
+
+    return header.split(" b/", 1)[-1].strip() if " b/" in header else ""
 
 
 def added_lines(patch: str) -> dict[str, list[tuple[int, str]]]:
@@ -522,17 +539,22 @@ def _reading(exit_code: int | None, output: str, node: str) -> Reading:
     if file in collection_errors(output):
         return "error"
 
+    def named(ids: Iterable[str]) -> bool:
+        return any(one == node or one.startswith(f"{node}[") for one in ids)
+
     red = failing_ids(output)
 
-    if any(one == node or one.startswith(f"{node}[") for one in red):
+    if named(red):
         return "fail"
 
-    if exit_code == 0:
-        return "pass"
+    # Exit 1 is "some test failed": an id it did not name may have passed.
+    # Only an id the summary names as passed ran green: a skipped, xfailed
+    # or deselected test exits the same and proved nothing. Any other code
+    # (interrupted, usage error, nothing collected) read nothing.
+    if exit_code == 0 or (exit_code == 1 and red):
+        return "pass" if named(_PASSED.findall(output)) else "not_run"
 
-    # Exit 1 is "some test failed": an id it did not name passed. Any other
-    # code (interrupted, usage error, nothing collected) read nothing.
-    return "pass" if exit_code == 1 and red else "error"
+    return "error"
 
 
 def _check_reading(exit_code: int | None, output: str) -> Reading:
@@ -810,11 +832,28 @@ def _overlay_tests(ctx: GateContext, stats: list[FileStat], base_dir: Path) -> s
             missing.add(stat.path)
             continue
 
+        try:
+            text = source.read_bytes()
+
+        except OSError:
+            missing.add(stat.path)
+            continue
+
         target = base_dir / stat.path
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(source.read_bytes())
+        target.write_bytes(text)
 
     return missing
+
+
+def _changed_paths(ctx: GateContext) -> list[str]:
+    """Every path the change touched, a rename's old path among them, less
+    the engine's own files: what the rows and the fence are judged over."""
+
+    engine = _engine_paths(ctx.task, ctx.specs)
+    touched = [*ctx.changed_paths, *(e.old_path for e in ctx.diff if e.old_path)]
+
+    return [path for path in dict.fromkeys(touched) if not matches(path, engine)]
 
 
 def evidence_budget(ctx: GateContext) -> float:
@@ -823,7 +862,7 @@ def evidence_budget(ctx: GateContext) -> float:
     waits out its package. The head and base test runs and the base's
     extraction, each row check on both sides, each acceptance command."""
 
-    checks = sum(1 for row, _ in package_rows(ctx.task, ctx.changed_paths) if row.check)
+    checks = sum(1 for row, _ in package_rows(ctx.task, _changed_paths(ctx)) if row.check)
     acceptance = len(ctx.task.acceptance) if ctx.task is not None else 0
 
     return _timeout(ctx) * (3 + 2 * checks + acceptance)
@@ -851,13 +890,7 @@ def build_evidence(
         for stat in diff_stats(ctx.patch, ctx.manifest.tests.patterns)
         if not matches(stat.path, engine)
     ]
-    changed = [
-        path
-        for path in dict.fromkeys(
-            [*ctx.changed_paths, *(e.old_path for e in ctx.diff if e.old_path)]
-        )
-        if not matches(path, engine)
-    ]
+    changed = _changed_paths(ctx)
     package = EvidencePackage(candidate=candidate, base=ctx.merge_base, head=ctx.head_sha)
     package.files = stats
     timeout = _timeout(ctx)
@@ -903,7 +936,7 @@ def build_evidence(
     runner = ctx.manifest.tests.run.strip()
 
     if tests.ids and runner:
-        command = f"{runner} {' '.join(shlex.quote(node) for node in tests.ids)}"
+        command = f"{runner} {_REPORT_CHARS} {' '.join(shlex.quote(node) for node in tests.ids)}"
         code, output = _run(ctx, command, timeout)
         package.logs["tests-head.log"] = f"$ {command}  [exit {code}]\n{output}"
         head = {node: _reading(code, output, node) for node in tests.ids}
@@ -933,7 +966,7 @@ def build_evidence(
 
                 if ran and runner:
                     ids = " ".join(shlex.quote(node) for node in ran)
-                    command = f"cd {where} && {runner} {ids}"
+                    command = f"cd {where} && {runner} {_REPORT_CHARS} {ids}"
                     code, output = _run(ctx, command, timeout)
                     package.logs["tests-base.log"] = f"$ {command}  [exit {code}]\n{output}"
                     base.update({node: _reading(code, output, node) for node in ran})
@@ -1002,20 +1035,22 @@ def build_evidence(
 def _acceptance(
     ctx: GateContext, results: list[GateResult], timeout: float, logs: dict[str, str]
 ) -> list[CommandRun]:
-    """The contract's acceptance commands the battery did not already run,
-    each run once here: a command a gate ran printed its `$ command  [`
-    header into that gate's output."""
+    """The contract's acceptance commands, each run once here unless the
+    battery's acceptance gate passed: that gate runs every one of them and
+    stops only at a red one. Read from the gate's outcome, never its output,
+    which a candidate's test can print a forged `$ command` header into."""
 
     if ctx.task is None:
         return []
 
-    ran = "\n".join(result.output for result in results)
+    gates = {gate.name for gate in ctx.manifest.gates if gate.builtin == "acceptance"}
+
+    if any(result.name in gates and result.outcome in ("pass", "flaky") for result in results):
+        return []
+
     runs: list[CommandRun] = []
 
     for index, command in enumerate(ctx.task.acceptance, start=1):
-        if f"$ {command}  [" in ran:
-            continue
-
         code, output = _run(ctx, command, timeout)
         logs[_log_name("acceptance", str(index))] = f"$ {command}  [exit {code}]\n{output}"
         runs.append(CommandRun(command=command, exit_code=code, tail=clip(output, TAIL_BYTES)))
@@ -1115,9 +1150,12 @@ _HALVED = (
     "flags",
     "files",
     "outside_files",
+    "fence_breaches",
+    "gates",
     "rows",
     "author_claim",
     "acceptance",
+    "notes",
 )
 
 

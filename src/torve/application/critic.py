@@ -276,7 +276,14 @@ def decide(
     kept, discarded = filter_findings(document.findings, root)
     stopping = STOPS_AT[blocks_at]
     blockers = [finding for finding in kept if finding.severity in stopping]
-    answered = {verdict.row: verdict for verdict in document.rows}
+
+    def weight(verdict: RowVerdict) -> tuple[bool, bool]:
+        located = bool(verdict.evidence) and locate(verdict.evidence, root) is None
+        return verdict.verdict == "violated", located
+
+    # A row answered twice keeps its gravest verdict: a later `holds` never
+    # erases a located `violated`.
+    answered = {verdict.row: verdict for verdict in sorted(document.rows, key=weight)}
     violated: list[RowVerdict] = []
     recorded: list[dict[str, Any]] = []
 
@@ -775,9 +782,9 @@ def corpus_repository(case_dir: Path, repo: Path) -> str | None:
     _git(repo, "commit", "-q", "--allow-empty", "-m", "base")
     _git(repo, "checkout", "-q", "-b", "candidate")
 
-    if reverse:
-        _tree_copy(case_dir / "tree", repo)
-    elif forward:
+    # Forward over the base in both cases: copying the tree back over it
+    # would keep a file the patch deletes.
+    if reverse or forward:
         _git(repo, "apply", str(patch))
 
     _git(repo, "add", "-A")
