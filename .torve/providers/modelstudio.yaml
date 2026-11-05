@@ -79,3 +79,16 @@ models:
   deepseek-v4.1-flash:
     context_window: 1000000
     reasoning: [minimal, low, medium, high, xhigh, max, ultra]
+  # The dated snapshot the dsh seat pins (S-0122/D-10); dsh added support for it
+  # in 0.2.1-rc.2. Its levels are not the undated entry's either: this endpoint
+  # takes `low`, `high` and `max` for it, and answers `medium` as `high`. So
+  # `medium` is left out, and a seat naming it is refused at load instead of
+  # paying for a level it would not get. These are from the S-0122 research,
+  # not yet from a deliberate 400 of this file's own — probe before widening.
+  #
+  # No `max_tokens` and no `price`, for the reasons the entries above give. The
+  # window is the vendor's stated 1M again, and the dsh seat reads it as well:
+  # unstated, pi-ai sizes a model its catalog does not know at 262,144 tokens.
+  deepseek-v4.1-flash-1017:
+    context_window: 1000000
+    reasoning: [low, high, max]

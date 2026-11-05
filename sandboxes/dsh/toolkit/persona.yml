@@ -1,0 +1,10 @@
+# The head of the persona patch (S-0073/D-8). `run` appends the engine's staged
+# rules to it, indented into the block scalar below, and the build's smoke check
+# appends a stand-in the same way: a file, like `door.yml`, so the check reads
+# the bytes the seat sends. Nothing may follow the scalar's blank line but the
+# appended text.
+- id: system-prompt
+  config:
+    personaPrefix: |-
+      You are a coding agent powered by the {{model}} model.
+

@@ -473,11 +473,14 @@ BURN_CLASSES: tuple[str, ...] = (
 # is what keeps it honest). Tool names and command fragments are the engine's
 # own, settled by reading the calls they claim; the pack root is the context
 # the engine wrote for the attempt, and a call these do not name is `other`.
-_EDIT_TOOLS = frozenset({"Edit", "Write", "NotebookEdit"})
-_PACK_READ_TOOLS = frozenset({"Read", "Grep"})
-_ORIENTATION_TOOLS = frozenset({"Glob"})
+# dsh names its tools in lower case (`dsh-tool-fs`, `-fs-search`, `-bash`,
+# `-str-replace-editor` in 0.2.1-rc.5) and takes the same `file_path` and
+# `command` arguments.
+_EDIT_TOOLS = frozenset({"Edit", "Write", "NotebookEdit", "edit", "write", "str_replace_editor"})
+_PACK_READ_TOOLS = frozenset({"Read", "Grep", "read", "grep"})
+_ORIENTATION_TOOLS = frozenset({"Glob", "glob"})
 _BOOKKEEPING_TOOLS = frozenset({"TaskCreate", "TaskUpdate", "TaskList", "TaskGet"})
-_BASH = "Bash"
+_BASH_TOOLS = frozenset({"Bash", "bash"})
 _PACK_ROOT = ".torve/"
 
 _TEST_RUN_RE = re.compile(r"\b(pytest|just test)\b")
@@ -548,7 +551,7 @@ def _classify_call(
 
         return "orientation"
 
-    if name == _BASH:
+    if name in _BASH_TOOLS:
         command = _str((input_ or {}).get("command"))
 
         if _TEST_RUN_RE.search(command):

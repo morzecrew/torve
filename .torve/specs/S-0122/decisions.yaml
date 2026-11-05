@@ -119,16 +119,18 @@ decisions:
   - id: D-10
     grade: ASSUMED
     text: >-
-      The dsh seat pins `@deepseek-ai/dsh@0.2.1-rc.5` and `deepseek-v4.1-flash-1017`,
-      runs a `torve-exec` profile built on `sdk-minimal` with `DSH_PERMISSION_MODE=danger-full-access`
-      inside the container, telemetry off, a per-attempt `DSH_HOME`, an empty `DSH_AGENTS_HOME`
-      and a 900 s bash timeout, and every patch carries a `--dump-config` boot assertion
+      The dsh seat pins @deepseek-ai/dsh@0.2.1-rc.5 and deepseek-v4.1-flash-1017 and
+      runs the headless profile narrowed to nine tools, with DSH_PERMISSION_MODE=danger-full-access
+      inside the container, telemetry and the session-log upload off, per-attempt
+      homes and a 900 s bash timeout; the image's smoke check reads every patch back
+      out of --dump-config and fails the build on a dropped key or a disabled plugin
     paths: [sandboxes/dsh/**, .torve/harnesses/dsh.yaml]
     rationale: >-
       DeepSeek recommends 0.2.1-rc.1 or later for this model, Minimal beats Standard
       by 2 to 5 points on DeepSeek's own scaffold table, and dsh drops unknown keys
       and refused plugins without an error
     cites: [S-0121/D-9, S-0121/D-10]
+    fingerprint: 5346ad146b774b06/af8e7002dead8e91
   - id: D-11
     grade: ASSUMED
     text: >-
