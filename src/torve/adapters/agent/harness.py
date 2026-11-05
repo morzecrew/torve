@@ -23,6 +23,7 @@ material and nothing more.
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import subprocess
 from dataclasses import dataclass, replace
@@ -78,28 +79,15 @@ SKILLS_RELPATH = ".torve/skills"
 # attempts read the files it holds about thirty-four times between them. A file
 # costs a round trip and a decision to trust it; a grep costs a round trip and
 # no trust, so the grep wins and the file is written for nobody. It is already
-# bounded — whole under the pack's budget, an outline over it — which is what
-# makes it safe to carry.
+# bounded — bodies under the pack's budget, names past it — which is what makes
+# it safe to carry. The battery's manifest, coverage counts and contended paths
+# were handed over too, and went (S-0122/the-evidence-package): no attempt was
+# measured acting on them, and they were most of what this section weighed.
 HANDED_OVER: tuple[tuple[str, str], ...] = (
     ("map.md", "where things are: the source layout, the engine's own directories"),
     ("source.json", "what asked for this work: an audit, an incident, a review, an ask"),
-    ("gates.json", "the battery this attempt faces: name, axis, state, what convicts"),
-    (
-        "tests.json",
-        "coverage of the files in scope from the last battery, and the tests that name them",
-    ),
-    (
-        "attempts.json",
-        "this task's prior attempts, and each red gate's output, governing rows and failed tests",
-    ),
-    ("contended.json", "paths other work is contending for right now"),
-    (
-        "scope.md",
-        (
-            "the files this scope names and the tests that name them, whole under"
-            " the pack's budget and as an outline over it"
-        ),
-    ),
+    ("attempts.json", "this task's prior attempts, and what each blocking red printed"),
+    ("scope.md", "the files this task changes and their tests, whole; the contingent by name"),
 )
 
 # The two scripts every sandbox image answers (S-0063/D-1, S-0063/D-3): one
@@ -192,8 +180,11 @@ def pack_handover(workspace: Path) -> str:
             continue
 
         if body:
-            fence = "" if name.endswith(".md") else "json"
-            blocks += [f"### `{name}` — {says}", "", f"```{fence}", body, "```", ""]
+            # Longer than any backtick run the body holds: `scope.md` carries
+            # fenced files, and a fixed fence would close at the first of them.
+            fence = "`" * max(3, max((len(run) for run in re.findall(r"`+", body)), default=0) + 1)
+            hint = "" if name.endswith(".md") else "json"
+            blocks += [f"### `{name}` — {says}", "", f"{fence}{hint}", body, fence, ""]
 
     if not blocks:
         return ""
@@ -407,17 +398,12 @@ def build_prompt(
             paths = f" — paths: {', '.join(decision.paths)}" if decision.paths else ""
             lines.append(f"- `{decision.id}` ({decision.grade}): {decision.text}{paths}")
 
-            # S-0054/D-1: the reason the row exists reaches the executor; a
-            # checkable row says so, because its compliance is the battery's
-            # to prove and no attestation is owed for it (S-0054/D-3).
+            # S-0054/D-1: the reason the row exists reaches the executor. Its
+            # check does not: a row's check runs at document completion
+            # (S-0122/D-4), and a line naming it was read as one more command
+            # to run before stopping.
             if decision.consequence:
                 lines.append(f"  - why: {decision.consequence}")
-
-            if decision.check:
-                lines.append(
-                    f"  - checked by the battery as `decision:{decision.id}` "
-                    f"({decision.check_state}): `{decision.check}` — no log entry owed"
-                )
     else:
         lines.append("- none apply (explicitly).")
 
@@ -485,6 +471,22 @@ def reading_advice() -> str:
     )
 
 
+# What an executor may not do to a test, and the one way out when the task cannot
+# hold (S-0122/D-2, S-0122/D-3, S-0122/D-14). In every rules section, equipped or
+# not: it is the paragraph the evidence package and the protected-path gate
+# enforce, and an attempt should read it before it meets them. Adapted from the
+# ImpossibleBench finding that an honest exit cuts cheating: a gamed test is what
+# a model reaches for when stopping looks like failing.
+NO_GAMING = (
+    "Tests outside this contract's scope and the other protected paths (`conftest.py`,"
+    " the pytest configuration, `.torve/`) are read-only: run them, never change them."
+    " Do not edit an existing test to make it pass, skip or xfail a test, or write code"
+    " that behaves differently under test. If the rows, the intent and a test cannot all"
+    ' hold, run `torve abort --row <id> --claim "…" --evidence "path:line — …"` and stop.'
+    " A justified abort is a successful attempt. A gamed test is discarded."
+)
+
+
 def working_rules(prompt_extras: str = "", skills: str = "", equipped: bool = True) -> str:
     """The rules section, built once and reached by both channels it travels
     (S-0073/D-2): the prompt this module composes, and the system file the
@@ -519,16 +521,16 @@ def working_rules(prompt_extras: str = "", skills: str = "", equipped: bool = Tr
             "## Working rules",
             "",
             bullet,
-            # S-0073/D-1: the skill's own text is not restated here. The seven
-            # bullets this bullet replaced were the skill inlined — the
-            # divergence verbs, the owed check, the pack, the spec verbs, notes,
-            # the writing rule and the finishing rule — and two copies of the
-            # text that governs behaviour is one copy too many (S-0067/D-3).
+            "",
+            # S-0073/D-1: the skill's own text is not restated here; this
+            # paragraph is not the skill's, it is the engine's, and it holds
+            # for a role equipped with nothing.
+            NO_GAMING,
             # S-0029/equipment-on-the-tier, S-0029/D-1: a persona's extra working rules, appended
             # after the charter's base rules above — never before, never
             # replacing them. Verbatim (S-0061/A-5): the profile wrote prose, and
             # bulleting it here would decide a shape the operator already chose.
-            *([(prompt_extras or "").strip()] if (prompt_extras or "").strip() else []),
+            *(["", (prompt_extras or "").strip()] if (prompt_extras or "").strip() else []),
             "",
             *([skills.strip(), ""] if skills.strip() else []),
         ]
@@ -1877,7 +1879,9 @@ class HarnessAgent:
         # the sandbox can resolve it: the worktree's `.git` points into a
         # host tree the sandbox cannot follow. The intake reads it back, so
         # the agent is never asked to copy a commit it cannot verify.
-        seed_log(ctx.workspace, ctx.task.id, base=_workspace_head(ctx.workspace))
+        seed_log(
+            ctx.workspace, ctx.task.id, base=_workspace_head(ctx.workspace), attempt=ctx.attempt
+        )
         # The run's channel, for the same reason and by the same route (RFC
         # S-0045/the-intake-route): nothing inside the sandbox can discover the broker's
         # intake, so the engine names it here. No channel writes no file,

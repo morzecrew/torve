@@ -1042,8 +1042,10 @@ def _is_empty_implement_diff(ctx: GateContext, root: Path) -> bool:
 
 
 def _decides_a_row(ctx: GateContext) -> bool:
-    """Whether the attempt's log carries a `decided` entry for a row the
-    contract inherited, by either spelling of the row's id."""
+    """Whether the attempt's log answers a row the contract inherited, by
+    either spelling of the row's id: a `departed` entry (the phase is not
+    needed, with a proposal and evidence), or a `decided` one, which logs
+    written before S-0122/D-14 still carry."""
 
     from torve.gates.log_entry import parse_log
 
@@ -1064,7 +1066,10 @@ def _decides_a_row(ctx: GateContext) -> bool:
         if not isinstance(entry, dict):
             return False
 
-        if entry.get("action") == "decided" and str(entry.get("decision", "")) in rows:
+        if (
+            entry.get("action") in ("departed", "decided")
+            and str(entry.get("decision", "")) in rows
+        ):
             return True
 
         # A review round whose every claim is rejected with an entry has done

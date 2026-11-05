@@ -1,8 +1,10 @@
 """The context pack (S-0054/the-context-pack): every builder is a pure function of
 (record snapshot, tree, contract) — golden-shaped here — and the pack
-never names another task; the red of one attempt reaches the next
+never names another task; the blocking red of one attempt reaches the next
 (S-0054/D-12) as the gate's output tail, the rows it names and the tests it
-lists; a replay omits what reads the stream as it stands now."""
+lists; a replay omits what reads the stream as it stands now. The task's own
+files come first and whole, the contingent ones by name only
+(S-0122/the-evidence-package)."""
 
 from __future__ import annotations
 
@@ -17,10 +19,8 @@ from torve.application.contextpack import (
     PACK_DIR,
     attempts_file,
     build,
-    contended_file,
     conviction_of,
     decisions_file,
-    gates_file,
     materialize,
     render_index,
     scope_file,
@@ -179,165 +179,36 @@ def test_a_rows_history_carries_no_fingerprint_stamp(tmp_path: Path) -> None:
     assert [change["field"] for change in row["amended_by"]] == ["grade"]
 
 
-def test_gates_list_the_battery_with_axes_and_the_contract_gates(tmp_path: Path) -> None:
-    manifest = tmp_path / "gates.yaml"
-    manifest.write_text(
-        yaml.safe_dump(
-            {
-                "schema_version": 1,
-                "scope": {"allow": [], "deny": []},
-                "gates": [
-                    {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"},
-                    {
-                        "name": "lint",
-                        "run": "true",
-                        "state": "shadow",
-                        "origin": "structural",
-                        "axis": "form",
-                    },
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
+def test_the_pack_carries_no_battery_coverage_or_contention(tmp_path: Path) -> None:
+    """S-0122/the-evidence-package: the battery's manifest, coverage counts and
+    contended paths were handed to every attempt and changed what none of them
+    did; the pack no longer writes them."""
 
-    payload = gates_file(tmp_path, _task(), manifest)
-    names = [(g["name"], g["axis"], g["state"]) for g in payload["gates"]]
-
-    assert names == [
-        ("scope", "functional", "blocking"),
-        ("lint", "form", "shadow"),
-        ("decision:S-0001/D-1", "compliance", "shadow"),
-    ]
-    assert "scope.allow" in payload["gates"][0]["convicts_on"]
-
-
-def test_rows_checked_at_completion_are_not_listed_as_attempt_gates(tmp_path: Path) -> None:
-    """S-0122/D-4: under `rows: completion` the attempt's battery runs no
-    row's check, so the pack does not name one as a gate it will face."""
-
-    manifest = tmp_path / "gates.yaml"
-    manifest.write_text(
-        yaml.safe_dump(
-            {
-                "schema_version": 1,
-                "rows": "completion",
-                "gates": [
-                    {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"}
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    payload = gates_file(tmp_path, _task(), manifest)
-
-    assert [g["name"] for g in payload["gates"]] == ["scope"]
-
-
-def test_the_retry_feedback_says_what_a_suite_conviction_means(tmp_path: Path) -> None:
-    """S-0118/D-1: the retry reads the conviction in the pack, so the `suite`
-    entry says what it convicts rather than the generic shell-gate line — keyed
-    by the builtin, so an entry named otherwise reads it too, and naming the
-    fail-closed cases of D-2."""
-
-    manifest = tmp_path / "gates.yaml"
-    manifest.write_text(
-        yaml.safe_dump(
-            {
-                "schema_version": 1,
-                "scope": {"allow": [], "deny": []},
-                "gates": [
-                    {
-                        "name": "whole-suite",
-                        "run": "@suite",
-                        "state": "blocking",
-                        "origin": "S-0118",
-                        "sabotage": "suite",
-                        "commands": ["pytest -q"],
-                    }
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    payload = gates_file(tmp_path, _task(), manifest)
-
-    assert payload["gates"][0]["convicts_on"] == (
-        "a test still red at the head that the base tree does not also fail or cannot "
-        "run, a file that does not collect, or a red that names no test"
-    )
-
-
-def test_tests_read_coverage_under_scope_and_the_named_test_files(tmp_path: Path) -> None:
-    _seed(tmp_path)
+    rfc_dir = _seed(tmp_path)
     (tmp_path / "coverage.xml").write_text(
         '<?xml version="1.0"?><coverage><packages><package><classes>'
-        '<class filename="a/thing.py"><lines><line number="1" hits="1"/><line number="2" hits="0"/></lines></class>'
-        '<class filename="b/other.py"><lines><line number="1" hits="1"/></lines></class>'
+        '<class filename="a/thing.py"><lines><line number="1" hits="1"/></lines></class>'
         "</classes></package></packages></coverage>",
         encoding="utf-8",
     )
+    (tmp_path / ".torve").mkdir(exist_ok=True)
+    (tmp_path / ".torve" / "telemetry.jsonl").write_text(
+        json.dumps({"event": "blocked_dispatch", "path": "src/a/thing.py"}) + "\n",
+        encoding="utf-8",
+    )
+
+    files = build(tmp_path, rfc_dir, _task(), tmp_path / "missing-gates.yaml")
+
+    assert not {"gates.json", "tests.json", "contended.json"} & set(files)
+    assert "coverage" not in tests_file(tmp_path, _task())
+
+
+def test_tests_name_the_paired_test_files(tmp_path: Path) -> None:
+    _seed(tmp_path)
 
     payload = tests_file(tmp_path, _task())
 
-    assert payload["coverage"] == [{"path": "src/a/thing.py", "lines": 2, "covered": 1}]
     assert payload["named_tests"] == [{"module": "src/a/thing.py", "test": "tests/test_thing.py"}]
-
-
-def test_tests_read_coverage_under_the_project_directory(tmp_path: Path) -> None:
-    """S-0110/D-8: the fallback prefix is the layout's source root, so a
-    coverage report from a project under `app/` re-roots to `app/src/` rather
-    than the repository root's `src/`."""
-
-    (tmp_path / ".torve").mkdir()
-    (tmp_path / ".torve" / "gates.yaml").write_text("layout:\n  root: app\n", encoding="utf-8")
-    (tmp_path / "coverage.xml").write_text(
-        '<?xml version="1.0"?><coverage><packages><package><classes>'
-        '<class filename="a/thing.py"><lines><line number="1" hits="1"/><line number="2" hits="0"/></lines></class>'
-        "</classes></package></packages></coverage>",
-        encoding="utf-8",
-    )
-    task = Task(id="T-0500", spec="S-0001", decisions=[], scope=Scope(allow=["app/src/a/**"]))
-
-    payload = tests_file(tmp_path, task)
-
-    assert payload["coverage"] == [{"path": "app/src/a/thing.py", "lines": 2, "covered": 1}]
-
-
-def test_tests_read_the_coverage_prefix_from_the_sources_element(tmp_path: Path) -> None:
-    """S-0110/D-10: the prefix a Cobertura report's `filename`s sit under comes
-    from its own `<sources>` element, so a nested report re-roots to its real
-    source root rather than the repository root's `src/`."""
-
-    _seed(tmp_path)
-    (tmp_path / "app" / "src" / "a").mkdir(parents=True)
-    (tmp_path / "app" / "src" / "a" / "thing.py").write_text("", encoding="utf-8")
-    body = (
-        "<packages><package><classes>"
-        '<class filename="a/thing.py"><lines><line number="1" hits="1"/>'
-        '<line number="2" hits="0"/></lines></class>'
-        "</classes></package></packages>"
-    )
-    report = tmp_path / "coverage.xml"
-    task = Task(id="T-0500", spec="S-0001", decisions=[], scope=Scope(allow=["app/src/a/**"]))
-    expected = [{"path": "app/src/a/thing.py", "lines": 2, "covered": 1}]
-
-    report.write_text(
-        f'<?xml version="1.0"?><coverage><sources><source>app/src</source></sources>'
-        f"{body}</coverage>",
-        encoding="utf-8",
-    )
-    assert tests_file(tmp_path, task)["coverage"] == expected
-
-    # A report naming its source absolutely lands on the same scope globs.
-    report.write_text(
-        f'<?xml version="1.0"?><coverage><sources><source>{tmp_path.resolve()}/app/src'
-        f"</source></sources>{body}</coverage>",
-        encoding="utf-8",
-    )
-    assert tests_file(tmp_path, task)["coverage"] == expected
 
 
 def test_the_scope_does_not_pack_a_nested_test_tree_as_source(tmp_path: Path) -> None:
@@ -360,8 +231,9 @@ def test_the_scope_does_not_pack_a_nested_test_tree_as_source(tmp_path: Path) ->
 @pytest.mark.parametrize("named", ["app/tests/test_allowed.py", "/app/tests/test_allowed.py"])
 def test_a_test_the_scope_names_literally_is_packed(tmp_path: Path, named: str) -> None:
     """S-0110/D-10 keeps out a test an allow glob sweeps in, never one the
-    scope names by path: a glob-free allow entry, root-anchored or not, and a
-    contingent literal are packed though `tests.patterns` matches them."""
+    scope names by path: a glob-free allow entry, root-anchored or not, is
+    packed though `tests.patterns` matches it, and a contingent literal is
+    named."""
 
     (tmp_path / "app" / "tests").mkdir(parents=True)
     for name in ("test_allowed.py", "test_contingent.py", "test_swept.py"):
@@ -379,7 +251,9 @@ def test_a_test_the_scope_names_literally_is_packed(tmp_path: Path, named: str) 
     scope = scope_file(tmp_path, task, {"named_tests": []}, patterns=["app/tests/**"])
 
     assert "## `app/tests/test_allowed.py`" in scope
-    assert "## `app/tests/test_contingent.py`" in scope
+    # Contingent, so named and never carried (S-0122/the-evidence-package).
+    assert "- `app/tests/test_contingent.py`" in scope
+    assert "## `app/tests/test_contingent.py`" not in scope
     assert "app/tests/test_swept.py" not in scope
 
 
@@ -415,10 +289,10 @@ def test_tests_read_names_every_prefixed_test_file(tmp_path: Path) -> None:
     ]
 
 
-def test_the_pack_scope_and_named_tests_include_contingent_paths(tmp_path: Path) -> None:
-    """S-0104/D-7: a contingent path rides with the scope — the pack inlines
-    the neighbour and pairs its test, so the attempt reads what it may widen
-    to without opening each by hand."""
+def test_a_contingent_path_is_named_and_neither_carried_nor_paired(tmp_path: Path) -> None:
+    """S-0104/D-7 as S-0122/the-evidence-package narrows it: a contingent path
+    is something the change may reach, not the task's target, so the pack
+    names it and carries neither its body nor its test."""
 
     _seed(tmp_path)
     (tmp_path / "src" / "b.py").write_text("x = 1\n", encoding="utf-8")
@@ -432,9 +306,12 @@ def test_the_pack_scope_and_named_tests_include_contingent_paths(tmp_path: Path)
     )
 
     payload = tests_file(tmp_path, task)
-    assert {"module": "src/b.py", "test": "tests/test_b.py"} in payload["named_tests"]
+    assert {"module": "src/b.py", "test": "tests/test_b.py"} not in payload["named_tests"]
 
-    assert "## `src/b.py`" in scope_file(tmp_path, task, payload)
+    scope = scope_file(tmp_path, task, payload)
+
+    assert "- `src/b.py`" in scope and "x = 1" not in scope
+    assert "tests/test_b.py" not in scope
 
 
 def test_the_red_of_the_last_attempt_reaches_the_pack(tmp_path: Path) -> None:
@@ -445,12 +322,12 @@ def test_the_red_of_the_last_attempt_reaches_the_pack(tmp_path: Path) -> None:
             "task_id": "T-0500",
             "at": "2026-09-09T00:00:00Z",
             "results": [
-                {"name": "scope", "outcome": "pass", "state": "blocking", "output": "clean"},
+                {"name": "lint", "outcome": "fail", "state": "shadow", "output": "ruff says"},
                 {
-                    "name": "decisions-reported",
+                    "name": "scope",
                     "outcome": "fail",
                     "state": "blocking",
-                    "output": "decision S-0001/D-1: LOCKED, and the diff touches 1 file(s) it governs (src/a/thing.py), with no entry in the log",
+                    "output": "src/b.py is outside scope.allow, which S-0001/D-1 governs",
                 },
                 {
                     "name": "acceptance",
@@ -482,9 +359,11 @@ def test_the_red_of_the_last_attempt_reaches_the_pack(tmp_path: Path) -> None:
     payload = attempts_file(tmp_path, _task())
     reds = payload["last_red_gates"]
 
-    assert [r["gate"] for r in reds] == ["decisions-reported", "acceptance"]
+    assert [r["gate"] for r in reds] == ["scope", "acceptance"]
     assert reds[0]["governing_decisions"] == ["S-0001/D-1"]
     assert reds[1]["failed_tests"] == ["tests/test_thing.py::test_x"]
+    # A shadow red convicted nothing, so the retry is not handed it.
+    assert "ruff says" not in json.dumps(payload)
     # No shas on these rows: the block says nothing about a tree the record
     # cannot point at (S-0069/D-2).
     assert reds[0]["touched_paths"] == []
@@ -547,8 +426,8 @@ def test_the_conviction_names_its_paths_and_the_rows_governing_them(tmp_path: Pa
 
     reds = attempts_file(tmp_path, _task())["last_red_gates"]
 
-    assert [r["gate"] for r in reds] == ["lint", "acceptance"]
-    assert reds[1]["touched_paths"] == ["src/a/thing.py"]
+    assert [r["gate"] for r in reds] == ["acceptance"]
+    assert reds[0]["touched_paths"] == ["src/a/thing.py"]
 
     conviction = conviction_of(tmp_path, _task())
 
@@ -562,28 +441,16 @@ def test_the_conviction_names_its_paths_and_the_rows_governing_them(tmp_path: Pa
     assert conviction_of(tmp_path, Task(id="T-0501", decisions=[])) is None
 
 
-def test_contention_and_the_index_and_the_replay_rule(tmp_path: Path) -> None:
+def test_the_index_and_the_replay_rule(tmp_path: Path) -> None:
     rfc_dir = _seed(tmp_path)
-    (tmp_path / ".torve").mkdir(exist_ok=True)
-    (tmp_path / ".torve" / "telemetry.jsonl").write_text(
-        json.dumps({"kind": "engine", "event": "blocked_dispatch", "path": "src/a/thing.py"})
-        + "\n",
-        encoding="utf-8",
-    )
-
-    assert contended_file(tmp_path)["contended"] == [
-        {"path": "src/a/thing.py", "blocked_dispatches": 1}
-    ]
 
     files = build(tmp_path, rfc_dir, _task(), tmp_path / "missing-gates.yaml")
 
     assert set(files) >= {
         "index.md",
         "decisions.json",
-        "gates.json",
-        "tests.json",
         "attempts.json",
-        "contended.json",
+        "scope.md",
         "schema/task.json",
         "schema/finding.json",
         "schema/draft.json",
@@ -593,7 +460,7 @@ def test_contention_and_the_index_and_the_replay_rule(tmp_path: Path) -> None:
 
     replay = build(tmp_path, rfc_dir, _task(), tmp_path / "missing-gates.yaml", replay=True)
 
-    assert "attempts.json" not in replay and "contended.json" not in replay
+    assert "attempts.json" not in replay
     assert replay["decisions.json"] == files["decisions.json"]
 
     target = materialize(tmp_path / "wt", files)
@@ -615,10 +482,8 @@ def test_the_index_names_only_what_is_still_behind_a_read() -> None:
 
     files = {
         "source.json": "{}",
-        "gates.json": "{}",
-        "tests.json": "{}",
         "attempts.json": json.dumps({"attempts": [{"attempt": 1}]}),
-        "contended.json": "{}",
+        "scope.md": "# The files this task changes",
         "decisions.json": "{}",
         "schema/task.json": "{}",
     }
@@ -627,7 +492,7 @@ def test_the_index_names_only_what_is_still_behind_a_read() -> None:
 
     assert "`decisions.json`" in index and "`schema/*.json`" in index
 
-    for handed in ("source.json", "gates.json", "tests.json", "attempts.json", "contended.json"):
+    for handed in ("source.json", "attempts.json", "scope.md"):
         assert handed not in index
 
 
@@ -689,12 +554,11 @@ def test_the_map_names_where_things_are_and_stays_small(tmp_path: Path) -> None:
     assert "where things are" in files["index.md"]
 
 
-def test_a_small_scope_arrives_whole_and_a_large_one_as_an_outline(tmp_path: Path) -> None:
-    """S-0076/D-2: under the budget the in-scope files and the tests naming
-    them are one document of contents; over it, one document of outlines of
-    the same files. Either way the reads the contract already named cost one."""
-
-    from torve.application.contextpack import scope_file, tests_file
+def test_the_scope_arrives_whole_and_past_the_budget_by_name(tmp_path: Path) -> None:
+    """S-0076/D-2 as S-0122/the-evidence-package reshapes it: the scope's files
+    and their tests are one document of contents; a file past what is left of
+    the budget is named with its size rather than outlined, and a smaller one
+    after it is still carried."""
 
     rfc_dir = _seed(tmp_path)
     body = "LIMIT = 3\n\n\nclass Widget:\n    def spin(self):\n        pass\n"
@@ -710,39 +574,100 @@ def test_a_small_scope_arrives_whole_and_a_large_one_as_an_outline(tmp_path: Pat
     assert "src/b/other.py" not in whole
     # S-0076/A-1: handed over, so the index does not tell anyone to open it.
     assert "`scope.md`" not in files["index.md"]
-    assert "the in-scope files themselves" in files["index.md"]
+    assert "the files this task changes" in files["index.md"]
 
     tests = tests_file(tmp_path, _task())
-    outline = scope_file(tmp_path, _task(), tests, budget=10)
+    cut = scope_file(tmp_path, _task(), tests, budget=len(body) - 1)
 
-    assert "class Widget:" not in outline  # no bodies over the budget
-    assert "- `src/a/thing.py:4 class Widget`" in outline
-    assert "- `src/a/thing.py:5 def Widget.spin`" in outline
-    assert "- `tests/test_thing.py:1 def test_spin`" in outline
+    assert "class Widget:" not in cut and "- `src/a/thing.py` — 6 lines" in cut
+    assert "def test_spin():" in cut  # the smaller file after it still fits
 
 
-def test_an_outline_is_bounded_too(tmp_path: Path) -> None:
-    """S-0076/A-1 carries `scope.md` in the first message because it is bounded
-    either way. An outline of enough files is not, unless it is cut: bloomery
-    T-0173's scope outlined to 562 KB and the seat refused the first message.
-    Past the outline's budget the rest are named, then counted."""
-
-    from torve.application.contextpack import scope_file
+def test_the_names_past_the_budget_are_bounded_too(tmp_path: Path) -> None:
+    """A list has no size of its own: bloomery T-0173's scope named 1,107
+    files and the seat refused the first message. Past the names' budget the
+    rest are counted."""
 
     _seed(tmp_path)
+    (tmp_path / "src" / "a" / "thing.py").write_text("LIMIT = 3\n", encoding="utf-8")
 
-    for n in range(40):
-        (tmp_path / "src" / "a" / f"m{n:02}.py").write_text(
-            "".join(f"def f{i}():\n    pass\n" for i in range(20)), encoding="utf-8"
+    for n in range(200):
+        (tmp_path / "src" / "a" / f"m{n:03}.py").write_text("x = 1\n", encoding="utf-8")
+
+    scope = scope_file(tmp_path, _task(), {"named_tests": []}, budget=0, names_budget=1_000)
+    named = [line for line in scope.splitlines() if line.startswith("- ")]
+
+    assert len(scope) <= 1_500
+    assert named[0] == "- `src/a/thing.py` — 1 lines"  # the literal leads
+    assert "- `src/a/m199.py`" not in scope
+    assert scope.rstrip().endswith("more, not named here")
+
+
+def test_every_scope_file_arrives_whole_however_it_sorts(tmp_path: Path) -> None:
+    """T-0751: the pack sorted every path it carried and outlined them under
+    one cut, so forty contingent neighbours that sorted first filled the
+    outline and the files the task edited were "and N more, not named here".
+    The task's own files and their tests now come first and whole, in the
+    contract's order; the neighbours are named after them."""
+
+    (tmp_path / "src" / "aa").mkdir(parents=True)
+    (tmp_path / "src" / "zz" / "helpers").mkdir(parents=True)
+    (tmp_path / "tests").mkdir()
+
+    neighbours = [f"src/aa/m{n:02}.py" for n in range(40)]
+
+    for rel in neighbours:
+        (tmp_path / rel).write_text(
+            "".join(f"def f{i}():\n    return {i}\n" for i in range(80)), encoding="utf-8"
         )
 
-    outline = scope_file(tmp_path, _task(), {"named_tests": []}, budget=10, outline_budget=4_000)
+    targets = {
+        "src/zz/target.py": "def target():\n    return 'the edit lands here'\n",
+        "src/zz/helpers/zeta.py": "ZETA = 'a helper the glob reaches'\n",
+        "tests/test_target.py": "def test_target():\n    assert target()\n",
+    }
 
-    assert len(outline) <= 4_000
-    assert "- `src/a/m00.py:1 def f0`" in outline
-    assert "more files, past the outline's 4000 characters" in outline
-    assert "- `src/a/m39.py` — 40 lines" not in outline
-    assert outline.rstrip().endswith("more, not named here")
+    for rel, text in targets.items():
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+
+    task = Task(
+        id="T-0751",
+        decisions=[],
+        scope=Scope(allow=["src/zz/target.py", "src/zz/helpers/**"], contingent=neighbours),
+    )
+
+    scope = scope_file(tmp_path, task, tests_file(tmp_path, task))
+
+    for rel, text in targets.items():
+        assert f"## `{rel}`" in scope and text.rstrip("\n") in scope, rel
+
+    assert scope.index("## `src/zz/target.py`") < scope.index("## `tests/test_target.py`")
+    assert scope.index("## `tests/test_target.py`") < scope.index("- `src/aa/m00.py`")
+    assert "def f79():" not in scope  # a neighbour is named, never carried
+    assert all(f"- `{rel}`" in scope for rel in neighbours)
+
+
+def test_a_glob_scopes_modules_bring_their_paired_tests(tmp_path: Path) -> None:
+    """A module the scope reaches by glob is a target like a literal one, so
+    its paired test is carried beside it; a test the glob sweeps in is not
+    paired as though it were a module."""
+
+    (tmp_path / "src" / "pkg").mkdir(parents=True)
+    (tmp_path / "tests" / "pkg").mkdir(parents=True)
+    (tmp_path / "src" / "pkg" / "alpha.py").write_text("ALPHA = 1\n", encoding="utf-8")
+    (tmp_path / "src" / "pkg" / "test_beta.py").write_text("def test_b(): ...\n", encoding="utf-8")
+    (tmp_path / "tests" / "pkg" / "test_alpha.py").write_text(
+        "def test_alpha():\n    assert ALPHA\n", encoding="utf-8"
+    )
+    task = Task(id="T-0502", decisions=[], scope=Scope(allow=["src/pkg/**"]))
+
+    tests = tests_file(tmp_path, task)
+    scope = scope_file(tmp_path, task, tests)
+
+    assert tests["named_tests"] == [
+        {"module": "src/pkg/alpha.py", "test": "tests/pkg/test_alpha.py"}
+    ]
+    assert "## `tests/pkg/test_alpha.py`" in scope and "assert ALPHA" in scope
 
 
 def test_a_scope_carrying_markdown_cannot_close_its_own_fence(tmp_path: Path) -> None:
@@ -785,3 +710,97 @@ def test_the_pack_pairs_a_go_test_by_the_manifest(tmp_path: Path) -> None:
     payload = tests_file(tmp_path, task, TestsConfig(pair=["{dir}/{stem}_test.go"]))
 
     assert {"module": "src/foo/bar.go", "test": "src/foo/bar_test.go"} in payload["named_tests"]
+
+
+def test_an_ordinary_contracts_prompt_stays_under_35_kb(tmp_path: Path) -> None:
+    """S-0122/the-evidence-package: an implement prompt measured 98.9 KB, about
+    5% of it the task, and still cut the files the task edited. For an
+    ordinary contract — one module and its test, a large contingent
+    neighbour, four rows — the first message and the system file together
+    stay under 35 KB, and the task's own files are most of it. A pack file
+    handed over again, or a neighbour carried whole, breaks this."""
+
+    from torve.adapters.agent.harness import (
+        build_prompt,
+        pack_handover,
+        skills_handover,
+        working_rules,
+    )
+    from torve.application.skills import materialize as materialize_skills
+
+    module = "".join(
+        f"def step_{n}(value: int) -> int:\n    return value + {n}\n\n\n" for n in range(120)
+    )
+    test = "".join(
+        f"def test_step_{n}() -> None:\n    assert step_{n}(1) == {n + 1}\n\n\n" for n in range(220)
+    )
+    neighbour = "".join(f"def far_{n}():\n    return {n}\n\n\n" for n in range(1600))
+
+    for rel, text in (
+        ("src/app/service.py", module),
+        ("tests/test_service.py", test),
+        ("src/app/neighbour.py", neighbour),
+        ("docs/index.md", "# Docs\n"),
+    ):
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+
+    rule = "A rule that governs how the service steps a value, stated at the length rows run to. "
+    task = Task(
+        id="T-0900",
+        intent="Every step clamps its result to the configured ceiling before returning it.",
+        decisions=[
+            InheritedDecision(
+                id=f"S-0001/D-{n}",
+                grade="LOCKED" if n % 2 else "ASSUMED",
+                text=rule * 3,
+                paths=["src/app/**"],
+                consequence="a step that overflows corrupts every later step",
+            )
+            for n in range(1, 5)
+        ],
+        scope=Scope(allow=["src/app/service.py"], contingent=["src/app/neighbour.py"]),
+        acceptance=["uv run pytest tests/test_service.py"],
+    )
+    extras = "Prefer the smallest change that makes the acceptance commands pass.\n"
+
+    materialize(tmp_path, build(tmp_path, tmp_path / "specs", task, tmp_path / "gates.yaml"))
+    materialize_skills(
+        "implement",
+        tmp_path / ".torve" / "skills",
+        {"implement": ["working-rules", "flag-dont-flip"]},
+    )
+
+    prompt = build_prompt(task, prompt_extras=extras, pack=pack_handover(tmp_path))
+    system = working_rules(extras, skills_handover(tmp_path))
+    size = len(prompt.encode()) + len(system.encode())
+
+    assert module.rstrip("\n") in prompt and test.rstrip("\n") in prompt
+    assert "def far_0()" not in prompt and "- `src/app/neighbour.py`" in prompt
+    assert size < 35_000, size
+    assert (len(module) + len(test)) / size > 0.5
+
+
+def test_rows_checked_at_completion_are_not_listed_as_attempt_gates(tmp_path: Path) -> None:
+    """S-0122/D-4: under `rows: completion` the attempt's battery runs no
+    row's check, so the battery `torve brief` prints names none as a gate."""
+
+    from torve.application.contextpack import gates_file
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "rows": "completion",
+                "gates": [
+                    {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = gates_file(tmp_path, _task(), manifest)
+
+    assert [g["name"] for g in payload["gates"]] == ["scope"]

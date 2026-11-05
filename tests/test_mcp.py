@@ -113,15 +113,15 @@ def test_pack_tool_serves_the_pack_and_writes_nothing(plan_repo):  # noqa: F811
     called = asyncio.run(server.call_tool("pack", {"task_id": "T-0001"}))
     files = json.loads(called.content[0].text)
 
-    assert {"index.md", "decisions.json", "gates.json", "schema/task.json"} <= files.keys()
+    assert {"index.md", "decisions.json", "schema/task.json"} <= files.keys()
     assert [row["id"] for row in files["decisions.json"]["inherited"]] == [
         "S-0090/D-1",
         "S-0090/D-2",
     ]
     assert not (root / contextpack.PACK_DIR).exists()
 
-    sliced = asyncio.run(server.call_tool("pack", {"task_id": "T-0001", "file": "gates.json"}))
-    assert set(json.loads(sliced.content[0].text)) == {"gates.json"}
+    sliced = asyncio.run(server.call_tool("pack", {"task_id": "T-0001", "file": "decisions.json"}))
+    assert set(json.loads(sliced.content[0].text)) == {"decisions.json"}
 
 
 def test_pack_tool_refuses_an_unknown_task_and_an_unknown_file(plan_repo):  # noqa: F811

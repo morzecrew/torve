@@ -1,11 +1,17 @@
 """The context pack (S-0054/the-context-pack, S-0054/D-10, S-0054/D-11): `.torve/context/`
 in the worktree, written host-side before the prompt, with the facts the
-corpus cannot carry and the tree cannot grep — this task's rows with
-their consequences and the amendments that changed them, the rows other
-documents hold over the same paths, the battery and its axes, the tests
-covering the scope, this task's own prior attempts and what convicted
-them (S-0054/D-12), the paths other work is contending for, and the schemas
-the engine parses agent output with.
+corpus cannot carry and the tree cannot grep — the files this task changes
+and the tests paired with them, whole, and the contingent files by name;
+this task's rows with their consequences and the amendments that changed
+them, the rows other documents hold over the same paths, this task's own
+prior attempts and what convicted them (S-0054/D-12), and the schemas the
+engine parses agent output with.
+
+The task's own files come first (S-0122/the-evidence-package's executor
+side): an attempt's prompt was about 5% task signal, and an alphabetical cut
+could drop the very files the task edits. Coverage counts, the battery's
+manifest, shadow reds and contended paths are gone from it; none of them
+changed what an attempt did.
 
 Every builder is a pure function of (record snapshot, tree, contract):
 computed with no model, deterministic for a base sha and record state,
@@ -32,7 +38,6 @@ from xml.etree import ElementTree
 
 from pathspec import GitIgnoreSpec
 
-from torve.application.colocation import contended_paths
 from torve.application.intake import tree_files
 from torve.application.planner import standing_decisions
 from torve.application.projections import why_report
@@ -151,7 +156,10 @@ def decisions_file(task: Task, corpus: Corpus | None, rfc_dir: Path) -> dict[str
 def gates_file(root: Path, task: Task, manifest_path: Path) -> dict[str, Any]:
     """The battery this attempt will face: every manifest entry with its
     axis, state and command, and the contract's decision gates unless the
-    manifest runs them at the document's completion (S-0122/D-4)."""
+    manifest runs them at the document's completion (S-0122/D-4). `torve
+    brief` prints it; the pack no longer carries it
+    (S-0122/the-evidence-package), because no attempt was measured acting on
+    it."""
 
     entries: list[dict[str, Any]] = []
     manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
@@ -180,7 +188,7 @@ def gates_file(root: Path, task: Task, manifest_path: Path) -> dict[str, Any]:
                     "axis": "compliance",
                     "state": row.check_state,
                     "origin": f"contract row {row.id}",
-                    "convicts_on": f"the check exits non-zero; no log entry is owed for {row.id}",
+                    "convicts_on": "the check exits non-zero",
                 }
             )
 
@@ -239,42 +247,14 @@ def coverage_prefix(root: Path, tree: ElementTree.ElementTree[ElementTree.Elemen
 
 
 def tests_file(root: Path, task: Task, tests: TestsConfig | None = None) -> dict[str, Any]:
-    """What covers the scope: files under scope.allow with their measured
-    line coverage from the last battery's coverage.xml, and the test
-    modules that name them (the T-0113 rule, by the manifest's `tests.pair`
-    templates — S-0106/D-7). Per-test ids need coverage contexts the battery
-    does not record yet; what it does record is here."""
+    """The tests paired with the modules the scope names (the T-0113 rule, by
+    the manifest's `tests.pair` templates — S-0106/D-7), which `scope.md`
+    carries whole right after the modules themselves.
 
-    allow = GitIgnoreSpec.from_lines(task.scope.allow or ["**"])
-    # S-0104/D-7: a contingent literal is part of what covers the scope, so its
-    # coverage and its paired test are read here too, not only the declared
-    # globs' — the attempt sees what it may reach already measured.
-    contingent = set(task.scope.contingent)
-    covered: list[dict[str, Any]] = []
-    report = root / "coverage.xml"
-
-    if report.is_file():
-        try:
-            tree = ElementTree.parse(report)
-        except ElementTree.ParseError:
-            tree = None
-
-        if tree is not None:
-            # S-0110/D-10: the prefix comes from the report's own `<sources>`,
-            # so a nested report re-roots to its real source root; the layout
-            # is the fallback when the report declares none (S-0110/D-8).
-            source = coverage_prefix(root, tree)
-
-            for cls in tree.iter("class"):
-                filename = cls.get("filename") or ""
-                path = filename if filename.startswith(source) else f"{source}{filename}"
-
-                if not (allow.match_file(path) or path in contingent):
-                    continue
-
-                lines = list(cls.iter("line"))
-                hit = sum(1 for line in lines if line.get("hits") not in (None, "0"))
-                covered.append({"path": path, "lines": len(lines), "covered": hit})
+    No coverage counts: they were read from whatever `coverage.xml` the last
+    battery left, and no attempt was measured acting on one. No contingent
+    module is paired either: a contingent file is named, not carried
+    (S-0122/the-evidence-package), so its test is not the task's."""
 
     config = tests or TestsConfig()
     candidates = [path.as_posix() for path in tree_files(root, UNWALKED)]
@@ -288,17 +268,23 @@ def tests_file(root: Path, task: Task, tests: TestsConfig | None = None) -> dict
         for glob in task.scope.allow
         if "*" not in glob and not glob.lstrip("/").startswith("tests/") and Path(glob).suffix
     ]
-    modules += [
-        path
-        for path in task.scope.contingent
-        if not path.startswith("tests/") and Path(path).suffix
-    ]
+    # A glob's source matches pair too: `scope.md` carries them as targets, so
+    # their tests belong beside them. A test the glob sweeps in is no module.
+    globs = [glob for glob in task.scope.allow if any(c in glob for c in "*?[")]
+
+    if globs:
+        swept, tested = GitIgnoreSpec.from_lines(globs), GitIgnoreSpec.from_lines(config.patterns)
+        modules += [
+            rel
+            for rel in candidates
+            if swept.match_file(rel) and Path(rel).suffix and not tested.match_file(rel)
+        ]
 
     for module in dict.fromkeys(modules):
         for test in config.paired(module, candidates):
             named.append({"module": module, "test": test})
 
-    return {"schema_version": 1, "coverage": covered, "named_tests": named}
+    return {"schema_version": 1, "named_tests": named}
 
 
 # ....................... #
@@ -331,8 +317,9 @@ def attempts_file(root: Path, task: Task) -> dict[str, Any]:
 
 
 def _red_gates(root: Path, task_id: str) -> list[dict[str, Any]]:
-    """The last gate-run row for this task that carried a red: each red
-    gate's output tail, the decision ids and failed test ids in it."""
+    """The last gate-run row for this task that carried a red: each blocking
+    red gate's output tail, the decision ids and failed test ids in it. A
+    shadow red convicted nothing, so it is not the retry's to fix."""
 
     from torve.application.specquality import telemetry_file
 
@@ -367,6 +354,9 @@ def _red_gates(root: Path, task_id: str) -> list[dict[str, Any]]:
         if result.get("outcome") not in ("fail", "error"):
             continue
 
+        if str(result.get("state") or "blocking") != "blocking":
+            continue
+
         output = str(result.get("output") or "")
         reds.append(
             {
@@ -376,7 +366,7 @@ def _red_gates(root: Path, task_id: str) -> list[dict[str, Any]]:
                 "truncated": len(output) > OUTPUT_TAIL or "truncated" in output,
                 "touched_paths": touched,
                 "governing_decisions": sorted(set(GOVERNING.findall(output)))
-                if result.get("name") in ("decisions-reported", "scope")
+                if result.get("name") == "scope"
                 else [],
                 "failed_tests": sorted(set(FAILED_TEST.findall(output))),
             }
@@ -431,19 +421,6 @@ def conviction_of(root: Path, task: Task) -> dict[str, Any] | None:
         return {**red, "governing_rows": rows}
 
     return None
-
-
-# ....................... #
-
-
-def contended_file(root: Path) -> dict[str, Any]:
-    return {
-        "schema_version": 1,
-        "contended": [
-            {"path": path, "blocked_dispatches": count}
-            for path, count in sorted(contended_paths(root).items(), key=lambda kv: -kv[1])
-        ],
-    }
 
 
 # ....................... #
@@ -617,21 +594,18 @@ def _defines(node: ast.AST, prefix: str) -> Iterator[tuple[int, str]]:
 
 # ....................... #
 
-# The size, in characters, under which the scope arrives as contents rather
-# than as an outline (S-0076/D-2). A calibration knob rather than a truth:
-# roughly a module and its test, past which the bodies cost more context than
-# the reads they save. Deliberately not a key in the runner's configuration —
-# every section of that file loads under a model that forbids an unknown key,
-# and the model is outside this scope; the divergence log carries the reason.
+# The characters of file bodies the pack carries whole (S-0076/D-2): the
+# task's own files first, then their paired tests, each whole or not at all.
+# A calibration knob rather than a truth, and deliberately not a key in the
+# runner's configuration — every section of that file loads under a model that
+# forbids an unknown key.
 SCOPE_BUDGET = 60_000
 
-# The same bound on the outline itself (S-0076/A-1 carries `scope.md` in the
-# first message on the promise that it is bounded either way). An outline has
-# no size of its own: bloomery T-0173's scope named 1,107 files and outlined to
-# 562 KB, past the seat's window, and the seat refused the first message before
-# the model read a token. Past this, the remaining files are named one line
-# each while they fit, and then counted.
-OUTLINE_BUDGET = 60_000
+# The bound on the lines naming files rather than carrying them: the scope's
+# files past the body budget and the contingent ones. A list has no size of its
+# own — bloomery T-0173's scope named 1,107 files — so past this the rest are
+# counted.
+NAMES_BUDGET = 8_000
 
 # The fence hint per suffix, for the ones this repository's scopes name. An
 # unlisted suffix gets a bare fence, which renders the same minus colour.
@@ -651,139 +625,137 @@ def scope_file(
     task: Task,
     tests: dict[str, Any],
     budget: int = SCOPE_BUDGET,
-    outline_budget: int = OUTLINE_BUDGET,
+    names_budget: int = NAMES_BUDGET,
     patterns: list[str] | None = None,
 ) -> str:
-    """The files `scope.allow` names and the tests `tests.json` names, as one
-    document (S-0076/D-2): their contents when they fit under *budget*, an
-    outline of the same files when they do not. Either way the sixteen reads a
-    small attempt spends opening what the contract already named become one.
+    """The files this task changes, as one document (S-0076/D-2, S-0122/the-evidence-package):
+    the scope's own files and their paired tests first, each whole, then the
+    contingent files by path only.
 
-    Empty when the scope and the named tests reach no readable file, so a pack
-    with nothing to say adds no file and no index line."""
+    The order is the contract's, never the alphabet's. The pack used to sort
+    every path it carried and outline them under one cut, so on T-0751 a
+    contingent neighbour that sorted first filled the outline and the files
+    the task edited were "and N more, not named here". Now the literal paths
+    the scope names come first, in the order it names them, then its glob
+    matches, then the tests paired with them; a file that does not fit what
+    is left of *budget* is named instead of cut, and the next one is still
+    tried. A contingent file is something the change may reach, not the
+    task's target, so it is named and never carried.
 
-    bodies: list[tuple[str, str]] = []
+    Empty when the scope reaches no readable file and names no contingent
+    one, so a pack with nothing to say adds no file."""
 
-    for rel in _in_scope(root, task, tests, patterns):
+    targets, contingent = _in_scope(root, task, tests, patterns)
+    whole: list[tuple[str, str]] = []
+    past: list[tuple[str, str]] = []
+    left = budget
+
+    for rel in targets:
         try:
-            bodies.append((rel, (root / rel).read_text(encoding="utf-8")))
+            text = (root / rel).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
 
-    if not bodies:
+        if len(text) <= left:
+            whole.append((rel, text))
+            left -= len(text)
+        else:
+            past.append((rel, text))
+
+    if not (whole or past or contingent):
         return ""
 
-    total = sum(len(text) for _, text in bodies)
-    whole = total <= budget
-    lines = [
-        "# The files this scope names",
-        "",
-        f"The scope's own files and the tests that name them — {len(bodies)} files,"
-        f" {total} characters,"
-        + (
-            f" under the {budget} the pack carries whole. Nothing here needs opening again."
-            if whole
-            else f" over the {budget} the pack carries whole, so what follows is an outline:"
-            " what each file defines and where. Open a file for a body."
-        ),
-        "",
-    ]
+    carried = (
+        f"The scope's own files and the tests paired with them, whole — {len(whole)} files,"
+        f" {budget - left} characters. Nothing here needs opening again."
+    )
+    lines = ["# The files this task changes", "", carried, ""]
 
-    if whole:
-        for rel, text in bodies:
-            fence = _fence(text)
-            lines += [f"## `{rel}` — {len(text.splitlines())} lines", ""]
-            lines += [fence + LANGS.get(Path(rel).suffix, ""), text.rstrip("\n"), fence, ""]
+    for rel, text in whole:
+        fence = _fence(text)
+        lines += [f"## `{rel}` — {len(text.splitlines())} lines", ""]
+        lines += [fence + LANGS.get(Path(rel).suffix, ""), text.rstrip("\n"), fence, ""]
 
-        return "\n".join(lines)
+    named: list[tuple[str, list[str]]] = []
 
-    # Room kept for the cut's own heading and its closing count.
-    reserve = 160
-    size = sum(len(line) + 1 for line in lines)
-    rest = iter(bodies)
+    if past:
+        heading = f"## {len(past)} more in scope, past the {budget} characters carried whole"
+        named.append(
+            (heading, [f"- `{rel}` — {len(text.splitlines())} lines" for rel, text in past])
+        )
 
-    for rel, text in rest:
-        block = [f"## `{rel}` — {len(text.splitlines())} lines", ""]
-        block += [f"- `{rel}:{line} {what}`" for line, what in _outline(rel, text)] or [
-            "No definitions to outline."
-        ]
-        block += [""]
-        cost = sum(len(line) + 1 for line in block)
+    if contingent:
+        heading = "## Contingent: the change may reach these, named and not carried"
+        named.append((heading, [f"- `{rel}`" for rel in contingent]))
 
-        if size + cost > outline_budget - reserve:
-            unlisted = [(rel, text), *rest]
-            break
+    size = 0
 
-        lines += block
-        size += cost
-    else:
-        return "\n".join(lines)
+    for heading, entries in named:
+        lines += [heading, ""]
 
-    lines += [f"## {len(unlisted)} more files, past the outline's {outline_budget} characters", ""]
-    size += len(lines[-2]) + 2
+        for count, entry in enumerate(entries):
+            if size + len(entry) + 1 > names_budget:
+                lines += [f"- and {len(entries) - count} more, not named here"]
+                break
 
-    for count, (rel, text) in enumerate(unlisted):
-        entry = f"- `{rel}` — {len(text.splitlines())} lines"
+            lines += [entry]
+            size += len(entry) + 1
 
-        if size + len(entry) + 1 > outline_budget - reserve // 2:
-            lines += [f"- and {len(unlisted) - count} more, not named here"]
-            break
+        lines += [""]
 
-        lines += [entry]
-        size += len(entry) + 1
-
-    return "\n".join(lines)
+    return "\n".join(lines).rstrip("\n") + "\n"
 
 
 def _in_scope(
     root: Path, task: Task, tests: dict[str, Any], patterns: list[str] | None = None
-) -> list[str]:
-    """The paths under `scope.allow` and not under `scope.deny`, plus the tests
-    `tests_file` named for them, plus the contract's `scope.contingent` literals
-    (S-0104/D-7): the neighbours a change is likely to reach ride with the scope
-    so the attempt reads them as one. An empty allow list means unconstrained,
-    which is every file in the tree — so it contributes nothing here and the
-    named tests stand alone: a pack is not the place to inline a repository.
+) -> tuple[list[str], list[str]]:
+    """(targets, contingent): the files the scope names, in the order the
+    contract names them, and the contingent literals (S-0104/D-7) that exist
+    and are not already targets.
 
-    A path `tests.patterns` names is a test (S-0110/D-10): it is not packed as
-    the scope's source, so a nested test tree an allow glob would sweep in stays
-    out — the tests that name the scope's modules, which `named` holds, are the
-    pack's tests. A test the scope names literally, in `contingent` or as a
-    glob-free allow entry, was asked for by name and stays."""
+    Targets are the literal `scope.allow` paths, then the files its globs
+    match, then the tests `tests_file` paired with them — none under
+    `scope.deny`. An empty allow list means unconstrained, which is every file
+    in the tree, so it contributes nothing here and the paired tests stand
+    alone: a pack is not the place to inline a repository.
 
-    allow = GitIgnoreSpec.from_lines(task.scope.allow) if task.scope.allow else None
+    A path `tests.patterns` names is a test (S-0110/D-10): an allow glob that
+    sweeps a nested test tree in does not make it the scope's source — the
+    tests that name the scope's modules are the pack's tests. A test the scope
+    names literally was asked for by name and stays."""
+
     deny = GitIgnoreSpec.from_lines(task.scope.deny) if task.scope.deny else None
     test = GitIgnoreSpec.from_lines(patterns) if patterns else None
-    named = {str(row["test"]) for row in cast("list[dict[str, str]]", tests["named_tests"])}
-    contingent = set(task.scope.contingent)
-    literal = contingent | {
-        entry.lstrip("/") for entry in task.scope.allow if not any(c in entry for c in "*?[")
-    }
-    found: set[str] = set()
+    files = [path.as_posix() for path in tree_files(root, UNWALKED)]
+    present = set(files)
 
-    for rel in (path.as_posix() for path in tree_files(root, UNWALKED)):
-        if rel in named or (
-            (rel in contingent or (allow is not None and allow.match_file(rel)))
-            and not (deny is not None and deny.match_file(rel))
-            and (rel in literal or not (test is not None and test.match_file(rel)))
-        ):
-            found.add(rel)
+    def allowed(rel: str) -> bool:
+        return not (deny is not None and deny.match_file(rel))
 
-    return sorted(found)
+    literal = [
+        entry.lstrip("/")
+        for entry in task.scope.allow
+        if not any(c in entry for c in "*?[") and entry.lstrip("/") in present
+    ]
+    globbed: list[str] = []
 
+    if task.scope.allow:
+        allow = GitIgnoreSpec.from_lines(task.scope.allow)
+        globbed = [
+            rel
+            for rel in files
+            if allow.match_file(rel) and not (test is not None and test.match_file(rel))
+        ]
 
-def _outline(rel: str, text: str) -> list[tuple[int, str]]:
-    """What a file defines, for the over-budget form — the same reading
-    `symbols.txt` is built from, over the scope rather than the tree. A file
-    `ast` cannot parse, and any file that is not Python, outlines to nothing."""
+    paired = [str(row["test"]) for row in cast("list[dict[str, str]]", tests["named_tests"])]
+    targets = [rel for rel in dict.fromkeys([*literal, *globbed, *paired]) if allowed(rel)]
+    contingent = [
+        rel
+        for rel in dict.fromkeys(task.scope.contingent)
+        if rel in present and rel not in targets and allowed(rel)
+    ]
 
-    if not rel.endswith(".py"):
-        return []
-
-    try:
-        return list(_defines(ast.parse(text), ""))
-    except (SyntaxError, ValueError):
-        return []
+    return targets, contingent
 
 
 def _fence(text: str) -> str:
@@ -803,9 +775,9 @@ def build(
 ) -> dict[str, str]:
     """Every file of the pack, path (relative to the pack directory) ->
     contents. Pure in its inputs; the caller writes. A *replay* (a shadow
-    run) omits the two files that read the stream as it stands now —
-    attempts and contention — so the pack is what the live attempt could
-    have read, and the replay measures the harness, not the calendar."""
+    run) omits the file that reads the stream as it stands now — the
+    attempts — so the pack is what the live attempt could have read, and the
+    replay measures the harness, not the calendar."""
 
     corpus = _load(rfc_dir) if rfc_dir.is_dir() else None
     manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
@@ -821,11 +793,7 @@ def build(
     if asked is not None:
         put("source.json", asked)
 
-    put("gates.json", gates_file(root, task, manifest_path))
-
     tests = tests_file(root, task, manifest.tests if manifest else None)
-    put("tests.json", tests)
-
     scope = scope_file(root, task, tests, patterns=(manifest.tests.patterns if manifest else None))
 
     if scope:
@@ -833,7 +801,6 @@ def build(
 
     if not replay:
         put("attempts.json", attempts_file(root, task))
-        put("contended.json", contended_file(root))
 
     files["map.md"] = map_file(root, task)
     files["symbols.txt"] = symbols_file(root)
@@ -852,12 +819,12 @@ def build(
 def render_index(files: dict[str, str], task: Task) -> str:
     """What the pack holds that is still behind a read (S-0076/D-1).
 
-    The small files — the source, the battery, the tests over the scope, this
-    task's prior attempts and the contended paths — arrive in the attempt's
-    first message, so the index no longer tells anyone to open them: a
-    pointer at bytes already in context is a round trip spent re-reading
-    them. `files` stays in the signature because the caller hands the whole
-    pack over and a later file may want naming here."""
+    The small files — the map, the source, the files this task changes and
+    this task's prior attempts — arrive in the attempt's first message, so
+    the index no longer tells anyone to open them: a pointer at bytes already
+    in context is a round trip spent re-reading them. `files` stays in the
+    signature because the caller hands the whole pack over and a later file
+    may want naming here."""
 
     return "\n".join(
         [
@@ -867,10 +834,9 @@ def render_index(files: dict[str, str], task: Task) -> str:
             "with no model. Nothing here outranks the contract.",
             "",
             "The pack's small files arrived with the task itself, in the first message:",
-            "where things are, what asked for this work, the battery this attempt faces,",
-            "the coverage and tests over the scope, the in-scope files themselves, this",
-            "task's prior attempts and what convicted them, and",
-            "the paths other work is contending for. There is nothing to open for those.",
+            "where things are, what asked for this work, the files this task changes and",
+            "their tests, and this task's prior attempts and what convicted them. There is",
+            "nothing to open for those.",
             "",
             "What is behind a read, because it is large or seldom wanted:",
             "",

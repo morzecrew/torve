@@ -14,7 +14,6 @@ computed by the application modules dispatch itself calls.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -65,6 +64,7 @@ def brief_cmd(
     """
 
     from torve.application.contextpack import build as build_pack
+    from torve.application.contextpack import gates_file
     from torve.application.contextpack import materialize as materialize_pack
     from torve.application.intake import lint_contract, standing_warnings
     from torve.application.sizing import estimate
@@ -84,10 +84,10 @@ def brief_cmd(
     verdict = estimate(task, read_layout(root).carried)
     # The pack an attempt reads is the pack a session gets, built by the same
     # function dispatch calls and written where the prompt says it is
-    # (S-0054/D-10) — the battery is read back out of it rather than recomputed.
-    files = build_pack(root, specs, task, layout.gates_file(root))
-    pack = materialize_pack(root, files)
-    battery = _battery(files)
+    # (S-0054/D-10). The battery is no longer in it (S-0122/the-evidence-package),
+    # so it is read from the manifest the same way the pack used to.
+    pack = materialize_pack(root, build_pack(root, specs, task, layout.gates_file(root)))
+    battery: list[dict[str, Any]] = gates_file(root, task, layout.gates_file(root))["gates"]
 
     if fmt is Format.JSON:
         emit_json(
@@ -108,16 +108,6 @@ def brief_cmd(
     _render(task.id, errors, verdict.size, verdict.reasons, uninherited, pack, battery, fmt)
 
     raise typer.Exit(EXIT_OK)
-
-
-# ....................... #
-
-
-def _battery(files: dict[str, str]) -> list[dict[str, Any]]:
-    payload: dict[str, Any] = json.loads(files["gates.json"])
-    gates: list[dict[str, Any]] = payload.get("gates") or []
-
-    return gates
 
 
 # ....................... #

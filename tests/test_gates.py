@@ -6,7 +6,7 @@ import pytest
 from conftest import context_for
 
 from torve.config.manifest import Gate
-from torve.gates.log_entry import check_entry, owed, parse_log
+from torve.gates.log_entry import check_entry, parse_log
 from torve.gates.runner import run_gates
 from torve.gates.sabotage import (
     BASE_MANIFEST,
@@ -145,13 +145,14 @@ def test_secrets_scans_untracked_files(repo):
 
 def test_decisions_skill_style_entry_is_accepted(repo):
     """flag-dont-flip logs use `class` instead of `kind`; both vocabularies
-    pass, per the S-0001/D-26 reconciliation."""
+    pass, per the S-0001/D-26 reconciliation. An unlisted departure owes
+    the row it puts back (S-0122/D-14)."""
     skill_entry = entry(
         decision="unlisted",
         grade="UNLISTED",
         kind=None,  # class-only, skill style
         claim="spec silent on retry budget",
-        action="decided",
+        action="departed",
     )
     skill_entry["class"] = "spec-gap"
     repo.seed()
@@ -178,7 +179,7 @@ def test_decisions_evidence_rejection_teaches_the_repair(repo, evidence, defect)
     expected grammar, and diagnoses the first defect — the judgement itself
     is unchanged (still a rejection)."""
     repo.seed()
-    output = "\n".join(check_entry(entry(evidence=evidence), repo.root))
+    output = "\n".join(check_entry(_halt(evidence=evidence), repo.root))
     assert f"evidence {evidence!r} is not locatable" in output
     assert "expected: a single leading `path:line — one sentence` citation" in output
     assert defect in output
@@ -188,14 +189,20 @@ def test_decisions_evidence_path_rejection_keeps_the_locators_message(repo):
     """A locatable-format line pointing nowhere is not a grammar rejection —
     it keeps the locator's message; only the grammar rejection teaches."""
     repo.seed()
-    output = "\n".join(check_entry(entry(evidence="ghost.py:1"), repo.root))
+    output = "\n".join(check_entry(_halt(evidence="ghost.py:1"), repo.root))
     assert "does not exist" in output
     assert "expected: a single leading" not in output
 
 
 def test_decisions_evidence_with_separator_still_passes(repo):
     repo.seed()
-    assert check_entry(entry(evidence="src/app.py:1 — the guard"), repo.root) == []
+    assert check_entry(_halt(evidence="src/app.py:1 — the guard"), repo.root) == []
+
+
+def _halt(**overrides):
+    """A halt on the LOCKED row, the entry a new log holds (S-0122/D-14)."""
+
+    return entry(kind="contradicted", action="halted", **overrides)
 
 
 def test_a_later_blocking_gate_still_reports_after_an_earlier_one_fails(repo):
@@ -291,15 +298,6 @@ def test_a_gate_that_judges_nothing_the_attempt_changed_is_skipped(repo):
 
     assert {r.name: r.outcome for r in report.results}["judges-src"] == "fail"
     assert report.exit_code == 1
-
-
-def test_decisions_no_paths_is_skipped_never_passed():
-    from torve.domain.task import InheritedDecision
-
-    area_less = InheritedDecision(id="D-9", grade="LOCKED", text="an area-less lock", paths=[])
-    problems, skipped = owed([area_less], ["src/app.py"], [])
-    assert problems == []
-    assert any(line.startswith("D-9:") for line in skipped)
 
 
 def test_repository_logs_parse_under_the_gate():
@@ -512,9 +510,7 @@ def test_the_shipped_suite_gate_runs_the_suite_and_reports_nothing():
 
 
 # ----------------------- #
-# S-0054 phase 1: a decision with a check is a gate (S-0054/D-2, S-0054/D-4), and
-# a row a gate covers owes no attestation (S-0054/D-3) — as narrowed by S-0106/D-1:
-# a check that passed covers its row, and one that failed leaves it owed.
+# S-0054 phase 1: a decision with a check is a gate (S-0054/D-2, S-0054/D-4).
 
 
 def _checked(check: str, state: str = "shadow", twin: str | None = None) -> list[dict]:
@@ -747,27 +743,6 @@ def test_the_no_tests_ran_reading_is_vacuous_too():
     assert not selected_nothing(0, "Resolved 150 packages in 1.02s\n")
 
 
-def test_a_failing_check_is_owed_and_a_passing_one_is_not():
-    """D-1: with verdicts in hand, `owed` convicts a row whose check failed
-    and covers one whose check passed; an entry naming the row answers it."""
-    from torve.domain.task import InheritedDecision
-    from torve.gates.log_entry import owed
-
-    checked = InheritedDecision(
-        id="S-0009/D-1", grade="LOCKED", text="x", paths=["src/**"], check="pytest tests/test_x.py"
-    )
-
-    failed, nothing = owed([checked], ["src/app.py"], [], {"S-0009/D-1": "fail"})
-    assert failed and "S-0009/D-1" in failed[0] and not nothing
-
-    passed, covered = owed([checked], ["src/app.py"], [], {"S-0009/D-1": "pass"})
-    assert not passed and covered == ["S-0009/D-1: covered by its check, which passed"]
-
-    # The entry is what the row is owed; one naming it answers the gate.
-    answered, _ = owed([checked], ["src/app.py"], ["S-0009/D-1"], {"S-0009/D-1": "fail"})
-    assert not answered
-
-
 def test_a_promoted_checkable_row_blocks_when_its_check_is_red(repo):
     from torve.gates.runner import run_gates
 
@@ -849,24 +824,6 @@ def test_a_manifest_that_runs_rows_at_completion_gives_an_attempt_none(repo):
 
     ctx.manifest = ctx.manifest.model_copy(update={"rows": "completion"})
     assert not [gate.name for gate in battery(ctx) if gate.name.startswith("decision:")]
-
-
-def test_a_row_with_a_check_is_covered_and_owes_no_entry():
-    from torve.domain.task import InheritedDecision
-    from torve.gates.log_entry import owed
-
-    checked = InheritedDecision(
-        id="S-0009/D-1", grade="LOCKED", text="x", paths=["src/**"], check="pytest tests/test_x.py"
-    )
-    silent = InheritedDecision(id="S-0009/D-2", grade="LOCKED", text="y", paths=["src/**"])
-
-    problems, skipped = owed([checked, silent], ["src/app.py"], [])
-
-    assert [p.split(":")[1].strip() for p in problems] == [
-        "LOCKED, and the diff touches 1 file(s) it governs (src/app.py), with no entry in the log"
-    ]
-    assert "S-0009/D-2" in problems[0] and "S-0009/D-1" not in problems[0]
-    assert skipped == ["S-0009/D-1: covered by its check, which runs as a gate"]
 
 
 # ----------------------- #
@@ -996,17 +953,6 @@ def test_acceptance_reports_the_suite_on_a_red_verdict_too(tmp_path):
     outcome = _acceptance_over(tmp_path, "1 failed, 119 passed, 33 skipped in 4.53s\n", exit_code=1)
     assert outcome.outcome == "fail"
     assert "33 skipped" in outcome.output
-
-
-def test_decisions_a_bare_local_id_names_the_tasks_own_row():
-    """A log entry may cite the row as the contract spells it (`S-0012/D-2`)
-    or as the document's prose does (`D-2`). bloomery T-0007 wrote the bare
-    form for three rows and was convicted for having written nothing."""
-    from torve.domain.task import InheritedDecision
-
-    locked = InheritedDecision(id="S-0012/D-2", grade="LOCKED", text="a rung", paths=["src/**"])
-    problems, _skipped = owed([locked], ["src/app.py"], ["D-2"])
-    assert problems == [], problems
 
 
 def test_scope_admits_the_lock_file_of_a_manifest_it_admits(repo):

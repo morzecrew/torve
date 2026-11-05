@@ -41,7 +41,8 @@ shell has not set is filled in.
 | `torve manager return <task>` | send a reviewed candidate back for revision; `--note` briefs the next attempt |
 | `torve manager board <partition>` | every contract this partition owns and what became of it |
 | `torve gates run` / `check` | the battery, and the sabotage suite that proves a gate can fail |
-| `torve log divergence` / `owed` / `notes` / `land` | the task log: an attempt records its divergences and reads its notes; `land` writes a hand finish's landing file |
+| `torve abort` | inside an attempt: halt the task when its rows, its intent and its tests cannot all hold; a halt on a LOCKED row goes to the owner, any other back to the author |
+| `torve log divergence` / `notes` / `land` | the task log: an attempt records a departure and reads its notes; `land` writes a hand finish's landing file |
 | `torve review pr <number>` | review one pull request and post the findings back as a comment |
 | `torve spec check` / `list` / `show` / `amend` / `project` | the corpus surface; `project` renders the `AGENTS.md` sections beside the code, and belongs in every pull request that accepts or amends a document |
 | `torve equip [--check]` | fetch and verify the equipment the profiles declare |
@@ -303,22 +304,18 @@ row's state (S-0106/D-1): a `-k` filter matching no test has judged nothing,
 and it is seen the first time it runs rather than left as a quiet green. The
 `decision:<id>` gates run first.
 
-A check stands for its row in the silence check, and what changed is the
-failure side. A row whose check ran and passed owes no divergence entry,
-whatever its paths — the check is its evidence. A `LOCKED` row whose check
-*did not* pass — a fail, an error, a check that selected nothing — is owed
-an entry like any other touched locked area, instead of the old rule that
-skipped every row carrying a check (S-0106/D-1).
-
 A row's paths are its gate's, as an invariant's are: a `decision:<id>` gate
 whose row declares paths, none of which the diff touches, is reported
-skipped, and a skipped check owes no entry. The files the check's command
-names count too, so an edit to its test runs it, and a renamed file counts
-at both its old and its new path. A row with no paths runs on every diff.
-Every phase of a document carries all of its rows, so without this a row a
-later phase builds fails its check in each earlier phase and costs that
-attempt an entry. The phase that builds the row touches its paths, and the
+skipped. The files the check's command names count too, so an edit to its
+test runs it, and a renamed file counts at both its old and its new path. A
+row with no paths runs on every diff. Every phase of a document carries all
+of its rows, so without this a row a later phase builds fails its check in
+each earlier phase. The phase that builds the row touches its paths, and the
 completion battery reads the whole document's diff.
+
+No row owes a divergence entry for being touched: the silence check and the
+attestations it demanded are gone (S-0122/D-14), and a red check is the
+check's finding, not a missing entry.
 
 A `check_state: blocking` row also names a `check_twin`: the test that
 proves the check *can* fail — a plausible wrong implementation of the row,
@@ -484,10 +481,10 @@ over stdio. It registers four tools and all four are read-only
 (S-0067/D-5, LOCKED): `context`, `show`, `why` — and `pack`.
 
 `pack` takes a task id, and optionally one file name, and answers with the
-very files a dispatched sandbox is handed on disk: `index.md`,
-`decisions.json`, `gates.json`, `tests.json`, `attempts.json`,
-`contended.json`, `schema/*.json`. They are built there by the same pure
-function dispatch calls — the builder derives and the caller writes, so a
+very files a dispatched sandbox is handed on disk: `index.md`, `map.md`,
+`scope.md`, `decisions.json`, `attempts.json`, `symbols.txt`,
+`schema/*.json`, and `source.json` when the task has a source. They are
+built there by the same pure function dispatch calls — the builder derives and the caller writes, so a
 query materializes nothing: no file on disk moves because you asked.
 
 Until that tool existed the pack was a sandbox fact: a session read it off a

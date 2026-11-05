@@ -66,8 +66,8 @@ bookkeeping before it is judged on it.
     `git status`, `diff` and `log` answer; nothing in the sandbox can write a
     ref or an object. The design does not lean on git either: the divergence pin is dropped
     into the worktree at dispatch instead of being derived, the engine
-    records and re-projects the log host-side, and `torve log owed` takes the
-    changed files as arguments rather than computing a diff.
+    records and re-projects the log host-side, and `torve abort` reads its task
+    and attempt from that pin.
 
 ## Notes go the other way
 

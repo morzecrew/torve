@@ -20,14 +20,14 @@
 Imports run downward only (cli > adapters > application > domain > base); gates and config import neither application nor adapters, config never imports cli, adapters never import each other, gates and the runtime and agent adapters never import `torve.config.spec`, and import-linter enforces it
 
 - Paths: `src/torve/**` `pyproject.toml`
-- Check: `uv run lint-imports && uv run pytest tests/test_layering.py` (shadow; runs as `decision:S-0121/D-12`, no log entry owed)
+- Check: `uv run lint-imports && uv run pytest tests/test_layering.py` (shadow; runs as `decision:S-0121/D-12`)
 
 ### S-0121/D-20 — `LOCKED` (Charter) — implementation: partial
 
 Torve owns the DDL for every relation it uses as owner-grouped, forward-only, checksummed SQL under `migrations/`, and the substrate group pins an exact forze version that `pyproject.toml` matches and `doctor` enforces
 
 - Paths: `migrations/**` `src/torve/application/migrate.py` `src/torve/cli/migrate.py` `pyproject.toml`
-- Check: `uv run pytest tests/test_migrate.py` (shadow; runs as `decision:S-0121/D-20`, no log entry owed)
+- Check: `uv run pytest tests/test_migrate.py` (shadow; runs as `decision:S-0121/D-20`)
 
 ### S-0122/D-20 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
 

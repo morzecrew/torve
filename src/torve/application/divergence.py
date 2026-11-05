@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from torve.application.eventlog import EventLog
     from torve.application.ports import JournalSync
     from torve.domain.events import EventRecord
+    from torve.domain.task import Task
 
 # ----------------------- #
 
@@ -97,6 +98,19 @@ def _git(root: Path, *args: str) -> str:
 # ....................... #
 
 
+def _dropped(root: Path) -> dict[str, Any] | None:
+    """The pin file the engine left in the worktree, or None when it left none."""
+
+    dropped = root / layout.TORVE_DIR / "tmp" / PIN_FILE
+
+    if not dropped.is_file():
+        return None
+
+    loaded = json.loads(dropped.read_text() or "{}")
+
+    return cast(dict[str, Any], loaded) if isinstance(loaded, dict) else None
+
+
 def _pin(root: Path) -> dict[str, str]:
     """The log's opening pin (S-0001/D-36): the repository its evidence resolves
     against, and the commit the work started from. Derived here because an
@@ -106,18 +120,13 @@ def _pin(root: Path) -> dict[str, str]:
     sandbox git resolves nothing, and the dropped file is the only source
     there is."""
 
-    dropped = root / layout.TORVE_DIR / "tmp" / PIN_FILE
+    carried = _dropped(root)
 
-    if dropped.is_file():
-        loaded = json.loads(dropped.read_text() or "{}")
-
-        if isinstance(loaded, dict):
-            carried = cast(dict[str, Any], loaded)
-
-            return {
-                "repo": str(carried.get("repo") or ""),
-                "base": str(carried.get("base") or carried.get("base_sha") or ""),
-            }
+    if carried is not None:
+        return {
+            "repo": str(carried.get("repo") or ""),
+            "base": str(carried.get("base") or carried.get("base_sha") or ""),
+        }
 
     remote = _git(root, "config", "--get", "remote.origin.url")
     repo = ""
@@ -182,7 +191,7 @@ def render(document: dict[str, Any]) -> str:
 # ....................... #
 
 
-def seed(root: Path, task_id: str, *, base: str | None = None) -> Path:
+def seed(root: Path, task_id: str, *, base: str | None = None, attempt: int | None = None) -> Path:
     """Write the log's pin where the intake can read it, before the agent
     runs.
 
@@ -195,12 +204,21 @@ def seed(root: Path, task_id: str, *, base: str | None = None) -> Path:
     S-0003/D-21), and a run with nothing to report must still leave no file
     behind. The pin lives under the engine's own scratch directory, which
     is generated and never committed.
+
+    The task and the attempt ride beside it for `torve abort`, which takes
+    neither: a halt counts only against its own attempt's entries, and
+    nothing inside the sandbox can tell which attempt it is.
     """
 
-    pin = dict(_pin(root))
+    pin: dict[str, Any] = dict(_pin(root))
 
     if base:
         pin["base"] = base
+
+    pin["task"] = task_id
+
+    if attempt:
+        pin["attempt"] = attempt
 
     path = root / layout.TORVE_DIR / "tmp" / PIN_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -289,7 +307,11 @@ def payload_of(entry: dict[str, Any]) -> dict[str, Any]:
         "attempt": int(entry["attempt"]),
         "decision_id": str(entry["decision"]),
         "grade": str(entry["grade"]),
-        "entry_kind": str(entry.get("kind") or "resolved"),
+        # An entry naming a class alone is a halt or a departure, as its action
+        # says; `resolved` is an old log's word and no new entry's (S-0122/D-14).
+        "entry_kind": str(
+            entry.get("kind") or ("blocked" if entry["action"] == "halted" else "departed")
+        ),
         "entry_class": str(entry.get("class") or "discovery"),
         "claim": str(entry["claim"]),
         "evidence": str(entry["evidence"]),
@@ -375,6 +397,90 @@ def record(
             notes=notes,
         ),
     )
+
+
+# ....................... #
+
+
+def current(root: Path) -> tuple[str, int]:
+    """(task, attempt) this worktree is running: what the engine pinned
+    before the agent started, else the one contract the worktree holds, at
+    attempt 1. Refused when neither names one task."""
+
+    carried = _dropped(root) or {}
+    task_id = str(carried.get("task") or "")
+
+    if not task_id:
+        contracts = sorted((root / layout.TORVE_DIR / "tasks").glob("*/contract.yaml"))
+
+        if len(contracts) != 1:
+            found = f"{len(contracts)} contracts under {layout.TORVE_DIR}/tasks/"
+            why = f"no one task to abort here: {found} and no pin naming one"
+            raise IntakeRefused([f"{why} — run it in the task's worktree"])
+
+        task_id = contracts[0].parent.name
+
+    return task_id, int(carried.get("attempt") or 1)
+
+
+def halts(
+    root: Path,
+    task: Task,
+    rows: list[str],
+    *,
+    claim: str,
+    evidence: str,
+    attempt: int,
+) -> list[dict[str, Any]]:
+    """The entries `torve abort` writes (S-0122/D-14): one `halted` entry per
+    row it cites, graded as the contract carries the row, or one `unlisted`
+    halt when it cites none. A row the contract does not carry is refused
+    rather than guessed at: its grade decides the escalation, LOCKED asking
+    the owner (`locked_conflict`) and anything else the author
+    (`underspecified`)."""
+
+    problems: list[str] = []
+    cited: list[tuple[str, str]] = []
+
+    for given in rows:
+        found = [row for row in task.decisions if row.id == given or row.id.endswith(f"/{given}")]
+
+        if len(found) != 1:
+            carried = ", ".join(row.id for row in task.decisions) or "none"
+            problems.append(
+                f"row {given!r} is {'ambiguous' if found else 'not'} in this contract "
+                f"— its rows: {carried}; cite one by its full id, or none"
+            )
+            continue
+
+        cited.append((found[0].id, found[0].grade))
+
+    if problems:
+        raise IntakeRefused(problems)
+
+    entries: list[dict[str, Any]] = []
+
+    for decision, grade in cited or [("unlisted", "UNLISTED")]:
+        try:
+            entries.append(
+                compose(
+                    root,
+                    decision=decision,
+                    grade=grade,
+                    claim=claim,
+                    evidence=evidence,
+                    action="halted",
+                    attempt=attempt,
+                    kind="contradicted" if grade == "LOCKED" else "blocked",
+                )
+            )
+        except IntakeRefused as refused:
+            problems += refused.problems
+
+    if problems:
+        raise IntakeRefused(list(dict.fromkeys(problems)))
+
+    return entries
 
 
 # ....................... #

@@ -92,38 +92,40 @@ def test_the_first_message_carries_the_packs_small_files(tmp_path):
 
     pack = tmp_path / PACK_RELPATH
     pack.mkdir(parents=True, exist_ok=True)
-    (pack / "gates.json").write_text('{"gates": ["the battery"]}', encoding="utf-8")
-    (pack / "tests.json").write_text('{"coverage": ["the tests"]}', encoding="utf-8")
     (pack / "attempts.json").write_text('{"attempts": ["the red"]}', encoding="utf-8")
+    (pack / "decisions.json").write_text('{"inherited": ["the inherited rows"]}', encoding="utf-8")
+    # S-0122/the-evidence-package: a pack written before carries these; the
+    # first message no longer does.
+    (pack / "gates.json").write_text('{"gates": ["the battery"]}', encoding="utf-8")
     (pack / "contended.json").write_text('{"contended": ["the paths"]}', encoding="utf-8")
-    (pack / "decisions.json").write_text('{"inherited": ["the rows"]}', encoding="utf-8")
     # S-0077/D-4: the map rides the same message, and it is markdown rather
     # than JSON, so the fence it lands in is not the JSON one.
     (pack / "map.md").write_text("# Where things are\n\n- `src/` — the layout", encoding="utf-8")
-    # S-0076/A-1: the scope's own files ride with the task too.
-    (pack / "scope.md").write_text("# The files this scope names\n\nthe bodies", encoding="utf-8")
+    # S-0076/A-1: the scope's own files ride with the task too, each in its
+    # own fence, which the fence around `scope.md` must outlast.
+    (pack / "scope.md").write_text(
+        "# The files this scope names\n\n```python\nthe bodies\n```", encoding="utf-8"
+    )
 
     handed = pack_handover(tmp_path)
     prompt = build_prompt(Task(id="T-0001", decisions=[]), pack=handed)
 
-    for body in ("the battery", "the tests", "the red", "the paths", "the layout", "the bodies"):
+    for body in ("the red", "the layout", "the bodies"):
         assert body in prompt
+
+    for body in ("the battery", "the paths"):
+        assert body not in prompt
 
     assert "```\n# Where things are" in prompt
     assert "```json\n# Where things are" not in prompt
+    assert "````\n# The files this scope names" in prompt
+    assert "```\n````\n" in prompt  # the inner fence closes before the outer one
 
     # Named once, as what it is — never as a file to open.
-    for name in (
-        "map.md",
-        "scope.md",
-        "gates.json",
-        "tests.json",
-        "attempts.json",
-        "contended.json",
-    ):
+    for name in ("map.md", "scope.md", "attempts.json"):
         assert f"{PACK_RELPATH}/{name}" not in prompt
 
-    assert "the rows" not in prompt
+    assert "the inherited rows" not in prompt
     assert f"{PACK_RELPATH}/decisions.json" in prompt
 
     # Deterministic for the same pack, and no pack at all is no section.
@@ -2015,6 +2017,35 @@ def test_the_working_rules_are_named_and_not_restated():
     assert len(bullets) == 1
     assert "`working-rules`" in bullets[0]
     assert ".torve/skills/" in bullets[0]
+
+
+def test_every_rules_section_forbids_gaming_a_test_and_names_the_abort():
+    """S-0122/D-3, S-0122/D-14: equipped or not, through the prompt and the
+    system file alike, the executor reads that protected tests are read-only,
+    that a test is never weakened, skipped or special-cased, and that
+    `torve abort` is the way out — and that an abort is a success."""
+
+    from torve.adapters.agent.harness import build_prompt, working_rules
+    from torve.cli.main import app
+    from torve.domain.task import Task
+
+    for section in (
+        build_prompt(Task(id="T-1", decisions=[])),
+        build_prompt(Task(id="T-1", decisions=[]), equipped=False),
+        working_rules("", "the skills"),
+    ):
+        assert "are read-only: run them, never change them" in section
+        assert "skip or xfail a test" in section
+        assert "behaves differently under test" in section
+        assert '`torve abort --row <id> --claim "…" --evidence "path:line — …"`' in section
+        assert "A justified abort is a successful attempt. A gamed test is discarded." in section
+        assert "owed" not in section and "decided" not in section
+
+    # The verb the paragraph names takes the options it shows.
+    from typer.main import get_command
+
+    abort = get_command(app).commands["abort"]
+    assert {"--row", "--claim", "--evidence"} <= {p.opts[0] for p in abort.params}
 
 
 def test_the_reading_advice_names_the_shell_forms_beside_the_readers():

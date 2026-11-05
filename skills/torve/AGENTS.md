@@ -7,6 +7,5 @@
 Accepting a document, grading or amending a LOCKED row, merging a pull request, resolving a person's review thread, force-pushing and deleting a branch are the owner's acts, and the shipped operator skill says so
 
 - Paths: `skills/torve/SKILL.md` `src/torve/cli/init.py`
-- Touching these paths owes a divergence entry: `torve log owed <task> --touched <files>` before you finish
 
 <!-- /torve:managed -->

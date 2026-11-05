@@ -42,22 +42,26 @@ holds no provider key and no store credential; it reaches models through one
 loopback route per routed provider, with the key injected at the wire and
 every response metered.
 
-Two things an agent is expected to do from inside:
+Two things an agent may write from inside, and nothing else:
 
 ```bash
-torve log divergence T-0142 --decision D-3 --grade LOCKED \
-    --kind contradicted --class spec-gap \
-    --claim "..." --evidence "path:line — what that line shows" --action halted
+torve abort --row D-3 \
+    --claim "..." --evidence "path:line — what that line shows"
 
-torve log owed T-0142 --touched src/app/session.py
+torve log divergence T-0142 --decision D-5 --grade ASSUMED \
+    --kind departed --class discovery --proposal "..." \
+    --claim "..." --evidence "path:line — what that line shows" --action departed
 ```
 
-The first records a divergence through the channel; the engine writes the
-log file, so unparseable YAML and unstaged logs are not reachable states.
-The second answers which LOCKED decisions the changed files touch with no
-entry citing them — the same check the gate convicts on, asked while the
-agent can still answer it. Silence over a governed file is the single most
-common way an attempt is thrown away.
+The first halts the task when its rows, its intent and its tests cannot all
+hold: a halt on a LOCKED row escalates to the owner, any other to the author
+as underspecified, and a justified abort is a successful attempt. The second
+records a departure from an ASSUMED or OPEN row, with what the row should say
+instead. Both check every entry before writing it, so unparseable YAML is
+not a reachable state. A brokered run sends them through the channel and the
+engine writes the log file; a run without one writes the file in the
+worktree, and the engine stages what the verb could not. Work that keeps to
+its rows writes no entry.
 
 ## Gates — the battery judges the diff
 

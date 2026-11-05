@@ -22,6 +22,7 @@ from typer.testing import CliRunner
 from torve.adapters.eventstore.document import mock_module
 from torve.application.divergence import (
     IntakeRefused,
+    current,
     ingest,
     journal_sync,
     open_log,
@@ -56,12 +57,12 @@ def log_problems(worktree) -> list[str]:
 def one_entry(worktree, **overrides):
     fields = {
         "decision": "S-0001/D-1",
-        "grade": "LOCKED",
-        "kind": "resolved",
+        "grade": "ASSUMED",
+        "kind": "departed",
         "klass": "spec-gap",
         "claim": "the engine writes the log now",
         "evidence": HOSTILE,
-        "action": "decided",
+        "action": "departed",
         "attempt": 1,
     }
 
@@ -88,8 +89,8 @@ def test_the_refusal_is_the_gates_own_judgement(worktree):
 
     stated = {
         "decision": "S-0001/D-1",
-        "grade": "LOCKED",
-        "kind": "resolved",
+        "grade": "ASSUMED",
+        "kind": "departed",
         "class": "spec-gap",
         "at": "2026-09-04T00:00:00Z",
         "attempt": 1,
@@ -99,6 +100,39 @@ def test_the_refusal_is_the_gates_own_judgement(worktree):
     }
 
     assert refused.value.problems == check_entry(stated, worktree.root)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "word"),
+    [
+        ({"grade": "LOCKED", "kind": "resolved", "action": "decided"}, "'decided'"),
+        ({"grade": "ASSUMED", "kind": "resolved", "action": "departed"}, "'resolved'"),
+        ({"grade": "OPEN", "kind": None, "action": "decided"}, "'decided'"),
+    ],
+)
+def test_an_attestation_is_refused_at_the_intake(worktree, overrides, word):
+    """S-0122/D-14: the log holds halts and departures only. An attestation
+    of compliance was two thirds of every log and changed no outcome, so the
+    intake refuses one, naming what the log holds instead."""
+
+    with pytest.raises(IntakeRefused) as refused:
+        one_entry(worktree, **{**overrides, "kind": overrides["kind"] or ""})
+
+    (problem,) = [one for one in refused.value.problems if word in one]
+    assert "halts (`torve abort`) and departures only" in problem
+    assert not layout.log_file(worktree.root, TASK_ID).exists()
+
+
+def test_an_old_log_carrying_attestations_still_reads(worktree):
+    """S-0122/D-14 retires the words for new entries, not for history: the
+    landings and records written before carry `decided` and `resolved`, and
+    a log holding them parses as it always did."""
+
+    old = {"decision": "S-0001/D-1", "grade": "LOCKED", "kind": "resolved", "action": "decided"}
+    document, error = parse_log(yaml.safe_dump({"task": TASK_ID, "entries": [old]}))
+
+    assert error is None and document is not None
+    assert document["entries"] == [old]
 
 
 def test_a_scalar_that_breaks_naive_yaml_round_trips(worktree):
@@ -215,9 +249,9 @@ def test_the_verb_refuses_with_a_config_exit_and_writes_nothing(worktree):
             "--decision",
             "S-0001/D-1",
             "--grade",
-            "LOCKED",
+            "ASSUMED",
             "--kind",
-            "resolved",
+            "departed",
             "--class",
             "spec-gap",
             "--claim",
@@ -225,7 +259,7 @@ def test_the_verb_refuses_with_a_config_exit_and_writes_nothing(worktree):
             "--evidence",
             "a sentence, which is a claim and not evidence",
             "--action",
-            "decided",
+            "departed",
         ],
     )
 
@@ -245,9 +279,9 @@ def test_the_verb_reports_what_it_wrote(worktree):
             "--decision",
             "S-0001/D-1",
             "--grade",
-            "LOCKED",
+            "ASSUMED",
             "--kind",
-            "resolved",
+            "departed",
             "--class",
             "spec-gap",
             "--claim",
@@ -255,7 +289,7 @@ def test_the_verb_reports_what_it_wrote(worktree):
             "--evidence",
             HOSTILE,
             "--action",
-            "decided",
+            "departed",
             "--format",
             "json",
         ],
@@ -280,9 +314,11 @@ def test_the_pin_is_dropped_before_the_agent_runs_and_leaves_no_log(worktree):
     host-side, at dispatch, so the intake reads it back instead of the agent
     copying it — and an untouched run still leaves no log behind."""
 
-    seed(worktree.root, TASK_ID, base="0" * 40)
+    seed(worktree.root, TASK_ID, base="0" * 40, attempt=2)
 
     assert not layout.log_file(worktree.root, TASK_ID).exists()
+    # The task and attempt ride beside the pin, for `torve abort` (S-0122/D-14).
+    assert current(worktree.root) == (TASK_ID, 2)
 
     _, document, _ = one_entry(worktree)
 
@@ -466,12 +502,12 @@ def test_the_projected_log_holds_what_the_record_holds(worktree):
                 payload={
                     "attempt": 1,
                     "decision_id": "S-0001/D-1",
-                    "grade": "LOCKED",
-                    "entry_kind": "resolved",
+                    "grade": "ASSUMED",
+                    "entry_kind": "departed",
                     "entry_class": "spec-gap",
-                    "claim": "the locked area was touched and this says why",
+                    "claim": "the assumed row was built otherwise and this says why",
                     "evidence": HOSTILE,
-                    "action": "decided",
+                    "action": "departed",
                 },
             )
 
@@ -514,62 +550,6 @@ def test_a_redispatch_does_not_record_a_landed_log_twice(worktree):
             assert len(await log.history(TASK_ID)) == 1
 
     asyncio.run(scenario())
-
-
-# ....................... #
-
-# `torve log owed`: the silence check, asked before the gate asks it.
-
-
-def test_owed_names_the_decisions_the_log_has_not_cited(worktree):
-    result = CliRunner().invoke(
-        app,
-        [
-            "log",
-            "owed",
-            TASK_ID,
-            "--root",
-            str(worktree.root),
-            "--touched",
-            "src/app.py",
-            "--format",
-            "json",
-        ],
-    )
-    reported = json.loads(result.stdout)
-
-    assert result.exit_code == EXIT_OK
-    assert reported["owed"], "a LOCKED decision governs src/app.py and nothing cites it"
-    assert "S-0001/D-1" in reported["owed"][0]
-
-
-def test_owed_goes_quiet_once_the_entry_exists(worktree):
-    one_entry(worktree)
-
-    result = CliRunner().invoke(
-        app,
-        [
-            "log",
-            "owed",
-            TASK_ID,
-            "--root",
-            str(worktree.root),
-            "--touched",
-            "src/app.py",
-            "--format",
-            "json",
-        ],
-    )
-
-    assert json.loads(result.stdout)["owed"] == []
-
-
-def test_owed_refuses_a_task_with_no_contract(tmp_path):
-    result = CliRunner().invoke(
-        app, ["log", "owed", "T-9999", "--root", str(tmp_path), "--format", "json"]
-    )
-
-    assert result.exit_code == EXIT_CONFIG
 
 
 # ----------------------- #

@@ -16,13 +16,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `rows: completion` in the gate manifest runs a contract row's `check` only in the
   battery that completes its document, instead of on every attempt.
 
+- `torve abort --claim … --evidence … [--row <id>]` stops a task from inside its attempt
+  when the rows, the intent and the tests cannot all hold. A halt on a LOCKED row goes
+  to the owner; any other goes back to the author as underspecified.
+
 ### Changed
 
 - The dsh image moves to dsh 0.2.1-rc.5. It now shuts out project instruction files
   and the default skill roots, gives a shell command up to 900 s in the foreground,
   and reports usage and tool calls from dsh's v4 session log.
 
+- The context pack carries the files a task changes and their paired tests first and
+  whole, in the contract's order, and names its contingent files without carrying them.
+  A neighbour that sorted first can no longer push the task's own files out of the
+  prompt.
+
+- The context pack no longer carries `gates.json`, `contended.json` or coverage counts,
+  and a retry is handed only the reds that blocked.
+
+- An attempt is no longer asked for attestation entries: `torve log divergence` refuses
+  `decided` and `resolved`, the prompt and `AGENTS.md` sections name no owed entry, and
+  the finish hook runs only the acceptance. Logs written before still read.
+
+- `torve log divergence` without `--attempt` files its entries under the attempt the
+  engine pinned in the worktree, not attempt 1.
+
 ### Removed
+
+- `torve log owed` is gone.
 
 - `torve eval` and `torve shadow` are gone, with the eval arms and shadow replays they
   launched. A dispatch no longer refuses an image digest no eval verdict measured.

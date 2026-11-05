@@ -19,7 +19,6 @@ from typer.testing import CliRunner
 from torve.application.colocation import (
     MARK_CLOSE,
     compute,
-    contended_paths,
     directory_of,
     governed_directories,
     project,
@@ -112,18 +111,15 @@ def test_a_governed_directory_gets_a_section_and_an_ungoverned_one_none(tmp_path
 
     assert "### S-0001/D-1 — `LOCKED` (Document 0001)" in cli
     assert "- Consequence: because" in cli
-    assert (
-        "- Check: `pytest tests/test_cli.py` (shadow; runs as `decision:S-0001/D-1`, no log entry owed)"
-        in cli
-    )
+    assert "- Check: `pytest tests/test_cli.py` (shadow; runs as `decision:S-0001/D-1`)" in cli
+    # S-0122/D-14: no section asks for a log entry, LOCKED or not.
+    assert "owe" not in cli
     assert "- **S-0001/I-1**: one lander" in cli
     assert cli.endswith(MARK_CLOSE + "\n")
 
     gates = (tmp_path / "src/torve/gates/AGENTS.md").read_text(encoding="utf-8")
 
-    assert (
-        "S-0001/D-2" in gates and "Touching these paths owes" not in gates
-    )  # ASSUMED owes nothing
+    assert "S-0001/D-2" in gates and "owe" not in gates
 
     # a phase reaches the domain directory: a section with no rows, so the
     # index names it and the file carries only the markers
@@ -323,8 +319,7 @@ def test_a_telemetry_stream_present_or_absent_renders_the_same_bytes(tmp_path: P
     """The section used to carry a "Contended now" block read from the
     telemetry stream — uncommitted, gitignored and machine-local, so the
     same corpus rendered on two machines produced two files and the drift
-    check judged a number nobody wrote. The facts still reach the reader
-    through the pack's `contended.json` (S-0070/D-2)."""
+    check judged a number nobody wrote (S-0070/D-2)."""
 
     rfc_dir = _seed(tmp_path)
 
@@ -342,7 +337,7 @@ def test_a_telemetry_stream_present_or_absent_renders_the_same_bytes(tmp_path: P
 
     # the stream really does contend over governed directories, so an equal
     # render is the property and not an empty read
-    assert contended_paths(tmp_path) == {"src/torve/cli/**": 2, "src/torve/gates/x.py": 1}
+    assert len(stream.read_text(encoding="utf-8").splitlines()) == 3
     assert compute(tmp_path, rfc_dir).sections == without
 
     project(tmp_path, rfc_dir)
