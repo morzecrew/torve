@@ -1080,10 +1080,11 @@ def test_the_battery_judges_the_attempt_under_its_contract_and_log(repo):
 
 
 def test_an_attempt_cannot_edit_its_own_judge(repo):
-    """S-0121/D-3: the battery runs the root's manifest over the root's
-    contract. An attempt that rewrites both in its worktree, one to drop the
-    gate that judges it and one to judge itself by a command of its choosing,
-    still meets the root's."""
+    """S-0121/D-3: the battery runs the manifest at the attempt's merge base
+    over the root's contract. An attempt that rewrites both in its worktree,
+    one to drop the gate that judges it and one to judge itself by a command
+    of its choosing, still meets the root's; a root manifest edited after the
+    cut does not move an attempt already in flight."""
 
     from torve.application.ports import ExecResult, SandboxHandle
 
@@ -1119,6 +1120,10 @@ def test_an_attempt_cannot_edit_its_own_judge(repo):
     )
     layout.task_file(worktree, TASK_ID).write_text(
         yaml.safe_dump(dict(base_task(allow=["src/**"]), acceptance=["echo hostile"])),
+        encoding="utf-8",
+    )
+    layout.gates_file(repo.root).write_text(
+        yaml.safe_dump(manifest_with([{"name": "moved", "run": "echo moved"}])),
         encoding="utf-8",
     )
 
@@ -2208,20 +2213,19 @@ REPAIR_MANIFEST = {
 
 
 def _repair_passes(monkeypatch, repo, passes, seen, worktree_manifest=None):
-    """The scripted pass, repair edition: the root's manifest carries the
-    qualifying names (S-0121/D-3), and what each attempt is asked under is
-    recorded — the meta it is stamped with and the acceptance its prompt
-    would carry. *worktree_manifest*, when given, is the one the attempt
-    wrote over its own copy."""
+    """The scripted pass, repair edition: the manifest at the attempt's
+    merge base carries the qualifying names (S-0121/D-3), and what each
+    attempt is asked under is recorded — the meta it is stamped with and the
+    acceptance its prompt would carry. *worktree_manifest*, when given, is
+    the one the attempt wrote over its own copy."""
     import torve.application.runner as run_module
 
     outcomes = list(passes)
+    repo.write(".torve/gates.yaml", yaml.safe_dump(REPAIR_MANIFEST))
+    repo.commit("repair manifest")
+    repo.git("branch", "-f", "main", "HEAD")
 
     def scripted(run, _state):
-        manifest_file = run.root / ".torve" / "gates.yaml"
-        manifest_file.parent.mkdir(parents=True, exist_ok=True)
-        manifest_file.write_text(yaml.safe_dump(REPAIR_MANIFEST), encoding="utf-8")
-
         if worktree_manifest is not None:
             edited = run.worktree / ".torve" / "gates.yaml"
             edited.parent.mkdir(parents=True, exist_ok=True)

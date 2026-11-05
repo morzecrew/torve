@@ -60,6 +60,16 @@ def state_file(root: Path, task_id: str) -> Path:
 # ....................... #
 
 
+def base_manifest_file(root: Path, task_id: str) -> Path:
+    """The gate manifest at the attempt's merge base (S-0121/D-3), written
+    beside the worktree so no sandbox mount reaches it."""
+
+    return root / WORKTREE_DIR / f"{task_id}.gates.yaml"
+
+
+# ....................... #
+
+
 def traces_dir(root: Path) -> Path:
     """The durable trace store's home (S-0039/the-store, S-0039/D-1): a directory of
     the host root, retention-capped and never swept by the reaper's terminal
