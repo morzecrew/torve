@@ -1185,6 +1185,15 @@ failure — each with its own escalation reason.</p>
 isolated from the executor, judging the candidate diff without the author's
 trace. Its findings gate the merge lane. A surviving blocker escalates the
 target rather than landing it.</p>
+<p><code>review.mode: critic</code> swaps the reviewer for the critic. The gate pass that
+turned the candidate green also measures it: the changed tests run at the
+head and over the base's source, a status per row the unit owns, the
+acceptance the battery left unrun, the edits to existing tests and the
+gaming greps, written as <code>.torve/review/evidence.yaml</code>. The critic reads
+that, the base tree, the diff and its rows under a frozen prompt, and
+nothing the author wrote about the work. The engine, not the critic, turns
+its findings into block or pass. Neither seat sees an earlier review's
+findings.</p>
 <h2 id="landing-the-commit-is-the-engines">Landing — the commit is the engine's<a class="headerlink" href="#landing-the-commit-is-the-engines" title="Permanent link">&para;</a></h2>
 <p>The runner composes the commit, not the agent: the author is the agent
 identity, the trailers carry task, attempt, agent, config hash and the
