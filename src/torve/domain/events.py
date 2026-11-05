@@ -684,7 +684,10 @@ class NightClosed(BaseModel):
 
     model_config = STRICT
 
-    reason: Literal["drained", "budget_usd", "budget_attempts", "wall_clock", "escalation"]
+    # `passes`: a `--passes` bound ran out before any of the night's own terms.
+    reason: Literal[
+        "drained", "budget_usd", "budget_attempts", "wall_clock", "escalation", "passes"
+    ]
     # The escalation class that stopped the night, for `escalation`.
     detail: str = ""
     # What the night did and how late it closed (S-0079/D-12): the attempts it

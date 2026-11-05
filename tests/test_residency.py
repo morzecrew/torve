@@ -2468,6 +2468,28 @@ def test_an_escalation_stop_is_recorded_as_the_bound_and_its_class(tmp_path):
     run(scenario)
 
 
+def test_a_night_its_passes_bound_ended_closes_on_that_bound(tmp_path):
+    """`torve manager serve --passes` closes the night with `passes` when no
+    term of its own was reached; the record admits it."""
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        night = await open_night(
+            log, PARTITION, config=NightConfig(minutes=30), actor_id="manager-1"
+        )
+        stopped = await close_night(
+            log, PARTITION, night, reason="passes", handled=0, actor_id="manager-1"
+        )
+        assert stopped == "passes"
+        closes = [
+            e for e in await log.since(partition=PARTITION) if e.kind is EventKind.NIGHT_CLOSED
+        ]
+        assert closes[-1].payload["reason"] == "passes"
+
+    run(scenario)
+
+
 def test_a_night_is_not_drained_while_the_lane_owes_a_landing(tmp_path):
     """A candidate green on the last pass is on its branch and not yet on the
     base; the drain term defers to the lane's debt (bloomery T-0006, 2026-09-19:
