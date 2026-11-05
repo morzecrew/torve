@@ -110,13 +110,17 @@ HANDLE = SandboxHandle(id="h-1", name="torve-T-9010")
 
 def test_a_session_starts_equipped_and_learns_its_id():
     runtime = _Runtime(FIRST)
-    session = DshSession(runtime, HANDLE, {"TORVE_MODEL": "m"}, start="equip && run", resume="run")  # type: ignore[arg-type]
+    # A seat's own environment cannot make the first turn resume a session.
+    env = {"TORVE_MODEL": "m", "TORVE_SESSION_ID": "session-stale"}
+    session = DshSession(runtime, HANDLE, env, start="equip && run", resume="run")  # type: ignore[arg-type]
 
     result = session.start(60)
 
     assert result.exit_code == 0
     assert session.id == "session-abc"
     assert "TORVE_JSON=1" in runtime.commands[0]
+    assert "TORVE_SESSION_ID=''" in runtime.commands[0]
+    assert "session-stale" not in runtime.commands[0]
     assert runtime.commands[0].endswith("; equip && run")
 
 

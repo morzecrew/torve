@@ -67,9 +67,11 @@ class DshSession:
     # ....................... #
 
     def start(self, timeout_s: float) -> ExecResult:
-        """The first turn, on the prompt the environment names."""
+        """The first turn, on the prompt the environment names. It resumes
+        nothing, whatever a seat's own environment says: `equip` has just
+        emptied the home a session would be found in."""
 
-        return self._turn({}, self.scripts[0], timeout_s)
+        return self._turn({"TORVE_SESSION_ID": ""}, self.scripts[0], timeout_s)
 
     # ....................... #
 
