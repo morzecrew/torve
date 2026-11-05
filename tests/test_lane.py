@@ -3141,6 +3141,24 @@ def test_a_rebased_local_landing_runs_the_rows_and_a_red_one_restores_the_branch
     assert git(lane_repo, "rev-parse", naming.branch("T-7363")) == head
 
 
+def test_a_local_landings_rows_judge_the_base_it_lands_on_not_a_stale_origin(lane_repo, tmp_path):
+    """A local landing never pushes, so `origin/main` falls behind the base
+    from the first landing on; the rows' diff starts at the base's tip."""
+
+    _origin(lane_repo, tmp_path)
+    _one_phase_checked(lane_repo, "true")
+    candidate(lane_repo, "T-7366", "one.py", "one = 1\n")
+    _phase_contract(lane_repo, "T-7366", 1)
+    base = git(lane_repo, "rev-parse", "main")
+    judged = []
+
+    results = process_lane(lane_repo, GitLane(), on_judged=judged.append)
+
+    assert [r.action for r in results] == ["landed"]
+    (judgment,) = judged
+    assert judgment.base == base != git(lane_repo, "rev-parse", "origin/main")
+
+
 def test_a_carried_contract_the_loader_refuses_does_not_stop_a_local_landing(
     lane_repo, monkeypatch
 ):

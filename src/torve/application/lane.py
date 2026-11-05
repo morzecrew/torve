@@ -3012,16 +3012,23 @@ def _candidate_citations(
 
 
 def _local_completion(
-    root: Path, vcs: LaneVcs, task_id: str, head: str, gates: SandboxFactory | None = None
+    root: Path,
+    vcs: LaneVcs,
+    task_id: str,
+    head: str,
+    base_tip: str,
+    gates: SandboxFactory | None = None,
 ) -> str | None:
     """S-0122/D-4 under a local landing: no document branch completes, so the
     landing that leaves its document complete runs the document's rows over
     the tree that would land, in a detached worktree as the citation scan
-    does. The red summary, or None when green, when the task names no
-    document, or when the document has phases still to land."""
+    does, against the base it lands on: a local landing never moves
+    `origin/main`, which the default base would prefer. The red summary, or
+    None when green, when the task names no document, or when the document
+    has phases still to land."""
 
     from torve.application.forge import DocumentLanding, document_complete
-    from torve.gates.context import load_task, resolve_base
+    from torve.gates.context import load_task
 
     path = contract_file(root, task_id)
 
@@ -3074,7 +3081,7 @@ def _local_completion(
         document_token = _DOCUMENT.set(branch)
 
         try:
-            outcome = _regate(workdir, resolve_base(root, None) or "main", None, gates)
+            outcome = _regate(workdir, base_tip, None, gates)
 
         finally:
             _DOCUMENT.reset(document_token)
@@ -3153,7 +3160,7 @@ def _land_fast_forward(
     # as a red re-gate does.
     problems = _candidate_citations(root, vcs, task_id, branch_tip, specs)
 
-    red = "; ".join(problems) or _local_completion(root, vcs, task_id, branch_tip, gates)
+    red = "; ".join(problems) or _local_completion(root, vcs, task_id, branch_tip, base_tip, gates)
 
     if red:
         _record_red(root, state, task_id, branch, branch_tip, base_tip, red, status, results)
@@ -3358,7 +3365,8 @@ def _land_rebased(
 
         return
 
-    rows_red = _local_completion(root, vcs, task_id, vcs.tip(root, branch) or branch, gates)
+    head = vcs.tip(root, branch) or branch
+    rows_red = _local_completion(root, vcs, task_id, head, base_tip, gates)
 
     if rows_red is not None:
         vcs.reset_branch(root, branch, before_rebase)
