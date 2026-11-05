@@ -5,7 +5,7 @@ kind: design
 change:
   type: fix
   scope: engine
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0122]
 informed_by: []
@@ -52,19 +52,6 @@ non_goals: |
   - Reading a document's phasing from the candidate tree when the lane decides completion.
     Both lanes read it at the root today, and they change together or not at all.
   - S-0122/D-9, the dsh-or-Opus revision question, which waits on 20 units of records.
-tests: |
-  Each phase writes the tests its row's check selects, beside the module it changes, and keeps
-  the full suite green. The corpus phase's own check is a test over the case files; whether the
-  critic's recall moves is read from a live replay after it lands, not in the suite.
-docs: |
-  The changelog's Fixed section, one entry per phase whose effect a user can see.
-out_of_scope: ''
-risks: |
-  - The $3 cap counts only what is priced. Until ModelStudio's models carry a `list_price`
-    (Q-1), a dsh candidate counts nothing toward it and the cap reads the critic's spend alone.
-  - The 90-minute default applies to every critic-mode task that names no clock of its own,
-    including a large phase that used to run longer. Such a task now escalates and needs a
-    contract that names a longer `wallclock_minutes`.
 design:
   - key: the-unit-budget
     md: |
@@ -97,9 +84,26 @@ design:
     md: |
       `torve spec archive` moves the document's `execution/` directory beside the archived files
       in the same transaction, unchanged, so a red check moves nothing and a green one moves both.
+tests: |
+  Each phase writes the tests its row's check selects, beside the module it changes, and keeps
+  the full suite green. The corpus phase's own check is a test over the case files; whether the
+  critic's recall moves is read from a live replay after it lands, not in the suite.
+docs: |
+  The changelog's Fixed section, one entry per phase whose effect a user can see.
+out_of_scope: ''
+risks: |
+  - The $3 cap counts only what is priced. ModelStudio is a subscription with a flat $28
+    monthly quota and no per-token price (Q-1), so a dsh candidate counts nothing toward it and
+    the cap reads the critic's spend alone.
+  - The 90-minute default applies to every critic-mode task that names no clock of its own,
+    including a large phase that used to run longer. Such a task now escalates and needs a
+    contract that names a longer `wallclock_minutes`.
 questions:
   - id: Q-1
     text: >-
-      What `list_price` should `.torve/providers/modelstudio.yaml` carry for
-      deepseek-v4.1-flash and qwen3.8-flash, so a dsh candidate counts toward the $3 cap?
-    status: open
+      What `list_price` should `.torve/providers/modelstudio.yaml` carry for deepseek-v4.1-flash
+      and qwen3.8-flash, so a dsh candidate counts toward the $3 cap? None (owner,
+      2026-11-05): the plan is a flat $28 monthly quota with no per-token price, so
+      D-1's "else nothing" holds for the dsh seat.
+    status: settled
+    settled_by: D-1

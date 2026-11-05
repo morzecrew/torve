@@ -3,70 +3,92 @@ decisions:
   - id: D-1
     grade: ASSUMED
     text: >-
-      Under `review.mode: critic` a unit stops before its next candidate or critic call once its
-      notional spend across its attempts reaches $3, and the run escalates `budget_exhausted`
-      naming the spend; notional spend is each candidate's and critic call's reported
-      `cost_usd`, else its tokens at its model's `list_price`, else nothing
+      Under `review.mode: critic` a unit stops before its next candidate or critic
+      call once its notional spend across its attempts reaches $3, and the run escalates
+      `budget_exhausted` naming the spend; notional spend is each candidate's and
+      critic call's reported `cost_usd`, else its tokens at its model's `list_price`,
+      else nothing
     paths: [src/torve/application/selection.py, src/torve/application/runner.py]
-    consequence: a unit that keeps failing stops costing money at a known bound
+    consequence: >-
+      a unit that keeps failing stops costing money at a known bound
     rationale: S-0122/D-8 set the cap and nothing enforced it
     cites: [S-0122/D-8]
-    check: uv run pytest -q tests/test_selection.py tests/test_runner.py -k unit_budget
+    check: >-
+      uv run pytest -q tests/test_selection.py tests/test_runner.py -k unit_budget
   - id: D-2
     grade: ASSUMED
     text: >-
       Under `review.mode: critic` a task whose contract names no `budget.wallclock_minutes`
-      runs under 90, so the run escalates `budget_exhausted` before an attempt that would start
-      past 90 minutes; a contract that names a bound keeps it
+      runs under 90, so the run escalates `budget_exhausted` before an attempt that
+      would start past 90 minutes; a contract that names a bound keeps it
     paths: [src/torve/application/runner.py]
-    consequence: no unit holds the night past an hour and a half unless its contract says so
-    rationale: S-0122/D-8 set the bound, and the run already enforces a contract's own
+    consequence: >-
+      no unit holds the night past an hour and a half unless its contract says so
+    rationale: >-
+      S-0122/D-8 set the bound, and the run already enforces a contract's own
     cites: [S-0122/D-8]
-    check: uv run pytest -q tests/test_runner.py -k unit_clock
+    check: >-
+      uv run pytest -q tests/test_runner.py -k unit_clock
   - id: D-3
     grade: ASSUMED
     text: >-
-      `GitWorkspace.snapshot` returns the task worktree's HEAD when `git add -A` would stage the
-      tree HEAD already holds, and makes a snapshot commit only over uncommitted work
+      `GitWorkspace.snapshot` returns the task worktree's HEAD when `git add -A` would
+      stage the tree HEAD already holds, and makes a snapshot commit only over uncommitted
+      work
     paths: [src/torve/adapters/workspace/git.py]
-    consequence: a unit that starts clean lands no empty "judge snapshot" commit
-    rationale: the scratch run's landed history carried one on every first attempt
+    consequence: >-
+      a unit that starts clean lands no empty "judge snapshot" commit
+    rationale: >-
+      the scratch run's landed history carried one on every first attempt
     cites: [S-0122/D-7]
-    check: uv run pytest -q tests/test_judge_checkout.py -k clean_snapshot
+    check: >-
+      uv run pytest -q tests/test_judge_checkout.py -k clean_snapshot
   - id: D-4
     grade: ASSUMED
     text: >-
       `review_step` mints a review task only when it runs a reviewer; a verdict selection
       already holds is recorded under the id its critic call was minted with
     paths: [src/torve/application/review.py]
-    consequence: every review id the record holds belongs to a review that ran
-    rationale: the scratch run minted five review ids for three reviews
-    check: uv run pytest -q tests/test_review_run.py -k mints_no_review
+    consequence: >-
+      every review id the record holds belongs to a review that ran
+    rationale: >-
+      the scratch run minted five review ids for three reviews
+    check: >-
+      uv run pytest -q tests/test_review_run.py -k mints_no_review
   - id: D-5
     grade: ASSUMED
     text: >-
-      Every review-corpus case names `tests_run: uv run --no-project --with pytest python -m
-      pytest -q -p no:cacheprovider`, because no image torve ships installs pytest for the
-      system Python
+      Every review-corpus case names `tests_run: uv run --no-project --with pytest
+      python -m pytest -q -p no:cacheprovider`, because no image torve ships installs
+      pytest for the system Python
     paths: [.torve/review-corpus/*/case.yaml]
-    consequence: the critic's corpus replay builds its evidence with real test results
-    rationale: the 0.9.0 replay's critic saw "pytest is not installed" on every case
-    check: uv run pytest -q tests/test_review_corpus.py -k tests_run
+    consequence: >-
+      the critic's corpus replay builds its evidence with real test results
+    rationale: >-
+      the 0.9.0 replay's critic saw "pytest is not installed" on every case
+    check: >-
+      uv run pytest -q tests/test_review_corpus.py -k tests_run
   - id: D-6
     grade: ASSUMED
     text: >-
-      `host_executor` starts each command in a session of its own and, on a timeout, kills that
-      session's process group before it reports the timeout
+      `host_executor` starts each command in a session of its own and, on a timeout,
+      kills that session's process group before it reports the timeout
     paths: [src/torve/base/shell.py]
-    consequence: no process a timed-out host command started outlives it
-    rationale: a timed-out shell line left its children running on the host
-    check: uv run pytest -q tests/test_shell.py -k process_group
+    consequence: >-
+      no process a timed-out host command started outlives it
+    rationale: >-
+      a timed-out shell line left its children running on the host
+    check: >-
+      uv run pytest -q tests/test_shell.py -k process_group
   - id: D-7
     grade: ASSUMED
     text: >-
-      `torve spec archive` carries the document's `execution/` directory into the archive
-      unchanged, in the same transaction as the document's own files
+      `torve spec archive` carries the document's `execution/` directory into the
+      archive unchanged, in the same transaction as the document's own files
     paths: [src/torve/cli/spec.py, src/torve/config/spec_emit.py]
-    consequence: a lane or planner that reads an archived document's landings still finds them
-    rationale: archiving S-0001..S-0120 dropped 299 landing files that were restored by hand
-    check: uv run pytest -q tests/test_rfc_archive.py -k execution
+    consequence: >-
+      a lane or planner that reads an archived document's landings still finds them
+    rationale: >-
+      archiving S-0001..S-0120 dropped 299 landing files that were restored by hand
+    check: >-
+      uv run pytest -q tests/test_rfc_archive.py -k execution

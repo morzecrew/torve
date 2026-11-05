@@ -3,77 +3,72 @@ phasing:
   - phase: 1
     title: The unit's budget
     intent: >-
-      Enforce S-0122/D-8's $3 and 90-minute caps under `review.mode: critic`.
-      `selection.select` takes the unit's notional spend so far and a `budget_usd` (default
-      `selection.UNIT_BUDGET_USD = 3.0`), adds each candidate's and critic call's spend as it
-      goes, and stops before the next candidate or critic call once the bound is reached;
-      `select_attempt` carries the spend across attempts in the run's history, as it carries the
-      critic-call count, and escalates `budget_exhausted` naming the spend. A candidate's or
-      critic call's notional spend is its `cost_usd`, else its token counts priced at its
-      model's `list_price` (the ledger's estimate), else nothing. In the run loop, a
-      critic-mode task whose contract names no `budget.wallclock_minutes` gets
-      `selection.UNIT_MINUTES = 90`. Tests named `unit_budget` cover the spend bound in
-      `tests/test_selection.py` and the escalation in `tests/test_runner.py`; tests named
-      `unit_clock` in `tests/test_runner.py` cover the default clock and a contract's own.
+      Enforce S-0122/D-8's $3 and 90-minute caps under `review.mode: critic`. `selection.select`
+      takes the unit's notional spend so far and a `budget_usd` (default `selection.UNIT_BUDGET_USD
+      = 3.0`), adds each candidate's and critic call's spend as it goes, and stops
+      before the next candidate or critic call once the bound is reached; `select_attempt`
+      carries the spend across attempts in the run's history, as it carries the critic-call
+      count, and escalates `budget_exhausted` naming the spend. A candidate's or critic
+      call's notional spend is its `cost_usd`, else its token counts priced at its
+      model's `list_price` (the ledger's estimate), else nothing. In the run loop,
+      a critic-mode task whose contract names no `budget.wallclock_minutes` gets `selection.UNIT_MINUTES
+      = 90`. Tests named `unit_budget` cover the spend bound in `tests/test_selection.py`
+      and the escalation in `tests/test_runner.py`; tests named `unit_clock` in `tests/test_runner.py`
+      cover the default clock and a contract's own.
     scope:
       - src/torve/application/selection.py
       - src/torve/application/runner.py
       - tests/test_selection.py
       - tests/test_runner.py
     acceptance:
-      - uv run pytest -q tests/test_selection.py tests/test_runner.py tests/test_dst.py
+      - >-
+        uv run pytest -q tests/test_selection.py tests/test_runner.py tests/test_dst.py
       - uv run mypy src
   - phase: 2
     title: A clean base is HEAD
     intent: >-
-      `GitWorkspace.snapshot(task_id)` returns the task worktree's HEAD sha when the tree a
-      `git add -A` would stage equals HEAD's tree, and otherwise makes the snapshot commit it
-      makes today. `judge_checkout` is unchanged. Tests named `clean_snapshot` in
-      `tests/test_judge_checkout.py` show a clean worktree's snapshot is HEAD and a dirty one's
-      is a new commit whose parent is HEAD.
-    scope:
-      - src/torve/adapters/workspace/git.py
-      - tests/test_judge_checkout.py
+      `GitWorkspace.snapshot(task_id)` returns the task worktree's HEAD sha when the
+      tree a `git add -A` would stage equals HEAD's tree, and otherwise makes the
+      snapshot commit it makes today. `judge_checkout` is unchanged. Tests named `clean_snapshot`
+      in `tests/test_judge_checkout.py` show a clean worktree's snapshot is HEAD and
+      a dirty one's is a new commit whose parent is HEAD.
+    scope: [src/torve/adapters/workspace/git.py, tests/test_judge_checkout.py]
     acceptance:
       - uv run pytest -q tests/test_judge_checkout.py
       - uv run mypy src
   - phase: 3
     title: A review id for a review that ran
     intent: >-
-      `review_step` mints its review task only on the paths that run a reviewer, the critic's
-      `judge` and the classic `run_review`; when `run.preselected_review` holds the verdict
-      selection already took, nothing is minted and the outcome's own `review_id` is the one
-      recorded. A test named `mints_no_review` in `tests/test_review_run.py` shows a preselected
-      verdict mints no review task and keeps its id.
-    scope:
-      - src/torve/application/review.py
-      - tests/test_review_run.py
+      `review_step` mints its review task only on the paths that run a reviewer, the
+      critic's `judge` and the classic `run_review`; when `run.preselected_review`
+      holds the verdict selection already took, nothing is minted and the outcome's
+      own `review_id` is the one recorded. A test named `mints_no_review` in `tests/test_review_run.py`
+      shows a preselected verdict mints no review task and keeps its id.
+    scope: [src/torve/application/review.py, tests/test_review_run.py]
     acceptance:
-      - uv run pytest -q tests/test_review_run.py tests/test_critic.py
+      - >-
+        uv run pytest -q tests/test_review_run.py tests/test_critic.py
       - uv run mypy src
   - phase: 4
     title: Corpus cases that run their tests
     intent: >-
       Every `.torve/review-corpus/<case>/case.yaml` names `tests_run: uv run --no-project
       --with pytest python -m pytest -q -p no:cacheprovider`, the cases that named
-      `python3 -m pytest` and the ones that named nothing alike. A test named `tests_run` in
-      `tests/test_review_corpus.py` reads every case file and holds each to that command.
-    scope:
-      - .torve/review-corpus/*/case.yaml
-      - tests/test_review_corpus.py
+      `python3 -m pytest` and the ones that named nothing alike. A test named `tests_run`
+      in `tests/test_review_corpus.py` reads every case file and holds each to that
+      command.
+    scope: [.torve/review-corpus/*/case.yaml, tests/test_review_corpus.py]
     acceptance:
       - uv run pytest -q tests/test_review_corpus.py
   - phase: 5
     title: A timed-out command takes its children
     intent: >-
-      `host_executor(cwd)` starts each shell line with `start_new_session=True` and, on
-      `subprocess.TimeoutExpired`, kills the session's process group with SIGKILL, waits for
-      the shell, and returns `(None, "timed out after Ns")` as it does now. A test named
-      `process_group` in `tests/test_shell.py` runs a line that starts a background sleep and
-      writes its pid, times it out, and shows that pid is gone.
-    scope:
-      - src/torve/base/shell.py
-      - tests/test_shell.py
+      `host_executor(cwd)` starts each shell line with `start_new_session=True` and,
+      on `subprocess.TimeoutExpired`, kills the session's process group with SIGKILL,
+      waits for the shell, and returns `(None, "timed out after Ns")` as it does now.
+      A test named `process_group` in `tests/test_shell.py` runs a line that starts
+      a background sleep and writes its pid, times it out, and shows that pid is gone.
+    scope: [src/torve/base/shell.py, tests/test_shell.py]
     acceptance:
       - uv run pytest -q tests/test_shell.py
       - uv run mypy src
@@ -81,10 +76,10 @@ phasing:
     title: An archive keeps its landings
     intent: >-
       `torve spec archive NUMBER --superseded-by NNNN` moves the document's `execution/`
-      directory into `.torve/archive/<directory>/execution/` unchanged, in the same transaction
-      as the document's files: a red check moves neither. A test named `execution` in
-      `tests/test_rfc_archive.py` archives a document carrying two landing files and finds both,
-      byte for byte, under the archive.
+      directory into `.torve/archive/<directory>/execution/` unchanged, in the same
+      transaction as the document's files: a red check moves neither. A test named
+      `execution` in `tests/test_rfc_archive.py` archives a document carrying two
+      landing files and finds both, byte for byte, under the archive.
     scope:
       - src/torve/cli/spec.py
       - src/torve/config/spec_emit.py
@@ -92,5 +87,6 @@ phasing:
       - tests/test_cli_spec.py
       - tests/test_rfc_emit.py
     acceptance:
-      - uv run pytest -q tests/test_rfc_archive.py tests/test_cli_spec.py tests/test_rfc_emit.py
+      - >-
+        uv run pytest -q tests/test_rfc_archive.py tests/test_cli_spec.py tests/test_rfc_emit.py
       - uv run mypy src
