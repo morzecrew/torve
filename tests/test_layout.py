@@ -154,6 +154,7 @@ _ADMISSIBLE = {
     "tests/test_critic.py": _SCRATCH,
     "tests/test_decisions.py": _GLOB,
     "tests/test_divergence.py": _SCRATCH,
+    "tests/test_dsh_session.py": _SCRATCH,
     "tests/test_evidence_package.py": _SCRATCH,
     "tests/test_gates.py": "a scratch repository's tree, and the reason the live-log check skips with none",
     "tests/test_intake.py": _SCRATCH,
