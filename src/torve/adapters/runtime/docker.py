@@ -12,8 +12,10 @@ from __future__ import annotations
 import contextlib
 import os
 import posixpath
+import shlex
 import subprocess
 import time
+import uuid
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -145,6 +147,64 @@ DOCKER_HOST = "tcp://127.0.0.1:2375"
 
 # The dockerd entrypoint's own switch for a registry mirror; one per mirror.
 REGISTRY_MIRROR_FLAG = "--registry-mirror"
+
+
+# ....................... #
+
+
+class DockerProcess:
+    """One spawned process: whole output, and a kill that reaches inside."""
+
+    def __init__(
+        self,
+        runtime: DockerRuntime,
+        handle: SandboxHandle,
+        proc: subprocess.Popen[str],
+        pidfile: str,
+    ) -> None:
+        self.runtime = runtime
+        self.handle = handle
+        self.proc = proc
+        self.pidfile = pidfile
+        self.started = time.monotonic()
+        self.killed = False
+
+    # ....................... #
+
+    def wait(self, timeout_s: float) -> ExecResult:
+        try:
+            output, _ = self.proc.communicate(timeout=timeout_s)
+
+        except subprocess.TimeoutExpired:
+            self.kill()
+            output, _ = self.proc.communicate()
+            output = (output or "") + f"\n[hard timeout after {timeout_s:.0f}s]"
+
+        return ExecResult(
+            # A process killed from outside ended on no verdict of its own.
+            exit_code=None if self.killed else self.proc.returncode,
+            output=output or "",
+            duration_s=time.monotonic() - self.started,
+        )
+
+    # ....................... #
+
+    def kill(self) -> None:
+        self.killed = True
+
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            self.runtime._run(
+                "exec",
+                self.handle.id,
+                "sh",
+                "-c",
+                f"p=$(cat {self.pidfile} 2>/dev/null) && kill -s KILL -- -$p",
+                timeout=30,
+            )
+
+        # Before the pid was written the group cannot be named; the client at
+        # least stops waiting on it.
+        self.proc.kill()
 
 
 # ....................... #
@@ -626,6 +686,33 @@ class DockerRuntime:
             output=truncate((proc.stdout or "") + (proc.stderr or "")),
             duration_s=time.monotonic() - started,
         )
+
+    # ....................... #
+
+    def spawn(self, handle: SandboxHandle, command: str) -> DockerProcess:
+        """*command* in the live sandbox (S-0122/D-11). `docker exec` makes it
+        the leader of its own process group, measured in the dsh image, so
+        its pid named in a file is what a kill takes down with everything it
+        started."""
+
+        pidfile = f"/tmp/torve-spawn-{uuid.uuid4().hex[:12]}.pid"
+        proc = subprocess.Popen(
+            [
+                self.docker,
+                "exec",
+                handle.id,
+                "sh",
+                "-c",
+                f"echo $$ > {pidfile}; exec sh -c {shlex.quote(command)}",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+
+        return DockerProcess(self, handle, proc, pidfile)
 
     # ....................... #
 

@@ -800,3 +800,120 @@ def test_the_sandbox_git_is_a_standalone_copy_of_the_attempt_s_head(repo, tmp_pa
 
     # A worktree whose `.git` is a directory already has git of its own.
     assert _sandbox_gitdir(repo.root, repo.root, "clone") == ""
+
+
+# ....................... #
+# S-0122/D-8: a red candidate's one repair turn runs in its own session, in
+# the sandbox it ran in, before that sandbox dies.
+
+
+def _repair_loop(repo, monkeypatch, agent, repair, config=None):
+    """A run whose attempt leg is handed *repair*, with a green gate pass
+    that records the meta it judged."""
+
+    from test_run_loop import MockRuntime, MockScm, MockVcs, MockWorkspace, task_for
+
+    import torve.application.runner as run_module
+    from torve.adapters.store.durable import open_store
+    from torve.application.runner import run_task
+
+    repo.seed()
+    runtime = MockRuntime()
+    deps = RunDeps(
+        workspace=MockWorkspace(repo.root),
+        runtime=runtime,  # type: ignore[arg-type]
+        agent=agent,
+        vcs=MockVcs(),  # type: ignore[arg-type]
+        scm=MockScm(),  # type: ignore[arg-type]
+        store=open_store,
+    )
+    judged: list[dict] = []
+
+    def gates(run, _state):
+        judged.append(dict(run.meta))
+        return 0, "scripted", "cafecafe1234", [], ""
+
+    session = run_module.run_agent_session
+    monkeypatch.setattr(run_module, "run_gate_pass", gates)
+    monkeypatch.setattr(
+        run_module, "run_agent_session", lambda run, state: session(run, state, repair)
+    )
+    run_task(repo.root, task_for(repo), config or RunnerConfig(), deps)
+
+    return runtime, judged
+
+
+class _SessionAgent:
+    kind = "harness"
+
+    def __init__(self, exit_code: int = 0) -> None:
+        self.exit_code = exit_code
+        self.calls: list[tuple] = []
+        self.clocks: list[float] = []
+
+    def run(self, ctx):
+        from torve.application.ports import AgentResult
+
+        self.calls.append(("run", ctx.handle.id))
+        self.clocks.append(ctx.timeout_s)
+        return AgentResult(exit_code=self.exit_code, output="first", cost_usd=0.1)
+
+    def follow_up(self, ctx, previous, text):
+        from torve.application.ports import AgentResult
+
+        self.calls.append(("follow_up", ctx.handle.id, previous.output, text))
+        self.clocks.append(ctx.timeout_s)
+        return AgentResult(exit_code=0, output="second", cost_usd=0.3)
+
+
+def test_a_repair_turn_continues_the_attempt_in_its_own_sandbox(repo, monkeypatch):
+    agent = _SessionAgent()
+    asked: list[str] = []
+
+    async def repair(result):
+        asked.append(result.output)
+        return "2 tests red: test_a, test_b"
+
+    runtime, judged = _repair_loop(repo, monkeypatch, agent, repair)
+
+    assert asked == ["first"]
+    assert agent.calls == [
+        ("run", "sbx-1"),
+        ("follow_up", "sbx-1", "first", "2 tests red: test_a, test_b"),
+    ]
+    assert runtime.destroyed == ["sbx-1"]
+    # The result is the session's whole: the follow-up's totals count both.
+    assert judged[0]["cost_usd"] == 0.3
+    # The sandbox outlives one agent clock: the turn gets what is left of it.
+    assert 0 < agent.clocks[1] < agent.clocks[0]
+
+
+def test_no_repair_turn_once_the_attempt_s_clock_is_spent(repo, monkeypatch):
+    async def repair(result):
+        return "red"
+
+    agent = _SessionAgent()
+    config = RunnerConfig(
+        tiers={"executor": TierConfig(agent_timeout=0.001), "planner": TierConfig()}
+    )
+    _repair_loop(repo, monkeypatch, agent, repair, config)
+
+    assert all(call[0] == "run" for call in agent.calls)
+
+
+@pytest.mark.parametrize(("exit_code", "bought"), [(0, None), (1, "red")])
+def test_no_repair_turn_unless_bought_after_a_clean_turn(repo, monkeypatch, exit_code, bought):
+    """None buys no turn, and a turn that failed is never offered one: its
+    gates do not run."""
+
+    asked: list[str] = []
+
+    async def repair(result):
+        asked.append(result.output)
+        return bought
+
+    agent = _SessionAgent(exit_code)
+    _repair_loop(repo, monkeypatch, agent, repair)
+
+    assert asked == (["first"] if exit_code == 0 else [])
+    assert all(call[0] == "run" for call in agent.calls)

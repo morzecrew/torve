@@ -149,10 +149,29 @@ class ExecResult:
 # ....................... #
 
 
+class Spawned(Protocol):
+    """A process running in a live sandbox (S-0122/D-11). Its output is whole,
+    never clipped, and a kill stops it inside the sandbox, where an `exec`
+    timeout leaves it running until the sandbox dies."""
+
+    def wait(self, timeout_s: float) -> ExecResult:
+        """The process's ending; past the deadline it is killed and the
+        result reads as timed out."""
+
+        ...
+
+    def kill(self) -> None: ...
+
+
+# ....................... #
+
+
 class Runtime(Protocol):
     def create(self, spec: SandboxSpec, workspace: Path) -> SandboxHandle: ...
 
     def exec(self, handle: SandboxHandle, command: str, timeout_s: float) -> ExecResult: ...
+
+    def spawn(self, handle: SandboxHandle, command: str) -> Spawned: ...
 
     def sync_out(self, handle: SandboxHandle, workspace: Path) -> None: ...
 

@@ -31,10 +31,11 @@ from pathlib import Path
 from statistics import median
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
+from torve.adapters.agent.dsh_session import DshSession, session_id
 from torve.application.channel import seed as seed_channel
 from torve.application.divergence import seed as seed_log
 from torve.application.equipment import EQUIPMENT_MOUNT, MANIFEST
-from torve.application.ports import AgentContext, AgentResult
+from torve.application.ports import AgentContext, AgentResult, ExecResult
 from torve.application.telemetry import (
     classify_tool_calls,
     record_burn_profile,
@@ -50,6 +51,8 @@ if TYPE_CHECKING:
 # ----------------------- #
 
 PROMPT_RELPATH = ".torve/tmp/prompt.md"
+# A follow-up turn's task, beside the prompt it continues (S-0122/D-8).
+FOLLOW_UP_RELPATH = ".torve/tmp/follow-up.md"
 # The working rules, staged where a harness reads them in system position
 # (S-0073/D-2) and named to the image as `TORVE_SYSTEM_PROMPT`. One text, one
 # file; which channel carries it is the image's own — claude appends it with
@@ -101,6 +104,10 @@ RUN_TOKEN = "TORVE_RUN_TOKEN"
 
 EQUIP = "/opt/torve/equip"
 RUN = "/opt/torve/run"
+
+# The harness whose attempts run as a session the engine drives and can
+# continue (S-0122/D-11).
+SESSION_HARNESS = "dsh"
 
 # Where `run` leaves the result — named to the image rather than assumed by it.
 # The equipment mount is `application.equipment.EQUIPMENT_MOUNT`, because the
@@ -919,6 +926,17 @@ def _content_blocks(record: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def _event_type(record: dict[str, Any]) -> Any:
+    """A line's event type, with the step end dsh's `--json` stream reports
+    read as the turn it closes (S-0122/D-11): its usage is the step's own, in
+    the camelCase a dsh turn line spells."""
+
+    if record.get("type") == "status" and record.get("phase") == "step_end":
+        return "turn"
+
+    return record.get("type")
+
+
 def _tool_events(record: dict[str, Any]) -> int:
     """How many tool calls one stream line carries."""
 
@@ -974,7 +992,7 @@ def parse_burn(trace: Path) -> BurnProfile | None:
 
             record = cast("dict[str, Any]", data)
             tool_calls += _tool_events(record)
-            event_type = record.get("type")
+            event_type = _event_type(record)
 
             if isinstance(event_type, str) and event_type in _TURN_EVENT_TYPES:
                 output = _turn_output_tokens(record)
@@ -1120,8 +1138,13 @@ def _request_id(record: dict[str, Any]) -> str:
     """The message id a turn event carries, "" when the stream names none.
 
     An event with no id is counted on its own, because there is nothing to
-    join it to — nothing is ever inferred (S-0004/D-6).
+    join it to — nothing is ever inferred (S-0004/D-6). dsh's `--json` stream
+    names its steps instead (S-0122/D-11): the start and the end of one step
+    share the key, so the calls between them ride the step they belong to.
     """
+
+    if record.get("type") == "status" and "step" in record:
+        return f"step:{record.get('turn')}.{record.get('step')}"
 
     for nest in (record.get("message"), record.get("part")):
         if isinstance(nest, dict):
@@ -1174,7 +1197,7 @@ def parse_context_curve(trace: Path) -> ContextCurve | None:
 
             record = cast("dict[str, Any]", data)
             last = record
-            event_type = record.get("type")
+            event_type = _event_type(record)
 
             if isinstance(event_type, str) and event_type in _TURN_EVENT_TYPES:
                 request = _request_id(record)
@@ -1201,7 +1224,7 @@ def parse_context_curve(trace: Path) -> ContextCurve | None:
     receipt_total: int | None = None
 
     if last is not None:
-        last_type = last.get("type")
+        last_type = _event_type(last)
 
         if not (isinstance(last_type, str) and last_type in _TURN_EVENT_TYPES):
             receipt_total, _ = _turn_context(last)
@@ -1252,7 +1275,7 @@ _LATENCY_NAMES: tuple[str, ...] = ("duration_ms", "durationMs", "latency_ms", "l
 # The input keys a call names a path at, and the two spellings of a call's own
 # identity — the handle a result is joined back to its call by.
 _PATH_KEYS: tuple[str, ...] = ("file_path", "path")
-_CALL_ID_KEYS: tuple[str, ...] = ("id", "tool_use_id", "toolUseId")
+_CALL_ID_KEYS: tuple[str, ...] = ("id", "tool_use_id", "toolUseId", "callId")
 _NAME_KEYS: tuple[str, ...] = ("name", "tool", "tool_name", "toolName")
 _INPUT_KEYS: tuple[str, ...] = ("input", "arguments", "args")
 
@@ -1382,8 +1405,14 @@ def _tool_result_facts(record: dict[str, Any]) -> dict[str, dict[str, Any]]:
     over the calls that were measured — absent, never zeroed (S-0004/D-6)."""
 
     measured: dict[str, dict[str, Any]] = {}
+    blocks = _content_blocks(record)
 
-    for block in _content_blocks(record):
+    # dsh's `--json` result is a line of its own, its body under `result`
+    # (S-0122/D-11).
+    if record.get("type") in _TOOL_RESULT_TYPES:
+        blocks.append(record)
+
+    for block in blocks:
         if block.get("type") not in _TOOL_RESULT_TYPES:
             continue
 
@@ -1392,7 +1421,7 @@ def _tool_result_facts(record: dict[str, Any]) -> dict[str, dict[str, Any]]:
         if not call_id:
             continue
 
-        fields: dict[str, Any] = {"bytes": _result_bytes(block.get("content"))}
+        fields: dict[str, Any] = {"bytes": _result_bytes(block.get("content", block.get("result")))}
         latency = _int_at(block, _LATENCY_NAMES)
 
         if latency is not None:
@@ -1448,7 +1477,7 @@ def parse_tool_calls(trace: Path, workdir: str = "") -> list[dict[str, Any]]:
                 continue
 
             record = cast("dict[str, Any]", data)
-            event_type = record.get("type")
+            event_type = _event_type(record)
 
             # The ordinal names the request, not the line. Measured on claude
             # 2.1.x: an assistant turn is emitted one line per content block —
@@ -1919,6 +1948,15 @@ class HarnessAgent:
             encoding="utf-8",
         )
 
+        trace = naming.trace_file(ctx.workspace, ctx.attempt)
+
+        if self.tier.harness == SESSION_HARNESS:
+            # The spawned run's output is whole, so the stream is the trace.
+            result = self._session(ctx).start(ctx.timeout_s)
+            trace.write_text(result.output, encoding="utf-8")
+
+            return self._settle(ctx, result)
+
         command = self._command(ctx)
         raw_relpath = RAW_TRACE_RELPATH.replace("{attempt}", str(ctx.attempt))
         result = ctx.runtime.exec(ctx.handle, _capture(command, raw_relpath), ctx.timeout_s)
@@ -1931,7 +1969,6 @@ class HarnessAgent:
         # one (the wrapper's raw file, synced back for runtimes that copy
         # rather than mount); only a runtime that never ran the wrapper
         # leaves the adapter the exec output, clipped like every exec result.
-        trace = naming.trace_file(ctx.workspace, ctx.attempt)
         raw = ctx.workspace / raw_relpath
 
         if not raw.is_file():
@@ -1946,6 +1983,45 @@ class HarnessAgent:
         else:
             trace.write_text(result.output, encoding="utf-8")
 
+        return self._settle(ctx, result)
+
+    # ....................... #
+
+    def follow_up(self, ctx: AgentContext, previous: AgentResult, text: str) -> AgentResult | None:
+        """One more turn in the session *previous* ran, in the same live
+        sandbox, with *text* as its task (S-0122/D-8). Its events join the
+        attempt's trace, and the result is the attempt's whole: the totals
+        line counts the session. None when the seat runs no session, or the
+        first turn named none."""
+
+        opened = session_id(previous.output)
+
+        if self.tier.harness != SESSION_HARNESS or opened is None:
+            return None
+
+        (ctx.workspace / FOLLOW_UP_RELPATH).write_text(text, encoding="utf-8")
+        session = self._session(ctx)
+        session.id = opened
+        result = session.follow_up(f"{ctx.workdir}/{FOLLOW_UP_RELPATH}", ctx.timeout_s)
+
+        with naming.trace_file(ctx.workspace, ctx.attempt).open("a", encoding="utf-8") as trace:
+            trace.write("\n" + result.output)
+
+        return self._settle(ctx, result)
+
+    # ....................... #
+
+    def _session(self, ctx: AgentContext) -> DshSession:
+        return DshSession(
+            ctx.runtime, ctx.handle, self._env(ctx), start=f"{EQUIP} && {RUN}", resume=RUN
+        )
+
+    # ....................... #
+
+    def _settle(self, ctx: AgentContext, result: ExecResult) -> HarnessResult:
+        """The attempt's result, read off its trace in the durable store."""
+
+        trace = naming.trace_file(ctx.workspace, ctx.attempt)
         meta = parse_metadata(result.output)
         # The receipt's fields reach the attempt record by the route the
         # transfer ledger already takes (S-0065/D-6): booked here against the

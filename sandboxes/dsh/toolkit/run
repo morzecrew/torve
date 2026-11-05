@@ -102,6 +102,17 @@ if [ -s /tmp/torve-equip.args ]; then
     eval "set -- \"\$@\" $(cat /tmp/torve-equip.args)"
 fi
 
+# The engine's session driver (S-0122/D-11): the run as NDJSON events, and a
+# later turn continuing the session the first one opened. App arguments, so
+# after every `--patch`.
+if [ -n "${TORVE_JSON:-}" ]; then
+    set -- "$@" --json
+fi
+
+if [ -n "${TORVE_SESSION_ID:-}" ]; then
+    set -- "$@" --session-id "$TORVE_SESSION_ID"
+fi
+
 # The prompt last, as pieces: dsh takes its task from argv alone and joins the
 # words with one space, and one argument is capped at 128 KiB — a served
 # prompt passes that. Each piece ends at a space the join puts back. The `x`
@@ -129,7 +140,9 @@ echo 70 > "$rc"  # EX_SOFTWARE, if nothing overwrites it the pipe lied
     if "$@"; then echo 0 > "$rc"; else echo $? > "$rc"; fi
 
     # Last, because the last JSON line wins and this one carries the usage.
-    /opt/torve/report-usage || true
+    # The events already carry each step and call, so a session run takes
+    # the totals line alone.
+    /opt/torve/report-usage ${TORVE_JSON:+--envelope} || true
 } | tee "$TORVE_OUTPUT"
 
 exit "$(cat "$rc")"

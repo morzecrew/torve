@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -356,10 +357,19 @@ def bare_prompt(task: Task) -> str:
 # ....................... #
 
 
-async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
+async def run_agent_session(
+    run: Dispatch,
+    state: RunState,
+    repair: Callable[[AgentResult], Awaitable[str | None]] | None = None,
+) -> AgentResult:
     """One attempt: compose the sandbox, run the agent in it, record how it
     ended. The sandbox dies in the `finally` whatever happens — a cancelled
-    task cannot await its own cleanup (S-0001/D-12)."""
+    task cannot await its own cleanup (S-0001/D-12).
+
+    *repair*, when given, is asked after a clean first turn for the gate
+    output that buys the candidate one follow-up turn in its own session,
+    while the sandbox it ran in lives (S-0122/D-8); None buys none, and so
+    does an agent that runs no session."""
 
     deps, config, task = run.deps, run.config, run.task
     root, worktree, shadow, resume = run.root, run.worktree, run.shadow, run.resume
@@ -541,29 +551,27 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         if run.tier.prepare and not await _prepare(run, state, handle, spec):
             return AgentResult(exit_code=None, output=run.meta.get("prepare_output", ""))
 
-        result = await asyncio.to_thread(
-            run_agent.run,
-            AgentContext(
-                task=task,
-                attempt=state.attempts,
-                workspace=worktree,
-                handle=handle,
-                runtime=deps.runtime,
-                workdir=spec.workdir,
-                # Same resolution as the sandbox bound above: one tier,
-                # one clock, for both the agent and the platform over it
-                # (S-0035/D-6).
-                timeout_s=agent_timeout_for(config, run.tier),
-                broker=run.broker_handle,
-                resume=resume,
-                # The arm's prompt travels as a property of the replay
-                # (S-0082/D-1), through the seam the review leg already uses:
-                # a composed prompt is staged verbatim, and the adapter
-                # composes one only when handed none.
-                prompt=bare_prompt(task) if run.prompt_removed else None,
-                started_at=attempt_started_at,
-            ),
+        ctx = AgentContext(
+            task=task,
+            attempt=state.attempts,
+            workspace=worktree,
+            handle=handle,
+            runtime=deps.runtime,
+            workdir=spec.workdir,
+            # Same resolution as the sandbox bound above: one tier,
+            # one clock, for both the agent and the platform over it
+            # (S-0035/D-6).
+            timeout_s=agent_timeout_for(config, run.tier),
+            broker=run.broker_handle,
+            resume=resume,
+            # The arm's prompt travels as a property of the replay
+            # (S-0082/D-1), through the seam the review leg already uses:
+            # a composed prompt is staged verbatim, and the adapter
+            # composes one only when handed none.
+            prompt=bare_prompt(task) if run.prompt_removed else None,
+            started_at=attempt_started_at,
         )
+        result = await asyncio.to_thread(run_agent.run, ctx)
 
         # S-0122/D-4: what the profile runs over the tree once the agent is
         # done (a formatter's fixes), before the tree leaves the sandbox.
@@ -576,6 +584,30 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
             await _finish(run, handle, spec)
 
         deps.runtime.sync_out(handle, worktree)
+
+        # S-0122/D-8: one repair turn in the candidate's own session, while
+        # the sandbox it ran in lives. The tree it leaves is finished the
+        # same way, and the result counts the whole session.
+        follow_up = getattr(run_agent, "follow_up", None)
+
+        if repair is not None and follow_up is not None and result.exit_code == 0:
+            text = await repair(result)
+            # The sandbox outlives one agent clock and no more (S-0035/D-6), so
+            # the repair turn gets what is left of it, and no turn when nothing is.
+            left = ctx.timeout_s - (time.monotonic() - attempt_clock)
+            continued = (
+                await asyncio.to_thread(follow_up, replace(ctx, timeout_s=left), result, text)
+                if text is not None and left > 0
+                else None
+            )
+
+            if continued is not None:
+                result = continued
+
+                if run.tier.finish:
+                    await _finish(run, handle, spec)
+
+                deps.runtime.sync_out(handle, worktree)
 
         run.meta.update(
             model_version=result.model_version,

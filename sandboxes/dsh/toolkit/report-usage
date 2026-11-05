@@ -112,7 +112,11 @@ for (const line of text.split("\n")) {
   }
 }
 
-for (const event of stream) console.log(JSON.stringify(event));
+// A session run's `--json` events carry each step and call (S-0122/D-11):
+// `--envelope` prints the totals alone, or every call would be counted twice.
+if (!process.argv.includes("--envelope")) {
+  for (const event of stream) console.log(JSON.stringify(event));
+}
 
 const priceIn = parseFloat(process.env.DSH_PRICE_IN || "");
 const priceOut = parseFloat(process.env.DSH_PRICE_OUT || "");

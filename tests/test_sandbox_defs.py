@@ -159,6 +159,9 @@ def test_the_seam_reads_what_the_engine_names_and_nothing_else(name: str) -> Non
         "TORVE_REASONING",
         "TORVE_REQUEST_TIMEOUT_S",
         "TORVE_STREAM_IDLE_TIMEOUT_S",
+        # The session driver's (S-0122/D-11).
+        "TORVE_JSON",
+        "TORVE_SESSION_ID",
     }
     reached = set(re.findall(r"TORVE_[A-Z_]+", toolkit(name)))
 

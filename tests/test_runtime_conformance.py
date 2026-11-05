@@ -83,6 +83,42 @@ def test_exec_timeout_is_not_an_exit_code(runtime_case):
         runtime.destroy(handle)
 
 
+def test_a_spawned_process_returns_its_whole_output(runtime_case):
+    """S-0122/D-11: a dsh session's events are its trace, so a spawn's output
+    is never clipped the way an exec result is."""
+
+    runtime, spec, workspace = runtime_case
+    handle = runtime.create(spec, workspace)
+    try:
+        result = runtime.spawn(handle, "seq 1 20000; exit 3").wait(60)
+        assert result.exit_code == 3
+        assert result.output.splitlines()[-1] == "20000"
+    finally:
+        runtime.destroy(handle)
+
+
+# Counts the sandbox's `sleep 30N` processes from /proc: the slim image has no `ps`.
+_SLEEPERS = (
+    "n=0; for c in /proc/[0-9]*/cmdline; do "
+    'tr "\\0" " " < "$c" 2>/dev/null | grep -q "^sleep 30[0-9]" && n=$((n+1)); '
+    "done; echo $n"
+)
+
+
+def test_a_spawn_past_its_deadline_is_killed_inside_the_sandbox(runtime_case):
+    """S-0122/D-11: the kill reaches what the process started, where an exec
+    timeout only stops the client and leaves the work running."""
+
+    runtime, spec, workspace = runtime_case
+    handle = runtime.create(spec, workspace)
+    try:
+        result = runtime.spawn(handle, "sleep 300 & sleep 301").wait(2)
+        assert result.timed_out
+        assert runtime.exec(handle, _SLEEPERS, 30).output.strip() == "0"
+    finally:
+        runtime.destroy(handle)
+
+
 def test_listing_and_destroy_by_id(runtime_case):
     runtime, spec, workspace = runtime_case
     handle = runtime.create(spec, workspace)
