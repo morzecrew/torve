@@ -3105,10 +3105,15 @@ def test_a_local_landing_that_completes_its_document_runs_the_rows(
     _phase_contract(lane_repo, "T-7361", 1)
     calls = _counting_regate(monkeypatch)
     before = git(lane_repo, "rev-parse", "main")
+    judged = []
 
-    results = process_lane(lane_repo, GitLane())
+    results = process_lane(lane_repo, GitLane(), on_judged=judged.append)
 
     assert calls == [None]
+    # Recorded on the candidate's task, as the leg that ran the rows.
+    (judgment,) = judged
+    assert (judgment.leg, judgment.branch) == ("completion", naming.branch("T-7361"))
+    assert "decision:S-0930/D-1" in [r["name"] for r in judgment.results]
     assert [r.action for r in results] == (["landed"] if landed else ["gates red"])
     assert landed or "decision:S-0930/D-1=fail" in results[0].detail
     assert (git(lane_repo, "rev-parse", "main") != before) is landed

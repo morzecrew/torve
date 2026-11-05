@@ -301,6 +301,10 @@ _LEG: contextvars.ContextVar[str] = contextvars.ContextVar("torve_lane_leg", def
 #: refs can share (S-0118/D-9).
 _BRANCH: contextvars.ContextVar[str] = contextvars.ContextVar("torve_lane_branch", default="")
 
+#: The document branch whose rows a completion battery runs, when the checkout
+#: it judges stands on no such branch: a local landing's (S-0122/D-4).
+_DOCUMENT: contextvars.ContextVar[str] = contextvars.ContextVar("torve_lane_document", default="")
+
 
 def _hand_judged(
     base: str,
@@ -465,9 +469,9 @@ def _regate(
         if task_id is None and _LEG.get() == "completion":
             # S-0122/D-4: a row's check runs when its document completes, and
             # in no other lane battery. S-0114/D-3: the judge checkout is
-            # detached, so the branch the document is named by is the one the
-            # leg set, or else read off the rebased worktree.
-            _document_inputs(ctx, _BRANCH.get() or _branch_of(workdir))
+            # detached, so the branch the document is named by is the one a
+            # local landing set, or else read off the rebased worktree.
+            _document_inputs(ctx, _DOCUMENT.get() or _branch_of(workdir))
 
         if judge is not None:
             ctx.execute = judge.execute
@@ -3059,12 +3063,16 @@ def _local_completion(
     outcome: object = ()
 
     try:
-        token, branch_token = _LEG.set("completion"), _BRANCH.set(branch)
+        # The judgment is the candidate's, recorded on its task; the rows are
+        # its document's.
+        token, branch_token = _LEG.set("completion"), _BRANCH.set(naming.branch(task_id))
+        document_token = _DOCUMENT.set(branch)
 
         try:
             outcome = _regate(workdir, resolve_base(root, None) or "main", None, gates)
 
         finally:
+            _DOCUMENT.reset(document_token)
             _BRANCH.reset(branch_token)
             _LEG.reset(token)
 
