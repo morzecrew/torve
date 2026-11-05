@@ -1301,3 +1301,29 @@ def test_a_refresh_keeps_a_whole_contract_whole_and_covers_an_added_phase(plan_r
     [refreshed] = refresh_document(root, root / ".torve" / "specs", "0091").tasks
 
     assert "phases" in refreshed.changed and "scope" in refreshed.changed
+    assert refreshed.task is not None
+    assert refreshed.task.phases == [1, 2, 3, 4]
+    assert {"src/app.py", "src/p3.py", "src/p4.py"} <= set(refreshed.task.scope.files)
+
+
+def test_a_phase_minted_on_its_own_stays_beside_the_whole_contract(plan_repo):
+    """A phase an amendment added, minted with `--phase`, is not the whole
+    contract's: the refresh leaves the whole contract its own phases."""
+
+    from torve.application.planner import refresh_document
+
+    root, write_doc, git = plan_repo
+    write_doc("0091", "Small", rows=[], phasing=PHASING, unit=None)
+    git("add", "-A")
+    git("commit", "-qm", "small")
+    specs = root / ".torve" / "specs"
+    write_contracts(root, plan_document(root, specs, "0091"))
+    added = [*PHASING, {"phase": 3, "title": "p3", "intent": "Phase 3.", "scope": ["src/p3.py"]}]
+    write_doc("0091", "Small", rows=[], phasing=added, unit=None)
+    git("add", "-A")
+    git("commit", "-qm", "a phase added")
+    write_contracts(root, plan_document(root, specs, "0091", phases={3}))
+
+    whole, alone = refresh_document(root, specs, "0091").tasks
+
+    assert whole.changed == [] and alone.changed == []

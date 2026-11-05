@@ -548,13 +548,20 @@ def plan_document(
         if task.role == "implement"
     ]
 
+    # A phase an amendment added and `--phase` minted on its own is not the
+    # whole contract's: it stays its own entry beside the fold.
+    separate: set[int] = set()
+
     if implementing:
-        whole = phases is None and all(task.phases for task in implementing)
+        whole = phases is None and any(task.phases for task in implementing)
+        separate = {task.phase for task in implementing if not task.phases}
 
-    covered = sorted({entry.phase for entry in entries}) if whole else []
+    folded = [entry for entry in entries if entry.phase not in separate]
+    covered = sorted({entry.phase for entry in folded}) if whole else []
+    merged = doc.as_one_phase(folded) if whole else None
 
-    if whole:
-        entries = [doc.as_one_phase()]
+    if merged is not None:
+        entries = [merged, *(e for e in entries if e.phase in separate)]
 
     # Same-phase scopes must not intersect (§3): overlapping tasks cannot run
     # in parallel and the plan silently serialises.
@@ -673,7 +680,7 @@ def plan_document(
             # the work commit's subject names the phase, not its intent (#199).
             title=entry.title,
             intent=entry.intent.strip(),
-            phases=covered,
+            phases=covered if entry is merged else [],
             depends_on=depends,
             scope=Scope(
                 files=list(entry.scope),

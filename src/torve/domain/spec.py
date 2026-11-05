@@ -675,12 +675,13 @@ class Document(Item):
 
         return len({entry.phase for entry in self.phasing}) <= WHOLE_UNTIL
 
-    def as_one_phase(self) -> Phase:
-        """The phasing folded into the one entry a whole-document contract is
-        minted from: every phase's scope and acceptance in phasing order, each
-        intent under its phase's title, the first variant and character named."""
+    def as_one_phase(self, entries: list[Phase] | None = None) -> Phase:
+        """The phasing — or those of its *entries* — folded into the one entry a
+        whole-document contract is minted from: every phase's scope and
+        acceptance in phasing order, each intent under its phase's title, the
+        first variant and character named."""
 
-        entries = sorted(self.phasing, key=lambda entry: entry.phase)
+        entries = sorted(self.phasing if entries is None else entries, key=lambda e: e.phase)
 
         return Phase(
             phase=entries[0].phase,
