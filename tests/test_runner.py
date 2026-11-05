@@ -1997,20 +1997,19 @@ def _conviction_passes(monkeypatch, repo, passes, seen_metas, append_telemetry=F
     """Replace the gate pass with one driven by per-attempt entries: a
     non-empty conviction list goes red with those recorded results, `[]` is
     green, and `None` is the empty-diff shape — red with no per-gate record
-    at all. Each pass seeds the labeled manifest at the root, where a real
-    pass reads its declarations (S-0121/D-3), so selection reads the same. When
-    `append_telemetry`, each pass also writes the row the real pass would:
-    the outcome and state of every gate beside the tier stamp of the
-    attempt that produced them."""
+    at all. The labeled manifest is committed at the attempt's merge base,
+    where a real pass reads its declarations (S-0121/D-3), so selection reads
+    the same. When `append_telemetry`, each pass also writes the row the real
+    pass would: the outcome and state of every gate beside the tier stamp of
+    the attempt that produced them."""
     import torve.application.runner as run_module
 
     outcomes = list(passes)
+    repo.write(".torve/gates.yaml", yaml.safe_dump(RETRY_MANIFEST))
+    repo.commit("retry manifest")
+    repo.git("branch", "-f", "main", "HEAD")
 
     def scripted(run, _state):
-        manifest_file = run.root / ".torve" / "gates.yaml"
-        manifest_file.parent.mkdir(parents=True, exist_ok=True)
-        manifest_file.write_text(yaml.safe_dump(RETRY_MANIFEST), encoding="utf-8")
-
         entry = outcomes.pop(0)
         results = [] if entry is None else entry
         code = 0 if entry == [] else 1
@@ -2093,6 +2092,12 @@ def test_a_compliance_conviction_routes_the_retry_to_the_compliance_rung(repo, m
 
     config = _retry_config(
         functional="executor.heavy", compliance="executor.ink", form="executor.tidy"
+    )
+    # Relabeled at the root after the cut: selection still reads the
+    # declarations the pass judged by (S-0121/D-3).
+    layout.gates_file(repo.root).write_text(
+        yaml.safe_dump(manifest_with([{"name": "grammar", "run": "true", "axis": "functional"}])),
+        encoding="utf-8",
     )
     state = run_task(repo.root, task_for(repo), config, _loop_deps(repo, retry_agent))
 
