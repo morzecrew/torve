@@ -285,4 +285,28 @@ What makes intake demand a document now that one charter is the only standing do
 
 - Paths: `src/torve/application/intake.py` `src/torve/config/runconfig.py`
 
+### S-0123/D-1 — `ASSUMED` (What the first 0.9.0 run left) — implementation: none
+
+Under `review.mode: critic` a unit stops before its next candidate or critic call once its notional spend across its attempts reaches $3, and the run escalates `budget_exhausted` naming the spend; notional spend is each candidate's and critic call's reported `cost_usd`, else its tokens at its model's `list_price`, else nothing
+
+- Paths: `src/torve/application/selection.py` `src/torve/application/runner.py`
+- Consequence: a unit that keeps failing stops costing money at a known bound
+- Check: `uv run pytest -q tests/test_selection.py tests/test_runner.py -k unit_budget` (shadow; runs as `decision:S-0123/D-1`)
+
+### S-0123/D-2 — `ASSUMED` (What the first 0.9.0 run left) — implementation: none
+
+Under `review.mode: critic` a task whose contract names no `budget.wallclock_minutes` runs under 90, so the run escalates `budget_exhausted` before an attempt that would start past 90 minutes; a contract that names a bound keeps it
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: no unit holds the night past an hour and a half unless its contract says so
+- Check: `uv run pytest -q tests/test_runner.py -k unit_clock` (shadow; runs as `decision:S-0123/D-2`)
+
+### S-0123/D-4 — `ASSUMED` (What the first 0.9.0 run left) — implementation: none
+
+`review_step` mints a review task only when it runs a reviewer; a verdict selection already holds is recorded under the id its critic call was minted with
+
+- Paths: `src/torve/application/review.py`
+- Consequence: every review id the record holds belongs to a review that ran
+- Check: `uv run pytest -q tests/test_review_run.py -k mints_no_review` (shadow; runs as `decision:S-0123/D-4`)
+
 <!-- /torve:managed -->

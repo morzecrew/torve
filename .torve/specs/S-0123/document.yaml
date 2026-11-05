@@ -5,7 +5,7 @@ kind: design
 change:
   type: fix
   scope: engine
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0122]
 informed_by: []
@@ -60,8 +60,9 @@ docs: |
   The changelog's Fixed section, one entry per phase whose effect a user can see.
 out_of_scope: ''
 risks: |
-  - The $3 cap counts only what is priced. Until ModelStudio's models carry a `list_price`
-    (Q-1), a dsh candidate counts nothing toward it and the cap reads the critic's spend alone.
+  - The $3 cap counts only what is priced. ModelStudio is a subscription with a flat $28
+    monthly quota and no per-token price (Q-1), so a dsh candidate counts nothing toward it and
+    the cap reads the critic's spend alone.
   - The 90-minute default applies to every critic-mode task that names no clock of its own,
     including a large phase that used to run longer. Such a task now escalates and needs a
     contract that names a longer `wallclock_minutes`.
@@ -102,4 +103,7 @@ questions:
     text: >-
       What `list_price` should `.torve/providers/modelstudio.yaml` carry for
       deepseek-v4.1-flash and qwen3.8-flash, so a dsh candidate counts toward the $3 cap?
-    status: open
+      None (owner, 2026-11-05): the plan is a flat $28 monthly quota with no per-token price,
+      so D-1's "else nothing" holds for the dsh seat.
+    status: settled
+    settled_by: D-1

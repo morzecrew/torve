@@ -98,4 +98,12 @@ What makes intake demand a document now that one charter is the only standing do
 
 - Paths: `src/torve/application/intake.py` `src/torve/config/runconfig.py`
 
+### S-0123/D-7 — `ASSUMED` (What the first 0.9.0 run left) — implementation: none
+
+`torve spec archive` carries the document's `execution/` directory into the archive unchanged, in the same transaction as the document's own files
+
+- Paths: `src/torve/cli/spec.py` `src/torve/config/spec_emit.py`
+- Consequence: a lane or planner that reads an archived document's landings still finds them
+- Check: `uv run pytest -q tests/test_rfc_archive.py -k execution` (shadow; runs as `decision:S-0123/D-7`)
+
 <!-- /torve:managed -->
