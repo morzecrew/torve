@@ -2495,7 +2495,7 @@ from:</p>
 <div class="language-sh highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nv">root</span><span class="o">=</span>...<span class="w">              </span><span class="c1"># torve's checkout, the tree the chain moves</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nv">config</span><span class="o">=</span>...<span class="w">            </span><span class="c1"># the night's configuration</span>
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nv">engine</span><span class="o">=</span><span class="nv">$HOME</span>/.torve-engines/torve-self
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nv">images</span><span class="o">=</span><span class="m">0</span>.8.0<span class="w">          </span><span class="c1"># the release the harness images were baked for</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nv">images</span><span class="o">=</span><span class="m">0</span>.9.0<span class="w">          </span><span class="c1"># the release the harness images were baked for</span>
 </span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="k">while</span><span class="w"> </span>:<span class="p">;</span><span class="w"> </span><span class="k">do</span>
 </span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span>uv<span class="w"> </span>venv<span class="w"> </span>--allow-existing<span class="w"> </span>-q<span class="w"> </span><span class="s2">"</span><span class="nv">$engine</span><span class="s2">"</span>
 </span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span><span class="nv">SETUPTOOLS_SCM_PRETEND_VERSION</span><span class="o">=</span><span class="nv">$images</span><span class="w"> </span><span class="se">\</span>
@@ -2509,7 +2509,7 @@ from:</p>
 <p><code>images</code> pins the installed engine's version. A harness image written
 <code>claude-sandbox:{torve}</code> names the engine's version, and images are baked for
 releases; built from a commit past the tag, the engine would read as
-<code>0.8.1.devN+g…</code> and every seat would name an image that does not exist.</p>
+<code>0.9.1.devN+g…</code> and every seat would name an image that does not exist.</p>
 <p>Installed from the checkout's tree, the engine no longer imports from that
 checkout, so the chain fast-forwards and plans like any repository's. For
 torve's own chain the loop installs into a virtualenv of its own,
