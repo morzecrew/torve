@@ -817,6 +817,18 @@ def _overlay_tests(ctx: GateContext, stats: list[FileStat], base_dir: Path) -> s
     return missing
 
 
+def evidence_budget(ctx: GateContext) -> float:
+    """The longest `build_evidence` over *ctx* can take, in seconds: an upper
+    bound, as the battery's own is, so a lease that waits out the pass also
+    waits out its package. The head and base test runs and the base's
+    extraction, each row check on both sides, each acceptance command."""
+
+    checks = sum(1 for row, _ in package_rows(ctx.task, ctx.changed_paths) if row.check)
+    acceptance = len(ctx.task.acceptance) if ctx.task is not None else 0
+
+    return _timeout(ctx) * (3 + 2 * checks + acceptance)
+
+
 # ....................... #
 
 

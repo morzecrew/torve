@@ -527,3 +527,22 @@ def test_the_package_never_renders_past_its_budget():
 
     assert len(rendered.encode()) <= 3_000
     assert yaml.safe_load(rendered)["truncated"] is True
+
+
+def test_the_package_has_an_upper_bound_a_lease_can_wait_out(repo):
+    """The pass's silence grows by the package's worst case: the head and base
+    runs and the base's extraction, each row check twice, each acceptance."""
+
+    from torve.gates.evidence_package import evidence_budget
+
+    seeded(
+        repo,
+        acceptance=["true", "true"],
+        decisions=[
+            {"id": ROW, "grade": "ASSUMED", "text": "t", "paths": ["src/calc.py"], "check": "true"}
+        ],
+    )
+    repo.write("src/calc.py", HEAD_CALC)
+    repo.commit("double")
+
+    assert evidence_budget(context_for(repo)) == 120 * (3 + 2 + 2)
