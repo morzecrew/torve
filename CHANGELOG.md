@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- With `review.mode: critic`, the review-thread leg asks the critic once per pull
+  request head to sort the unresolved bot threads. It answers and resolves those it
+  calls invalid, duplicate or out of scope, quoting the critic's evidence.
+
+- The threads the critic would apply become one round, judged by the touched modules'
+  paired tests and the type checker.
+
 - Under `review.mode: critic` an attempt runs one to three candidates, by the unit's
   size, each in its own worktree. The critic reviews the green ones in a fixed order
   until one passes, and `torve why` and `night show` list the candidates.

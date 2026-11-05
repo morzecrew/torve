@@ -28,10 +28,10 @@ from __future__ import annotations
 import hashlib
 import shutil
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -47,6 +47,7 @@ from torve.application.review import (
     elide_diff_bulk,
     elided_prefixes,
     last_document,
+    mint_review_task,
     review_record,
     reviewer_for,
     run_seat,
@@ -69,6 +70,9 @@ from torve.gates.evidence_package import (
     render_evidence,
 )
 from torve.gates.suite import archive_tree
+
+if TYPE_CHECKING:
+    from torve.application.threads import TriageDocument
 
 # ----------------------- #
 
@@ -701,6 +705,102 @@ def _store_probes(root: Path, review_id: str, probes: Mapping[str, str]) -> None
 
 
 # ....................... #
+
+
+def triage_threads(
+    root: Path,
+    checkout: Path,
+    branch: str,
+    prompt: str,
+    config: RunnerConfig,
+    runtime: Runtime,
+    agent: Agent,
+    *,
+    taken: Iterable[str] = (),
+    broker: Broker | None = None,
+) -> TriageDocument | None:
+    """One critic call over a pull-request head's unresolved bot threads
+    (S-0122/D-15): the seat reads a scrubbed copy of *checkout*, the head's
+    tree, and answers `torve.triage/v1`. A dismissal stands on its evidence:
+    one whose evidence is not a leading `path:line` citation that locates in
+    that tree is read as apply. None when the seat gave no document that reads.
+
+    *taken* is the record's task ids, so the review's own id is none the board
+    holds; *broker* routes the seat as it routes any review (S-0021)."""
+
+    from torve.application.dispatch import run_routing
+    from torve.application.ports import BrokerBudget
+    from torve.application.threads import APPLIED, parse_triage
+
+    document_id = branch.rsplit("/", 1)[-1]
+    target = Task(
+        id=document_id,
+        spec=document_id,
+        intent=f"The unresolved bot threads on {branch}.",
+        decisions=[],
+    )
+    review = mint_review_task(
+        root, target, intent=f"Triage the unresolved bot threads on {branch}.", taken=taken
+    )
+    broker_handle = (
+        broker.open(
+            review.id,
+            run_routing(config, review, review_on=False),
+            BrokerBudget(tokens=review.budget.tokens),
+        )
+        if broker is not None
+        else None
+    )
+
+    try:
+        session = run_seat(
+            root,
+            checkout,
+            target,
+            review,
+            config,
+            runtime,
+            agent,
+            prompt,
+            stage=scrub_copy,
+            read=lambda output: (parse_triage(output), None),
+            broker=broker,
+            broker_handle=broker_handle,
+        )
+        document = session.verdict
+
+        if document is not None:
+            for verdict in document.threads:
+                leading = verdict.evidence.split(maxsplit=1)[0] if verdict.evidence.strip() else ""
+                located = CITATION.match(leading) and locate(verdict.evidence, checkout) is None
+
+                if verdict.verdict not in APPLIED and not located:
+                    verdict.verdict = "apply"
+
+        verdicts = [verdict.model_dump() for verdict in document.threads] if document else []
+        fact = (
+            f"triaged {len(verdicts)} thread(s)"
+            if document is not None
+            else "triage output unparseable — no verdict recorded"
+        )
+        record = review_record(
+            session,
+            target,
+            review,
+            agent,
+            "",
+            "pr_threads",
+            {"mode": "triage", "verdicts": verdicts, "unparseable": document is None},
+            broker,
+        )
+        # The host's manifest names where telemetry goes, never the head's.
+        close_review(root, root, session, record, fact)
+
+    finally:
+        if broker is not None and broker_handle is not None:
+            broker.close(broker_handle)
+
+    return document
 
 
 def judge(run: Dispatch, review: Task) -> CriticVerdict:

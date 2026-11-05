@@ -55,7 +55,9 @@ if TYPE_CHECKING:
     from torve.application.lane import LaneJudgment
     from torve.application.ports import PrInfo
     from torve.application.residency import Lane, Threads
+    from torve.application.reviewleg import Triage
     from torve.application.runstate import Escalation
+    from torve.application.threads import TriageDocument
     from torve.config.runconfig import RunnerConfig
     from torve.domain.events import EventRecord
     from torve.domain.spec import Document
@@ -539,9 +541,69 @@ def _thread_leg(
             _ThreadForge(GhScm(config.scm.repo, config.scm.token_env)),
             held.get,
             records=board,
+            # S-0122/D-15: the critic sorts a head's bot threads where it judges.
+            **(
+                {"triage": _triage_seat(root, config, [one.subject_id for one in board])}
+                if config.review.mode == "critic"
+                else {}
+            ),
         )
 
     return threads
+
+
+def _triage_seat(root: Path, config: RunnerConfig, taken: Sequence[str] = ()) -> Triage:
+    """The critic's seat over a head's bot threads (S-0122/D-15): the head
+    checked out where the seat can read it, and gone after the call. A call
+    that fails answers nothing, and the leg goes on as it would without one."""
+
+    from torve.adapters.broker import build_broker
+    from torve.adapters.vcs.git import FETCH_TIMEOUT
+    from torve.cli.assembly import build_reviewer_agent
+    from torve.cli.options import runtime_for
+
+    agent = build_reviewer_agent(config, root)
+    runtime = runtime_for(config, None)
+    broker = build_broker(config.broker)
+
+    def triage(branch: str, info: PrInfo, prompt: str) -> TriageDocument | None:
+        import shutil
+        import subprocess
+
+        from torve.application.critic import triage_threads
+        from torve.base import naming
+
+        checkout = root / naming.WORKTREE_DIR / f"triage-{info.number}"
+
+        def git(*args: str) -> None:
+            # Bounded: a stalled origin must not hold the pass.
+            subprocess.run(
+                ["git", "-C", str(root), *args],
+                capture_output=True,
+                check=True,
+                timeout=FETCH_TIMEOUT,
+            )
+
+        try:
+            git("fetch", "--quiet", "origin", branch)
+            git("worktree", "add", "--force", "--detach", str(checkout), info.head_sha)
+
+            return triage_threads(
+                root, checkout, branch, prompt, config, runtime, agent, taken=taken, broker=broker
+            )
+
+        except Exception:
+            return None
+
+        finally:
+            subprocess.run(
+                ["git", "-C", str(root), "worktree", "remove", "--force", str(checkout)],
+                capture_output=True,
+                check=False,
+            )
+            shutil.rmtree(checkout, ignore_errors=True)
+
+    return triage
 
 
 # ....................... #
