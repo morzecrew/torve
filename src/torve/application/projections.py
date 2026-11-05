@@ -45,7 +45,7 @@ from torve.domain.task import DISPATCHABLE_ROLES, Task
 from torve.domain.vocabulary import GATE_AXES
 
 if TYPE_CHECKING:
-    from collections.abc import Collection, Iterable, Sequence
+    from collections.abc import Collection, Iterable, Mapping, Sequence
 
     from torve.domain.events import EventRecord
 
@@ -704,7 +704,7 @@ def _costs(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 # shadow replays are the measurement machinery comparing two regimes, not
 # spend under either one, skill evals are S-0009's own population, and
 # engine events carry no agent block at all (S-0027 S-0027/D-5).
-_HARNESS_EXCLUDED_KINDS = {"shadow", "skill-eval", "engine"}
+_HARNESS_EXCLUDED_KINDS = {"shadow", "skill-eval", "engine", "unit.closed"}
 
 
 def _task_tier_name(record: dict[str, Any]) -> str:
@@ -1728,6 +1728,28 @@ def _why_events(rows: list[dict[str, Any]], task_id: str) -> list[dict[str, Any]
     return sorted(found, key=lambda entry: str(entry.get("at") or ""))
 
 
+def units(
+    rows: Iterable[Mapping[str, Any]],
+    *,
+    task_id: str | None = None,
+    since: datetime | None = None,
+    until: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """The units selection closed (S-0122/D-16), as their records hold them:
+    one task's, or those inside a night's window."""
+
+    if since is not None:
+        from torve.application.manager import windowed
+
+        rows = windowed(rows, since=since, until=until)
+
+    return [
+        dict(row)
+        for row in rows
+        if row.get("kind") == "unit.closed" and task_id in (None, row.get("task_id"))
+    ]
+
+
 def _why_reviews(rows: list[dict[str, Any]], task_id: str) -> list[dict[str, Any]]:
     """Reviews conducted *of* this task, by their durable records: how many
     findings the review kept and how many of them were blockers. The review's
@@ -2095,6 +2117,7 @@ def why_report(
         "attempts": attempts,
         "events": events,
         "reviews": _why_reviews(rows, task_id),
+        **({"units": closed} if (closed := units(rows, task_id=task_id)) else {}),
         "totals": _why_totals(attempts, human_minutes),
         "regime": _why_regime(task_rows, rows),
     }

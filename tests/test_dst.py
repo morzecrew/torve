@@ -64,7 +64,13 @@ def test_invariants_hold_and_targets_fire(tmp_path):
     assert report is None, f"violation in the honest engine:\n{report}"
     # Reachability: an invariant sweep that never visited the hard states
     # proves nothing (S-0003/D-5).
-    required = {"lease_reclaimed", "zombie_abandoned", "gate_red_then_green", "cancel_observed"}
+    required = {
+        "lease_reclaimed",
+        "zombie_abandoned",
+        "gate_red_then_green",
+        "cancel_observed",
+        "later_candidate_selected",
+    }
     assert required <= world.reach, f"targets never fired: {required - world.reach}"
 
 
@@ -94,3 +100,12 @@ def test_broken_twin_rogue_dispatch_is_caught(tmp_path):
     _, report = run_world(tmp_path, twin="rogue")
     assert report is not None
     assert INVARIANT_MESSAGES["double_hold"] in _messages(report)
+
+
+def test_broken_twin_picking_an_unpassed_candidate_is_caught(tmp_path):
+    """S-0122/D-7: selection hands on only a candidate that is green and the
+    critic passed; one that hands on another reaches ready on a red truth."""
+
+    _, report = run_world(tmp_path, twin="pick_red")
+    assert report is not None
+    assert INVARIANT_MESSAGES["red_ready"] in _messages(report)

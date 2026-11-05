@@ -9,6 +9,7 @@ Twins — each a deliberately broken variant the oracle must catch:
     lie_gates    the gate hook reports green over a red truth
     dup_land     landing is not idempotent under at-least-once delivery
     rogue        dispatch bypasses the store's idempotent claim convergence
+    pick_red     selection hands on a candidate the critic never passed
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from forze_dst import OperationCase
 from forze_dst.markers import reached, record_event
 
 from torve.adapters.store.durable import open_mock_store
+from torve.application import selection
 from torve.application.ports import AgentResult
 from torve.application.runner import AttemptHooks, drive_attempts
 from torve.application.runstate import RunState
@@ -76,8 +78,35 @@ class World:
         )
         state.transition(TaskState.CLAIMED, "sim claim")  # what run_task does before the loop
         saw_red_gates = False
+        # S-0122/D-7: per attempt, what selection reported of the candidate it
+        # handed on, and what that candidate truly was.
+        picked: dict[int, tuple[bool, bool]] = {}
 
         tracked = input_json.get("tracked", True)
+
+        async def choose(n: int) -> None:
+            ready = n >= plan["agent_fails"] + plan["gate_fails"] + 1
+
+            async def launch(index: int, _clock: float) -> selection.Candidate:
+                green = ready and index in plan["green"]
+                # Odd candidates write one diff, so a width of three collapses.
+                return selection.Candidate(
+                    index=index, result=None, green=green, patch=f"+{index % 2}"
+                )
+
+            async def review(candidate: selection.Candidate) -> bool:
+                return candidate.index in plan["clean"]
+
+            chosen = await selection.select(
+                plan["width"], launch, review, agent_clock=60.0, seed=task_id
+            )
+            winner = chosen.candidates[0] if self.twin == "pick_red" else chosen.chosen
+            truth = winner.green and winner.clean
+
+            if truth and winner.index > 1:
+                self._reached("later_candidate_selected")
+
+            picked[n] = (True if self.twin == "pick_red" else truth, truth)
 
         async def attempt(current: RunState) -> AgentResult:
             # The hold registry asserts mutual exclusion of store-dispatched
@@ -90,15 +119,28 @@ class World:
             record_event("attempt", task=task_id, run=run_key, n=current.attempts)
             # Interleave point; slow plans keep the body alive across a lease
             # renewal, which is the only window a cancel can be observed in.
-            await asyncio.sleep(plan.get("sleep", 0))
-            if tracked and self.holding.get(task_id) == engine_run:
-                del self.holding[task_id]
+            # A run cancelled in its sleep holds nothing after it: the release is
+            # the run's however it ends.
+            try:
+                await asyncio.sleep(plan.get("sleep", 0))
+            finally:
+                if tracked and self.holding.get(task_id) == engine_run:
+                    del self.holding[task_id]
             exit_code = 137 if current.attempts <= plan["agent_fails"] else 0
+
+            if exit_code == 0 and plan["width"] > 1:
+                await choose(current.attempts)
+
             return AgentResult(exit_code=exit_code, output="")
 
         async def gates(current: RunState) -> tuple[int, str, str]:
             nonlocal saw_red_gates
             await asyncio.sleep(0)
+
+            if plan["width"] > 1:
+                reported, _truth = picked.get(current.attempts, (False, False))
+                return (0 if reported else 1), "selected", "cafe"
+
             green_attempt = plan["agent_fails"] + plan["gate_fails"] + 1
             red = current.attempts < green_attempt
             if red:
@@ -110,7 +152,11 @@ class World:
             return (1 if red else 0), "sim", "cafe"
 
         async def land(current: RunState, _digest: str) -> str:
-            truth_green = current.attempts >= plan["agent_fails"] + plan["gate_fails"] + 1
+            truth_green = (
+                picked.get(current.attempts, (False, False))[1]
+                if plan["width"] > 1
+                else current.attempts >= plan["agent_fails"] + plan["gate_fails"] + 1
+            )
             record_event(
                 "ready", task=task_id, run=run_key, gates="green" if truth_green else "red"
             )
@@ -136,6 +182,9 @@ class World:
             "agent_fails": rng.choice([0, 0, 1]),
             "gate_fails": rng.choice([0, 1, 1, 2]),
             "sleep": rng.choice([0.0, 0.0, 0.1]),
+            "width": rng.choice([1, 2, 3]),
+            "green": rng.sample([1, 2, 3], k=rng.choice([1, 2, 3])),
+            "clean": rng.sample([1, 2, 3], k=rng.choice([0, 1, 2])),
         }
 
     async def op_run(self, args) -> None:

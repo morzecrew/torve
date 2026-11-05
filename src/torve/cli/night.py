@@ -90,6 +90,7 @@ def night_show(
     from torve.application.projections import (
         cross_document_waits,
         landed,
+        units,
     )
     from torve.application.streams import stream_rows
 
@@ -114,6 +115,9 @@ def night_show(
     # folded from its own events: the operator reads whether it removed their
     # thread work or moved it.
     reviews = review_threads(rows, since=report.opened_at, until=report.closed_at)
+    # S-0122/D-16: the units that ran several candidates, and what the critic
+    # made of them.
+    closed = units(rows, since=report.opened_at, until=report.closed_at)
     # S-0085/D-6: a task waiting on another document's landing names the
     # document, so the reader knows which pull request to look at.
     waits = cross_document_waits(root, landed(root))
@@ -126,6 +130,7 @@ def night_show(
                 "pull_requests": prs.__dict__,
                 "documents": docs.__dict__,
                 "review_threads": reviews.__dict__,
+                "units": closed,
                 "opened_at": report.opened_at.isoformat(),
                 "closed_at": report.closed_at.isoformat() if report.closed_at else None,
                 "unfinished": report.unfinished,
@@ -188,6 +193,28 @@ def night_show(
                 str(reviews.refused),
                 str(reviews.escalated),
             )
+        ],
+    )
+    _table(
+        console,
+        "candidates",
+        ("task", "attempt", "class", "candidates", "outcome", "chosen", "critic"),
+        [
+            (
+                str(unit.get("task_id")),
+                str(unit.get("attempt")),
+                str(unit.get("class")),
+                str(unit.get("width")),
+                str(unit.get("outcome")),
+                str(unit.get("selected")),
+                ", ".join(
+                    f"{one.get('index')}: {one['verdict']}"
+                    for one in unit.get("candidates", [])
+                    if one.get("verdict")
+                )
+                or "—",
+            )
+            for unit in closed
         ],
     )
     _table(

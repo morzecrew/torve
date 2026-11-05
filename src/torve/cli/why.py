@@ -213,6 +213,30 @@ def why_cmd(
 # ....................... #
 
 
+def _unit_line(unit: dict[str, Any]) -> str:
+    return (
+        f"attempt {unit.get('attempt')} · class {unit.get('class')}, "
+        f"{unit.get('width')} candidate(s) · {unit.get('outcome')} · "
+        f"candidate {unit.get('selected')} chosen · {unit.get('critic_calls')} critic call(s)"
+    )
+
+
+def _candidate_line(candidate: dict[str, Any]) -> str:
+    gate = "green" if candidate.get("green") else "red"
+    rank = f", rank {candidate['rank']}" if candidate.get("rank") else ""
+    same = (
+        f", same diff as {candidate['collapsed_into']}" if candidate.get("collapsed_into") else ""
+    )
+    verdict = f", critic {candidate['verdict']}" if candidate.get("verdict") else ""
+    repaired = ", repaired once" if candidate.get("followed_up") else ""
+
+    return (
+        f"candidate {candidate.get('index')}: {gate}{rank}{same}{verdict}{repaired} · "
+        f"{_seconds(candidate.get('wall_time_s')) or 'unreported'} · "
+        f"{_money(candidate.get('cost_usd'))}"
+    )
+
+
 def _render(envelope: dict[str, Any]) -> None:
     console = out()
     state = envelope.get("state")
@@ -241,6 +265,14 @@ def _render(envelope: dict[str, Any]) -> None:
 
     for _, _, line in timeline:
         console.print(line)
+
+    # S-0122/D-16: each attempt that ran several candidates, and how the
+    # critic read them.
+    for unit in envelope.get("units", []):
+        console.print(Text(_unit_line(unit)))
+
+        for candidate in unit.get("candidates", []):
+            console.print(Text(f"  {_candidate_line(candidate)}", STYLE_DIM))
 
     console.print()
 

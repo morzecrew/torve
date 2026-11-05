@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Under `review.mode: critic` an attempt runs one to three candidates, by the unit's
+  size, each in its own worktree. The critic reviews the green ones in a fixed order
+  until one passes, and `torve why` and `night show` list the candidates.
+
+- A dsh seat's candidate whose battery convicted three tests or fewer, or only mypy,
+  gets one more turn in its own session with the gate output before it is judged.
+
+- Each unit that ran through selection writes a `unit.closed` telemetry record.
+
 - `unit: document` in a document's `phasing.yaml` mints one contract for the whole
   document, and is the default for three phases or fewer; `unit: phase` keeps one
   contract per entry. A whole-document contract's landing completes every phase.

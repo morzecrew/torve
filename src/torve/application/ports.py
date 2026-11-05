@@ -51,7 +51,8 @@ JUDGE_REF_PREFIX = "refs/torve/judge/"
 
 
 def judge_ref(task_id: str) -> str:
-    return f"{JUDGE_REF_PREFIX}{task_id}"
+    # A candidate's key is `<task>~<k>` (S-0122/D-7); git refuses `~` in a ref.
+    return f"{JUDGE_REF_PREFIX}{task_id.replace('~', '.')}"
 
 
 # ....................... #
@@ -215,6 +216,12 @@ class WorkspacePort(JudgePort, Protocol):
     def remove(self, task_id: str) -> None: ...
 
     def list_worktrees(self) -> list[tuple[str, Path]]: ...
+
+    # S-0122/D-7: a unit's later candidates work beside the task's worktree,
+    # from the commit it was cut at; the one selected takes its place.
+    def create_candidate(self, task_id: str, index: int) -> Path: ...
+
+    def promote_candidate(self, task_id: str, index: int) -> None: ...
 
 
 # ....................... #
