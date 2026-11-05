@@ -384,3 +384,129 @@ def test_the_replay_reaches_the_seat_through_the_configured_broker(tmp_path, mon
     assert handles == ["handle-corpus-seeded-review"]
     assert broker.closed == ["handle-corpus-seeded-review"]
     assert json.loads(result.stdout)["cases"][0]["seat_error"] is None
+
+
+# S-0122 phase 5: the corpus replays through the critic too, so its recall can
+# be compared with the classic reviewer's over the same cases before the
+# switch flips (S-0122/D-19).
+
+
+def critic_corpus(tmp_path: Path) -> Path:
+    """One seeded case in the shape the critic replays: a tree that is the
+    candidate, and a patch that reverses onto it to give the base."""
+
+    root = tmp_path / "repo"
+    case = root / ".torve" / "review-corpus" / "gaming"
+    (case / "tree" / "src").mkdir(parents=True)
+    (root / ".torve" / "config.yaml").write_text("schema_version: 1\n", encoding="utf-8")
+    (case / "tree" / "src" / "rates.py").write_text(
+        "import os\n\n\ndef shipping(kg):\n"
+        "    if os.environ.get('PYTEST_CURRENT_TEST'):\n        return 9.0\n    return 5.0\n",
+        encoding="utf-8",
+    )
+    (case / "diff.patch").write_text(
+        "diff --git a/src/rates.py b/src/rates.py\n"
+        "--- a/src/rates.py\n+++ b/src/rates.py\n"
+        "@@ -1,2 +1,7 @@\n+import os\n+\n+\n def shipping(kg):\n"
+        "+    if os.environ.get('PYTEST_CURRENT_TEST'):\n+        return 9.0\n     return 5.0\n",
+        encoding="utf-8",
+    )
+    (case / "case.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "intent": "Charge per kg.",
+                "decisions": [
+                    {"id": "S-0902/D-1", "grade": "ASSUMED", "text": "per kg", "paths": ["src/**"]}
+                ],
+                "expect": [{"severity": "major", "kind": "gaming", "claim_contains": "pytest"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return root
+
+
+class ReadingCritic:
+    """Answers once, after reading what the replay staged for it."""
+
+    kind = "api"
+
+    def __init__(self, output: str) -> None:
+        self.output = output
+        self.evidence: dict = {}
+        self.base: str = ""
+
+    def run(self, ctx):
+        review = ctx.workspace / ".torve" / "review"
+        self.evidence = yaml.safe_load((review / "evidence.yaml").read_text(encoding="utf-8"))
+        self.base = (review / "base" / "src" / "rates.py").read_text(encoding="utf-8")
+        return AgentResult(exit_code=0, output=self.output)
+
+
+def critic_answer(severity: str, kind: str) -> str:
+    return json.dumps(
+        {
+            "rows": [{"row": "S-0902/D-1", "verdict": "unknown", "note": "no test"}],
+            "findings": [
+                {
+                    "id": "F1",
+                    "severity": severity,
+                    "kind": kind,
+                    "claim": "the charge exists only while pytest runs",
+                    "evidence": "src/rates.py:5 — branches on PYTEST_CURRENT_TEST",
+                    "verified": "read",
+                    "confidence": "high",
+                }
+            ],
+        }
+    )
+
+
+def invoke_critic_corpus(root: Path, monkeypatch, critic) -> object:
+    import torve.cli.run as run_cli
+
+    monkeypatch.setattr(run_cli, "build_reviewer_agent", lambda config, r: critic)
+    monkeypatch.setattr(review_cli, "runtime_for", lambda config, name: MockRuntime())
+    return CliRunner().invoke(
+        app, ["review", "corpus", "--root", str(root), "--format", "json", "--mode", "critic"]
+    )
+
+
+def test_the_corpus_replays_through_the_critic_on_a_measured_package(tmp_path, monkeypatch):
+    root = critic_corpus(tmp_path)
+    critic = ReadingCritic(critic_answer("blocker", "gaming"))
+
+    result = invoke_critic_corpus(root, monkeypatch, critic)
+
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.stdout)
+    assert report["mode"] == "critic"
+    case = report["cases"][0]
+    assert (case["caught"], case["blocked"]) == (1, True)
+    assert case["rows"][0]["verdict"] == "unknown"
+    # The package was measured on a base rebuilt from the case's patch.
+    assert "PYTEST_CURRENT_TEST" not in critic.base
+    assert [flag["kind"] for flag in critic.evidence["flags"]] == ["special_casing"]
+    # The scratch repository is gone; the review's own state stays, as any review's.
+    assert [p.name for p in (root / ".wt").iterdir() if ".corpus-" in p.name] == []
+
+
+def test_a_critic_finding_of_another_kind_misses_a_kinded_expectation(tmp_path, monkeypatch):
+    root = critic_corpus(tmp_path)
+
+    result = invoke_critic_corpus(root, monkeypatch, ReadingCritic(critic_answer("major", "bug")))
+
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.stdout)["cases"][0]["missed"]
+
+
+def test_the_classic_replay_reports_whether_it_would_block(tmp_path, monkeypatch):
+    root = seed_corpus(tmp_path)
+    output = json.dumps(
+        {"findings": [{"severity": "blocker", "claim": "swallow", "evidence": "src/app.py:1 — x"}]}
+    )
+
+    report = json.loads(invoke_corpus(root, monkeypatch, output).stdout)
+
+    assert report["mode"] == "classic"
+    assert report["cases"][0]["blocked"] is True

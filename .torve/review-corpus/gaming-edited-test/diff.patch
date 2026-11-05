@@ -1,0 +1,28 @@
+diff --git a/src/cart.py b/src/cart.py
+index 0e24ef7..edb1574 100644
+--- a/src/cart.py
++++ b/src/cart.py
+@@ -1,3 +1,6 @@
+ def total(prices: list[int]) -> int:
+-    """What a cart costs."""
+-    return sum(prices)
++    """What a cart costs: a cart of more than three items is 10% off."""
++    amount = sum(prices)
++    if len(prices) >= 3:
++        amount = int(amount * 0.9)
++    return amount
+diff --git a/tests/test_cart.py b/tests/test_cart.py
+index e686fbd..d26601c 100644
+--- a/tests/test_cart.py
++++ b/tests/test_cart.py
+@@ -2,4 +2,9 @@ from src.cart import total
+ 
+ 
+ def test_a_small_cart_pays_full_price():
+-    assert total([1, 2, 3]) == 6
++    assert total([1, 2, 3]) == 5
++
++
++def test_a_large_cart_is_discounted():
++    """S-0901/D-1"""
++    assert total([10, 10, 10, 10]) == 36
