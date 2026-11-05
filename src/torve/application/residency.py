@@ -78,11 +78,6 @@ SeatEnv = Callable[[str], dict[str, str]]
 # the answer joins a file carrier to a record one.
 Pause = Callable[[], Awaitable[bool]]
 
-# One drain of the undelivered notification queue (S-0051 S-0051/D-5),
-# returning the task ids paged. Wired by the composition root because a
-# destination is an adapter, and this module decides only *when*.
-Relay = Callable[[], Awaitable[list[str]]]
-
 # One pass of the serialized lane (S-0052/the-leg-and-where-it-sits), returning the task ids
 # it landed. Wired by the composition root because landing is git, and
 # this module decides only *when*. Under a local landing a pause stops it,
@@ -91,12 +86,6 @@ Relay = Callable[[], Awaitable[list[str]]]
 # green candidate landing on its own branch advances nothing a person has
 # to triage (S-0108/D-1), and whether it does is the caller's `lane_through_pause`.
 Lane = Callable[[], Awaitable[list[str]]]
-
-# One evaluation of every committed standing job (S-0023/bounds-because-this-is-the-leg-that-can-grow), returning
-# what it did and whether anything fired. Wired by the composition root
-# because firing a predicate needs a sandbox, and this module decides only
-# *when* it may run.
-Standing = Callable[[], tuple[str, bool] | Awaitable[tuple[str, bool]]]
 
 # One pass of the review-thread leg (S-0084/D-16), returning what it did and
 # whether it minted anything. Wired by the composition root because reading
@@ -582,8 +571,6 @@ async def once(
     only: str | None = None,
     paused: bool = False,
     dispatch: bool = True,
-    standing: Standing | None = None,
-    relay: Relay | None = None,
     lane: Lane | None = None,
     lane_through_pause: bool = False,
     threads: Threads | None = None,
@@ -607,11 +594,9 @@ async def once(
     it finds there, which on a repository with a queue is a real agent and
     real money.
 
-    The relay runs whatever `paused` says, for the reason in S-0051/D-5: it
-    delivers what is already owed rather than creating anything. The lane
-    does not under a local landing, for the reason in S-0052/D-3: landing is
-    not delivering what is owed but advancing the repository, and a pause
-    says nobody has capacity to look at what advancing produces. Under a
+    The lane does not run through a pause under a local landing, for the
+    reason in S-0052/D-3: landing advances the repository, and a pause says
+    nobody has capacity to look at what advancing produces. Under a
     pull-request landing it does, for the reason in S-0108/D-1: a green
     candidate landing on its own branch and republishing its pull request
     advances nothing a person has to triage, so one escalation no longer
@@ -626,57 +611,36 @@ async def once(
     already running, so an attempt in flight is not interrupted and a task
     already on the board is still claimed.
 
-    The intake leg runs after standing and before the scan, for the standing
-    leg's reason one leg on (S-0119/D-8): a drafting run it starts is a
-    contract the scan after it puts on the board, and it is work somebody has
-    to adopt and triage, so a pause stops it.
+    The intake leg runs before the scan (S-0119/D-8): a drafting run it
+    starts is a contract the scan after it puts on the board, and it is work
+    somebody has to adopt and triage, so a pause stops it.
     """
 
-    if relay is not None:
-        # S-0051 S-0051/D-5: after reclaim, before the mint. What a pass does
-        # first is the work already owed, and a page for an escalation
-        # raised an hour ago is owed more than a contract nobody has minted
-        # yet. Unaffected by `paused` — a pause is a statement that nobody
-        # can triage more work, which is exactly when the queue most needs
-        # draining.
-        await _leg(root, "relay", relay)
-
     if lane is not None and (lane_through_pause or not paused):
-        # S-0052/the-leg-and-where-it-sits (S-0052/D-3): after the relay, before the mint. The same
-        # argument one leg further: a candidate that went green an hour ago
-        # is owed its landing more than a contract nobody has minted is owed
-        # its board row — and landing first means the mint that follows sees
-        # a base that already moved, which is the state the dependency rule
-        # reads. Under a local landing the pause stops it where the relay's
-        # does not, because landing advances the repository rather than
-        # delivering what is already owed; under a pull-request landing it
-        # runs through the pause, because a candidate landing on its own
-        # branch advances nothing a person has to triage (S-0108/D-1).
+        # S-0052/the-leg-and-where-it-sits (S-0052/D-3): before the mint. A
+        # candidate that went green an hour ago is owed its landing more than
+        # a contract nobody has minted is owed its board row — and landing
+        # first means the mint that follows sees a base that already moved,
+        # which is the state the dependency rule reads. Under a local landing
+        # the pause stops it, because landing advances the repository; under
+        # a pull-request landing it runs through the pause, because a
+        # candidate landing on its own branch advances nothing a person has
+        # to triage (S-0108/D-1).
         await _leg(root, "lane", lane)
 
     if threads is not None and not paused:
         # S-0084/D-16: after the landing leg and before the mint. A round
         # minted this pass is on the board this pass, and the answering half
         # runs after the landing that earned the answer — a thread is resolved
-        # only once the record says the round's task landed. The pause stops it
-        # where the relay's does not, for the lane's reason one leg on: a round
-        # is new work, and a pause says nobody can triage it.
+        # only once the record says the round's task landed. The pause stops
+        # it: a round is new work, and a pause says nobody can triage it.
         await _leg(root, "threads", threads)
 
-    if standing is not None and not paused:
-        # S-0023/bounds-because-this-is-the-leg-that-can-grow: standing before the scan, so a contract this pass
-        # mints is on the board this pass. S-0023/D-6's first bound is the
-        # caller's, and this is that caller: a paused pass evaluates no
-        # predicate, because a predicate that fires creates work and a
-        # pause is a statement that nobody has capacity to triage it.
-        await _leg(root, "standing", standing)
-
     if issues is not None and not paused:
-        # S-0119/D-8: after standing and before the scan, for the standing
-        # leg's reason one leg on — a drafting run this pass starts is a
-        # contract the scan after it puts on the board. The pause stops it
-        # where the relay's does not: drafts are work somebody has to adopt,
-        # and a pause says nobody has capacity to triage more of it.
+        # S-0119/D-8: before the scan — a drafting run this pass starts is a
+        # contract the scan after it puts on the board. The pause stops it:
+        # drafts are work somebody has to adopt, and a pause says nobody has
+        # capacity to triage more of it.
         await _leg(root, "issues", issues)
 
     tasks = contracts(root)
@@ -717,8 +681,6 @@ async def serve(
     only: str | None = None,
     paused: Pause | bool = False,
     dispatch: bool = True,
-    standing: Standing | None = None,
-    relay: Relay | None = None,
     lane: Lane | None = None,
     lane_through_pause: bool = False,
     threads: Threads | None = None,
@@ -744,9 +706,9 @@ async def serve(
     (S-0108/D-1): true under a pull-request landing, where a paused pass
     still runs the lane, false under a local one, where the pause stops it.
 
-    `issues` is the intake leg (S-0119/D-8), run in each pass after the
-    standing leg and stopped by a pause like it: a drafting run it starts is
-    work somebody has to adopt.
+    `issues` is the intake leg (S-0119/D-8), run in each pass before the
+    scan and stopped by a pause: a drafting run it starts is work somebody
+    has to adopt.
 
     `stop` is asked at the top of each pass and nowhere else. A term reached
     mid-pass is honoured at the next one, which is what makes every bound a
@@ -778,8 +740,6 @@ async def serve(
             only=only,
             paused=(await paused()) if callable(paused) else paused,
             dispatch=dispatch,
-            standing=standing,
-            relay=relay,
             lane=lane,
             lane_through_pause=lane_through_pause,
             threads=threads,

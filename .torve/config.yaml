@@ -6,7 +6,7 @@
 schema_version: 1
 
 runtime:
-  adapter: docker            # docker | opensandbox
+  adapter: docker
   image: python:3.13-slim
   # Strictly outside `agent_timeout`, and refused otherwise: T-0361 died at
   # 1800.2s as an infrastructure failure while the agent clock said 2200,
@@ -22,23 +22,12 @@ runtime:
                              # forwards the standard proxy env (http_proxy et
                              # al., names only). "" = docker's default bridge,
                              # which is region-blocked from here.
-  opensandbox:
-    domain: localhost:5266
-    api_key_env: OPENSANDBOX_API_KEY   # the name of the variable, never the key
 
 store:
   adapter: postgres          # mock | postgres — postgres for real cross-process runs (D-3.6)
   dsn_env: TORVE_PG_DSN      # the name of the variable, never the DSN itself
   lease_for: 60              # seconds; a cancel ask rides back on lease renewal
   max_run_duration: 7200     # the store watchdog's hard cap on one run
-
-# S-0027/D-7: a tier may not dispatch under an image no paired verdict has
-# measured, because a definition edit must not quietly change what a seat runs
-# under. `allow` is the hatch this repository is entitled to while it rebuilds
-# its own images faster than verdicts can be recorded — the dispatch still
-# records the unmeasured digest as an engine event, so the measurement stays
-# owed rather than forgotten.
-unmeasured_images: allow
 
 poison_ceiling: 3            # checked before dispatch; reached -> escalated
 
@@ -185,15 +174,6 @@ tiers:
     profile: claude-equipped
     model: claude-opus-5-5
     provider: anthropic
-  # A replay arm for the mimo harness: the same model, provider and dialect as
-  # `executor.dsh`, so a pair of replays differs in the harness alone. mimo
-  # reaches the model through a provider its image declares from these scalars
-  # (sandboxes/mimo/toolkit/provider_config.py); nothing lands from it.
-  executor.mimo:
-    harness: mimo
-    model: qwen3.8-flash
-    provider: modelstudio
-    dialect: openai
   # A replay arm, never a seat anything lands from: the same harness and the
   # same credential as `executor.dsh`, with the newer deepseek in place of qwen
   # and its reasoning asked for by name. `medium` is the middle of the seven the

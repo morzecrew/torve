@@ -3,8 +3,8 @@
 #
 # Claude Code has a session flag per kind, so equipping it is composing flags
 # against the paths the engine mounted. dsh renders one `--patch` overlay from
-# the same manifest and mimo runs install commands — the same script name,
-# three answers, each beside the harness that knows.
+# the same manifest — the same script name, two answers, each beside the
+# harness that knows.
 #
 # Nothing to equip is not a failure: the mount is absent until the engine
 # fetches equipment, and a seat whose profile declares none never gets one.

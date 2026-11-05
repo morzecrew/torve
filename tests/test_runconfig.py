@@ -19,7 +19,6 @@ from torve.config.runconfig import (
     RunnerConfig,
     TierConfig,
     TracesConfig,
-    VerifyConfig,
     agent_timeout_for,
     load_runner_config,
     remote_broker_proxy,
@@ -365,49 +364,36 @@ def test_traces_bounds_refuse_non_numbers():
 
 # ....................... #
 # Remote endpoint mode (S-0041/the-broker-reachable): broker.bind and broker.advertise.
-# The advertised address is resolved once at load and published on the
-# opensandbox config — the runtime composes the sandbox's proxy env from
-# it with no channel to the broker, replacing the Docker-gateway
-# derivation for runs whose sandboxes are elsewhere.
+# The advertised address is derived from the broker block alone, so the broker
+# publishes its routes at one address with no second channel to set it.
 
 
 def test_load_resolves_the_advertised_broker_address_once(tmp_path: Path):
     config = load(
         tmp_path,
-        "runtime:\n"
-        "  adapter: opensandbox\n"
-        "broker:\n"
-        "  adapter: local\n"
-        "  bind: 0.0.0.0:8321\n"
-        "  advertise: broker.example.net:9443\n",
+        "broker:\n  adapter: local\n  bind: 0.0.0.0:8321\n  advertise: broker.example.net:9443\n",
     )
-    assert config.runtime.opensandbox.remote_broker_proxy == "http://broker.example.net:9443"
+    assert remote_broker_proxy(config.broker) == "http://broker.example.net:9443"
 
 
 def test_advertise_defaults_to_bind(tmp_path: Path):
-    config = load(
-        tmp_path,
-        "runtime:\n  adapter: opensandbox\nbroker:\n  adapter: local\n  bind: 203.0.113.7:8321\n",
-    )
-    assert config.runtime.opensandbox.remote_broker_proxy == "http://203.0.113.7:8321"
+    config = load(tmp_path, "broker:\n  adapter: local\n  bind: 203.0.113.7:8321\n")
+    assert remote_broker_proxy(config.broker) == "http://203.0.113.7:8321"
 
     # A host-only advertise is the hostname split without the port split:
     # the port is inherited from bind.
     config = load(
         tmp_path,
-        "runtime:\n  adapter: opensandbox\n"
-        "broker:\n  adapter: local\n  bind: 203.0.113.7:8321\n"
-        "  advertise: broker.example.net\n",
+        "broker:\n  adapter: local\n  bind: 203.0.113.7:8321\n  advertise: broker.example.net\n",
     )
-    assert config.runtime.opensandbox.remote_broker_proxy == "http://broker.example.net:8321"
+    assert remote_broker_proxy(config.broker) == "http://broker.example.net:8321"
 
 
 def test_no_bind_publishes_no_remote_proxy(tmp_path: Path):
     # Empty is today's behaviour: the broker keeps the loopback/bridge
     # derivation and the runtime keeps forwarding the runner's proxy env.
-    config = load(tmp_path, "runtime:\n  adapter: opensandbox\nbroker:\n  adapter: local\n")
-    assert config.runtime.opensandbox.remote_broker_proxy == ""
-    assert RunnerConfig().runtime.opensandbox.remote_broker_proxy == ""
+    config = load(tmp_path, "broker:\n  adapter: local\n")
+    assert remote_broker_proxy(config.broker) == ""
     assert remote_broker_proxy(BrokerConfig(adapter="local")) == ""
 
 
@@ -451,16 +437,6 @@ def test_broker_addresses_are_hosts_not_urls():
         BrokerConfig(adapter="local", bind="203.0.113.7:1", advertise="https://a.b:2")
 
 
-def test_the_remote_proxy_is_not_a_configured_key(tmp_path: Path):
-    # The advertised address has one location — the broker block. Setting
-    # the derived value directly under runtime.opensandbox is refused like
-    # any unknown key: there is no second channel.
-    with pytest.raises(ValidationError, match="remote_broker_proxy"):
-        RunnerConfig.model_validate(
-            {"runtime": {"opensandbox": {"remote_broker_proxy": "http://forged:1"}}}
-        )
-
-
 def test_remote_broker_proxy_is_silent_for_sealed():
     # Sealed mode's address is the network's gateway at a name-derived
     # port; the helper answers no remote endpoint rather than inventing
@@ -478,49 +454,6 @@ def test_the_review_role_loads_a_shipped_skill_by_default() -> None:
 
     declared = role_skills(Path(__file__).resolve().parents[1])["review"]
     assert set(declared) & set(available()), "review equips no shipped skill"
-
-
-def test_the_verify_block_defaults_to_off_with_the_decisions_terms() -> None:
-    # S-0116/D-2: an adopter that never sets the block mints exactly today's
-    # tasks, and one that turns it on finds the terms it named or the defaults.
-    config = RunnerConfig()
-
-    assert config.verify.enabled is False
-    assert config.verify.variant == "verify"
-    assert config.verify.types == ["feat", "fix"]
-    assert config.verify.tests_dir == "tests/verify"
-
-
-def test_the_verify_block_loads_from_yaml(tmp_path: Path) -> None:
-    config = load(
-        tmp_path,
-        "schema_version: 1\n"
-        "verify: {enabled: true, variant: verify, types: [feat], tests_dir: tests/verify}\n"
-        "tiers:\n"
-        "  executor.verify: {harness: fake}\n",
-    )
-
-    assert config.verify.enabled is True
-    assert config.verify.types == ["feat"]
-    assert config.verify.tests_dir == "tests/verify"
-
-
-def test_a_verify_pilot_with_no_verify_seat_is_refused_at_load() -> None:
-    # S-0116/D-2: one that turns the pilot on without a seat finds out at load,
-    # not at the first dispatch of a verify task.
-    with pytest.raises(ValidationError, match=r"verify\.enabled names no configured tier"):
-        RunnerConfig(verify=VerifyConfig(enabled=True))
-
-
-def test_a_verify_pilot_naming_a_configured_seat_loads() -> None:
-    plain = RunnerConfig()
-
-    config = RunnerConfig(
-        verify=VerifyConfig(enabled=True, variant="verifier"),
-        tiers={**plain.tiers, "executor.verifier": TierConfig()},
-    )
-
-    assert config.verify.variant == "verifier"
 
 
 def test_the_corpus_path_defaults_beside_everything_else_under_torve() -> None:
@@ -1230,13 +1163,6 @@ def test_a_nested_review_role_is_refused() -> None:
         RuntimeConfig(docker="nested", nested=NestedConfig(roles=["gates", "review"]))
 
 
-def test_nested_needs_the_docker_runtime() -> None:
-    from torve.config.runconfig import RuntimeConfig
-
-    with pytest.raises(ValidationError, match=r"nested needs the docker runtime"):
-        RuntimeConfig(adapter="opensandbox", docker="nested")
-
-
 def test_a_sealed_broker_refuses_nested_docker() -> None:
     from torve.config.runconfig import BrokerConfig, RuntimeConfig
 
@@ -1277,3 +1203,44 @@ def test_a_whitespace_only_intake_issue_label_is_off(tmp_path: Path):
 
     assert config.intake.issue_label == ""
     assert IntakeConfig(issue_label=" torve:ready ").issue_label == "torve:ready"
+
+
+# ....................... #
+# S-0122/D-17: a key 0.9.0 removed still loads for one release, dropped and
+# named in a warning; a value it removed is refused.
+
+
+def test_a_removed_key_loads_with_a_warning_naming_it(tmp_path: Path):
+    text = (
+        "runtime:\n  opensandbox: {domain: localhost:5266}\n"
+        "notify: {adapter: webhook}\n"
+        "verify: {enabled: true}\n"
+        "unmeasured_images: allow\n"
+        "loop: {standing_max_per_tick: 2}\n"
+    )
+
+    with pytest.warns(FutureWarning, match="removed in 0.9.0") as caught:
+        config = load(tmp_path, text)
+
+    message = str(caught[0].message)
+
+    for key in ("runtime.opensandbox", "notify", "verify", "unmeasured_images"):
+        assert key in message
+    assert "loop.standing_max_per_tick" in message
+    assert config.runtime.adapter == "docker"
+
+
+def test_a_seat_on_a_removed_harness_loads_with_a_warning(tmp_path: Path):
+    text = "tiers:\n  executor.mimo: {harness: mimo, model: m}\n"
+
+    with pytest.warns(FutureWarning, match=r"tiers\.executor\.mimo \(harness mimo\)"):
+        config = load(tmp_path, text)
+
+    assert "executor.mimo" not in config.tiers
+
+
+def test_a_removed_runtime_is_refused():
+    from torve.config.runconfig import RuntimeConfig
+
+    with pytest.raises(ValidationError, match="docker"):
+        RuntimeConfig(adapter="opensandbox")  # type: ignore[arg-type]

@@ -460,10 +460,8 @@ def test_pass_through_may_not_shadow_a_routed_provider():
         sealed_config("http://localhost:1", pass_through=["localhost"])
 
 
-def test_sealed_runner_needs_the_docker_runtime_and_the_shared_network():
+def test_sealed_runner_needs_the_shared_network():
     broker = sealed_config("http://localhost:1")
-    with pytest.raises(ValidationError, match="needs the docker runtime"):
-        RunnerConfig(broker=broker, runtime=RuntimeConfig(adapter="opensandbox"))
 
     with pytest.raises(ValidationError, match="must name the same network"):
         RunnerConfig(

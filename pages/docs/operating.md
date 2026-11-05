@@ -32,14 +32,12 @@ shell has not set is filled in.
 | `torve manager serve <partition> --night` | the same loop under the configuration's night terms: it imports first, refuses a board with nothing to start, and stops on a budget, the wall-clock end or a named escalation class |
 | `torve night show <partition>` | what one night did: what landed, what a gate convicted, what the engine ended, and what waits on a person |
 | `torve manager note <partition> <task> "…"` | say something to a running attempt; the agent reads it with `torve log notes`, nothing interrupts it. `--urgent` halts the attempt instead — a Claude seat under a broker at its next tool call, any other when its session ends — keeps its tree on the task's branch and escalates it as `killed` |
-| `torve fleet status` | the partitions the fleet manifest names and where each stands |
 | `torve merge` | land ready candidates, serialized. Lands and stops — it never pushes the base; under `promotion.landing: pull_request` it publishes the candidate's branch and opens its pull request instead of moving the base at all |
 | `torve approve <task>` | approve a candidate's **current tip**; a push after it approves nothing |
 | `torve manager resolve <partition> <task>` | close an escalation and say how: `--resolution requeued` returns it to the board with its contract refreshed from its document's branch; `abandoned` takes it off and leaves the host state to read; `landed --sha` records a hand finish. See the escalation loop below |
 | `torve reap` | sweep sandboxes, worktrees and finished run state. `--escalated` clears what an abandoned or hand-dealt escalation leaves behind — a requeue clears its own task's footprint as it goes (S-0094/D-3, S-0094/D-5) |
 | `torve status` / `why` / `context` | the reports. See below for which carrier answers |
 | `torve ledger` | the record folded into rates, per seat, per changed line and per gate. See below for what each one divides |
-| `torve eval …` | replay completed tasks as shadow pairs — a skill, a configuration — and land one record; `--report` reads the three-arm table back from the ledger and runs nothing. See below for what an arm is |
 | `torve manager return <task>` | send a reviewed candidate back for revision; `--note` briefs the next attempt |
 | `torve manager board <partition>` | every contract this partition owns and what became of it |
 | `torve gates run` / `check` | the battery, and the sabotage suite that proves a gate can fail |
@@ -53,6 +51,8 @@ shell has not set is filled in.
 **Retired, and not coming back by that name:** `torve tick` and
 `torve fleet tick`. The standing loop they drove is abandoned (S-0019
 S-0019/A-8); the manager runs its legs. Nothing scheduled the tick anyway.
+`torve eval`, `torve shadow`, `torve survey`, `torve fleet` and `torve serve`
+left in 0.9.0 with the machinery behind them (S-0122/D-17).
 
 ## Briefing a contract
 
@@ -85,9 +85,8 @@ The print is five things, in the order dispatch works through them:
   replaces the static one. Splitting a contract when it is the right split
   is an operator's act: `torve decompose <task>`.
 - **the rows your scope crosses that the contract has not inherited**
-  (S-0067/D-2) — standing rows whose declared paths intersect the scope,
-  which is what `decisions-reported` convicts on when the log stays silent
-  over them. Named while the answer is still an edit, not a thrown attempt.
+  (S-0067/D-2) — standing rows whose declared paths intersect the scope.
+  Named while the answer is still an edit, not a thrown attempt.
 - **the context pack** — written to `.torve/context/`, replacing what stood
   there: the same files, built by the same function dispatch calls, where an
   attempt will find them.
@@ -116,9 +115,9 @@ Nothing is configured to turn it on and nothing new is minted: the attempt
 ledger, the budget, the poison ceiling and the escalation reasons all count
 a repair exactly as they count any other attempt.
 
-**Which convictions qualify.** Four gates, fixed in the engine rather than
-in configuration: `layering`, `scope`, `user-facing-text` and
-`decisions-reported` (S-0069/D-5). Those are the checks that are pure
+**Which convictions qualify.** Two gates, fixed in the engine rather than
+in configuration: `layering` and `scope` (S-0069/D-5); `user-facing-text` and
+`decisions-reported` left the set with their gates (S-0122/D-17). Those are the checks that are pure
 functions of the tree — a red from one names a property of the diff, not a
 verdict on the approach, so the tree is worth repairing rather than
 rebuilding. `acceptance` stays outside the set although it is the largest
@@ -302,9 +301,7 @@ blocking. A check that **selects nothing** — pytest's exit 5, or the "no
 tests ran" summary `acceptance` already reads — fails as vacuous under the
 row's state (S-0106/D-1): a `-k` filter matching no test has judged nothing,
 and it is seen the first time it runs rather than left as a quiet green. The
-`decision:<id>` gates run first, before `decisions-reported`, because that
-gate reads their verdicts to know whether a checked row is covered
-(S-0106/D-1).
+`decision:<id>` gates run first.
 
 A check stands for its row in the silence check, and what changed is the
 failure side. A row whose check ran and passed owes no divergence entry,
@@ -331,53 +328,6 @@ non-zero, and `torve spec check` refuses a blocking row that names no twin,
 as the planner already refuses one at mint (S-0106/D-3). A row is never
 blocking on a check nobody has shown can fail.
 
-### The mutation score
-
-A green battery says the tests pass; it does not say they would fail if the
-change were wrong. The `mutation` gate asks that directly (S-0107/D-1,
-S-0107/D-2). It reads the candidate's changed Python lines and enumerates
-mutants — one edit to one AST node per mutant, from six operators: a
-comparison flipped, a boolean operator swapped, an arithmetic operator
-swapped, a constant moved by one, a condition negated, a return replaced by
-`None`. A line the diff did not add or change is never mutated, and a test
-file is never mutated, so every mutant names the attempt's own code.
-
-The gate samples at most `budget` mutants (default 30) with a seed derived
-from the diff, so one change always yields the same mutants and the score
-costs a bounded, repeatable amount (S-0107/D-2). Each mutant is applied in a
-scratch copy of the worktree — the tree under judgment is never written — and
-the task's paired tests are rerun against it under a timeout of twice their
-baseline run, and never under ten seconds, through the manifest's `tests.run`.
-A mutant starts only if it can finish within the gate's own timeout; any left
-over are reported as not run, and the score is over the mutants that ran. The
-gate reports killed, survived and timed-out counts, the score, and every
-survivor as `path:line — edit`. A change with no Python source line, or whose changed
-lines hold nothing the six operators edit, or with no paired test, is skipped
-with the reason rather than scored.
-
-A **survivor** is a wrong implementation the paired tests did not notice: the
-mutated code ran and the tests still passed. It is evidence, never a verdict,
-because a survivor can be an equivalent mutant — an edit that changes no
-behaviour, such as a comparison on a line a sentinel value cannot reach. The
-score is the share of mutants killed, so a score of 1 means every sampled edit
-was caught and an empty survivor list is the whole of that. The gate is
-**shadow**: it reports a score, and does not fail an attempt on one until a
-soak says what score is honest (S-0107/D-2).
-
-The score and its survivors ride the record's `gates.evaluated`, so `torve
-why` shows the score beside the attempt and the spec quality report gives a
-score per phase and per document — the author's view of which phases' tests
-notice their own changes going wrong (S-0107/D-3). The review prompt lists
-each survivor with the decision rows whose paths cover its line, as evidence
-for the check audit above: a survivor is never a finding by itself, and the
-reviewer grades it (S-0107/D-4).
-
-The gate is sabotaged like every other. Its case carries two twins: a change
-whose tests assert nothing scores 0 with every mutant a survivor, and a change
-whose tests pin each line scores 1 (S-0107/D-5). The pair proves the gate can
-tell a weak test from a strong one, which is what a score that never moved
-would hide.
-
 The same battery carries the document's **invariants**. A standing
 invariant — an `I-n` with a `statement`, `paths` and a `check` — enters as
 an `invariant:<id>` gate, always shadow: an invariant is a statement to read,
@@ -390,152 +340,13 @@ One reader fills both batteries, so a row is judged the same way on an
 attempt and on the whole document, and a task's own attempt battery is
 otherwise unchanged.
 
-### Every row shows its evidence
-
-The `evidence` gate answers, row by row, whether the change turned a test
-green that cites the row (S-0115/D-1, S-0115/D-2). A test function proves a
-row when its own source — docstring, comments and body — carries the row's
-full identifier, `S-NNNN/D-n`, as a whole token; a module or class docstring
-above it proves nothing for the tests beneath it, and only functions that
-differ from the base tree as parsed syntax count. The gate runs each citing
-function twice, on the base tree built as `red-on-base` builds it and on the
-candidate, and a row is proved when one citing function is red on the base and
-green on the candidate. A row carrying a `check` is judged by its own
-`decision:<id>` gate and `evidence` does not run it again. A row is
-**behavioural** unless every path it declares is a `*.md` file or under
-`pages/`; a behavioural row with no proving test and no check fails the gate,
-named, and a battery carrying no behavioural row skips it. The gate is
-**shadow**, so it names an unproved row without failing the landing
-(S-0115/D-3). In a verify attempt's battery it skips, because those tests are
-red by design and `verify-tests` judges them; in an implement attempt the
-verifier's file the contract denies counts as changed, so the rows its tests
-prove read as proved on the attempt that turns them green (S-0115/D-9).
-
-After the whole-document battery the lane joins, for each carried row, the
-gate's verdict and the tests that proved it, the row's `decision:<id>`
-outcome, the mutation survivors whose line falls under the row's paths, and
-the review findings whose evidence falls under them (S-0115/D-5). A battery
-with no `evidence` result joins nothing. When that joined table exists for the
-tip the document's pull request publishes, the decisions table gains four
-columns beside `Decision`, `Grade` and `Text` — `Tests`, the citing tests that
-proved the row or `none`; `Check`, the row's `decision:<id>` outcome or `none`
-when no check gate ran; `Survivors`, the number of mutation survivors under
-its paths or `none`; and `Findings`, the number of review findings recorded
-against it or `none` (S-0115/D-7). Without a table for that tip the decisions
-table stays as it is today, so a repository whose manifest names no `evidence`
-gate sees no change.
-
-### Under a refactor
-
-`red-on-base` asks whether a changed test fails on the base tree, because a
-test green before the change proves nothing about it. A **refactor inverts
-the question**. When the document's `change.type` is `refactor`, the gate
-runs the changed test files *and the inherited decision checks* on both the
-base tree and the candidate: green on both passes, and a green on one tree
-turning red on the other fails as "behaviour changed under a refactor"
-(S-0106/D-6). A refactor is judged by whether behaviour held, not by whether
-a test moved under it, which closes the risk the gate was built around — a
-refactor convicted for changing nothing. Outside a refactor the gate is
-unchanged: the base red is still the healthy case.
-
 A repository whose tests are not Python says how they are found, paired and
 run through the manifest's `tests:` block: `run`, the command a list of test
 files is appended to, and `pair`, the templates from a module to its tests
-over `{dir}` and `{stem}` (S-0106/D-7). `red-on-base`, the intake's pairing,
-the neighbour derivation, the context pack's named tests and the review
-leg's fallback scope read them; the defaults reproduce the Python pairing at
-any depth under `tests/` and `python3 -m pytest -q -p no:cacheprovider`. A
-changed test file the gate cannot parse into functions qualifies whole
-rather than silently not qualifying.
-
-## An independent verifier
-
-A test written by the same model that wrote the code shares its blind spots.
-The verify pilot puts a second attempt ahead of the first: a **verify task**
-writes the phase's tests from the rows and the intent alone, before any
-implementation exists; those tests land on the document branch failing; and
-the implement task that depends on the verifier runs them (S-0116/D-1). It is
-off unless a configuration turns it on:
-
-```yaml
-verify:
-  enabled: true            # default false: nothing changes until this says so
-  variant: verify          # the seat under `executor` the verifier runs on
-  types: [feat, fix]       # the document `change.type` values that earn one
-  tests_dir: tests/verify  # where a verifier writes the tests it mints
-```
-
-`enabled` defaults to false, so an adopter that never sets the block mints
-exactly the tasks it minted before. With `enabled: true` and no
-`executor.<variant>` tier the configuration refuses to load, while a person
-is still at the terminal rather than at the first dispatch of a verify task
-(S-0116/D-2). `torve doctor` goes red when the pilot is on and the verify
-seat names the executor seat's own model: a verifier on the executor's model
-brings the same blind spots to the tests it writes, which undoes the point of
-the pilot (S-0116/D-3).
-
-With the pilot on, the planner mints a verify task ahead of a phasing entry
-when the document's `change.type` is in `verify.types` and a path or glob in
-the entry's scope starts with the project's source prefix, `src/` or
-`<layout.root>/src/` — documentation, configuration and refactor work never
-pays for a verifier (S-0116/D-4). The verify task allows only
-`<tests_dir>/test_sNNNN_pN.py` (and `..._pN_<k>.py` for the k-th of several
-entries sharing phase N) and accepts on `<tests.run> --collect-only` over it,
-so its own battery proves the file collects rather than collecting nothing.
-The implement task of that entry depends on it, denies the verifier's file
-and appends `<tests.run> <file>` to the phase's acceptance — all three fixed
-at mint, so an edit to the test is a red scope gate (S-0116/D-5). The verify
-candidate lands first, and the document branch carries its failing tests
-until the implement candidate lands. A verify candidate whose test already
-passes convicts on `verify-tests`: a test that is green before the
-implementation exists has proved nothing about the work still to come
-(S-0116/D-11), as does an entry row no test cites or a file that does not
-collect.
-
-### Reading a held-out failure
-
-A verifier may hold properties out of the visible suite: it writes them under
-`.torve/tmp/holdout/` in its worktree, and the host records them on the
-entry's implement task as one `verify.holdout` event of names and texts — at
-most 64 KiB, empty when it wrote none — and deletes them from the worktree
-(S-0116/D-9). They never reach the implementer's sandbox, and the latest
-event on the task replaces every earlier one.
-
-The `held-out` gate runs the latest event's files on the candidate: it writes
-them into its own checkout under `<tests_dir>/holdout/`, runs only them and
-removes them when it ends, so no other gate collects or reports them
-(S-0116/D-10). Its output is deliberately thin — a held-out property is the
-row's proof, and reading its source is reading the answer:
-
-```
-held-out: 1 failing of 2 file(s)
-
-FAILED tests/verify/holdout/test_s0116_p3.py::test_the_lane_keeps_the_ref - assert ...
-  cites: S-0116/D-14
-```
-
-Read it as the row that failed and the reason, and fix the implementation the
-row governs: the test's identifier, its message and the rows it cites, never
-its source, are what the gate hands the next attempt. A task whose latest
-event carries no files skips the gate rather than passing it — the gate
-judged nothing. When the document's last phase lands, the lane commits the
-held-out properties its tasks recorded to the document branch under
-`<tests_dir>/holdout/`, each file named for its document, phase and entry,
-before the whole-document battery runs, so they keep guarding the rows as
-visible tests after the branch merges (S-0116/D-14).
-
-### A disputed verifier test
-
-An implementer that reads a verifier's test and believes it wrong — it pins
-an internal no row names, or it asserts what the row does not say — does not
-edit it: the file is denied to the implement task, and rewriting the test
-would decide the disagreement in the implementer's favour. It halts with a
-divergence entry naming the test and the row it claims to decide, and reaches
-you as `underspecified` (S-0116/D-8). Decide which is wrong: amend the row or
-the phase's intent and requeue, or resolve the entry and requeue with a note
-that shows why the test stands. A verifier writes the phase's tests from the
-rows and the intent alone, which is why the intent must name the public
-surface those tests drive (S-0116/D-13).
+over `{dir}` and `{stem}` (S-0106/D-7). The suite gate's rerun, the intake's
+pairing, the neighbour derivation, the context pack's named tests and the
+review leg's fallback scope read them; the defaults reproduce the Python
+pairing at any depth under `tests/` and `python3 -m pytest -q -p no:cacheprovider`.
 
 ## Where the working rules live
 
@@ -647,28 +458,19 @@ them true writes them:
 | what each attempt did, what it cost, which gates failed, who holds a task, what escalated | the record — the board, or a report run with `--partition` |
 | attempt rows and engine health | `.torve/telemetry.jsonl`, a diagnostic stream (S-0099/D-10); five lane facts still read it until the follow-up to S-0099 lands |
 
-`torve serve` and `torve mcp` take the same two options and pass them into
-every reader, per request — so a dashboard left running shows the board as
-it is, not as it was at boot.
+`torve mcp` takes the same two options and passes them into every reader, per
+request — so a planning session left running reads the board as it is, not as
+it was at boot.
 
 And `--dsn` is optional: it defaults to the DSN your configuration names,
 which `.env` has already put in the environment. `--partition` alone is
 enough.
 
 `--partition` is optional too when a store is configured. Left out, `why`,
-`status`, `context`, `serve` and `mcp` read the partition the fleet manifest
-(`$XDG_CONFIG_HOME/torve/fleet.yaml`, by default `~/.config/torve/fleet.yaml`)
-names for this root, and otherwise the
-configuration's `scm.repo`, the `org/repo` name your nights are served
-under. A partition typed on the command line still wins, and a record that
-does not hold what you asked about still falls back to the files.
-
-```yaml
-repositories:
-  - root: ~/src/torve
-    trust: own
-    partition: morzecrew/torve
-```
+`status`, `context` and `mcp` read the configuration's `scm.repo`, the
+`org/repo` name your nights are served under. A partition typed on the
+command line still wins, and a record that does not hold what you asked about
+still falls back to the files.
 
 What the record derives reaches its reader through the pack or through a verb
 — never through a committed file a gate diffs against a fresh render. A
@@ -864,134 +666,6 @@ lines, token and call numerators and per-file entries beside the per-line rates
 they divide, every exclusion tally — so a reader can check the division rather
 than trust the print.
 
-## What an arm is, how to launch one, and how to read the table
-
-Everything else measured in this guide reads *inside* the apparatus: the
-battery judges every attempt, `torve ledger` divides attempts by seat and
-by gate, and every eval recorded before the arms varied one of the
-configuration's settings within the apparatus — a skill against its
-without-skill baseline, a candidate image against the incumbent. An **arm**
-is the axis that removes the apparatus instead (S-0074/D-1, LOCKED). An
-arm is named by what it runs without, and there are three:
-
-| Arm | What it is given |
-| --- | --- |
-| `bare` | the task's intent, and nothing else — no inherited rows, no context pack, no working rules, and no battery. A sentence, and a checkout of the repository at the parent commit. |
-| `gated` | the same prompt and the same worktree, and the battery judges what comes back. |
-| `configured` | today: rows, pack, rules, battery, lane. |
-
-Three arms, not two: a bare-versus-configured difference cannot be
-attributed — the battery and the contract are separable and cost different
-things — and the middle arm is what says which of the two halves earned its
-keep. What an arm removes is a property of the prompt — the bare arm's
-prompt is a fourth `build_prompt` mode beside revision, continuation and
-repair, and the bare prompt's absence of rows, pack and rules is what the
-test asserts (S-0074/D-2) — and of the replay, never something read back
-out of a transcript.
-
-**An arm is a property of a replay, never an edit to anything.** The arms
-run as shadow replays: a completed task replays from its parent commit in
-a truncated clone, and nothing merges — the record is the product, and a
-green bare arm lands nothing. A bare run that *could* land its work is
-refused before it starts: removing the battery is not a way to merge
-(S-0074/D-3, LOCKED). The removal itself travels the same way — the bare
-replay swaps its gate pass for one that runs nothing, and the manifest
-every other attempt is judged by is never touched; its digest rides the
-record unchanged, because a manifest with gates edited out would be a
-different regime and the digest would be right to say so.
-
-**What the bare arm's worktree carries** (S-0082/D-2). Not a sentence and an
-empty directory: the replay clones the repository at the parent commit, so
-the agent still opens every committed file — the source, the tests, this
-site, the corpus under `.torve/specs/`, the gate manifest, the vendored
-skills. What the arm removes is what the runner would otherwise *write*
-into that tree: no projected contract, no materialised skill set under
-`.torve/skills/`, no context pack. Nothing the tree already carried is
-deleted — a deletion would land in the replay's own diff and be read as
-work the arm did. So the attempt's record names the removals that were in
-force, `removed: [prompt, contract, skills, context-pack]` and `battery`
-beside them on `bare`, with an empty skill list rather than an unfilled
-one: a reader of an arm's numbers can tell what the agent could still open
-without rediscovering it. The `gated` arm carries the same worktree; only
-its battery is back.
-
-**Launching one.** Arm mode is the third mode of `torve eval`, and naming
-neither of the other two's arguments is enough to select it (S-0082/D-8):
-
-```bash
-torve eval --task T-0390                          # all three arms, the task's own seat
-torve eval --task T-0390 --arm bare --arm gated   # narrow to the arms named
-torve eval --task T-0390 --tier executor.lean     # every arm on one named seat
-torve eval --report                               # read the recorded arms, run nothing
-```
-
-`--arm` is repeatable and defaults to all three. It refuses at parse to
-combine with a skill argument or with `--image` or `--variant`: one names a
-comparison inside the apparatus, the other removes it, and no invocation is
-both. `--report` is untouched by any of this.
-
-Which tasks may be named comes from one read, so the refusal and the
-pre-flight can never disagree about what is eligible (S-0082/D-3): a task
-is eligible when the tree holds a landing that names a commit — that
-commit's parent is where the replay starts — and the cost beside it is what
-the task cost when it was done for real, summed from the live attempts in
-the telemetry ledger. `--arm` without `--task` is refused before any spend,
-and the refusal names the eligible tasks rather than only the missing option
-(S-0082/D-9); so is a named task no landing names a commit for.
-
-The seat is each task's own tier unless `--tier` names another, and every
-arm of one invocation runs on the same seat — a difference between arms is
-never a difference between seats (S-0082/D-10). Several tasks naming
-different seats is refused until `--tier` picks one. `--tier` here names
-the seat the arms run on, not a candidate under measurement.
-
-Then, before the first replay, the verb prints what it is about to do: the
-arms, the seat, the tasks, and what each of those tasks' recorded attempts
-cost when they were done for real (S-0082/D-11). It adds no ceiling of its
-own — an arm run is bounded by the contract's budget and the broker's
-mid-run refusal, and by nothing here. This is the largest deliberate spend
-behind one command in the engine, and it says so before it starts.
-
-One record lands per invocation, `kind: arm-eval`, its `arms` map keyed by
-the arm names and its rows the ones the reading below already reads
-(S-0082/D-5). It carries no verdict beside those rows (S-0082/D-6): three
-arms are not equally exposed to the same failures, so a boolean over them
-is the mean this axis already refused. An invocation that raises partway
-through lands the rows it has and says `complete: false` (S-0082/D-7) — a
-three-replay run that dies on the third never reads like a finished
-two-arm record.
-
-**The rows name their arms, and the ledger is the reading.**
-`torve eval --report` prints the table from the eval ledger alone — one
-table per task, one row per arm, four columns: `arm`, `state`, `attempts`,
-`cost usd`. It runs nothing and needs nothing else: no configuration, no
-contracts, no agent. The `state` is the replay's own final state and
-`ready` is what counts green. Records whose arms name none of those three
-removals — the incumbent/candidate and with/without pairings of the
-configuration and skill evals — measure things inside the apparatus and
-contribute nothing to this axis. Every row carrying the arm that produced
-it is what lets the comparison be recomputed a year later without the
-person who ran it — the difference between a measurement and an anecdote.
-
-**Read it per task, or not at all** (S-0074/D-4). The three arms are not
-equally exposed to the same failures: a bare arm cannot break a corpus it
-was never given, cannot trip a projection it does not render, cannot
-violate rows it never inherited — and several of this repository's red
-batteries caught its own author rather than an agent, which is a real cost
-of the apparatus and also not what the apparatus is for. So the verb's
-summary is a distribution — tasks grouped by which arms reached green,
-`bare+gated+configured` down to `none` — never a mean, because a mean over
-unlike tasks answers a question nobody asked. Each of these is the
-finding, with its own row: a task where `bare` shipped what the battery
-would have refused, and a task where all three arms landed identically.
-And direction, never magnitude: a replay is a quasi-experiment, the arms
-compare green first, then attempts, then cost, and one task's three rows
-are not a verdict of the apparatus.
-
-One rule belongs beside the reading because nothing can enforce it: tuning
-a gate to make an arm look better is the one thing that voids the result
-(S-0074). What is measured is the apparatus as it is, taken away whole.
-
 ## The corpus and its archive
 
 A specification is a directory, `.torve/specs/S-NNNN/`, of five YAML
@@ -1027,8 +701,8 @@ different thing from the header's `depends_on`: `depends_on` is decision
 inheritance, `after` is the landed tree this document's work builds on. A
 document may name another in both, in either, or in neither. `torve plan`
 turns `after` into contract `depends_on`: every task of a phase with no
-predecessor inside the document waits on every implement, verify and revert
-task minted from each named document. Its review and draft records never land,
+predecessor inside the document waits on every implement and revert task
+minted from each named document. Its review and draft records never land,
 so no edge names them. A named document that is not accepted, or that has no minted tasks
 yet, refuses the plan by name; one whose implementation is already complete
 has landed and adds no edge. `after` names documents, never phases — a
@@ -1132,7 +806,7 @@ night work.
 
 ## A labelled issue becomes drafts
 
-The manager's and the fleet's pass can turn a labelled issue into drafts with
+The manager's pass can turn a labelled issue into drafts with
 no command typed (S-0119/D-8). The leg is off until `intake.issue_label`
 names a label:
 
@@ -1175,49 +849,6 @@ the source file its drafting run names, beside the contracts that cite it.
 The pass's detail line and the `issue_drafted` and `issue_skipped` engine
 events name each issue drafted and skipped; nothing decides on them
 (S-0119/D-9).
-
-## Getting told
-
-An interrupt-class escalation is delivered once, by a leg of the manager's
-pass, to whatever destination is configured:
-
-```yaml
-notify:
-  adapter: webhook          # none | webhook
-  url_env: TORVE_NOTIFY_URL # the variable holding the URL, never the URL
-  attempts: 5               # deliveries before the queue parks one
-```
-
-An ntfy topic is the destination that needs no account and no code — the
-delivery is one JSON POST and a phone subscriber reads it. The URL is a
-bearer secret in practice, so the committed file names the variable and
-the environment carries the value (S-0001/D-13):
-
-```bash
-export TORVE_NOTIFY_URL=https://ntfy.sh/<a-topic-only-you-subscribe-to>
-```
-
-`none` is the default and is a choice, not a blank: a repository that has
-not picked a destination sends nothing on purpose. The queue is the log —
-an escalation with no settled delivery recorded against it — so a manager
-killed mid-page redelivers rather than losing it, and the escalation's own
-event id rides the wire as an `Idempotency-Key` for a destination that
-knows what to do with one. The body says what happened in one composed
-`text` line — the task, the reason, the detail — beside the structured
-fields a destination can key on, `task`, `reason` and `paused` among them.
-
-Batch-class escalations never page. Paging on everything is how a pager
-stops being read.
-
-**A paused night is the exception, and it pages whatever the reason.**
-While a served pass holds its pause (see the pause section below), the
-latest undelivered escalation of each task holding the pause is relayed
-whatever its interrupt class — `underspecified` among them — and the
-notification says the night is paused (S-0094/D-4). What makes such a
-halt worth reading at any hour is not its class but that work stopped,
-and the page says so in words. A task holds the pause until it is
-resolved, so a standing escalation pages once, on the first paused pass,
-not on every pass after it.
 
 ## What an escalation names
 
@@ -1278,10 +909,10 @@ as it stands at that dispatch (S-0090/D-3).
 A pass mints nothing while this root's escalation queue is at
 `loop.pause_escalations` (default 1), counting both carriers — a task
 escalated under v1 and one the manager escalated are both a person's turn.
-The queue may drain during a pause; it may not grow. The mint, the standing
-leg and the review-thread leg stop under every mode — they add work somebody
-has to triage — while the notification relay runs regardless, and under
-`landing: pull_request` so does the landing leg (S-0108/D-1, S-0108/D-2).
+The queue may drain during a pause; it may not grow. The mint, the intake leg
+and the review-thread leg stop under every mode — they add work somebody has
+to triage — while under `landing: pull_request` the landing leg runs
+regardless (S-0108/D-1, S-0108/D-2).
 
 So an escalation nobody triages stops new work. That is the design, and it
 is worth knowing before wondering why a board went quiet: check
@@ -1405,7 +1036,7 @@ while :; do
   uv venv --allow-existing -q "$engine"
   SETUPTOOLS_SCM_PRETEND_VERSION=$images \
     uv pip install -q --reinstall-package torve --python "$engine/bin/python" \
-    "torve[opensandbox,postgres,migrate] @ file://$root" || exit 1
+    "torve[postgres,migrate] @ file://$root" || exit 1
   "$engine/bin/torve" --plain manager serve torve --night --chain --config "$config" --root "$root"
   status=$?
   [ "$status" -eq 6 ] || exit "$status"
@@ -1517,18 +1148,15 @@ nothing being decided later:
 `torve doctor` states what is armed before anything depends on it. One line
 names which criteria a served manager would land without, and says when the
 landing leg is off that no landing runs at all — a statement, not a verdict,
-so it never turns doctor red. A second line appears only when a standing job
-has been refused instantiation, with how many times and on what: a mechanism
-blocked for a reason nobody has read is worse than one that is absent,
-because the absence is at least visible.
+so it never turns doctor red.
 
 A conflict is reported and left for a human. The lane never resolves one,
 and it does not resolve one differently because a pass called it.
 
-**A pause stops landing — under a local landing.** The relay delivers what
-is already owed and so runs regardless; under `landing: local` the lane does
-not, because landing advances this checkout and a pause is a statement that
-nobody has capacity to look at what advancing produces (S-0052/D-3).
+**A pause stops landing — under a local landing.** Under `landing: local` the
+lane does not run through a pause, because landing advances this checkout and
+a pause is a statement that nobody has capacity to look at what advancing
+produces (S-0052/D-3).
 
 Under `landing: pull_request` the paused pass still runs the lane
 (S-0108/D-1): a green candidate lands on its task or document branch, the
@@ -1539,8 +1167,8 @@ with the `record` source), a red battery during a pause records its finding, and
 round about it opens on the first pass that is not paused; elsewhere the completing
 task escalates, as it does outside a pause. The base is not moved here either, so nothing a person has to triage
 advances. Whatever the landing mode, a pause still stops the mint, the
-standing leg and the review-thread leg, which add work somebody has to
-triage, and the relay still runs (S-0108/D-2). Which mode runs the lane
+intake leg and the review-thread leg, which add work somebody has to
+triage (S-0108/D-2). Which mode runs the lane
 through a pause is the manager's to decide from `promotion.landing`;
 `residency` does not read configuration.
 

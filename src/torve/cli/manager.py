@@ -57,7 +57,7 @@ if TYPE_CHECKING:
     from torve.application.residency import Lane, Threads
     from torve.application.runstate import Escalation
     from torve.config.runconfig import RunnerConfig
-    from torve.domain.events import EventRecord, HoldoutFile
+    from torve.domain.events import EventRecord
     from torve.domain.spec import Document
     from torve.domain.task import Task
 
@@ -226,7 +226,6 @@ def _lane_leg(
     *,
     only: str | None,
     resolved: Callable[[], Awaitable[set[str]]] | None = None,
-    holdouts: Callable[[], Awaitable[dict[str, list[HoldoutFile]]]] | None = None,
     requeue: Callable[[list[tuple[str, str]]], Awaitable[None]] | None = None,
     escalate: Callable[[list[tuple[str, Escalation]]], Awaitable[None]] | None = None,
     record_judged: Callable[[list[tuple[str, LaneJudgment]]], Awaitable[None]] | None = None,
@@ -244,11 +243,6 @@ def _lane_leg(
     holds the store (S-0101/D-2): a round a person abandoned releases the
     wave on every host because the resolution rides the log, not a row on
     the host that minted the round.
-
-    `holdouts` is the recorded held-out properties per task (S-0116/D-14),
-    read by the same caller that holds the store: a document's completion
-    commits what a verifier recorded on any host, because the files ride the
-    log and not the verifier's own worktree.
 
     `requeue` is handed, after every lane pass and whether or not the pass
     raised, each run the conflict disposal left `queued` with the base it
@@ -286,10 +280,6 @@ def _lane_leg(
             judged_subject,
         )
 
-        # S-0116/D-14: the recorded held-out properties, folded on the loop
-        # before the lane runs off it, then handed as the reader the lane's
-        # completion commits from.
-        held = await holdouts() if holdouts is not None else {}
         # One forge for the verdict the lane writes and the draft flag that reads it.
         status = _status(config)
 
@@ -348,9 +338,6 @@ def _lane_leg(
                 # neither the served lane nor the manual verb runs a
                 # candidate's shell gates on the host.
                 gates=_lane_gates(root, config),
-                # S-0116/D-14: the recorded held-out properties the document's
-                # completion commits, read from the store this pass holds.
-                holdout=lambda task_id: held.get(task_id, []),
                 # S-0118/D-9: the batteries the pass ran, each handed over as
                 # it ended, written beside the requeues below.
                 on_judged=observe,
@@ -966,8 +953,7 @@ async def _serve(
 ) -> tuple[int, str]:
     from torve.application.eventlog import event_log
     from torve.application.executors import runner_execute
-    from torve.application.fleet import escalated_tasks
-    from torve.application.manager import project
+    from torve.application.manager import escalated_tasks, project
     from torve.application.projections import landed
     from torve.application.residency import (
         Night,
@@ -983,7 +969,6 @@ async def _serve(
     )
     from torve.application.worker import Worker
     from torve.cli import assembly
-    from torve.cli.assembly import build_notifier
     from torve.domain.events import SubjectType
 
     config = load_config(root, config_path)
@@ -1000,9 +985,6 @@ async def _serve(
     # branch is landed, whether or not the base holds its landing file yet.
     landings = landed(root)
     ran = ran_here(root)
-    # The tasks holding the pause, as the pass's own `paused` computed them,
-    # so the relay that follows pages exactly those (S-0094/D-4).
-    holding: set[str] = set()
 
     async def paused() -> bool:
         """This root's own pause rule, re-decided every pass (S-0048/A-1).
@@ -1013,44 +995,7 @@ async def _serve(
         """
 
         board = project(await log.of_subject_type(SubjectType.TASK, partition=partition))
-        escalated = escalated_tasks(root, board)
-        held = len(escalated) >= config.loop.pause_escalations
-        holding.clear()
-        holding.update(escalated if held else ())
-
-        return held
-
-    async def relay() -> list[str]:
-        """Drain the undelivered queue to whatever destination is
-        configured. Built per pass from the same log the pass reads —
-        the destination included, for S-0044/A-11's reason one step back:
-        `build_notifier` refuses an adapter it does not know, and refusing
-        it outside the leg took the whole pass down with it."""
-
-        from torve.application.notify import relay as drain
-
-        return await drain(
-            log,
-            build_notifier(config),
-            partition=partition,
-            actor_id=worker,
-            max_attempts=config.notify.attempts,
-            held=frozenset(holding),
-        )
-
-    async def standing() -> tuple[str, bool]:
-        # S-0023's leg, unchanged — it mints a contract through the
-        # ordinary adoption path, and the scan above imports whatever it
-        # minted onto the board. Nothing about it had to move for the
-        # manager to run it (S-0023/A-2), except that an instance numbers
-        # past the board's ids, not only the files (S-0056/D-9).
-        from torve.application.standing import standing_leg
-
-        taken = {one.subject_id for one in await board_records()}
-
-        return standing_leg(
-            root, config, runtime_for(config, None), landings.__contains__, taken=taken
-        )
+        return len(escalated_tasks(root, board)) >= config.loop.pause_escalations
 
     async def resolutions() -> set[str]:
         """The rounds a person resolved off the board (S-0101/D-2): the lane's
@@ -1061,16 +1006,6 @@ async def _serve(
         from torve.application.projections import resolved_rounds
 
         return resolved_rounds(await log.of_subject_type(SubjectType.TASK, partition=partition))
-
-    async def holdouts() -> dict[str, list[HoldoutFile]]:
-        """The held-out properties a task's verifier recorded (S-0116/D-14):
-        the reader the lane is handed, folded from the store this pass already
-        holds, so a document's completion commits what a verifier recorded on
-        any host."""
-
-        from torve.application.lane import recorded_holdouts
-
-        return recorded_holdouts(await log.of_subject_type(SubjectType.TASK, partition=partition))
 
     async def requeue(candidates: list[tuple[str, str]]) -> None:
         """Record the served lane's own re-queues (S-0109/D-1): the disposal
@@ -1160,7 +1095,6 @@ async def _serve(
         config,
         only=only,
         resolved=resolutions,
-        holdouts=holdouts,
         requeue=requeue,
         escalate=escalate,
         record_judged=record_judged_batteries,
@@ -1175,7 +1109,7 @@ async def _serve(
 
     thread_leg = _thread_leg(root, config, records=board_records)
 
-    # S-0119/D-8: the pass's intake leg, after the standing leg and before the
+    # S-0119/D-8: the pass's intake leg, after the review-thread leg and before the
     # scan. Always built; its own switch is the label, and it reads nothing
     # and builds no agent while that is empty (S-0119/D-1).
     issues_leg = _issues_leg(root, config, records=board_records)
@@ -1271,9 +1205,7 @@ async def _serve(
                 ran=ran.__contains__,
                 only=only,
                 dispatch=dispatch,
-                standing=standing,
                 paused=paused,
-                relay=relay,
                 lane=lane_leg,
                 lane_through_pause=config.promotion.landing == "pull_request",
                 threads=thread_leg,
@@ -1316,9 +1248,7 @@ async def _serve(
                 ran=ran.__contains__,
                 only=only,
                 dispatch=False,
-                standing=standing,
                 paused=paused,
-                relay=relay,
                 lane=lane_leg,
                 lane_through_pause=config.promotion.landing == "pull_request",
                 threads=thread_leg,
@@ -1354,9 +1284,7 @@ async def _serve(
                     ran=ran.__contains__,
                     only=only,
                     dispatch=dispatch,
-                    standing=standing,
                     paused=paused,
-                    relay=relay,
                     lane=lane_leg,
                     lane_through_pause=config.promotion.landing == "pull_request",
                     threads=thread_leg,

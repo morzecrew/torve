@@ -56,49 +56,6 @@ def _verify_repo(tmp_path: Path, config: dict) -> Path:
     return root
 
 
-def test_doctor_reds_a_verifier_on_the_executors_own_model(tmp_path: Path):
-    # S-0116/D-3: an independent check on the executor's own model proves
-    # nothing the executor would not — red, not a warning.
-    from torve.cli.doctor import _verify_check
-
-    root = _verify_repo(
-        tmp_path,
-        {
-            "verify": {"enabled": True},
-            "tiers": {
-                "executor": {"harness": "h", "provider": "p", "model": "m-1"},
-                "executor.verify": {"harness": "h", "provider": "p", "model": "m-1"},
-            },
-        },
-    )
-
-    checks = _verify_check(root, None)
-
-    assert len(checks) == 1
-    name, ok, detail = checks[0]
-    assert name == "verify" and ok is False
-    assert "own model" in detail
-
-
-def test_the_verify_check_is_silent_with_the_pilot_off_or_a_different_model(tmp_path: Path):
-    from torve.cli.doctor import _verify_check
-
-    off = _verify_repo(tmp_path / "off", {"tiers": {}})
-    assert _verify_check(off, None) == []
-
-    apart = _verify_repo(
-        tmp_path / "apart",
-        {
-            "verify": {"enabled": True},
-            "tiers": {
-                "executor": {"harness": "h", "provider": "p", "model": "m-1"},
-                "executor.verify": {"harness": "h", "provider": "q", "model": "m-2"},
-            },
-        },
-    )
-    assert _verify_check(apart, None) == []
-
-
 def _threads_repo(tmp_path: Path, enabled: bool, commands: list[str]) -> Path:
     import yaml
 
@@ -210,11 +167,10 @@ def test_equipment_check_is_silent_with_no_override(tmp_path: Path):
     assert _equipment_checks(root, None) == []
 
 
-def test_doctor_json_carries_the_seat_line_and_stays_green(tmp_path: Path):
+def test_doctor_json_carries_the_seat_line_and_stays_green(tmp_path: Path, docker_free):
     root = _seat_repo(
         tmp_path,
         {
-            "runtime": {"adapter": "opensandbox"},
             "tiers": {"executor": {"harness": "fake", "profile": "careful"}},
         },
         careful="equipment: [{kind: skill, source: torve:flag-dont-flip}]\n",
@@ -245,7 +201,6 @@ def test_doctor_names_a_lagging_schema_and_a_missing_ignore_pattern(tmp_path: Pa
     assert [(name, ok) for name, ok, _ in before] == [
         ("schemas", True),
         ("ignore", True),
-        ("standing", True),
         ("sources", True),
     ]
     assert "not written yet" in before[0][2] and "not written yet" in before[1][2]
@@ -256,7 +211,6 @@ def test_doctor_names_a_lagging_schema_and_a_missing_ignore_pattern(tmp_path: Pa
     assert [(name, ok) for name, ok, _ in after] == [
         ("schemas", True),
         ("ignore", True),
-        ("standing", True),
         ("sources", True),
     ]
 
@@ -294,8 +248,8 @@ def test_doctor_warns_when_the_stub_is_missing(tmp_path: Path):
 
 
 # ----------------------- #
-# S-0068/D-2, S-0068/D-3: two statements about what is armed, neither a verdict on
-# whether it should be — so neither may ever turn doctor red.
+# S-0068/D-2: a statement about what is armed, never a verdict on whether it
+# should be — so it may never turn doctor red.
 
 
 def test_promotion_line_names_what_a_landing_would_skip_with_nothing_configured(tmp_path: Path):
@@ -331,64 +285,15 @@ def test_promotion_line_separates_the_armed_criteria_from_the_unarmed(tmp_path: 
     assert "armed: require_review, approvals" in detail
 
 
-def test_the_standing_refusal_line_counts_the_refusals_and_names_the_reason(tmp_path: Path):
-    from torve.cli.doctor import _standing_refusal_check
-
-    root = _doctor_repo(tmp_path, {})
-    write(root / ".torve" / "gates.yaml", "schema_version: 1\ngates: []\n")
-    write(
-        root / ".torve" / "telemetry.jsonl",
-        "".join(
-            json.dumps({"kind": "engine", "event": event, "job": job, "error": error}) + "\n"
-            for event, job, error in (
-                ("standing_instantiate_refused", "flake-quarantine", "crosses a locked row"),
-                ("standing_self_disabled", "flake-quarantine", ""),
-                ("standing_instantiate_refused", "flake-quarantine", "crosses a locked row still"),
-            )
-        )
-        + "not json\n",
-    )
-
-    checks = _standing_refusal_check(root)
-
-    assert len(checks) == 1
-    name, ok, detail = checks[0]
-    # A statement, not a verdict: a blocked mechanism is the check working.
-    assert (name, ok) == ("standing-refused", True)
-    assert "flake-quarantine refused instantiation 2 times" in detail
-    assert "crosses a locked row still" in detail
-
-
-def test_the_standing_refusal_line_is_absent_when_nothing_was_refused(tmp_path: Path):
-    from torve.cli.doctor import _standing_refusal_check
-
-    root = _doctor_repo(tmp_path, {})
-
-    assert _standing_refusal_check(root) == []
-
-
-def test_doctor_json_carries_both_statements_and_stays_green(tmp_path: Path):
+def test_doctor_json_carries_the_promotion_statement_and_stays_green(tmp_path: Path, docker_free):
     root = _seat_repo(
         tmp_path,
         {
-            "runtime": {"adapter": "opensandbox"},
             "promotion": {"auto_merge": True, "approvals": 1},
             "tiers": {"executor": {"harness": "fake"}},
         },
     )
     write(root / ".torve" / "gates.yaml", "schema_version: 1\ngates: []\n")
-    write(
-        root / ".torve" / "telemetry.jsonl",
-        json.dumps(
-            {
-                "kind": "engine",
-                "event": "standing_instantiate_refused",
-                "job": "flake-quarantine",
-                "error": "scope crosses a locked row",
-            }
-        )
-        + "\n",
-    )
 
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
 
@@ -399,8 +304,6 @@ def test_doctor_json_carries_both_statements_and_stays_green(tmp_path: Path):
         "would land without require_ci, require_review, quiet_window"
         in (checks["promotion"]["detail"])
     )
-    assert checks["standing-refused"]["ok"] is True
-    assert "refused instantiation 1 time" in checks["standing-refused"]["detail"]
     assert result.exit_code == 0
 
 

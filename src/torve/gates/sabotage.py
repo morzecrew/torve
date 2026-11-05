@@ -21,7 +21,6 @@ import yaml
 
 from torve.config import layout
 from torve.config.manifest import load_manifest
-from torve.domain.events import HoldoutFile
 from torve.gates.context import build_context
 from torve.gates.runner import run_gates
 
@@ -41,20 +40,6 @@ BASE_MANIFEST: dict[str, Any] = {
             "run": "@no-test-tampering",
             "state": "blocking",
             "origin": "structural",
-        },
-        {
-            "name": "decisions-reported",
-            "run": "@decisions-reported",
-            "state": "blocking",
-            "origin": "structural",
-        },
-        {"name": "self-audit", "run": "@self-audit", "state": "shadow", "origin": "structural"},
-        {"name": "source-layout", "run": "@source-layout", "state": "shadow", "origin": "S-0014"},
-        {
-            "name": "user-facing-text",
-            "run": "@user-facing-text",
-            "state": "shadow",
-            "origin": "S-0011",
         },
         {
             "name": "acceptance",
@@ -217,12 +202,6 @@ class Case:
     # falsely convicting the environment (the layering suite's skipif, moved
     # into the shipped set's data).
     requires: tuple[str, ...] = ()
-    # S-0116/D-10, D-11: the held-out files the runner would hand the gate in
-    # the task's latest event, for the builtins whose subject is that record
-    # rather than the tree alone.
-    holdout: tuple[dict[str, str], ...] = ()
-    # Where a verifier's tests live (S-0116/D-2), when a case needs one.
-    tests_dir: str | None = None
 
 
 # ----------------------- #
@@ -341,119 +320,6 @@ def _tampering_clean(repo: Repo) -> None:
 # ....................... #
 
 
-def _decisions_silence(repo: Repo) -> None:
-    repo.seed()
-    repo.task(base_task(allow=["src/**"], decisions=LOCKED_D1), log_document())
-    repo.write("src/app.py", "print('touched governed area')\n")
-    repo.commit("silent touch of a LOCKED area")
-
-
-# ....................... #
-
-
-def _decisions_silence_no_log(repo: Repo) -> None:
-    # S-0003/A-2/S-0003/D-21: absence is an empty log — the silence check still convicts.
-    repo.seed()
-    repo.task(base_task(allow=["src/**"], decisions=LOCKED_D1), None)
-    repo.write("src/app.py", "print('touched governed area, wrote nothing')\n")
-    repo.commit("silent touch with no log at all")
-
-
-# ....................... #
-
-
-def _decisions_no_log_untouched(repo: Repo) -> None:
-    # The twin: inherited decisions whose area was never touched need no log.
-    decisions = [
-        {
-            "id": "S-0001/D-1",
-            "grade": "LOCKED",
-            "text": "docs layout is settled",
-            "paths": ["docs/**"],
-        }
-    ]
-
-    repo.seed()
-    repo.task(base_task(allow=["src/**"], decisions=decisions), None)
-    repo.write("src/app.py", "print('outside the governed area')\n")
-    repo.commit("clean change, no log written")
-
-
-# ....................... #
-
-
-def _decisions_illegal(repo: Repo) -> None:
-    repo.seed()
-
-    repo.task(
-        base_task(allow=["src/**"], decisions=LOCKED_D1),
-        log_document(
-            entry(kind="contradicted", action="departed", claim="departed from a locked decision")
-        ),
-    )
-
-    repo.write("src/app.py", "print('flipped a lock')\n")
-    repo.commit("illegal action for the grade")
-
-
-# ....................... #
-
-
-def _decisions_unlocatable(repo: Repo) -> None:
-    repo.seed()
-
-    repo.task(
-        base_task(allow=["src/**"], decisions=LOCKED_D1),
-        log_document(entry(evidence="nowhere/nothing.py:5")),
-    )
-
-    repo.write("src/app.py", "print('evidence points nowhere')\n")
-    repo.commit("unlocatable evidence")
-
-
-# ....................... #
-
-
-def _decisions_valid(repo: Repo) -> None:
-    repo.seed()
-    repo.task(base_task(allow=["src/**"], decisions=LOCKED_D1), log_document(entry()))
-    repo.write("src/app.py", "print('reported touch')\n")
-    repo.commit("valid log")
-
-
-# ....................... #
-
-
-def _self_audit_bad(repo: Repo) -> None:
-    repo.seed()
-    repo.task(base_task(allow=["src/**"]), log_document(drift_count=None))
-    repo.write("src/app.py", "print('unexamined')\n")
-    repo.commit("log without drift count")
-
-
-# ....................... #
-
-
-def _self_audit_absent(repo: Repo) -> None:
-    # S-0003/A-2/S-0003/D-21: no entries, no file — a clean run owes nobody a log.
-    repo.seed()
-    repo.task(base_task(allow=["src/**"]), None)
-    repo.write("src/app.py", "print('clean, nothing written')\n")
-    repo.commit("clean change without a log")
-
-
-# ....................... #
-
-
-def _self_audit_clean(repo: Repo) -> None:
-    repo.seed()
-    repo.task(base_task(allow=["src/**"]), log_document())
-    repo.write("src/app.py", "print('examined')\n")
-    repo.commit("log with drift count")
-
-
-# ....................... #
-
 FAKE_AWS_KEY = "AKIA" + "IOSFODNN7EXAMPLE"  # AWS's documented example key id
 
 
@@ -512,424 +378,19 @@ def _bypass_refused_for_secrets(repo: Repo) -> None:
 # ....................... #
 
 
-def _layout_forbidden_name(repo: Repo) -> None:
-    # S-0015/D-5: only the module name is wrong; nothing else is checked here.
-    repo.seed()
-    repo.write("src/pkg/utils.py", '"""Anything goes here, which is the problem."""\n')
-    repo.commit("catch-all module")
-
-
-# ....................... #
-
-
-def _layout_clean(repo: Repo) -> None:
-    repo.seed()
-    repo.write("src/pkg/sandbox_names.py", '"""A module named for what it holds."""\n')
-    repo.commit("named module")
-
-
-# ....................... #
-
-
-def _text_help_rfc(repo: Repo) -> None:
-    repo.seed()
-    repo.write("src/torve/cli/thing.py", 'HELP = "Mint contracts per S-0007."\n')
-    repo.commit("help text citing an RFC number")
-
-
-# ....................... #
-
-
-def _text_docstring_decision(repo: Repo) -> None:
-    repo.seed()
-    repo.write(
-        "src/torve/cli/thing.py", 'def thing() -> None:\n    """Size estimate (S-0002/D-9)."""\n'
-    )
-    repo.commit("command docstring citing a decision")
-
-
-# ....................... #
-
-
-def _text_corpus_path(repo: Repo) -> None:
-    repo.seed()
-    repo.write("src/torve/cli/thing.py", 'ERROR = "see rfcs/0012-migrations.md"\n')
-    repo.commit("string citing a corpus path")
-
-
-# ....................... #
-
-
-def _text_module_docstring_passes(repo: Repo) -> None:
-    # The case that matters most: the surface where references are wanted
-    # must never be flagged, or the gate teaches people to strip them.
-    repo.seed()
-
-    repo.write(
-        "src/torve/cli/thing.py",
-        '"""The thing command (S-0002/D-9, S-0007/torve-plan); see rfcs/ for why."""\n\n'
-        'def _helper() -> None:\n    """Private, editor-facing (S-0002/D-9)."""\n',
-    )
-
-    repo.commit("module and private docstrings citing decisions")
-
-
-# ....................... #
-
-# The `coverage-delta` shell gate, sabotaged for real: the scratch scenarios
-# run pytest-cov and diff-cover exactly as the shipped manifest does, with
-# `uv run` unwrapped — the scratch repository is not a uv project, and these
-# cases already execute inside one. The `{base}` placeholder is the point of
-# the wiring: it must arrive at diff-cover as the merge-base the battery
-# computed, and every twin below depends on that substitution working. The
-# scratch entry is blocking so a conviction is load-bearing; the shipped gate
-# enters shadow (S-0036/D-1, S-0002/D-18).
-
-COVERAGE_GATE_MANIFEST: dict[str, Any] = {
-    "schema_version": 1,
-    "scope": {"allow": [], "deny": []},
-    "gates": [
-        {
-            "name": "coverage-delta",
-            "run": (
-                "PYTHONPATH=src pytest --cov=src --cov-report=xml -q"
-                " && diff-cover coverage.xml --compare-branch {base} --fail-under 80"
-            ),
-            "state": "blocking",
-            "origin": "S-0036",
-            "input": "worktree",
-            "timeout": 120,
-        }
-    ],
-}
-
-# An `if` whose else-arm no test reaches — the archetypal unexercised branch.
-COVERAGE_UNTESTED_APP = "def sign(x):\n    if x >= 0:\n        return 1\n    return -1\n"
-COVERAGE_IMPORT_ONLY_TEST = (
-    "from app import sign  # noqa: F401\n\n\ndef test_app():\n    assert True\n"
-)
-COVERAGE_TESTED_TWIN_TEST = (
-    "from app import sign\n\n\n"
-    "def test_sign():\n    assert sign(1) == 1\n    assert sign(-1) == -1\n"
-)
-
-
-def _coverage_untested_branch(repo: Repo) -> None:
-    # The change the suite never meets: new lines ship red.
-    repo.seed(COVERAGE_GATE_MANIFEST)
-    repo.write("src/app.py", COVERAGE_UNTESTED_APP)
-    repo.write("tests/test_app.py", COVERAGE_IMPORT_ONLY_TEST)
-    repo.commit("untested branch")
-
-
-def _coverage_tested_twin(repo: Repo) -> None:
-    # The identical change, met by the suite: the gate must let it through.
-    repo.seed(COVERAGE_GATE_MANIFEST)
-    repo.write("src/app.py", COVERAGE_UNTESTED_APP)
-    repo.write("tests/test_app.py", COVERAGE_TESTED_TWIN_TEST)
-    repo.commit("tested branch")
-
-
-def _coverage_legacy_unconvicted(repo: Repo) -> None:
-    # The ratchet rule (S-0036/D-1: changed lines only): an inherited tree of
-    # untested legacy code beside a fully tested change convicts nobody.
-    repo.seed(COVERAGE_GATE_MANIFEST)
-    repo.git("checkout", "-q", "main")
-    repo.write(
-        "src/legacy.py",
-        "def untouched(i):\n" + "".join(f"    i += {n}\n" for n in range(2, 42)),
-    )
-    repo.commit("inherited legacy module")
-    repo.git("checkout", "-q", f"torve/{TASK_ID}")
-    repo.git("merge", "-q", "main")
-    repo.write("src/app.py", COVERAGE_UNTESTED_APP)
-    repo.write("tests/test_app.py", COVERAGE_TESTED_TWIN_TEST)
-    repo.commit("tested branch beside legacy")
-
-
-# ....................... #
-
-# The `mutation` builtin gate (S-0107/D-2), sabotaged for real: a source module
-# whose tests pin every line must kill every mutant, and the same module beside
-# tests that assert nothing must let every one live. The scratch run copies a
-# whole worktree and shells out to the test launcher, so the tools it needs are
-# declared and the case skips rather than convicting an environment.
-
-MUTATION_MANIFEST: dict[str, Any] = {
-    "schema_version": 1,
-    "scope": {"allow": [], "deny": []},
-    # The scratch repository is not a uv project, so the launcher is the
-    # installed `pytest` (as the coverage cases do).
-    "tests": {"run": "pytest -q -p no:cacheprovider"},
-    "gates": [
-        {
-            "name": "mutation",
-            "run": "@mutation",
-            "state": "blocking",
-            "origin": "S-0107",
-            "timeout": 120,
-        }
-    ],
-}
-
-MUTATION_REQUIRES = ("pytest", "tar", "timeout", "python3", "date")
-
-# Every operator has a node on a changed line: two comparisons and the `and`
-# joining them on the `if`, its condition, an arithmetic operator and two
-# constants, and two returns.
-MUTATION_APP = "def f(a, b):\n    if a < b and b > 0:\n        return a + 1\n    return b\n"
-
-_MUTATION_TEST_HEAD = (
-    "import sys\n"
-    "from pathlib import Path\n\n"
-    'sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))\n'
-    "from app import f  # noqa: E402\n\n\n"
-)
-
-# Exercises the source and asserts nothing, so no mutant can be noticed.
-MUTATION_WEAK_TEST = _MUTATION_TEST_HEAD + "def test_app():\n    f(1, 2)\n"
-
-# Pins every line: both boundaries (`a < b` at 2, 2; `b > 0` at -5, 0), the
-# `and` (3, 2 holds only the right side), the arithmetic and the constants, and
-# both returns' values.
-MUTATION_STRONG_TEST = _MUTATION_TEST_HEAD + (
-    "def test_app():\n"
-    "    assert f(1, 2) == 2\n"
-    "    assert f(2, 2) == 2\n"
-    "    assert f(3, 2) == 2\n"
-    "    assert f(-5, 0) == 0\n"
-    "    assert f(-1, 1) == 0\n"
-)
-
-
-def _mutation_weak(repo: Repo) -> None:
-    # A change whose tests assert nothing scores 0: every mutant survives.
-    repo.seed(MUTATION_MANIFEST)
-    # The attempt battery's gate judges a task (S-0107/D-2).
-    repo.task(base_task(allow=["src/**", "tests/**"]), None)
-    repo.write("src/app.py", MUTATION_APP)
-    repo.write("tests/test_app.py", MUTATION_WEAK_TEST)
-    repo.commit("weak tests")
-
-
-def _mutation_strong(repo: Repo) -> None:
-    # The clean twin: tests that pin each line kill every mutant.
-    repo.seed(MUTATION_MANIFEST)
-    # The attempt battery's gate judges a task (S-0107/D-2).
-    repo.task(base_task(allow=["src/**", "tests/**"]), None)
-    repo.write("src/app.py", MUTATION_APP)
-    repo.write("tests/test_app.py", MUTATION_STRONG_TEST)
-    repo.commit("strong tests")
-
-
-# ....................... #
-
-# The `held-out` and `verify-tests` builtins (S-0116/D-10, D-11). Both read the
-# task's latest held-out record — which the sabotage suite hands the context
-# directly, having no store to record one in — and run the files in a scratch
-# repository, so the launcher is the installed `pytest`.
-
-VERIFY_MANIFEST_RUN = "pytest -q -p no:cacheprovider"
-VERIFY_REQUIRES = ("pytest",)
-
-HELD_OUT_MANIFEST: dict[str, Any] = {
-    "schema_version": 1,
-    "scope": {"allow": [], "deny": []},
-    "tests": {"run": VERIFY_MANIFEST_RUN},
-    "gates": [
-        {
-            "name": "held-out",
-            "run": "@held-out",
-            "state": "blocking",
-            "origin": "S-0116",
-            "timeout": 120,
-        }
-    ],
-}
-
-VERIFY_TESTS_MANIFEST: dict[str, Any] = {
-    "schema_version": 1,
-    "scope": {"allow": [], "deny": []},
-    "tests": {"run": VERIFY_MANIFEST_RUN},
-    "gates": [
-        {
-            "name": "verify-tests",
-            "run": "@verify-tests",
-            "state": "blocking",
-            "origin": "S-0116",
-            "timeout": 120,
-        }
-    ],
-}
-
-VERIFY_ROW = [
-    {
-        "id": "S-0001/D-1",
-        "grade": "ASSUMED",
-        "text": "the entry's public surface is settled",
-        "paths": ["src/**"],
-    }
-]
-
-# A failing test that cites the row: what a verifier must write.
-VERIFY_FAILING_TEST = "# S-0001/D-1\ndef test_row():\n    assert False, 'not yet implemented'\n"
-# The same test citing nothing: an entry row nothing proves.
-VERIFY_UNCITED_TEST = "def test_row():\n    assert False, 'not yet implemented'\n"
-# A test that already passes: it proves nothing about the work still to come.
-VERIFY_PASSING_TEST = "# S-0001/D-1\ndef test_row():\n    assert True\n"
-# A file that will not parse: it does not collect.
-VERIFY_BROKEN_TEST = "# S-0001/D-1\ndef test_row(:\n    assert False\n"
-
-
-def verify_task(file: str, *, decisions: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-    """A verify contract (S-0116/D-1): acceptance commands, no targets."""
-
-    return {
-        "schema_version": 1,
-        "id": TASK_ID,
-        "role": "verify",
-        "scope": {"allow": [file], "deny": []},
-        "acceptance": [f"{VERIFY_MANIFEST_RUN} --collect-only {file}"],
-        "decisions": decisions or VERIFY_ROW,
-    }
-
-
-# ....................... #
-
-
-def _held_out_red(repo: Repo) -> None:
-    repo.seed(HELD_OUT_MANIFEST)
-    repo.task(base_task(allow=["tests/**"]), None)
-    repo.commit("a candidate the held-out property contradicts")
-
-
-# ....................... #
-
-
-def _held_out_green(repo: Repo) -> None:
-    repo.seed(HELD_OUT_MANIFEST)
-    repo.task(base_task(allow=["tests/**"]), None)
-    repo.commit("a candidate that satisfies the held-out property")
-
-
-# ....................... #
-
-
-def _verify_tests_broken(repo: Repo) -> None:
-    repo.seed(VERIFY_TESTS_MANIFEST)
-    repo.task(verify_task("tests/verify/test_s0001_p1.py"), None)
-    repo.write("tests/verify/test_s0001_p1.py", VERIFY_BROKEN_TEST)
-    repo.commit("a verifier file that does not collect")
-
-
-# ....................... #
-
-
-def _verify_tests_uncited(repo: Repo) -> None:
-    repo.seed(VERIFY_TESTS_MANIFEST)
-    repo.task(verify_task("tests/verify/test_s0001_p1.py"), None)
-    repo.write("tests/verify/test_s0001_p1.py", VERIFY_UNCITED_TEST)
-    repo.commit("a verifier test citing no row")
-
-
-# ....................... #
-
-
-def _verify_tests_passing(repo: Repo) -> None:
-    repo.seed(VERIFY_TESTS_MANIFEST)
-    repo.task(verify_task("tests/verify/test_s0001_p1.py"), None)
-    repo.write("tests/verify/test_s0001_p1.py", VERIFY_PASSING_TEST)
-    repo.commit("a verifier test that passes on the candidate")
-
-
-# ....................... #
-
-
-def _verify_tests_green(repo: Repo) -> None:
-    repo.seed(VERIFY_TESTS_MANIFEST)
-    repo.task(verify_task("tests/verify/test_s0001_p1.py"), None)
-    repo.write("tests/verify/test_s0001_p1.py", VERIFY_FAILING_TEST)
-    repo.commit("a verifier test that fails and cites its row")
-
-
-# ....................... #
-
-# The `evidence` builtin (S-0115/D-1 to D-4, D-9): a behavioural row is proved
-# only by a changed test function that cites it and is red on the base tree and
-# green on the candidate. The twin is the same row with such a test; the
-# sabotage case is the same row whose only citing test passes on base.
-
-EVIDENCE_MANIFEST: dict[str, Any] = {
-    "schema_version": 1,
-    "scope": {"allow": [], "deny": []},
-    "tests": {"run": VERIFY_MANIFEST_RUN},
-    "gates": [
-        {
-            "name": "evidence",
-            "run": "@evidence",
-            "state": "shadow",
-            "origin": "S-0115",
-            "timeout": 120,
-        }
-    ],
-}
-
-EVIDENCE_ROW = [
-    {
-        "id": "S-0001/D-1",
-        "grade": "ASSUMED",
-        "text": "the entry's public surface is settled",
-        "paths": ["src/**"],
-    }
-]
-
-_EVIDENCE_HEAD = (
-    "import sys\n"
-    "from pathlib import Path\n\n"
-    'sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))\n'
-)
-
-# A changed test that cites the row and passes on the base tree too: it would
-# have passed before a line was written, so it proves nothing.
-EVIDENCE_PASSING_TEST = _EVIDENCE_HEAD + (
-    '\n\ndef test_row():\n    """S-0001/D-1"""\n    assert True\n'
-)
-
-# The same citation on a test the change had to turn green: the function it
-# imports does not exist on the base tree.
-EVIDENCE_RED_TEST = _EVIDENCE_HEAD + (
-    "from app import f  # noqa: E402\n\n\n"
-    "def test_row():\n"
-    '    """S-0001/D-1"""\n'
-    "    assert f(-1) == -1\n"
-)
-
-
-def _evidence_passing(repo: Repo) -> None:
-    repo.seed(EVIDENCE_MANIFEST)
-    repo.task(base_task(allow=["tests/**"], decisions=EVIDENCE_ROW), None)
-    repo.write("tests/test_app.py", EVIDENCE_PASSING_TEST)
-    repo.commit("a citing test that passes on the base tree")
-
-
-def _evidence_red(repo: Repo) -> None:
-    repo.seed(EVIDENCE_MANIFEST)
-    repo.task(base_task(allow=["src/**", "tests/**"], decisions=EVIDENCE_ROW), None)
-    repo.write("src/app.py", "def f(x):\n    return 1 if x >= 0 else -1\n")
-    repo.write("tests/test_app.py", EVIDENCE_RED_TEST)
-    repo.commit("a citing test the change turned green")
-
-
 # The `suite` builtin (S-0118/D-1): the whole suite once, then the failing
 # files rerun at the head and the still-red ones run on the merge base. One
 # case proves a regression convicts; the twin proves a red the base carries
 # passes, and the family's remaining cases pin the flaky and fail-closed arms.
 # The scratch repository is not a uv project, so the launcher is `pytest`.
 
+SUITE_TEST_RUN = "pytest -q -p no:cacheprovider"
+SUITE_REQUIRES = ("pytest",)
+
 SUITE_MANIFEST: dict[str, Any] = {
     "schema_version": 1,
     "scope": {"allow": [], "deny": []},
-    "tests": {"run": VERIFY_MANIFEST_RUN},
+    "tests": {"run": SUITE_TEST_RUN},
     "gates": [
         {
             "name": "suite",
@@ -938,7 +399,7 @@ SUITE_MANIFEST: dict[str, Any] = {
             "origin": "S-0118",
             "timeout": 120,
             "sabotage": "suite",
-            "commands": [VERIFY_MANIFEST_RUN],
+            "commands": [SUITE_TEST_RUN],
         }
     ],
 }
@@ -1083,200 +544,58 @@ CASES: list[Case] = [
     Case("acceptance: flake is flaky, not fail", "acceptance", "flaky", _acceptance_flaky),
     Case("no-test-tampering: unlicensed edit", "no-test-tampering", "fail", _tampering_bad),
     Case("no-test-tampering: clean twin", "no-test-tampering", "pass", _tampering_clean),
-    Case("decisions-reported: silence", "decisions-reported", "fail", _decisions_silence),
-    Case(
-        "decisions-reported: silence with no log at all",
-        "decisions-reported",
-        "fail",
-        _decisions_silence_no_log,
-    ),
-    Case(
-        "decisions-reported: no log, nothing governed touched",
-        "decisions-reported",
-        "pass",
-        _decisions_no_log_untouched,
-    ),
-    Case("decisions-reported: illegal action", "decisions-reported", "fail", _decisions_illegal),
-    Case(
-        "decisions-reported: unlocatable evidence",
-        "decisions-reported",
-        "fail",
-        _decisions_unlocatable,
-    ),
-    Case("decisions-reported: valid log", "decisions-reported", "pass", _decisions_valid),
-    Case("self-audit: no drift count", "self-audit", "fail", _self_audit_bad),
-    Case("self-audit: clean twin", "self-audit", "pass", _self_audit_clean),
-    Case("self-audit: absent log is an empty log", "self-audit", "pass", _self_audit_absent),
     Case("secrets: leaked key", "secrets", "fail", _secrets_bad),
     Case("secrets: clean twin", "secrets", "pass", _secrets_clean),
     Case("bypass: signed trailer converts a red scope", "scope", "bypassed", _bypass_honored),
     Case("bypass: refused for secrets", "secrets", "fail", _bypass_refused_for_secrets),
-    Case("source-layout: catch-all module name", "source-layout", "fail", _layout_forbidden_name),
-    Case("source-layout: named module twin", "source-layout", "pass", _layout_clean),
-    Case("user-facing-text: help cites an RFC number", "user-facing-text", "fail", _text_help_rfc),
-    Case(
-        "user-facing-text: command docstring cites a decision",
-        "user-facing-text",
-        "fail",
-        _text_docstring_decision,
-    ),
-    Case(
-        "user-facing-text: string cites a corpus path",
-        "user-facing-text",
-        "fail",
-        _text_corpus_path,
-    ),
-    Case(
-        "user-facing-text: module docstring cites freely",
-        "user-facing-text",
-        "pass",
-        _text_module_docstring_passes,
-    ),
-    Case(
-        "coverage-delta: untested new branch",
-        "coverage-delta",
-        "fail",
-        _coverage_untested_branch,
-        requires=("pytest", "diff-cover"),
-    ),
-    Case(
-        "coverage-delta: tested twin",
-        "coverage-delta",
-        "pass",
-        _coverage_tested_twin,
-        requires=("pytest", "diff-cover"),
-    ),
-    Case(
-        "coverage-delta: untouched legacy unconvicted",
-        "coverage-delta",
-        "pass",
-        _coverage_legacy_unconvicted,
-        requires=("pytest", "diff-cover"),
-    ),
-    Case(
-        "mutation: tests that assert nothing let every mutant live",
-        "mutation",
-        "fail",
-        _mutation_weak,
-        requires=MUTATION_REQUIRES,
-    ),
-    Case(
-        "mutation: tests that pin each line kill every mutant",
-        "mutation",
-        "pass",
-        _mutation_strong,
-        requires=MUTATION_REQUIRES,
-    ),
-    Case(
-        "held-out: a property the candidate contradicts",
-        "held-out",
-        "fail",
-        _held_out_red,
-        requires=VERIFY_REQUIRES,
-        holdout=(
-            {"name": "test_hold.py", "text": "# S-0001/D-1\ndef test_row():\n    assert False\n"},
-        ),
-    ),
-    Case(
-        "held-out: a property the candidate satisfies",
-        "held-out",
-        "pass",
-        _held_out_green,
-        requires=VERIFY_REQUIRES,
-        holdout=(
-            {"name": "test_hold.py", "text": "# S-0001/D-1\ndef test_row():\n    assert True\n"},
-        ),
-    ),
-    Case(
-        "verify-tests: a verifier file that does not collect",
-        "verify-tests",
-        "fail",
-        _verify_tests_broken,
-        requires=VERIFY_REQUIRES,
-    ),
-    Case(
-        "verify-tests: an entry row no test cites",
-        "verify-tests",
-        "fail",
-        _verify_tests_uncited,
-        requires=VERIFY_REQUIRES,
-    ),
-    Case(
-        "verify-tests: a test that passes on the candidate",
-        "verify-tests",
-        "fail",
-        _verify_tests_passing,
-        requires=VERIFY_REQUIRES,
-    ),
-    Case(
-        "verify-tests: a failing test citing its row",
-        "verify-tests",
-        "pass",
-        _verify_tests_green,
-        requires=VERIFY_REQUIRES,
-    ),
-    Case(
-        "evidence: a citing test that passes on the base tree",
-        "evidence",
-        "fail",
-        _evidence_passing,
-        requires=VERIFY_REQUIRES,
-    ),
-    Case(
-        "evidence: a citing test the change turned green",
-        "evidence",
-        "pass",
-        _evidence_red,
-        requires=VERIFY_REQUIRES,
-    ),
     Case(
         "suite: a test the change broke",
         "suite",
         "fail",
         _suite_regression,
-        requires=VERIFY_REQUIRES,
+        requires=SUITE_REQUIRES,
     ),
     Case(
         "suite: an inherited red does not convict",
         "suite",
         "pass",
         _suite_inherited,
-        requires=VERIFY_REQUIRES,
+        requires=SUITE_REQUIRES,
     ),
     Case(
         "suite: a test that passes on the rerun is flaky",
         "suite",
         "flaky",
         _suite_flaky,
-        requires=VERIFY_REQUIRES,
+        requires=SUITE_REQUIRES,
     ),
     Case(
         "suite: order inside a file convicts",
         "suite",
         "fail",
         _suite_order,
-        requires=VERIFY_REQUIRES,
+        requires=SUITE_REQUIRES,
     ),
     Case(
         "suite: a failing file the base lacks convicts",
         "suite",
         "fail",
         _suite_new_file,
-        requires=VERIFY_REQUIRES,
+        requires=SUITE_REQUIRES,
     ),
     Case(
         "suite: a red naming no test convicts",
         "suite",
         "fail",
         _suite_collection_error,
-        requires=VERIFY_REQUIRES,
+        requires=SUITE_REQUIRES,
     ),
     Case(
         "suite: a report that goes red does not convict",
         "suite",
         "pass",
         _suite_reports,
-        requires=VERIFY_REQUIRES,
+        requires=SUITE_REQUIRES,
     ),
 ]
 
@@ -1302,11 +621,6 @@ def run_case(case: Case) -> CaseOutcome:
         case.build(repo)
         manifest = load_manifest(layout.gates_file(repo.root))
         ctx = build_context(repo.root, manifest, base="main")
-        ctx.holdout = [HoldoutFile(**one) for one in case.holdout]
-
-        if case.tests_dir is not None:
-            ctx.tests_dir = case.tests_dir
-
         report = run_gates(ctx, only={case.gate})
         result = report.results[0]
         ok = result.outcome == case.expected

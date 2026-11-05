@@ -2,10 +2,7 @@
 
 The contract under test is "workspace in, changed files out" plus lifecycle
 and labels — not the mechanism. Docker runs against the real daemon (skipped
-where there is none); OpenSandbox runs against the in-process SDK stub, which
-executes commands through the host shell, so the adapter's tar-sync logic is
-exercised for real. Integration against a live OpenSandbox server is deferred
-until one exists.
+where there is none).
 """
 
 from __future__ import annotations
@@ -17,14 +14,11 @@ import time
 import uuid
 from pathlib import Path
 
-import opensandbox_stub
 import pytest
 
 from torve.adapters.runtime.docker import DockerRuntime
-from torve.adapters.runtime.opensandbox import OpenSandboxRuntime
 from torve.application.ports import SandboxSpec
 from torve.base import naming
-from torve.config.runconfig import OpenSandboxConfig
 
 # The runtime's default image: guaranteed shell + tar + python, and already
 # cached wherever the integration tests run.
@@ -37,10 +31,9 @@ def docker_available() -> bool:
     return subprocess.run(["docker", "info"], capture_output=True, check=False).returncode == 0
 
 
-@pytest.fixture(params=["docker", "opensandbox-stub"])
-def runtime_case(request, tmp_path):
-    """(runtime, spec factory, workspace). The stub's sandboxes are host temp
-    dirs, so its specs use a host-side workdir; Docker mounts at /work."""
+@pytest.fixture
+def runtime_case(tmp_path):
+    """(runtime, spec, workspace). Docker mounts at /work."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
     (workspace / "seeded.txt").write_text("from the host\n", encoding="utf-8")
@@ -54,15 +47,9 @@ def runtime_case(request, tmp_path):
             workdir=workdir,
         )
 
-    if request.param == "docker":
-        if not docker_available():
-            pytest.skip("docker daemon not available")
-        yield DockerRuntime(), spec("/work"), workspace
-    else:
-        sandbox_dir = tmp_path / "remote"
-        runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
-        yield runtime, spec(str(sandbox_dir)), workspace
-        opensandbox_stub.REGISTRY.clear()
+    if not docker_available():
+        pytest.skip("docker daemon not available")
+    yield DockerRuntime(), spec("/work"), workspace
 
 
 def test_exec_and_workspace_roundtrip(runtime_case):
@@ -116,8 +103,7 @@ def test_listing_and_destroy_by_id(runtime_case):
 
 
 # ....................... #
-# Authentication routes (S-0004/adapters, §2) — Docker-only: OpenSandbox refuses
-# volumes by contract, and its env passthrough resolves in the stub below.
+# Authentication routes (S-0004/adapters, §2).
 
 
 @pytest.fixture
@@ -210,26 +196,9 @@ def test_docker_auth_volume_outlives_the_sandbox(docker_case):
         subprocess.run(["docker", "volume", "rm", "-f", volume], capture_output=True, check=False)
 
 
-def test_opensandbox_refuses_volumes(tmp_path):
-    runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
-    workspace = tmp_path / "ws2"
-    workspace.mkdir()
-    spec = SandboxSpec(
-        name=f"torve-refuse-{uuid.uuid4().hex[:8]}",
-        image=TEST_IMAGE,
-        labels=naming.labels("T-9904", "r", Path.cwd()),
-        timeout_s=60,
-        workdir=str(tmp_path / "remote"),
-        volumes={"torve-auth-0": "/auth"},
-    )
-    with pytest.raises(RuntimeError, match="no per-slot auth volumes"):
-        runtime.create(spec, workspace)
-    opensandbox_stub.REGISTRY.clear()
-
-
 # ....................... #
 # Docker inside the sandbox (S-0017/docker-inside-the-sandbox): socket mode mounts the host
-# daemon knowingly; the default mounts nothing; opensandbox refuses.
+# daemon knowingly; the default mounts nothing.
 
 
 def test_docker_socket_mode_mounts_the_host_daemon(docker_case):
@@ -251,11 +220,6 @@ def test_docker_default_mode_mounts_no_socket(docker_case):
         assert probe.exit_code != 0
     finally:
         runtime.destroy(handle)
-
-
-def test_opensandbox_refuses_docker_in_any_mode():
-    with pytest.raises(ValueError, match="refuses docker access"):
-        OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub, docker_mode="socket")
 
 
 # ....................... #
@@ -312,34 +276,6 @@ def test_docker_default_network_forwards_no_proxy_vars(docker_case, monkeypatch)
         assert seen.output == ""
     finally:
         runtime.destroy(handle)
-
-
-def test_opensandbox_forwards_proxy_and_passthrough_values(tmp_path, monkeypatch):
-    # Server-side sandboxes get the same convention as Docker's host mode —
-    # resolved at the API boundary; reachability is the server's business.
-    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9999")
-    monkeypatch.setenv("TORVE_TEST_KEY", "k-123")
-    runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
-    workspace = tmp_path / "ws3"
-    workspace.mkdir()
-    spec = SandboxSpec(
-        name=f"torve-proxy-{uuid.uuid4().hex[:8]}",
-        image=TEST_IMAGE,
-        labels=naming.labels("T-9905", "r", Path.cwd()),
-        timeout_s=60,
-        workdir=str(tmp_path / "remote3"),
-        env_passthrough=("TORVE_TEST_KEY",),
-        env={"EXPLICIT": "wins"},
-    )
-    handle = runtime.create(spec, workspace)
-    try:
-        recorded = opensandbox_stub.REGISTRY[handle.id].env
-        assert recorded["HTTPS_PROXY"] == "http://127.0.0.1:9999"
-        assert recorded["TORVE_TEST_KEY"] == "k-123"
-        assert recorded["EXPLICIT"] == "wins"
-    finally:
-        runtime.destroy(handle)
-    opensandbox_stub.REGISTRY.clear()
 
 
 # ....................... #

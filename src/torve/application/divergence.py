@@ -34,7 +34,7 @@ import yaml
 from torve.base.clock import stamp
 from torve.config import layout
 from torve.domain.events import ActorKind, EventKind, SubjectType
-from torve.gates.decisions_reported import check_entry, check_pin
+from torve.gates.log_entry import check_entry, check_pin
 
 if TYPE_CHECKING:
     from asyncio import AbstractEventLoop

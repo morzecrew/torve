@@ -155,3 +155,18 @@ def seam(body: str, monkeypatch) -> dict[str, str]:
     monkeypatch.setattr(harness_mod, "RUN", 'sh -c "$TORVE_PROBE"')
 
     return {"TORVE_PROBE": body}
+
+
+# ....................... #
+
+
+@pytest.fixture
+def docker_free(monkeypatch) -> None:
+    """Doctor's docker runtime answered by a stand-in that resolves every image,
+    so a doctor case about something else runs where no daemon does."""
+
+    class Runtime:
+        def resolve_image(self, image: str) -> str | None:
+            return "sha256:" + "ab" * 32
+
+    monkeypatch.setattr("torve.cli.options.runtime_for", lambda config, override: Runtime())

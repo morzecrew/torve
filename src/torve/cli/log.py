@@ -315,7 +315,7 @@ def owed_cmd(
 
     from torve.application.channel import ChannelRefused, open_channel
     from torve.gates.context import load_task
-    from torve.gates.decisions_reported import owed
+    from torve.gates.log_entry import owed
 
     root = root.resolve()
     contract = layout.task_file(root, task_id)

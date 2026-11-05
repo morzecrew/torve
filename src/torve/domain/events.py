@@ -108,7 +108,8 @@ class EventKind(StrEnum):
     NIGHT_OPENED = "night.opened"
     NIGHT_CLOSED = "night.closed"
     # S-0116/D-9: a verify attempt's held-out properties, recorded on the
-    # implement task of its entry and never on the verify task's own commit.
+    # implement task of its entry. No longer written since the verify role
+    # left (S-0122/D-17); kept so the events already recorded still parse.
     VERIFY_HOLDOUT = "verify.holdout"
     # S-0118/D-9: one lane battery, green or red, recorded on the candidate's
     # task (or the document's last task for a completion battery) by whichever

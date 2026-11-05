@@ -63,21 +63,10 @@ def skills_vendor_dir(root: Path) -> Path:
 # ....................... #
 
 
-def standing_dir(root: Path) -> Path:
-    """Standing contracts (S-0023 S-0023/D-1): one committed, reviewed file
-    per recurring job. No enabled flag — an empty directory is off and
-    deleting a file is the disable (S-0023/D-7)."""
-
-    return root / TORVE_DIR / "standing"
-
-
-# ....................... #
-
-
 def execution_dir(root: Path) -> Path:
     """Where a task naming no document lands (S-0059/D-11): the same file
-    shape a document's `execution/` holds, for an operator's ask or a
-    standing job — a landing with no rows to sit beside is still a record."""
+    shape a document's `execution/` holds, for an operator's ask — a landing
+    with no rows to sit beside is still a record."""
 
     return root / TORVE_DIR / "execution"
 

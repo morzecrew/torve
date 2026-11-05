@@ -15,7 +15,7 @@ import subprocess
 
 import pytest
 import yaml
-from conftest import HOSTILE, context_for
+from conftest import HOSTILE
 from forze.application.execution import DepsRegistry, ExecutionRuntime
 from typer.testing import CliRunner
 
@@ -33,14 +33,24 @@ from torve.application.divergence import (
 from torve.application.eventlog import event_log
 from torve.cli.main import app
 from torve.config import layout
-from torve.config.manifest import Gate
 from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
-from torve.gates.decisions_reported import check_decisions_reported, check_entry
+from torve.gates.log_entry import check_entry, check_pin, parse_log
 from torve.gates.sabotage import LOCKED_D1, TASK_ID, base_task
 
-GATE = Gate(name="test", run="@decisions-reported", state="blocking", origin="structural")
 PARTITION = "morzecrew/torve"
+
+
+def log_problems(worktree) -> list[str]:
+    """What the log's own checks find in the task's written log: its pin and
+    every entry, as the intake checks them before it writes."""
+
+    document, error = parse_log(layout.log_file(worktree.root, TASK_ID).read_text())
+    assert document is not None, error
+
+    return check_pin(document) + [
+        problem for entry in document["entries"] for problem in check_entry(entry, worktree.root)
+    ]
 
 
 def one_entry(worktree, **overrides):
@@ -98,12 +108,11 @@ def test_a_scalar_that_breaks_naive_yaml_round_trips(worktree):
     assert loaded["entries"][0]["evidence"] == HOSTILE
 
 
-def test_the_written_log_is_one_the_gate_accepts(worktree):
+def test_the_written_log_is_one_its_checks_accept(worktree):
     one_entry(worktree)
     worktree.commit("the log")
-    result = check_decisions_reported(GATE, context_for(worktree))
 
-    assert result.outcome == "pass", result.output
+    assert log_problems(worktree) == []
 
 
 def test_the_log_is_staged_by_the_writer(worktree):
@@ -435,10 +444,10 @@ def test_the_journal_sync_runs_from_the_runner_thread(worktree):
     asyncio.run(scenario())
 
 
-def test_the_gate_judges_what_the_record_holds(worktree):
+def test_the_projected_log_holds_what_the_record_holds(worktree):
     """The point of the projection (A-82): the sandbox cannot reach the
     store, so the store is made authoritative by the engine writing the file
-    the battery reads — from the record, before it reads it."""
+    from the record."""
 
     path = layout.log_file(worktree.root, TASK_ID)
 
@@ -472,9 +481,8 @@ def test_the_gate_judges_what_the_record_holds(worktree):
 
     asyncio.run(scenario())
     worktree.commit("the projected log")
-    result = check_decisions_reported(GATE, context_for(worktree))
 
-    assert result.outcome == "pass", result.output
+    assert log_problems(worktree) == []
 
 
 def test_a_redispatch_does_not_record_a_landed_log_twice(worktree):
@@ -554,33 +562,6 @@ def test_owed_goes_quiet_once_the_entry_exists(worktree):
     )
 
     assert json.loads(result.stdout)["owed"] == []
-
-
-def test_owed_answers_exactly_what_the_gate_would_convict(worktree):
-    """The pre-check and the conviction share their implementation. A green
-    answer here and a red gate later would be worse than no pre-check."""
-
-    from torve.gates.decisions_reported import check_decisions_reported
-
-    # The fixture already committed the change; the log is what is missing.
-    gate = check_decisions_reported(GATE, context_for(worktree))
-    result = CliRunner().invoke(
-        app,
-        [
-            "log",
-            "owed",
-            TASK_ID,
-            "--root",
-            str(worktree.root),
-            "--touched",
-            "src/app.py",
-            "--format",
-            "json",
-        ],
-    )
-
-    assert gate.outcome == "fail"
-    assert json.loads(result.stdout)["owed"][0] in gate.output
 
 
 def test_owed_refuses_a_task_with_no_contract(tmp_path):

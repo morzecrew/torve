@@ -69,10 +69,10 @@ arrives first, invisibly.
 ## What makes the rows executable
 
 1. **`paths` on every decision row** — the single most important rule. A
-   decision that governs an area must declare it, or the silence check in
-   `decisions-reported` skips that decision and the strongest anti-drift
-   guarantee quietly does nothing. `LOCKED` rows **must** carry paths; the
-   check reddens without them.
+   decision that governs an area must declare it: a contract inherits a
+   standing row only where its paths meet the contract's scope, and a row's
+   check judges only a diff that reaches them. `LOCKED` rows **must** carry
+   paths; the check reddens without them.
 
    ```yaml
    # decisions.yaml
@@ -122,37 +122,18 @@ arrives first, invisibly.
    blocking row that names none. A row is never blocking on a check nobody
    has shown can fail.
 
-   A check that passes is not yet a strong check. The battery's `mutation`
-   gate edits the changed lines and reruns the task's paired tests — the tests
-   a row's check usually selects from, not the check's own command — and
-   **a check that leaves survivors on its row's lines is a weak check**: the
-   tests behind it ran the wrong edit and still passed. A survivor is
-   evidence, not a verdict — an equivalent mutant survives without any test
-   being wrong — but an example that exercises a line and asserts nothing
-   about it is exactly what leaves one, so read a survivor as a prompt to
-   assert the line's behaviour in the tests the check selects.
-
    A test that proves a row cites it in its own docstring: the row's full
    identifier, `S-NNNN/D-n`, as a whole token. A module or class docstring proves
-   nothing for the tests beneath it, so each test carries its own. The battery's
-   `evidence` gate reads the citation from the function's own source — its
-   docstring, comments and body — and runs each citing test on the base tree and
-   on the candidate: a row is proved when one citing test is red on the base tree
-   and green on the candidate, so the citation belongs in the test the change
-   turns green.
+   nothing for the tests beneath it, so each test carries its own.
 
 2. **Phasing must be mintable.** A phase is an entry in the `phasing` list —
    number, title, one-paragraph intent, the file globs it will touch, its
    acceptance commands, the phases it waits on — not prose about sequence.
    If `torve plan` cannot derive a task from an entry, the entry was written
    wrong. **The intent names the public surface the phase's tests drive** —
-   the functions, types or commands the phase introduces or changes. Where
-   the verify pilot is on, a verifier writes that phase's tests from the rows
-   and the intent alone, before any implementation exists; an intent naming
-   only a file leaves it to invent an API, and a phase written for a verifier
-   names what to test. A phase's clock and model are its seat's: a phase that
-   needs more time than the repository's `agent_timeout`, or the stronger
-   model, names a `tier_variant` the operator configures with its own
+   the functions, types or commands the phase introduces or changes. A
+   phase's clock and model are its seat's: a phase that needs more time than
+   the repository's `agent_timeout`, or the stronger model, names a `tier_variant` the operator configures with its own
    `agent_timeout` and `sandbox_timeout`, or a `character` the seat's
    `character_routing` sends to one. The size estimate is advice and moves
    neither.

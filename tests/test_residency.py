@@ -219,50 +219,18 @@ def test_a_task_the_record_has_run_is_not_overruled_by_the_repository(tmp_path):
         assert board.tasks["T-0001"].landed_sha is None
 
 
-def test_the_standing_leg_runs_before_the_scan_and_a_paused_pass_skips_it(tmp_path):
-    """S-0023/bounds-because-this-is-the-leg-that-can-grow: whatever a predicate mints is a contract file, and the
-    scan that runs after it is what puts that contract on the board — so
-    the leg needs no record-side machinery at all, only its turn (A-106).
-
-    S-0023/D-6's first bound is the caller's, and this is that caller: a paused
-    pass evaluates no predicate, because a predicate that fires creates work
-    and a pause says nobody can triage it."""
-
-    fired: list[str] = []
-
-    def standing() -> tuple[str, bool]:
-        # What a real leg does: write a contract, and let the scan find it.
-        contract(tmp_path, "T-0002")
-        fired.append("job")
-
-        return "fired 1: job->T-0002", True
-
-    async def scenario(log):
-        worker = worker_over(log, [])
-        await once(log, worker, tmp_path, PARTITION, dispatch=False, standing=standing)
-
-        board = project(await log.since(partition=PARTITION))
-        assert fired == ["job"]
-        assert "T-0002" in board.tasks
-
-        await once(log, worker, tmp_path, PARTITION, dispatch=False, standing=standing, paused=True)
-        assert fired == ["job"]
-
-    run(scenario)
-
-
-def test_the_issues_leg_runs_after_standing_and_a_paused_pass_skips_it(tmp_path):
-    """S-0119/D-8: the intake leg runs after the standing leg and before the
-    scan, so a drafting run it starts is on the board this pass — and a pause
-    stops it, because drafts are work somebody has to adopt and triage."""
+def test_the_issues_leg_runs_after_the_threads_leg_and_a_paused_pass_skips_it(tmp_path):
+    """S-0119/D-8: the intake leg runs after the review-thread leg and before
+    the scan, so a drafting run it starts is on the board this pass — and a
+    pause stops it, because drafts are work somebody has to adopt and triage."""
 
     order: list[str] = []
     contract(tmp_path, "T-0001")
 
-    def standing() -> tuple[str, bool]:
-        order.append("standing")
+    def threads() -> tuple[str, bool]:
+        order.append("threads")
 
-        return "no standing jobs due", False
+        return "no unresolved review threads", False
 
     def issues() -> tuple[str, bool]:
         # What a real leg does: mint the drafting run, and let the scan find it.
@@ -279,12 +247,12 @@ def test_the_issues_leg_runs_after_standing_and_a_paused_pass_skips_it(tmp_path)
             tmp_path,
             PARTITION,
             dispatch=False,
-            standing=standing,
+            threads=threads,
             issues=issues,
         )
 
         board = project(await log.since(partition=PARTITION))
-        assert order == ["standing", "issues"]
+        assert order == ["threads", "issues"]
         assert "T-0002" in board.tasks
 
         order.clear()
@@ -294,7 +262,7 @@ def test_the_issues_leg_runs_after_standing_and_a_paused_pass_skips_it(tmp_path)
             tmp_path,
             PARTITION,
             dispatch=False,
-            standing=standing,
+            threads=threads,
             issues=issues,
             paused=True,
         )
@@ -422,43 +390,19 @@ def test_the_managers_pass_is_handed_the_issues_leg(tmp_path, monkeypatch):
     assert asyncio.run(seen[0]()) == ("issue intake off", False)
 
 
-def test_the_fleets_pass_is_handed_the_issues_leg(tmp_path, monkeypatch):
-    """S-0119/D-8: each root's pass in the fleet runs the intake leg too."""
-
-    from torve.application import residency
-    from torve.cli.fleet import _serve_fleet
-    from torve.config.fleet import FleetManifest, FleetRepository
-
-    seen: list[object] = []
-
-    async def spy(*_args, **kwargs):
-        seen.append(kwargs.get("issues"))
-
-    monkeypatch.setattr(residency, "once", spy)
-    (tmp_path / ".torve").mkdir(exist_ok=True)
-    manifest = FleetManifest(
-        repositories=[FleetRepository(root=str(tmp_path), trust="own", partition=PARTITION)]
-    )
-
-    asyncio.run(_serve_fleet(manifest, None, worker="w-1", rounds=1, interval=0))
-
-    assert seen and callable(seen[0])
-    assert asyncio.run(seen[0]()) == ("issue intake off", False)
-
-
 def test_a_broken_leg_is_recorded_and_the_pass_carries_on(tmp_path):
-    """Found by the first live dispatch (A-128): a standing job that could
-    not be instantiated raised out of the pass, so nothing was claimed and
-    the failure that showed was "no work ran" rather than "a draft was
-    refused". The retired tick wrapped every leg for exactly this."""
+    """Found by the first live dispatch (A-128): a leg that raised out of the
+    pass left nothing claimed, and the failure that showed was "no work ran"
+    rather than the leg's own. The retired tick wrapped every leg for exactly
+    this."""
 
     contract(tmp_path, "T-0001")
 
-    def standing() -> tuple[str, bool]:
+    def issues() -> tuple[str, bool]:
         raise ValueError("a draft the threshold refuses")
 
-    async def relay() -> list[str]:
-        raise RuntimeError("the destination is unreachable")
+    def threads() -> tuple[str, bool]:
+        raise RuntimeError("the forge is unreachable")
 
     async def lane() -> list[str]:
         raise RuntimeError("the working tree on main is not clean")
@@ -470,8 +414,8 @@ def test_a_broken_leg_is_recorded_and_the_pass_carries_on(tmp_path):
             worker_over(log, executed),
             tmp_path,
             PARTITION,
-            standing=standing,
-            relay=relay,
+            issues=issues,
+            threads=threads,
             lane=lane,
         )
 
@@ -515,67 +459,16 @@ def test_the_pause_is_asked_again_every_pass(tmp_path):
     run(scenario)
 
 
-def test_the_relay_runs_before_the_mint_and_through_a_pause(tmp_path):
-    """S-0051 S-0051/D-5: what a pass does first is the work already owed, so
-    a page for an escalation raised an hour ago comes before a contract
-    nobody has minted. And a pause is a statement that nobody can triage
-    more work — which is exactly when the queue most needs draining, so the
-    relay is the one leg a pause does not stop."""
-
-    contract(tmp_path, "T-0001")
-    order: list[str] = []
-
-    async def relay() -> list[str]:
-        order.append("relay")
-
-        return []
-
-    def standing() -> tuple[str, bool]:
-        order.append("standing")
-
-        return "no standing jobs due", False
-
-    async def scenario(log):
-        worker = worker_over(log, [])
-        await once(log, worker, tmp_path, PARTITION, dispatch=False, relay=relay, standing=standing)
-
-        assert order == ["relay", "standing"]
-
-        order.clear()
-        await once(
-            log,
-            worker,
-            tmp_path,
-            PARTITION,
-            dispatch=False,
-            relay=relay,
-            standing=standing,
-            paused=True,
-        )
-
-        # The pause stops the leg that creates work, never the one that
-        # delivers what is already owed.
-        assert order == ["relay"]
-
-    run(scenario)
-
-
-def test_the_lane_leg_runs_after_the_relay_and_before_the_mint(tmp_path):
-    """S-0052/the-leg-and-where-it-sits: what a pass does first is the work already owed, and
-    a candidate that went green an hour ago is owed its landing more than
-    a contract nobody has minted is owed its board row. Landing first also
-    means the mint that follows sees a base that already moved, which is
-    the state the dependency rule reads."""
+def test_the_lane_leg_runs_before_the_mint(tmp_path):
+    """S-0052/the-leg-and-where-it-sits: a candidate that went green an hour
+    ago is owed its landing more than a contract nobody has minted is owed
+    its board row. Landing first also means the mint that follows sees a base
+    that already moved, which is the state the dependency rule reads."""
 
     contract(tmp_path, "T-0001")
     order: list[str] = []
 
     async def scenario(log):
-        async def relay() -> list[str]:
-            order.append("relay")
-
-            return []
-
         async def lane() -> list[str]:
             # The lane's turn must come before the mint's: the contract the
             # repository holds is not on the board while it runs.
@@ -585,9 +478,9 @@ def test_the_lane_leg_runs_after_the_relay_and_before_the_mint(tmp_path):
             return []
 
         worker = worker_over(log, [])
-        await once(log, worker, tmp_path, PARTITION, dispatch=False, relay=relay, lane=lane)
+        await once(log, worker, tmp_path, PARTITION, dispatch=False, lane=lane)
 
-        assert order == ["relay", "lane"]
+        assert order == ["lane"]
 
         # The mint followed the landing: the row is on the board only
         # after the pass is through.
@@ -597,22 +490,15 @@ def test_the_lane_leg_runs_after_the_relay_and_before_the_mint(tmp_path):
     run(scenario)
 
 
-def test_a_pause_stops_the_lane_and_not_the_relay(tmp_path):
-    """The two legs differ on exactly this point, and the difference is the
-    design: the relay delivers what is already owed — which is when the
-    queue most needs draining — while landing advances the repository, and
-    a pause says nobody has capacity to look at what advancing produces.
+def test_a_pause_stops_the_lane(tmp_path):
+    """Landing advances the repository, and a pause says nobody has capacity
+    to look at what advancing produces.
 
     Asked through `serve`, which is also the proof the loop forwards the
     leg: the first pass is paused and lands nothing, the second is not."""
 
     order: list[str] = []
     answers = [True, False]
-
-    async def relay() -> list[str]:
-        order.append("relay")
-
-        return []
 
     async def lane() -> list[str]:
         order.append("lane")
@@ -632,11 +518,10 @@ def test_a_pause_stops_the_lane_and_not_the_relay(tmp_path):
             idle_seconds=0,
             dispatch=False,
             paused=paused,
-            relay=relay,
             lane=lane,
         )
 
-        assert order == ["relay", "relay", "lane"]
+        assert order == ["lane"]
 
     run(scenario)
 
@@ -663,11 +548,6 @@ def test_a_pull_request_landing_runs_the_lane_through_a_pause_and_a_local_one_st
 
         return "no unresolved review threads", False
 
-    def standing() -> tuple[str, bool]:
-        order.append("standing")
-
-        return "nothing fired", False
-
     async def scenario(log):
         worker = worker_over(log, [])
 
@@ -681,7 +561,6 @@ def test_a_pull_request_landing_runs_the_lane_through_a_pause_and_a_local_one_st
             lane=lane,
             lane_through_pause=True,
             threads=threads,
-            standing=standing,
         )
         # The lane runs through the pause; the legs that add work still stop.
         assert order == ["lane"]
@@ -747,30 +626,18 @@ def test_the_pass_runs_the_lane_through_a_pause_only_under_a_pull_request_landin
     assert seen == [True, False]
 
 
-def test_a_pause_still_stops_the_mint_standing_and_threads_under_either_landing(tmp_path):
+def test_a_pause_still_stops_the_mint_and_threads_under_either_landing(tmp_path):
     """S-0108/D-2: the landing mode changes only whether the lane runs through
-    a pause. The mint, the standing leg and the review-thread leg add work
-    somebody has to triage under every mode, so a pause stops them; the relay
-    delivers what is already owed rather than creating anything, so it runs
-    either way."""
+    a pause. The mint and the review-thread leg add work somebody has to
+    triage under every mode, so a pause stops them."""
 
     order: list[str] = []
     contract(tmp_path, "T-0001")
-
-    async def relay() -> list[str]:
-        order.append("relay")
-
-        return []
 
     def threads() -> tuple[str, bool]:
         order.append("threads")
 
         return "no unresolved review threads", False
-
-    def standing() -> tuple[str, bool]:
-        order.append("standing")
-
-        return "nothing fired", False
 
     async def scenario(log):
         worker = worker_over(log, [])
@@ -784,12 +651,10 @@ def test_a_pause_still_stops_the_mint_standing_and_threads_under_either_landing(
                 PARTITION,
                 dispatch=False,
                 paused=True,
-                relay=relay,
                 threads=threads,
-                standing=standing,
                 lane_through_pause=through_pause,
             )
-            assert order == ["relay"]
+            assert order == []
 
         board = project(await log.since(partition=PARTITION))
         assert "T-0001" not in board.tasks
@@ -802,8 +667,8 @@ def test_the_review_thread_leg_sits_between_the_landing_leg_and_the_mint(tmp_pat
     once the record says the round's task landed, and before the mint and the
     dispatch, because a round minted this pass is on the board this pass.
 
-    Proven against the standing leg's turn: standing already runs before the
-    scan, so a leg ahead of standing is a leg ahead of the mint."""
+    Proven against the intake leg's turn: it already runs before the scan, so
+    a leg ahead of it is a leg ahead of the mint."""
 
     order: list[str] = []
 
@@ -821,10 +686,10 @@ def test_the_review_thread_leg_sits_between_the_landing_leg_and_the_mint(tmp_pat
 
             return "minted 1: T-0002", True
 
-        def standing() -> tuple[str, bool]:
-            order.append("standing")
+        def issues() -> tuple[str, bool]:
+            order.append("issues")
 
-            return "nothing fired", False
+            return "issue intake off", False
 
         await once(
             log,
@@ -834,10 +699,10 @@ def test_the_review_thread_leg_sits_between_the_landing_leg_and_the_mint(tmp_pat
             dispatch=False,
             lane=lane,
             threads=threads,
-            standing=standing,
+            issues=issues,
         )
 
-        assert order == ["lane", "threads", "standing"]
+        assert order == ["lane", "threads", "issues"]
 
         board = project(await log.since(partition=PARTITION))
         assert "T-0002" in board.tasks
@@ -847,17 +712,12 @@ def test_the_review_thread_leg_sits_between_the_landing_leg_and_the_mint(tmp_pat
 
 def test_a_pause_stops_the_review_thread_leg_exactly_as_it_stops_the_lane(tmp_path):
     """A round is new work somebody has to triage, so the leg is stopped by
-    the pause that stops landing rather than run through it like the relay
-    (S-0084/D-16). Asked through `serve`, which is also the proof the loop
-    forwards the leg: the first pass is paused and the second is not."""
+    the pause that stops landing (S-0084/D-16). Asked through `serve`, which
+    is also the proof the loop forwards the leg: the first pass is paused and
+    the second is not."""
 
     order: list[str] = []
     answers = [True, False]
-
-    async def relay() -> list[str]:
-        order.append("relay")
-
-        return []
 
     def threads() -> tuple[str, bool]:
         order.append("threads")
@@ -877,11 +737,10 @@ def test_a_pause_stops_the_review_thread_leg_exactly_as_it_stops_the_lane(tmp_pa
             idle_seconds=0,
             dispatch=False,
             paused=paused,
-            relay=relay,
             threads=threads,
         )
 
-        assert order == ["relay", "relay", "threads"]
+        assert order == ["threads"]
 
     run(scenario)
 

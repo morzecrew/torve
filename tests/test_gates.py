@@ -6,14 +6,10 @@ import pytest
 from conftest import context_for
 
 from torve.config.manifest import Gate
-from torve.domain.events import HoldoutFile
-from torve.gates.decisions_reported import check_decisions_reported, parse_log
+from torve.gates.log_entry import check_entry, owed, parse_log
 from torve.gates.runner import run_gates
 from torve.gates.sabotage import (
     BASE_MANIFEST,
-    MUTATION_APP,
-    MUTATION_STRONG_TEST,
-    MUTATION_WEAK_TEST,
     TASK_ID,
     base_task,
     entry,
@@ -159,39 +155,11 @@ def test_decisions_skill_style_entry_is_accepted(repo):
     )
     skill_entry["class"] = "spec-gap"
     repo.seed()
-    repo.task(base_task(allow=["src/**"], decisions=[]), log_document(skill_entry))
-    repo.write("src/app.py", "print('x')\n")
-    repo.commit("skill-style log")
-    result = check_decisions_reported(GATE, context_for(repo))
-    assert result.outcome == "fail"  # unlisted owes a proposal
-    assert "owes a proposal" in result.output
+    problems = check_entry(skill_entry, repo.root)
+    assert any("owes a proposal" in problem for problem in problems)  # unlisted
 
     with_proposal = dict(skill_entry, proposal="ASSUMED — retries capped at 3")
-    repo.write(f".torve/tasks/{TASK_ID}/log.yaml", log_document(with_proposal))
-    repo.commit("proposal added")
-    result = check_decisions_reported(GATE, context_for(repo))
-    assert result.outcome == "pass", result.output
-
-
-def test_decisions_drift_count_must_match_entries(repo):
-    drift_entry = entry(
-        decision="D-1",
-        grade="LOCKED",
-        kind="contradicted",
-        action="halted",
-        claim="built otherwise anyway",
-    )
-    drift_entry["class"] = "drift"
-    repo.seed()
-    repo.task(
-        base_task(allow=["src/**"], decisions=[]),
-        log_document(drift_entry),  # declared count stays 0
-    )
-    repo.write("src/app.py", "print('x')\n")
-    repo.commit("drifted")
-    result = check_decisions_reported(GATE, context_for(repo))
-    assert result.outcome == "fail"
-    assert "drift count 0 != 1" in result.output
+    assert check_entry(with_proposal, repo.root) == []
 
 
 @pytest.mark.parametrize(
@@ -210,55 +178,24 @@ def test_decisions_evidence_rejection_teaches_the_repair(repo, evidence, defect)
     expected grammar, and diagnoses the first defect — the judgement itself
     is unchanged (still a rejection)."""
     repo.seed()
-    repo.task(
-        base_task(allow=["src/**"], decisions=[]),
-        log_document(entry(evidence=evidence)),
-    )
-    repo.write("src/app.py", "print('x')\n")
-    repo.commit("unlocatable evidence")
-    result = check_decisions_reported(GATE, context_for(repo))
-    assert result.outcome == "fail"
-    assert f"evidence {evidence!r} is not locatable" in result.output
-    assert "expected: a single leading `path:line — one sentence` citation" in result.output
-    assert defect in result.output
+    output = "\n".join(check_entry(entry(evidence=evidence), repo.root))
+    assert f"evidence {evidence!r} is not locatable" in output
+    assert "expected: a single leading `path:line — one sentence` citation" in output
+    assert defect in output
 
 
 def test_decisions_evidence_path_rejection_keeps_the_locators_message(repo):
     """A locatable-format line pointing nowhere is not a grammar rejection —
     it keeps the locator's message; only the grammar rejection teaches."""
     repo.seed()
-    repo.task(
-        base_task(allow=["src/**"], decisions=[]),
-        log_document(entry(evidence="ghost.py:1")),
-    )
-    repo.write("src/app.py", "print('x')\n")
-    repo.commit("evidence points nowhere")
-    result = check_decisions_reported(GATE, context_for(repo))
-    assert result.outcome == "fail"
-    assert "does not exist" in result.output
-    assert "expected: a single leading" not in result.output
+    output = "\n".join(check_entry(entry(evidence="ghost.py:1"), repo.root))
+    assert "does not exist" in output
+    assert "expected: a single leading" not in output
 
 
 def test_decisions_evidence_with_separator_still_passes(repo):
     repo.seed()
-    repo.task(
-        base_task(allow=["src/**"], decisions=[]),
-        log_document(entry(evidence="src/app.py:1 — the guard")),
-    )
-    repo.write("src/app.py", "print('x')\n")
-    repo.commit("citation with prose after the separator")
-    result = check_decisions_reported(GATE, context_for(repo))
-    assert result.outcome == "pass", result.output
-
-
-def test_decisions_empty_list_with_no_log_passes(repo):
-    """decisions: [] means none apply, explicitly (S-0007/D-5)."""
-    repo.seed()
-    repo.write(f".torve/tasks/{TASK_ID}/contract.yaml", "id: " + TASK_ID + "\ndecisions: []\n")
-    repo.write("src/app.py", "print('x')\n")
-    repo.commit("no decisions apply")
-    result = check_decisions_reported(GATE, context_for(repo))
-    assert result.outcome == "pass"
+    assert check_entry(entry(evidence="src/app.py:1 — the guard"), repo.root) == []
 
 
 def test_a_later_blocking_gate_still_reports_after_an_earlier_one_fails(repo):
@@ -356,15 +293,13 @@ def test_a_gate_that_judges_nothing_the_attempt_changed_is_skipped(repo):
     assert report.exit_code == 1
 
 
-def test_decisions_no_paths_is_skipped_never_passed(repo):
-    decisions = [{"id": "D-9", "grade": "LOCKED", "text": "an area-less lock", "paths": []}]
-    repo.seed()
-    repo.task(base_task(allow=["src/**"], decisions=decisions), log_document())
-    repo.write("src/app.py", "print('x')\n")
-    repo.commit("touch")
-    result = check_decisions_reported(GATE, context_for(repo))
-    assert result.outcome == "pass"
-    assert "skipped: D-9" in result.output
+def test_decisions_no_paths_is_skipped_never_passed():
+    from torve.domain.task import InheritedDecision
+
+    area_less = InheritedDecision(id="D-9", grade="LOCKED", text="an area-less lock", paths=[])
+    problems, skipped = owed([area_less], ["src/app.py"], [])
+    assert problems == []
+    assert any(line.startswith("D-9:") for line in skipped)
 
 
 def test_repository_logs_parse_under_the_gate():
@@ -596,10 +531,9 @@ def _checked(check: str, state: str = "shadow", twin: str | None = None) -> list
     ]
 
 
-def test_a_failing_shadow_check_leaves_its_locked_row_owed(repo):
-    """D-1: the check convicts nothing under its shadow state, but the LOCKED
-    row it judges is still owed a word — the battery's red verdict is the
-    finding, and the log has to carry it. The old pin had this row covered."""
+def test_a_failing_shadow_check_is_recorded_and_blocks_nothing(repo):
+    """D-1: the check convicts nothing under its shadow state; its red verdict
+    is the finding, recorded under the row's own state."""
     from torve.gates.runner import run_gates
 
     repo.seed()
@@ -612,16 +546,13 @@ def test_a_failing_shadow_check_leaves_its_locked_row_owed(repo):
 
     assert by_name["decision:S-0009/D-1"].outcome == "fail"
     assert by_name["decision:S-0009/D-1"].state == "shadow"
-    assert by_name["decisions-reported"].outcome == "fail"
-    assert "S-0009/D-1" in by_name["decisions-reported"].output
-    assert report.exit_code == 1  # decisions-reported is blocking
+    assert report.exit_code == 0
 
 
-def test_a_check_the_diff_does_not_reach_is_skipped_and_owes_nothing(repo):
+def test_a_check_the_diff_does_not_reach_is_skipped(repo):
     """#241: a document's phases all carry its rows, so a row a later phase
     builds has a check that fails in every earlier one. Its paths are the
-    gate's: a diff that does not reach them skips the check, and the row owes
-    no entry there."""
+    gate's: a diff that does not reach them skips the check."""
     from torve.gates.runner import run_gates
 
     repo.seed()
@@ -634,11 +565,6 @@ def test_a_check_the_diff_does_not_reach_is_skipped_and_owes_nothing(repo):
     by_name = {r.name: r for r in report.results}
 
     assert by_name["decision:S-0009/D-1"].outcome == "skipped"
-    assert by_name["decisions-reported"].outcome == "pass"
-    assert (
-        "skipped: S-0009/D-1: its check judges nothing this diff touches"
-        in by_name["decisions-reported"].output
-    )
     assert report.exit_code == 0
 
 
@@ -721,7 +647,7 @@ def test_a_rename_out_of_a_gates_paths_reaches_the_gate(tmp_path):
 
 
 def test_a_passing_check_covers_its_row(repo):
-    """D-1: a check that runs and passes stands for its row — no entry owed."""
+    """D-1: a check that runs and passes stands for its row."""
     from torve.gates.runner import run_gates
 
     repo.seed()
@@ -733,7 +659,6 @@ def test_a_passing_check_covers_its_row(repo):
     by_name = {r.name: r for r in report.results}
 
     assert by_name["decision:S-0009/D-1"].outcome == "pass"
-    assert by_name["decisions-reported"].outcome == "pass"
     assert report.exit_code == 0
 
 
@@ -826,7 +751,7 @@ def test_a_failing_check_is_owed_and_a_passing_one_is_not():
     """D-1: with verdicts in hand, `owed` convicts a row whose check failed
     and covers one whose check passed; an entry naming the row answers it."""
     from torve.domain.task import InheritedDecision
-    from torve.gates.decisions_reported import owed
+    from torve.gates.log_entry import owed
 
     checked = InheritedDecision(
         id="S-0009/D-1", grade="LOCKED", text="x", paths=["src/**"], check="pytest tests/test_x.py"
@@ -928,7 +853,7 @@ def test_a_manifest_that_runs_rows_at_completion_gives_an_attempt_none(repo):
 
 def test_a_row_with_a_check_is_covered_and_owes_no_entry():
     from torve.domain.task import InheritedDecision
-    from torve.gates.decisions_reported import owed
+    from torve.gates.log_entry import owed
 
     checked = InheritedDecision(
         id="S-0009/D-1", grade="LOCKED", text="x", paths=["src/**"], check="pytest tests/test_x.py"
@@ -1073,323 +998,15 @@ def test_acceptance_reports_the_suite_on_a_red_verdict_too(tmp_path):
     assert "33 skipped" in outcome.output
 
 
-# ----------------------- #
-# `red-on-base`: a test that is green against the base tree proved nothing
-# about the change under it (S-0081/D-2, S-0081/D-3, S-0081/D-4).
-
-RED_ON_BASE_GATE = Gate(
-    name="red-on-base", run="@red-on-base", state="shadow", origin="S-0081", timeout=120
-)
-
-
-@pytest.fixture
-def red_on_base(monkeypatch):
-    """The gate with its runner pointed at this interpreter, so the scratch
-    repository's suite runs without the project's own launcher."""
-
-    import shlex
-    import sys
-
-    from torve.gates import red_on_base as module
-
-    launcher = f"PYTHONPATH=src {shlex.quote(sys.executable)} -m pytest -q -p no:cacheprovider"
-    monkeypatch.setattr(module, "TEST_COMMAND", launcher)
-
-    return module.check_red_on_base
-
-
-def _changed(repo, source: str | None, test: str) -> None:
-    repo.seed()
-
-    if source is not None:
-        repo.write("src/app.py", source)
-
-    repo.write("tests/test_app.py", test)
-    repo.commit("the attempt")
-
-
-def test_red_on_base_convicts_a_test_that_passes_on_the_base_tree(repo, red_on_base):
-    _changed(
-        repo,
-        "def sign(x):\n    return 1 if x >= 0 else -1\n",
-        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
-    )
-
-    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
-
-    assert outcome.outcome == "fail"
-    assert "tests/test_app.py" in outcome.output  # the conviction names the files
-
-
-def test_red_on_base_passes_a_test_the_change_had_to_make_green(repo, red_on_base):
-    _changed(
-        repo,
-        "def sign(x):\n    return 1 if x >= 0 else -1\n",
-        "from app import sign\n\n\ndef test_sign():\n    assert sign(-1) == -1\n",
-    )
-
-    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
-
-    assert outcome.outcome == "pass", outcome.output
-
-
-def test_red_on_base_reads_test_functions_not_the_diffs_file_list(repo, red_on_base):
-    # S-0081/D-2: a comment and a blank line leave every test function's shape
-    # untouched, so nothing qualifies and nothing is run.
-    _changed(
-        repo,
-        "def sign(x):\n    return 1 if x >= 0 else -1\n",
-        "# a note for the reader\n\n\ndef test_app():\n    assert True\n",
-    )
-
-    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
-
-    assert outcome.outcome == "skipped"
-    assert "no test function differs" in outcome.output
-
-
-def test_red_on_base_does_not_judge_a_diff_that_changes_no_source(repo, red_on_base):
-    # S-0081/D-4: a contract whose whole job is adding tests is not convicted.
-    _changed(repo, None, "def test_app():\n    assert True\n\n\ndef test_more():\n    assert 2\n")
-
-    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
-
-    assert outcome.outcome == "skipped"
-    assert "no source outside the test patterns" in outcome.output
-
-
-def test_red_on_base_leaves_a_failing_candidate_to_acceptance(repo, red_on_base):
-    # S-0081/D-3: green on base, red here — one failing test is never filed
-    # under two gate names.
-    repo.seed()
-    repo.git("checkout", "-q", "main")
-    repo.write("src/app.py", "VALUE = 1\n")
-    repo.commit("the base value")
-    repo.git("checkout", "-q", f"torve/{TASK_ID}")
-    repo.git("merge", "-q", "main")
-    repo.write("src/app.py", "VALUE = 2\n")
-    repo.write(
-        "tests/test_app.py", "from app import VALUE\n\n\ndef test_value():\n    assert VALUE == 1\n"
-    )
-    repo.commit("a change its own test refutes")
-
-    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
-
-    assert outcome.outcome == "skipped"
-    assert "acceptance judges" in outcome.output
-
-
-def test_red_on_base_runs_both_trees_through_the_passs_own_executor(repo, red_on_base):
-    # S-0081/D-5: no gate command runs where the agent could have staged a
-    # shim, and only the qualifying files are named to it.
-    from dataclasses import replace
-
-    _changed(
-        repo,
-        "def sign(x):\n    return 1 if x >= 0 else -1\n",
-        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
-    )
-
-    seen: list[str] = []
-
-    def execute(command: str, timeout: float) -> tuple[int, str]:
-        seen.append(command)
-        return 0, ""
-
-    ctx = replace(context_for(repo), execute=execute)
-    outcome = red_on_base(RED_ON_BASE_GATE, ctx)
-
-    assert outcome.outcome == "fail"
-    assert len(seen) == 2  # the base tree, then this attempt's own
-    assert f"git archive {ctx.merge_base}" in seen[0]
-    assert "mktemp -d" in seen[0] and 'rm -rf "$work"' in seen[0]  # nothing outlives the call
-    assert all(command.rstrip().endswith("tests/test_app.py") for command in seen)
-    assert "tests/test_other.py" not in seen[0]  # only the qualifying files run
-
-
-# ----------------------- #
-# `red-on-base` under a refactor (S-0106/D-6): behaviour that held is what a
-# refactor is judged by, so the gate compares the two trees instead of
-# convicting a test that passes on the base one.
-
-
-def test_red_on_base_refactor_mode_passes_when_behaviour_held(repo, red_on_base):
-    from dataclasses import replace
-
-    _changed(
-        repo,
-        "def sign(x):\n    return 1 if x >= 0 else -1\n",
-        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
-    )
-
-    outcome = red_on_base(RED_ON_BASE_GATE, replace(context_for(repo), change_type="refactor"))
-
-    assert outcome.outcome == "pass", outcome.output
-    assert "behaviour held under the refactor" in outcome.output
-
-
-def test_red_on_base_refactor_mode_leaves_a_feature_document_judged_as_before(repo, red_on_base):
-    # The same change under no change type is the feature reading: a test that
-    # passes on the base tree is the conviction S-0081/D-2 asks for.
-    _changed(
-        repo,
-        "def sign(x):\n    return 1 if x >= 0 else -1\n",
-        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
-    )
-
-    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
-
-    assert outcome.outcome == "fail"
-    assert "every changed test passes on the base tree" in outcome.output
-
-
-def test_red_on_base_refactor_mode_convicts_when_behaviour_changed(repo, red_on_base):
-    from dataclasses import replace
-
-    repo.seed()
-    repo.git("checkout", "-q", "main")
-    repo.write("src/app.py", "VALUE = 1\n")
-    repo.commit("the base value")
-    repo.git("checkout", "-q", f"torve/{TASK_ID}")
-    repo.git("merge", "-q", "main")
-    repo.write("src/app.py", "VALUE = 2\n")
-    repo.write(
-        "tests/test_app.py", "from app import VALUE\n\n\ndef test_value():\n    assert VALUE == 1\n"
-    )
-    repo.commit("a refactor that changed behaviour")
-
-    outcome = red_on_base(RED_ON_BASE_GATE, replace(context_for(repo), change_type="refactor"))
-
-    assert outcome.outcome == "fail"
-    assert "behaviour changed under a refactor" in outcome.output
-
-
-def test_red_on_base_refactor_mode_passes_when_both_trees_are_red(repo, red_on_base):
-    # D-6 convicts green against red, not one exit code against another: a red
-    # on both sides — here a test failure (1) against a collection error (2) —
-    # is acceptance's to judge, so the gate must not call it changed behaviour.
-    from dataclasses import replace
-
-    _changed(
-        repo,
-        "def sign(x):\n    return 1 if x >= 0 else -1\n",
-        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
-    )
-
-    def execute(command: str, timeout: float) -> tuple[int, str]:
-        return (1, "a test failed") if "git archive" in command else (2, "a collection error")
-
-    ctx = replace(context_for(repo), change_type="refactor", execute=execute)
-    outcome = red_on_base(RED_ON_BASE_GATE, ctx)
-
-    assert outcome.outcome == "pass", outcome.output
-    assert "red on both trees" in outcome.output
-
-
-def test_red_on_base_refactor_mode_skips_when_a_tree_timed_out(repo, red_on_base):
-    # A timeout compared nothing: the base side extracts a tree and runs every
-    # inherited check, so it is the likelier one to run out of time, and a
-    # green candidate must not be convicted for it.
-    from dataclasses import replace
-
-    _changed(
-        repo,
-        "def sign(x):\n    return 1 if x >= 0 else -1\n",
-        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
-    )
-
-    def execute(command: str, timeout: float) -> tuple[int | None, str]:
-        return (None, "timed out after 300s") if "git archive" in command else (0, "1 passed")
-
-    ctx = replace(context_for(repo), change_type="refactor", execute=execute)
-    outcome = red_on_base(RED_ON_BASE_GATE, ctx)
-
-    assert outcome.outcome == "skipped", outcome.output
-    assert "timed out on the base tree" in outcome.output
-
-
-def _refactor_ctx(repo, execute, check: str = "uv run pytest -q -k nothing"):
-    """A refactor context whose contract carries one checked row."""
-
-    from dataclasses import replace
-
-    from torve.domain.task import InheritedDecision, Task
-
-    row = InheritedDecision(
-        id="S-0009/D-1",
-        grade="LOCKED",
-        text="the check decides",
-        paths=["src/**"],
-        check=check,
-    )
-    task = Task(id=TASK_ID, role="implement", decisions=[row], acceptance=[])
-
-    return replace(context_for(repo), change_type="refactor", task=task, execute=execute)
-
-
-def test_red_on_base_refactor_mode_runs_the_inherited_checks_on_both_trees(repo, red_on_base):
-    _changed(
-        repo,
-        "def sign(x):\n    return 1 if x >= 0 else -1\n",
-        "def test_arithmetic():\n    assert 1 + 1 == 2\n",
-    )
-
-    seen: list[str] = []
-
-    def execute(command: str, timeout: float) -> tuple[int, str]:
-        seen.append(command)
-        return 0, ""
-
-    ctx = _refactor_ctx(repo, execute)
-    outcome = red_on_base(RED_ON_BASE_GATE, ctx)
-
-    assert outcome.outcome == "pass", outcome.output
-    assert len(seen) == 2  # the base tree's script, then this attempt's own
-    assert f"git archive {ctx.merge_base}" in seen[0]  # the check ran on the base tree
-    assert "uv run pytest -q -k nothing" in seen[0]
-    assert seen[1].endswith("uv run pytest -q -k nothing")
-
-
-def test_red_on_base_refactor_mode_runs_the_checks_with_no_changed_test_file(repo, red_on_base):
-    # A source-only refactor changes no test file, so the inherited checks are
-    # all there is to compare.
-    repo.seed()
-    repo.git("checkout", "-q", "main")
-    repo.write("src/app.py", "VALUE = 1\n")
-    repo.commit("the base value")
-    repo.git("checkout", "-q", f"torve/{TASK_ID}")
-    repo.git("merge", "-q", "main")
-    repo.write("src/app.py", "VALUE = 2\n")
-    repo.commit("a source-only refactor")
-
-    seen: list[str] = []
-
-    def execute(command: str, timeout: float) -> tuple[int, str]:
-        seen.append(command)
-        return 0, ""
-
-    outcome = red_on_base(RED_ON_BASE_GATE, _refactor_ctx(repo, execute))
-
-    assert outcome.outcome == "pass", outcome.output
-    assert len(seen) == 2
-    assert "test_app.py" not in seen[0]
-    assert "uv run pytest -q -k nothing" in seen[1]
-
-
-def test_decisions_a_bare_local_id_names_the_tasks_own_row(repo):
+def test_decisions_a_bare_local_id_names_the_tasks_own_row():
     """A log entry may cite the row as the contract spells it (`S-0012/D-2`)
     or as the document's prose does (`D-2`). bloomery T-0007 wrote the bare
     form for three rows and was convicted for having written nothing."""
-    locked = {"id": "S-0012/D-2", "grade": "LOCKED", "text": "a rung", "paths": ["src/**"]}
-    repo.seed()
-    repo.task(
-        base_task(allow=["src/**"], decisions=[locked]),
-        log_document(entry(decision="D-2", grade="LOCKED", action="decided")),
-    )
-    repo.write("src/app.py", "print('x')\n")
-    repo.commit("touches the governed file")
-    result = check_decisions_reported(GATE, context_for(repo))
-    assert result.outcome == "pass", result.output
+    from torve.domain.task import InheritedDecision
+
+    locked = InheritedDecision(id="S-0012/D-2", grade="LOCKED", text="a rung", paths=["src/**"])
+    problems, _skipped = owed([locked], ["src/app.py"], ["D-2"])
+    assert problems == [], problems
 
 
 def test_scope_admits_the_lock_file_of_a_manifest_it_admits(repo):
@@ -1504,399 +1121,3 @@ def test_an_empty_allow_is_unconstrained_and_promotes_nothing(repo):
 
     assert result.outcome == "pass", result.output
     assert "promoted" not in result.output
-
-
-# S-0106/D-7: red-on-base runs a changed test file with the manifest's
-# `tests.run`, and a file the gate cannot parse into functions qualifies whole.
-
-
-def test_red_on_base_adapter_runs_the_manifest_command_and_qualifies_whole(repo):
-    from torve.gates.red_on_base import check_red_on_base
-
-    manifest = dict(
-        BASE_MANIFEST,
-        tests={
-            "patterns": ["src/**/*_test.go"],
-            "run": "sh -c 'echo ADAPTER-RAN; exit 1'",
-            "pair": ["{dir}/{stem}_test.go"],
-        },
-    )
-    repo.seed(manifest)
-    repo.write("src/foo/bar.go", "package foo\n\nfunc Bar() int { return 1 }\n")
-    repo.write("src/foo/bar_test.go", "package foo\n\nfunc TestBar(t *testing.T) {}\n")
-    repo.commit("the attempt")
-
-    outcome = check_red_on_base(RED_ON_BASE_GATE, context_for(repo))
-
-    # The Go file has no Python functions to parse, so it qualifies whole and
-    # is run — with the manifest's command, whose marker reaches the output.
-    assert outcome.outcome == "pass", outcome.output
-    assert "src/foo/bar_test.go" in outcome.output
-    assert "ADAPTER-RAN" in outcome.output
-
-
-def test_red_on_base_ignores_a_data_file_under_the_test_patterns(repo, red_on_base):
-    """S-0106/D-7 with the defaults: the Python reading is unchanged. The
-    `tests/**` pattern matches a golden and a fixture beside the test, but
-    neither is a test source — the golden parses into no test function, and the
-    fixture the gate cannot parse is not a suffix the pairing names — so
-    neither qualifies whole, and a trivially-true test beside them is still
-    convicted rather than their collection error reading as the healthy red."""
-    repo.seed()
-    repo.write("src/pkg/core.py", "def core():\n    return 1\n")
-    repo.write("tests/test_core.py", "def test_trivial():\n    assert True\n")
-    repo.write("tests/golden/core.json", '[\n  {"n": 1},\n  {"n": 2}\n]\n')
-    repo.write("tests/fixtures/runbook.md", "# notes\n\nsee [the runbook\n")
-    repo.commit("the attempt")
-
-    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
-
-    assert outcome.outcome == "fail", outcome.output
-    assert "tests/test_core.py" in outcome.output
-    assert "tests/golden/core.json" not in outcome.output
-    assert "tests/fixtures/runbook.md" not in outcome.output
-
-
-def test_red_on_base_qualifies_an_unparseable_test_source_whole(repo, red_on_base):
-    """S-0106/D-7: a `.py` test file the gate cannot parse is a test source it
-    runs whole, so a suite that will not parse is not silently skipped."""
-    repo.seed()
-    repo.write("src/pkg/core.py", "def core():\n    return 1\n")
-    repo.write("tests/test_core.py", "def test_core(:\n")
-    repo.commit("the attempt")
-
-    outcome = red_on_base(RED_ON_BASE_GATE, context_for(repo))
-
-    assert outcome.outcome == "pass", outcome.output
-    assert "tests/test_core.py" in outcome.output
-
-
-# ----------------------- #
-# `mutation`: the attempt's own tests did not notice its source going wrong
-# (S-0107/D-1, S-0107/D-2).
-
-MUTATION_GATE = Gate(
-    name="mutation", run="@mutation", state="shadow", origin="S-0107", input="worktree", timeout=120
-)
-
-MUTATION_MANIFEST = {
-    "schema_version": 1,
-    "scope": {"allow": [], "deny": []},
-    "gates": [
-        {
-            "name": "mutation",
-            "run": "@mutation",
-            "state": "shadow",
-            "origin": "S-0107",
-            "input": "worktree",
-            "timeout": 120,
-        }
-    ],
-}
-
-
-@pytest.fixture
-def mutation_gate(monkeypatch):
-    """The gate with its launcher pointed at this interpreter, so the scratch
-    repository's paired tests run without the project's own launcher."""
-
-    import shlex
-    import sys
-
-    from torve.gates import mutation as module
-
-    launcher = f"{shlex.quote(sys.executable)} -m pytest -q -p no:cacheprovider"
-    monkeypatch.setattr(module, "TEST_COMMAND", launcher)
-
-    return module.check_mutation
-
-
-def _seed_mutation(repo) -> None:
-    # The attempt battery's gate judges a task (S-0107/D-2).
-    repo.seed(MUTATION_MANIFEST)
-    repo.task(base_task(allow=["**"]), None)
-
-
-def _mutation_attempt(repo, source: str, test: str) -> None:
-    _seed_mutation(repo)
-    repo.write("src/app.py", source)
-    repo.write("tests/test_app.py", test)
-    repo.commit("the attempt")
-
-
-def _digest(root: Path) -> dict[str, str]:
-    import hashlib
-
-    # The worktree's files, not git's own: git's background maintenance writes
-    # under `.git` whenever it likes, and the gate never touches it.
-    return {
-        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted(root.rglob("*"))
-        if path.is_file() and ".git" not in path.relative_to(root).parts
-    }
-
-
-def test_mutation_gate_scores_a_suite_that_pins_every_line_one(repo, mutation_gate):
-    _mutation_attempt(repo, MUTATION_APP, MUTATION_STRONG_TEST)
-
-    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
-
-    assert outcome.outcome == "pass", outcome.output
-    assert "score 1.00" in outcome.output
-    assert "survived 0" in outcome.output
-
-
-def test_mutation_gate_scores_a_suite_that_asserts_nothing_zero(repo, mutation_gate):
-    _mutation_attempt(repo, MUTATION_APP, MUTATION_WEAK_TEST)
-
-    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
-
-    assert outcome.outcome == "fail", outcome.output
-    assert "score 0.00" in outcome.output
-
-    # Every mutant survived, and every one of them is named as a survivor.
-    header, _, listed = outcome.output.partition("survivors:\n")
-    survivors = [line for line in listed.splitlines() if line.strip()]
-
-    assert "survived 9" in header
-    assert len(survivors) == 9
-    assert all("src/app.py:" in line and " — " in line for line in survivors), survivors
-
-
-def test_mutation_gate_skips_a_run_with_no_task(repo, mutation_gate):
-    # A document's completion battery and rebase regate judge no task; the score
-    # is an attempt's, and rerunning a whole document's tests there costs again.
-    repo.seed(MUTATION_MANIFEST)
-    repo.write("src/app.py", MUTATION_APP)
-    repo.write("tests/test_app.py", MUTATION_STRONG_TEST)
-    repo.commit("a document's diff, no task")
-
-    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
-
-    assert outcome.outcome == "skipped"
-    assert "no task" in outcome.output
-
-
-def test_mutation_gate_skips_a_change_with_no_python_source(repo, mutation_gate):
-    _seed_mutation(repo)
-    repo.write("tests/test_app.py", MUTATION_WEAK_TEST)
-    repo.commit("a test-only change")
-
-    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
-
-    assert outcome.outcome == "skipped", outcome.output
-    assert "no Python source" in outcome.output
-
-
-def test_mutation_gate_skips_a_change_with_no_paired_tests(repo, mutation_gate):
-    _seed_mutation(repo)
-    repo.write("src/app.py", MUTATION_APP)
-    (repo.root / "tests" / "test_app.py").unlink()
-    repo.commit("a change with no test to score it")
-
-    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
-
-    assert outcome.outcome == "skipped", outcome.output
-    assert "no test pairs" in outcome.output
-
-
-def test_mutation_gate_puts_each_file_back_before_the_next_mutant(repo, mutation_gate):
-    # `a.py`'s tests pin it and `b.py`'s assert nothing. Were `a.py` left on its
-    # last mutant, its test would fail under every `b.py` mutant and call them
-    # killed.
-    _seed_mutation(repo)
-    repo.write("src/a.py", MUTATION_APP)
-    repo.write("src/b.py", MUTATION_APP)
-    repo.write("tests/test_a.py", MUTATION_STRONG_TEST.replace("from app import", "from a import"))
-    repo.write("tests/test_b.py", MUTATION_WEAK_TEST.replace("from app import", "from b import"))
-    repo.commit("two modules")
-
-    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
-
-    _, _, listed = outcome.output.partition("survivors:\n")
-    survivors = [line for line in listed.splitlines() if line.strip()]
-
-    assert "killed 9, survived 9" in outcome.output, outcome.output
-    assert all(line.startswith("src/b.py:") for line in survivors), survivors
-
-
-def test_mutation_gate_scores_a_module_larger_than_one_shell_argument(repo, mutation_gate):
-    # The run carries edits, not files: a module past the kernel's 128 KB cap on
-    # one argument is scored like any other.
-    padding = '"""' + "x" * 200_000 + '"""\n'
-    _seed_mutation(repo)
-    repo.write("src/app.py", padding + MUTATION_APP)
-    repo.write("tests/test_app.py", MUTATION_STRONG_TEST)
-    repo.commit("a large module")
-
-    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
-
-    assert outcome.outcome == "pass", outcome.output
-    assert "score 1.00" in outcome.output
-
-
-def test_mutation_gate_restores_a_module_whose_name_begins_with_a_dash(repo, mutation_gate):
-    # `cp -app.py` reads the name as options; the restore must not, or the
-    # module would stay on one mutant while the next is applied over it. Under
-    # tests that assert nothing every mutant survives, so a stacked edit that
-    # breaks the module shows as a kill.
-    _seed_mutation(repo)
-    repo.write("-app.py", MUTATION_APP)
-    repo.write(
-        "tests/test_-app.py",
-        MUTATION_WEAK_TEST.replace('parents[1] / "src"', "parents[1]").replace(
-            "from app import f", 'f = __import__("-app").f'
-        ),
-    )
-    repo.commit("a module named with a dash")
-
-    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
-
-    assert "killed 0, survived 9" in outcome.output, outcome.output
-
-
-def test_mutation_gate_runs_a_launcher_written_as_a_shell_line(repo, mutation_gate, monkeypatch):
-    import shlex
-    import sys
-
-    from torve.gates import mutation as module
-
-    launcher = f"cd . && {shlex.quote(sys.executable)} -m pytest -q -p no:cacheprovider"
-    monkeypatch.setattr(module, "TEST_COMMAND", launcher)
-    _mutation_attempt(repo, MUTATION_APP, MUTATION_STRONG_TEST)
-
-    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
-
-    assert outcome.outcome == "pass", outcome.output
-
-
-def test_mutation_gate_never_mutates_through_a_symlink(repo, mutation_gate, tmp_path):
-    # A module reached through a link would be written through it, outside the
-    # scratch copy. A link's diff is its one line, so the target's first line
-    # is where the mutants would land.
-    source = "f = lambda a, b: a + 1 if a < b else b\n"
-    outside = tmp_path / "outside.py"
-    outside.write_text(source, encoding="utf-8")
-    _seed_mutation(repo)
-    linked = repo.root / "src" / "app.py"
-    linked.parent.mkdir(exist_ok=True)
-    linked.unlink(missing_ok=True)
-    linked.symlink_to(outside)
-    repo.write("tests/test_app.py", MUTATION_WEAK_TEST)
-    repo.commit("a linked module")
-
-    outcome = mutation_gate(MUTATION_GATE, context_for(repo))
-
-    assert outcome.outcome == "skipped", outcome.output
-    assert outside.read_text(encoding="utf-8") == source
-
-
-def test_a_mutation_run_missing_a_marker_is_an_error_not_a_score():
-    from torve.gates.mutation import _verdict, mutants
-
-    patch = (
-        "diff --git a/src/app.py b/src/app.py\n--- /dev/null\n+++ b/src/app.py\n"
-        "@@ -0,0 +1,4 @@\n" + "".join(f"+{line}\n" for line in MUTATION_APP.splitlines())
-    )
-    found = mutants(patch, {"src/app.py": MUTATION_APP})
-    # Every marker but the last: the output was cut short.
-    output = "\n".join(f"K {index}" for index in range(len(found) - 1))
-
-    outcome = _verdict(output, found)
-
-    assert outcome.outcome == "error"
-    assert f"reported {len(found) - 1} of {len(found)}" in outcome.output
-
-
-def test_mutation_gate_leaves_the_worktree_byte_identical(repo, mutation_gate):
-    _mutation_attempt(repo, MUTATION_APP, MUTATION_STRONG_TEST)
-
-    before = _digest(repo.root)
-    mutation_gate(MUTATION_GATE, context_for(repo))
-    after = _digest(repo.root)
-
-    assert after == before
-
-
-def test_the_source_layout_gate_reads_the_layout_source_root(repo):
-    """S-0110/D-8: the changed Python files the gate judges are the ones under
-    the layout's source root, `<root>/src/` — a project under `app/` is checked
-    at `app/src/`, and a file the repository keeps at `src/` is not the
-    project's source at all."""
-
-    from torve.gates.source_layout import check_source_layout
-
-    repo.seed(dict(BASE_MANIFEST, layout={"root": "app"}))
-    repo.write("src/torve/models.py", "X = 1\n")
-    repo.commit("a catch-all name beside the project")
-
-    outside = check_source_layout(GATE, context_for(repo))
-
-    assert outside.outcome == "pass", outside.output
-    assert "0 changed source file(s)" in outside.output
-
-    repo.write("app/src/torve/models.py", "X = 1\n")
-    repo.commit("a catch-all name inside the project")
-
-    inside = check_source_layout(GATE, context_for(repo))
-
-    assert inside.outcome == "fail", inside.output
-    assert "app/src/torve/models.py" in inside.output
-
-
-# ....................... #
-
-
-def test_no_other_gate_in_the_battery_sees_the_held_out_files(repo):
-    """S-0116/D-10: the held-out files exist for the held-out gate's run and
-    no other. A gate that comes after it in the same battery, told to look
-    for them, finds nothing — and the directory is gone from the checkout."""
-
-    repo.seed(
-        {
-            "schema_version": 1,
-            "scope": {"allow": [], "deny": []},
-            "tests": {"run": "pytest -q -p no:cacheprovider"},
-            "gates": [
-                {
-                    "name": "held-out",
-                    "run": "@held-out",
-                    "state": "blocking",
-                    "origin": "S-0116",
-                    "timeout": 5,
-                },
-                {
-                    "name": "watches-the-holdout",
-                    "run": "! test -e tests/verify/holdout",
-                    "state": "blocking",
-                    "origin": "S-0116",
-                },
-            ],
-        }
-    )
-    repo.task(base_task(allow=["tests/**"]), None)
-    repo.commit("a candidate that satisfies the held-out property")
-
-    context = context_for(repo, base="main")
-    context.holdout = [
-        HoldoutFile(name="test_p4.py", text="# S-0116/D-10\ndef test_row():\n    assert True\n")
-    ]
-
-    report = run_gates(context)
-    outcomes = {one.name: one.outcome for one in report.results}
-
-    assert outcomes["held-out"] == "pass"
-    assert outcomes["watches-the-holdout"] == "pass"
-    assert not (repo.root / "tests" / "verify" / "holdout").exists()
-
-
-# ----------------------- #
-# The builtin registry: `evidence` is dispatched by name like every other
-# builtin (S-0115/D-2).
-
-
-def test_the_evidence_builtin_is_registered():
-    from torve.gates import BUILTINS
-    from torve.gates.row_evidence import check_evidence
-
-    assert BUILTINS["evidence"] is check_evidence

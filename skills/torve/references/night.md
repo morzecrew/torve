@@ -108,7 +108,7 @@ while :; do
   uv venv --allow-existing -q "$engine"
   SETUPTOOLS_SCM_PRETEND_VERSION=$images \
     uv pip install -q --reinstall-package torve --python "$engine/bin/python" \
-    "torve[opensandbox,postgres,migrate] @ file://$root" || exit 1
+    "torve[postgres,migrate] @ file://$root" || exit 1
   "$engine/bin/torve" --plain manager serve torve --night --chain --config "$config" --root "$root"
   status=$?
   [ "$status" -eq 6 ] || exit "$status"
@@ -212,10 +212,10 @@ what a pass did in its detail line and in the `issue_drafted` and
   to tonight's tasks. A task moves through queued, claimed or running, gated,
   ready, landed. Escalated or halted means it waits for you.
 - When the escalation queue reaches `loop.pause_escalations` every pass is
-  paused on purpose: a paused pass mints nothing, runs no standing job and
+  paused on purpose: a paused pass mints nothing, drafts no labelled issue and
   opens no review round. It does not stop work already on the board — queued
-  tasks are still claimed and run, an in-flight attempt finishes, the
-  notification relay pages, and with `promotion.landing: pull_request` the
+  tasks are still claimed and run, an in-flight attempt finishes, and with
+  `promotion.landing: pull_request` the
   lane still lands green candidates on their branches and republishes their
   pull requests. Resolve escalations until the queue is below the threshold
   (see `torve guide torve escalations`) to let new work through again.
@@ -231,29 +231,6 @@ what a pass did in its detail line and in the `issue_drafted` and
   seat under a broker stops at its next tool call, any other seat when its
   session ends. The attempt keeps its tree on the task's branch and escalates
   as `killed`.
-
-## With the verify pilot on
-
-When the configuration turns the pilot on (`verify.enabled: true`), a phase
-whose document is a `feat` or `fix` and whose scope reaches `src/` mints a
-verify task before its implement task. The verifier writes that phase's tests
-from the rows and the intent alone and lands them failing; the implementer
-that depends on it runs them. Starting, watching and stopping a night are
-unchanged — the board just carries one more task per such phase, and its
-implement task waits on the verifier.
-
-Read a held-out failure in the implement task's gate output, never from the
-attempt that wrote the test: `held-out` reports the failing test's
-identifier, its message and the rows it cites, and never the test's source.
-A verify task convicted by `verify-tests` — its file does not collect, an
-entry row no test cites, or a test that already passes before the
-implementation exists — comes back to you the same way.
-
-A disputed verifier test arrives as an `underspecified` escalation: the
-implementer halts with a divergence entry naming the test and the row it
-claims to decide, and is refused the file, so the test is never edited by the
-side that disagrees with it. Take it through `torve guide torve escalations`
-as any other `underspecified` halt.
 
 ## Stop
 

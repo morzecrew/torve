@@ -13,14 +13,10 @@ routing that tier must pass (S-0004/D-8).
 
 The tick's leg bundles left with the standing loop (S-0019/A-8); what they wired
 is now the manager's pass, `torve merge` and `torve reap`.
-
-`build_notifier` resolves the notification destination (S-0051 S-0051/D-3,
-S-0051/D-4), following the broker's `none`-by-default precedent (S-0021/D-9).
 """
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -31,7 +27,7 @@ if TYPE_CHECKING:
     from torve.application.dispatch import RunDeps
     from torve.application.executors import Prepare
     from torve.application.intake import IntakeOutcome
-    from torve.application.ports import Agent, Notifier, Vcs, WorkspacePort
+    from torve.application.ports import Agent, Vcs, WorkspacePort
     from torve.application.residency import Issues
     from torve.cli.options import RuntimeName
     from torve.config.runconfig import RunnerConfig, TierConfig
@@ -82,8 +78,8 @@ def review_agent_for(config: RunnerConfig, root: Path) -> Agent | None:
 # ....................... #
 
 
-# The intake leg is built here so the manager and the fleet wire one builder:
-# S-0119/D-8 places it after the standing leg and before the mint, S-0119/D-1
+# The intake leg is built here so the manager wires one builder: S-0119/D-8
+# places it after the review-thread leg and before the mint, S-0119/D-1
 # makes the label its one switch, S-0119/D-7 keeps the drafting path shared
 # with the command, and S-0044/A-11 is why nothing here may raise out.
 def issues_leg(
@@ -103,8 +99,7 @@ def issues_leg(
     Everything is built inside the leg so `_leg` protects the call: anything
     raised while building one would take the whole pass down. An agent that
     cannot be built is the leg's own answer, not an exception — the detail
-    line names it and the rest of the pass runs. The manager and the fleet
-    both wire this one builder, so a change to the intake wiring lands once.
+    line names it and the rest of the pass runs.
     """
 
     agent: Agent | None = None
@@ -303,27 +298,3 @@ def build_dispatch_prepare(
 
 
 # ....................... #
-
-
-def build_notifier(config: RunnerConfig) -> Notifier:
-    """The destination in force.
-
-    `none` by default and explicitly: a repository that has not chosen a
-    destination sends nothing because somebody decided that, which is the
-    broker's `none` adapter's precedent. An unknown adapter is a
-    configuration error rather than a silent fallback to silence — a
-    notifier that quietly does nothing is the failure this whole document
-    exists to end.
-    """
-
-    from torve.adapters.notify import NoNotifier, WebhookNotifier
-
-    if config.notify.adapter == "none":
-        return NoNotifier()
-
-    if config.notify.adapter == "webhook":
-        return WebhookNotifier(
-            os.environ.get(config.notify.url_env, ""), timeout_s=config.notify.timeout_s
-        )
-
-    raise ValueError(f"unknown notify adapter {config.notify.adapter!r} — one of: none, webhook")

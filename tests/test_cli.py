@@ -285,8 +285,11 @@ def _doctor_repo(tmp_path, config):
     return root
 
 
-def test_doctor_names_the_mock_store_as_test_only(tmp_path):
-    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "opensandbox"}})
+def test_doctor_names_the_mock_store_as_test_only(tmp_path, monkeypatch):
+    root = _doctor_repo(tmp_path, {})
+    monkeypatch.setattr(
+        "torve.cli.options.runtime_for", _fake_docker_runtime("sha256:" + "ab" * 32)
+    )
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
     checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
     assert checks["store"]["ok"] is True
@@ -295,8 +298,9 @@ def test_doctor_names_the_mock_store_as_test_only(tmp_path):
 
 def test_doctor_reds_on_a_postgres_store_with_no_dsn(tmp_path, monkeypatch):
     monkeypatch.delenv("TORVE_PG_DSN", raising=False)
-    root = _doctor_repo(
-        tmp_path, {"runtime": {"adapter": "opensandbox"}, "store": {"adapter": "postgres"}}
+    root = _doctor_repo(tmp_path, {"store": {"adapter": "postgres"}})
+    monkeypatch.setattr(
+        "torve.cli.options.runtime_for", _fake_docker_runtime("sha256:" + "ab" * 32)
     )
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
     assert result.exit_code == 3
@@ -311,8 +315,9 @@ def test_doctor_reds_on_a_postgres_store_that_does_not_answer(tmp_path, monkeypa
     monkeypatch.setenv(
         "TORVE_PG_DSN", "postgresql://nobody:nothing@127.0.0.1:1/none?connect_timeout=1"
     )
-    root = _doctor_repo(
-        tmp_path, {"runtime": {"adapter": "opensandbox"}, "store": {"adapter": "postgres"}}
+    root = _doctor_repo(tmp_path, {"store": {"adapter": "postgres"}})
+    monkeypatch.setattr(
+        "torve.cli.options.runtime_for", _fake_docker_runtime("sha256:" + "ab" * 32)
     )
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
     assert result.exit_code == 3
@@ -329,34 +334,7 @@ def _fake_docker_runtime(digest):
     return lambda config, override: _FakeRuntime()
 
 
-def test_doctor_names_an_eval_ledger_verdict_for_the_configured_digest(tmp_path, monkeypatch):
-    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "docker"}})
-    digest = "sha256:" + "ab" * 32
-    monkeypatch.setattr("torve.cli.options.runtime_for", _fake_docker_runtime(digest))
-
-    ledger = root / ".torve" / "evals.jsonl"
-    ledger.write_text(
-        json.dumps(
-            {
-                "kind": "config-eval",
-                "at": "2026-08-20T11:04:12Z",
-                "digests": {"incumbent": digest, "candidate": "sha256:" + "cd" * 32},
-                "candidate_matched": True,
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
-    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
-    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
-    image_check = checks["image python:3.13-slim"]
-    assert image_check["ok"] is True
-    assert "incumbent verdict from 2026-08-20T11:04:12Z" in image_check["detail"]
-    assert "candidate_matched=True" in image_check["detail"]
-
-
-def test_doctor_image_check_is_unchanged_with_no_eval_ledger(tmp_path, monkeypatch):
+def test_doctor_image_check_prints_the_runtime_digest(tmp_path, monkeypatch):
     root = _doctor_repo(tmp_path, {"runtime": {"adapter": "docker"}})
     digest = "sha256:" + "ab" * 32
     monkeypatch.setattr("torve.cli.options.runtime_for", _fake_docker_runtime(digest))
@@ -425,38 +403,6 @@ def test_doctor_keeps_the_runtime_red_when_the_registry_cannot_resolve(tmp_path,
         "ghcr.io/morzecrew/torve-agent:0.1.1: not present in the runtime — "
         "build it (just images) or pull it"
     )
-
-
-def test_doctor_prints_the_registry_digest_under_opensandbox(tmp_path, monkeypatch):
-    # The digest rule is runtime-independent (S-0017/the-image-is-an-input-not-an-environment): under the
-    # opensandbox runtime — whose server pulls from a registry — a
-    # registry reference gets the same line, resolved from the registry.
-    root = _doctor_repo(
-        tmp_path,
-        {"runtime": {"adapter": "opensandbox", "image": "ghcr.io/morzecrew/torve-agent:0.1.1"}},
-    )
-    digest = "sha256:" + "ab" * 32
-    monkeypatch.setattr("torve.cli.doctor._registry_digest", lambda image: digest)
-
-    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
-    checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
-    image_check = checks["image ghcr.io/morzecrew/torve-agent:0.1.1"]
-    assert image_check["ok"] is True
-    assert image_check["detail"] == f"ghcr.io/morzecrew/torve-agent:0.1.1 = {digest[:19]}"
-
-
-def test_doctor_opensandbox_stays_silent_when_the_registry_cannot_resolve(tmp_path, monkeypatch):
-    # No new failure mode under opensandbox: an unresolved reference gets
-    # no image line at all, never a red doctor.
-    root = _doctor_repo(
-        tmp_path,
-        {"runtime": {"adapter": "opensandbox", "image": "ghcr.io/morzecrew/torve-agent:0.1.1"}},
-    )
-    monkeypatch.setattr("torve.cli.doctor._registry_digest", lambda image: None)
-
-    result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
-    names = [c["name"] for c in json.loads(result.stdout)["checks"]]
-    assert not any(name.startswith("image ") for name in names)
 
 
 def test_registry_digest_only_queries_explicit_registry_hosts(monkeypatch):
@@ -1146,60 +1092,6 @@ def test_the_dsn_read_stops_on_an_engine_the_install_is_outside(tmp_path, monkey
         assert refused.value.exit_code == EXIT_CONFIG
 
 
-def _fleet(config_home: Path, body: str, monkeypatch) -> None:
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
-    (config_home / "torve").mkdir(parents=True, exist_ok=True)
-    (config_home / "torve" / "fleet.yaml").write_text(body, encoding="utf-8")
-
-
-def test_the_partition_defaults_to_the_one_the_fleet_manifest_names(tmp_path, monkeypatch):
-    """#196: a task minted into the store answered "no task" from `torve why`
-    unless the operator named its partition. The fleet manifest is where a
-    root's partition is configured, so a report reads it from there."""
-
-    from torve.cli.options import partition_for
-
-    root = tmp_path / "repo"
-    root.mkdir()
-    config_home = tmp_path / "config"
-
-    # No manifest at all names nothing, and the report reads the files.
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
-    assert partition_for(root) == ""
-
-    _fleet(
-        config_home,
-        f"repositories:\n  - root: {tmp_path / 'other'}\n    trust: own\n    partition: acme/other\n"
-        f"  - root: {root}\n    trust: own\n    partition: acme/one\n",
-        monkeypatch,
-    )
-
-    assert partition_for(root) == "acme/one"
-    # What the caller typed always wins over what the manifest names.
-    assert partition_for(root, "acme/typed") == "acme/typed"
-    # A root the manifest does not list names nothing.
-    assert partition_for(tmp_path) == ""
-
-    _fleet(config_home, "repositories: [", monkeypatch)
-    assert partition_for(root) == ""
-
-
-def test_why_reads_the_configured_partition_without_the_flag(tmp_path, monkeypatch):
-    from torve.cli import why
-
-    _fleet(
-        tmp_path / "config",
-        f"repositories:\n  - root: {tmp_path}\n    trust: own\n    partition: acme/one\n",
-        monkeypatch,
-    )
-    asked: list[str] = []
-    monkeypatch.setattr(why, "_recorded", lambda dsn, partition, task_id: asked.append(partition))
-
-    CliRunner().invoke(app, ["why", "T-0001", "--root", str(tmp_path)])
-
-    assert asked == ["acme/one"]
-
-
 STORED = (
     "schema_version: 1\nstore:\n  adapter: postgres\n  dsn_env: TORVE_TEST_PG\n"
     "scm:\n  repo: acme/one\n"
@@ -1212,9 +1104,9 @@ def _configure(root: Path, body: str) -> None:
 
 
 def test_with_a_store_the_partition_falls_back_to_scm_repo(tmp_path, monkeypatch):
-    """A repository's nights are served under its `scm.repo`, so a root no
-    manifest lists reads that partition — but only with a store to read it
-    from; with none, the files answer as they always did."""
+    """A repository's nights are served under its `scm.repo`, so a root reads
+    that partition — but only with a store to read it from; with none, the
+    files answer as they always did."""
 
     from torve.cli.options import partition_for
 
@@ -1226,15 +1118,6 @@ def test_with_a_store_the_partition_falls_back_to_scm_repo(tmp_path, monkeypatch
     assert partition_for(tmp_path, dsn=dsn) == "acme/one"
     assert partition_for(tmp_path, "acme/typed", dsn) == "acme/typed"
 
-    # The manifest's entry for the root outranks the configuration.
-    _fleet(
-        tmp_path / "config",
-        f"repositories:\n  - root: {tmp_path}\n    trust: own\n    partition: acme/fleet\n",
-        monkeypatch,
-    )
-    assert partition_for(tmp_path, dsn=dsn) == "acme/fleet"
-
-    (tmp_path / "config" / "torve" / "fleet.yaml").unlink()
     _configure(tmp_path, "- not a mapping\n")
     assert partition_for(tmp_path, dsn=dsn) == ""
 
@@ -1347,7 +1230,6 @@ def test_init_writes_the_schemas_the_ignore_file_and_the_schema_lines_once(tmp_p
         "contract.json",
         "decisions.json",
         "document.json",
-        "fleet.json",
         "gates.json",
         "harness.json",
         "landing.json",
@@ -1355,7 +1237,6 @@ def test_init_writes_the_schemas_the_ignore_file_and_the_schema_lines_once(tmp_p
         "phasing.json",
         "provider.json",
         "sources.json",
-        "standing.json",
     ]
     assert json.loads((schemas / "contract.json").read_text(encoding="utf-8"))["title"] == "Task"
     assert (root / ".torve" / "specs").is_dir()  # an empty corpus checks clean
@@ -1384,29 +1265,6 @@ def test_init_writes_the_schemas_the_ignore_file_and_the_schema_lines_once(tmp_p
     assert second.exit_code == 0, second.output
     assert "0 file(s) written" in second.output
     assert {p: p.read_text(encoding="utf-8") for p in root.rglob("*") if p.is_file()} == before
-
-
-def test_init_writes_the_verify_role_and_block_into_the_schemas(tmp_path):
-    """S-0116/D-1, S-0116/D-2: the schemas are derived from the models, so the
-    verify role and the verify block reach an editor validating a contract or a
-    configuration."""
-
-    root = _bare_repo(tmp_path)
-    assert CliRunner().invoke(app, ["init", "--root", str(root)]).exit_code == 0
-
-    schemas = root / ".torve" / "schemas"
-    contract = json.loads((schemas / "contract.json").read_text(encoding="utf-8"))
-    config = json.loads((schemas / "config.json").read_text(encoding="utf-8"))
-
-    assert contract["properties"]["role"]["enum"] == [
-        "implement",
-        "review",
-        "revert",
-        "draft",
-        "verify",
-    ]
-    assert config["properties"]["verify"]["$ref"] == "#/$defs/VerifyConfig"
-    assert config["$defs"]["VerifyConfig"]["properties"]["variant"]["default"] == "verify"
 
 
 def test_init_writes_the_revision_variant_into_the_config_schema(tmp_path):
@@ -1664,7 +1522,7 @@ def test_init_starter_sets_up_a_repository_the_gates_pass(repo):
 
     assert run.exit_code == 0, run.output
     names = {r["name"] for r in json.loads(run.stdout)["results"]}
-    assert {"scope", "secrets", "no-test-tampering", "decisions-reported"} <= names
+    assert {"scope", "secrets", "no-test-tampering"} <= names
 
 
 def test_init_starter_leaves_an_existing_file_alone_and_plain_init_writes_neither(tmp_path):
@@ -1682,7 +1540,7 @@ def test_init_starter_leaves_an_existing_file_alone_and_plain_init_writes_neithe
     assert starter.exit_code == 0, starter.output
     assert "config.yaml  exists, left alone" in starter.output
     assert (root / ".torve" / "config.yaml").read_text(encoding="utf-8") == before
-    assert "@decisions-reported" in (root / ".torve" / "gates.yaml").read_text(encoding="utf-8")
+    assert "@no-test-tampering" in (root / ".torve" / "gates.yaml").read_text(encoding="utf-8")
 
 
 # ----------------------- #
@@ -1733,17 +1591,10 @@ def test_init_starter_equips_the_role_skills(tmp_path):
     assert set(sets["implement"]) == {"working-rules", "flag-dont-flip"}
     assert set(sets["revert"]) == {"working-rules", "flag-dont-flip"}
     assert set(sets["review"]) == {"working-rules"}
-    # S-0116/D-6: the verify seat is equipped with the verifier's brief.
-    assert set(sets["verify"]) == {"working-rules", "verifier"}
 
     written = materialize("implement", root / ".torve" / "skills", sets)
 
     assert sorted(written) == ["flag-dont-flip", "working-rules"]
-
-    verifier = materialize("verify", root / ".torve" / "skills", sets)
-
-    assert sorted(verifier) == ["verifier", "working-rules"]
-    assert (root / ".torve" / "skills" / "verifier" / "SKILL.md").is_file()
 
     # S-0110/D-6: the starter implement profile also equips the shipped hooks,
     # so a fresh adopter's seat reaches its guard without a copy in the tree.

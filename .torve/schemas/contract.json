@@ -164,7 +164,7 @@
     }
   },
   "additionalProperties": false,
-  "description": "The task contract, `.torve/tasks/T-NNNN/contract.yaml` (S-0001/domain, \u00a76).\n\n`decisions` has no default on purpose: an empty list is legal but must be\nexplicit (S-0007/D-5), so `decisions-reported` can distinguish \"none apply\"\nfrom \"the field was forgotten\".",
+  "description": "The task contract, `.torve/tasks/T-NNNN/contract.yaml` (S-0001/domain, \u00a76).\n\n`decisions` has no default on purpose: an empty list is legal but must be\nexplicit (S-0007/D-5), so a reader can distinguish \"none apply\" from \"the\nfield was forgotten\".",
   "properties": {
     "acceptance": {
       "description": "Shell commands; exit 0 is satisfied.",
@@ -243,13 +243,12 @@
     },
     "role": {
       "default": "implement",
-      "description": "What the run does: implement, review (S-0005/D-9), revert (S-0010), draft\n(S-0020) or verify (S-0116/D-1).",
+      "description": "What the run does: implement, review (S-0005/D-9), revert (S-0010) or draft\n(S-0020).",
       "enum": [
         "implement",
         "review",
         "revert",
-        "draft",
-        "verify"
+        "draft"
       ],
       "title": "Role",
       "type": "string"
@@ -289,11 +288,11 @@
         }
       ],
       "default": null,
-      "description": "The document the contract was minted from, by identifier and never by path\n(S-0059/D-1) \u2014 `document_dir` is the one lookup that finds it. None is the\ndocument-less lane: an operator's ask, a standing job.",
+      "description": "The document the contract was minted from, by identifier and never by path\n(S-0059/D-1) \u2014 `document_dir` is the one lookup that finds it. None is the\ndocument-less lane: an operator's ask.",
       "title": "Spec"
     },
     "targets": {
-      "description": "The tasks a review examines (S-0005/the-review-contract, S-0005/D-9) or the\ntasks and shas a revert undoes (S-0010/revert-as-a-role): the contract shape\nis parameterised by role, no new mechanism. Only those two roles carry targets;\na verify task names none (S-0116/D-1).",
+      "description": "The tasks a review examines (S-0005/the-review-contract, S-0005/D-9) or the\ntasks and shas a revert undoes (S-0010/revert-as-a-role): the contract shape\nis parameterised by role, no new mechanism. Only those two roles carry targets.",
       "items": {
         "type": "string"
       },

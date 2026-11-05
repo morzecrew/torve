@@ -46,7 +46,6 @@ if TYPE_CHECKING:
     from torve.application.lane import (
         Forge,
         GateSandbox,
-        HoldoutReader,
         LaneJudgment,
         LaneResult,
         Publisher,
@@ -54,7 +53,7 @@ if TYPE_CHECKING:
     )
     from torve.application.ports import CiStatus, Runtime, SandboxHandle, SandboxSpec, StatusScm
     from torve.config.runconfig import RunnerConfig
-    from torve.domain.events import EventRecord, HoldoutFile
+    from torve.domain.events import EventRecord
 
 # ----------------------- #
 
@@ -173,7 +172,6 @@ def _document_pr_text(
     from any host, and a host whose stream is empty lists the same results.
     """
 
-    from torve.application.evidence_matrix import board_findings, read_table, with_findings
     from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
     from torve.application.lane import (
         carried_contract,
@@ -214,15 +212,7 @@ def _document_pr_text(
             )
         )
 
-    # S-0115/D-6: the table is the one measured on the tip being published,
-    # never a battery's reading of another tip. Its findings come off the same
-    # board as the gate results, so no stream is read for them (S-0099/D-6).
-    table = read_table(root, tip or "")
-
-    if table:
-        table = with_findings(table, board_findings(records, task_ids))
-
-    title, body = compose_document_pr(document, landings, root, table)
+    title, body = compose_document_pr(document, landings, root)
 
     return title, body, document_complete(document, landings, root)
 
@@ -530,39 +520,6 @@ def _resolved(root: Path, config: RunnerConfig) -> set[str]:
     # exception, not an OSError, for a database it cannot reach.
     except Exception:
         return set()
-
-
-# ....................... #
-
-
-def _holdouts(root: Path, config: RunnerConfig) -> HoldoutReader:
-    """The held-out properties a task's verifier recorded (S-0116/D-14): the
-    reader the lane's completion is handed, folded from one read of the log,
-    as `_resolved` folds the board's resolutions. No partition, or no
-    reachable store, reads nothing — and a document with no record commits
-    nothing."""
-
-    partition = config.scm.repo
-
-    if not partition:
-        return lambda _task: []
-
-    from torve.application.lane import recorded_holdouts
-    from torve.cli.options import dsn_for, read_log
-    from torve.domain.events import SubjectType
-
-    async def read(log: Any) -> dict[str, list[HoldoutFile]]:
-        return recorded_holdouts(await log.of_subject_type(SubjectType.TASK, partition=partition))
-
-    try:
-        table = read_log(dsn_for(root), read)
-
-    # An unreachable store is the promised "reads nothing": a completion then
-    # commits what the corpus holds, where a crash here would cost the pass.
-    except Exception:
-        table = {}
-
-    return lambda task_id: table.get(task_id, [])
 
 
 # ....................... #
@@ -896,10 +853,6 @@ def merge_cmd(
             # sandbox over a judge checkout of the rebased tip, never on the
             # host the candidate's worktree sits on.
             gates=_lane_gates(root, config),
-            # S-0116/D-14: the recorded held-out properties a document's
-            # completion commits to its branch, read from the log this verb
-            # opens as it opens the board's resolutions.
-            holdout=_holdouts(root, config),
             # S-0118/D-9: the pass observes its batteries through this, and
             # this caller writes what it collected once the pass ends.
             on_judged=observe,

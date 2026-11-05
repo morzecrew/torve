@@ -30,7 +30,6 @@ from torve.gates import BUILTINS
 from torve.gates.acceptance import selected_nothing
 from torve.gates.context import GateContext
 from torve.gates.contract import BuiltinOutcome
-from torve.gates.decisions_reported import check_decisions_reported
 
 # ----------------------- #
 
@@ -222,13 +221,8 @@ def invariant_gates(invariants: Iterable[Invariant]) -> list[Gate]:
 # ....................... #
 
 
-def _execute(gate: Gate, ctx: GateContext, checks: dict[str, str] | None = None) -> BuiltinOutcome:
+def _execute(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
     builtin = gate.builtin
-
-    if builtin == "decisions-reported":
-        # The silence check reads a checked row's verdict from this pass's own
-        # decision gates, so a failing check leaves its row owed (S-0106/D-1).
-        return check_decisions_reported(gate, ctx, checks=checks)
 
     if builtin is not None:
         return BUILTINS[builtin](gate, ctx)
@@ -294,7 +288,7 @@ def _log_bypass(ctx: GateContext, record: BypassRecord) -> None:
         loaded: Any = yaml.safe_load(ctx.log_path.read_text(encoding="utf-8")) or {}
 
         if not isinstance(loaded, dict):
-            return  # an unreadable log is the decisions-reported gate's finding
+            return  # an unreadable log is not this append's to repair
 
         document = cast(dict[str, Any], loaded)
     else:
@@ -361,11 +355,10 @@ def battery(ctx: GateContext, only: set[str] | None = None) -> list[Gate]:
 
         gates = [g for g in gates if g.name in only]
 
-    # The contract's decision gates run first, because `decisions-reported`
-    # reads their verdicts to know whether a checked row is covered (S-0106/D-1):
-    # a check that has not run yet cannot license a row's silence. The manifest's
-    # own gates then run cheapest-first, by declared timeout as the cost proxy;
-    # manifest order breaks ties, so ordering stays deterministic and reviewable.
+    # The contract's decision gates run first, as they always have (S-0106/D-1).
+    # The manifest's own gates then run cheapest-first, by declared timeout as
+    # the cost proxy; manifest order breaks ties, so ordering stays
+    # deterministic and reviewable.
     decision = [g for g in gates if g.name.startswith(DECISION_PREFIX)]
     rest = [g for g in gates if not g.name.startswith(DECISION_PREFIX)]
 
@@ -413,7 +406,6 @@ def run_gates(
     ordered = battery(ctx, only)
     report = RunReport()
     blocking_failed = False
-    checks: dict[str, str] = {}
 
     # Every gate runs, including after a blocking one has failed (T-0234).
     # Short-circuiting there made the severity ladder inert: with the
@@ -441,9 +433,6 @@ def run_gates(
                 )
             )
 
-            if gate.name.startswith(DECISION_PREFIX):
-                checks[gate.name[len(DECISION_PREFIX) :]] = "skipped"
-
             continue
 
         if progress is not None:
@@ -454,7 +443,7 @@ def run_gates(
         started = time.monotonic()
 
         try:
-            outcome = _execute(gate, ctx, checks)
+            outcome = _execute(gate, ctx)
 
         except Exception as exc:
             outcome = BuiltinOutcome("error", f"gate infrastructure failure: {exc!r}")
@@ -487,9 +476,6 @@ def run_gates(
             _log_bypass(ctx, bypass)
 
         report.results.append(result)
-
-        if gate.name.startswith(DECISION_PREFIX):
-            checks[gate.name[len(DECISION_PREFIX) :]] = result.outcome
 
         if result.outcome in ("fail", "error") and gate.state == "blocking":
             blocking_failed = True

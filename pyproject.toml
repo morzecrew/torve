@@ -38,16 +38,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# 0.x: a minor may break the SDK the adapter imports.
-opensandbox = ["opensandbox>=0.1.15,<1.2"]
 postgres = ["forze[postgres]==0.16.2"]
 # Applied in production, absent from a gates-only CI install.
 migrate = ["yoyo-migrations>=9"]
 # The planning session's read surface — never installed into an executor image.
 mcp = ["mcp>=1.2"]
-# The loopback dashboard's HTTP stack (S-0032) — lazy-imported behind
-# the extra, so a gates-only install never pays for it.
-serve = ["starlette>=1.0", "uvicorn>=0.30"]
 
 [project.urls]
 Homepage = "https://github.com/morzecrew/torve"
@@ -82,18 +77,11 @@ dev = [
     "types-pyyaml>=6.0.12",
     "yoyo-migrations>=9",
     "mcp>=1.2",
-    # Backs the serve endpoint tests (starlette's TestClient).
-    "starlette>=1.0",
     "vulture>=2.16",
     "deptry>=0.25.1",
     "bandit>=1.9.4",
     "zizmor>=1.29.0",
     "pre-commit>=4.6.2",
-    # Back the coverage-delta gate (S-0036/the-coverage-delta-gate). Dev-only like
-    # import-linter: a check on this repository's own test evidence never
-    # ships to consumers.
-    "pytest-cov>=7.1.0",
-    "diff-cover>=10.5.1",
 ]
 docs = [
     # The documentation site under `pages/` (Zensical) and its versioning
@@ -111,11 +99,10 @@ build-backend = "hatchling.build"
 
 # What the sdist carries is named, not whatever the tree holds: without a list
 # hatch packs everything the root `.gitignore` misses — `.torve/` state and
-# telemetry, `.claude/` and `.mcp.json` with a developer's paths, `web/` with
-# its node_modules. The list is what the wheel builds from (the package and
-# its forced includes below) plus the lockfile and the changelog. Anchored:
-# the patterns match as `.gitignore` lines do, so a bare `skills` also takes
-# `.agents/skills` and `.claude/skills`, and a bare `README.md` `web/README.md`.
+# telemetry, `.claude/` and `.mcp.json` with a developer's paths. The list is
+# what the wheel builds from (the package and its forced includes below) plus
+# the lockfile and the changelog. Anchored: the patterns match as `.gitignore`
+# lines do, so a bare `skills` also takes `.agents/skills` and `.claude/skills`.
 # The version is the tag's (`v0.3.1` builds 0.3.1), so a release is a tag and a
 # changelog cut, never a hand-edited number. A build outside a clone — the
 # sandbox image's context carries no `.git` — reads `SETUPTOOLS_SCM_PRETEND_VERSION`,
@@ -203,11 +190,14 @@ source_modules = [
 ]
 forbidden_modules = ["torve.config.spec"]
 
+# Every adapter package, the broker and the event store included (S-0122/D-20).
 [[tool.importlinter.contracts]]
 name = "Adapters are independent"
 type = "independence"
 modules = [
     "torve.adapters.agent",
+    "torve.adapters.broker",
+    "torve.adapters.eventstore",
     "torve.adapters.runtime",
     "torve.adapters.workspace",
     "torve.adapters.vcs",
@@ -299,14 +289,10 @@ ignore_notebooks = true
 
 [tool.deptry.per_rule_ignores]
 DEP002 = [
-    # Imported lazily behind their extras (`torve[opensandbox]`,
-    # `torve[migrate]`, `torve[mcp]`, `torve[serve]`), so no static import
-    # ties them to the codebase.
-    "opensandbox",
+    # Imported lazily behind their extras (`torve[migrate]`, `torve[mcp]`), so
+    # no static import ties them to the codebase.
     "yoyo-migrations",
     "mcp",
-    "starlette",
-    "uvicorn",
 ]
 
 # ....................... #

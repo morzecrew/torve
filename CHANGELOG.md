@@ -22,6 +22,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the default skill roots, gives a shell command up to 900 s in the foreground,
   and reports usage and tool calls from dsh's v4 session log.
 
+### Removed
+
+- `torve eval` and `torve shadow` are gone, with the eval arms and shadow replays they
+  launched. A dispatch no longer refuses an image digest no eval verdict measured.
+
+- `torve fleet` is gone. Serve each repository with its own `torve manager serve`; a
+  report's default partition is now the configuration's `scm.repo`, and
+  `~/.config/torve/fleet.yaml` is no longer read.
+
+- `torve serve`, the web dashboard and the `serve` extra are gone.
+
+- `torve survey` is gone.
+
+- The verify role is gone: `torve plan` mints no verify tasks, and the `torve:verifier`
+  skill no longer ships. Finish any document planned with the verify pilot on before
+  upgrading: its verify tasks no longer load, and the tasks waiting on them never start.
+
+- The `mutation`, `held-out`, `verify-tests`, `decisions-reported`, `self-audit`,
+  `user-facing-text`, `source-layout`, `red-on-base` and `evidence` gates are gone. A
+  gate manifest entry naming one loads with a warning and is ignored.
+
+- A document's pull request no longer shows the Tests, Check, Survivors and Findings
+  columns in its decisions table.
+
+- Standing jobs under `.torve/standing/` no longer run, and escalations are no longer
+  sent to a webhook.
+
+- The OpenSandbox runtime and the `opensandbox` extra are gone; `runtime.adapter` takes
+  `docker` only.
+
+- The mimo, codex and opencode sandbox images are no longer defined or published.
+
+- The configuration keys `notify`, `verify`, `unmeasured_images`, `runtime.opensandbox`
+  and `loop.standing_max_per_tick`, and a seat on the mimo, codex or opencode harness,
+  still load in this release: torve ignores them and warns.
+
 ### Fixed
 
 - The dsh seat's door against `AGENTS.md`, `CLAUDE.md` and the default skill roots had

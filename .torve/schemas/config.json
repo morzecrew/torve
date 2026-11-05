@@ -2,15 +2,14 @@
   "$defs": {
     "BrokerConfig": {
       "additionalProperties": false,
-      "description": "The egress broker (S-0021/the-port): which adapter is in force and what\nit is fed. `none` is today's behaviour named explicitly \u2014 keys pass\nthrough, no metering, no wire routing \u2014 and stays the phase-1 default;\n`torve doctor` names it and says plainly that it leaves S-0001/D-13 unmet\n(S-0021/D-9). Under any other adapter a brokered tier names no credential\n(S-0021/D-1): the broker's provider table is the one channel.\n\nThe two modes are S-0021/D-3's split: `endpoint` (the phase-1 default)\ncloses custody and metering on the daemon's default bridge; `sealed`\nadds containment \u2014 the sandbox joins the user-defined internal Docker\nnetwork named here, whose only host-side address is the broker, and\nevery non-provider destination the run needs is declared under\n`pass_through` and CONNECTed without inspection. The same network is\nnamed in `runtime.network` \u2014 egress policy (this block) and sandbox\nprovisioning (`runtime`) are two views of one fact, and the runner\nvalidator refuses them to disagree (S-0021/D-11).\n\nAn endpoint whose sandboxes are remote \u2014 an OpenSandbox server on\nanother machine \u2014 configures `bind` and, across a NAT or a hostname\nsplit, `advertise`: the loopback/bridge derivation reaches nobody out\nthere, and the remote broker answers non-provider requests only with\na refusal naming the destination \u2014 the pass-through leg is a\nsealed-mode mechanism, authenticated by a topology a remote run does\nnot have.",
+      "description": "The egress broker (S-0021/the-port): which adapter is in force and what\nit is fed. `none` is today's behaviour named explicitly \u2014 keys pass\nthrough, no metering, no wire routing \u2014 and stays the phase-1 default;\n`torve doctor` names it and says plainly that it leaves S-0001/D-13 unmet\n(S-0021/D-9). Under any other adapter a brokered tier names no credential\n(S-0021/D-1): the broker's provider table is the one channel.\n\nThe two modes are S-0021/D-3's split: `endpoint` (the phase-1 default)\ncloses custody and metering on the daemon's default bridge; `sealed`\nadds containment \u2014 the sandbox joins the user-defined internal Docker\nnetwork named here, whose only host-side address is the broker, and\nevery non-provider destination the run needs is declared under\n`pass_through` and CONNECTed without inspection. The same network is\nnamed in `runtime.network` \u2014 egress policy (this block) and sandbox\nprovisioning (`runtime`) are two views of one fact, and the runner\nvalidator refuses them to disagree (S-0021/D-11).\n\nAn endpoint whose sandboxes are remote configures `bind` and, across a\nNAT or a hostname split, `advertise`: the loopback/bridge derivation reaches nobody out\nthere, and the remote broker answers non-provider requests only with\na refusal naming the destination \u2014 the pass-through leg is a\nsealed-mode mechanism, authenticated by a topology a remote run does\nnot have.",
       "properties": {
         "adapter": {
           "default": "none",
           "description": "Which broker adapter is in force: `none` is today's behaviour named explicitly \u2014\nkeys pass through, no metering, no wire routing (S-0021/D-9).",
           "enum": [
             "none",
-            "local",
-            "opensandbox"
+            "local"
           ],
           "title": "Adapter",
           "type": "string"
@@ -194,12 +193,6 @@
           "title": "Pause Escalations",
           "type": "integer"
         },
-        "standing_max_per_tick": {
-          "default": 1,
-          "description": "S-0023 S-0023/D-6: instantiations across every standing job in one pass, so spend\nper unit time stays cadence times a known bound.",
-          "title": "Standing Max Per Tick",
-          "type": "integer"
-        },
         "tick_budget": {
           "default": 3600,
           "description": "Seconds; an adoption lock older than this is stale and broken loudly.",
@@ -350,58 +343,6 @@
         }
       },
       "title": "NightConfig",
-      "type": "object"
-    },
-    "NotifyConfig": {
-      "additionalProperties": false,
-      "description": "Where an interrupt-class escalation is delivered (S-0051).\n\n`none` by default and explicitly (S-0051/D-4): a repository that has not\nchosen a destination sends nothing because somebody decided that, the\nsame shape the broker's `none` adapter takes.\n\nThe URL is the destination itself, not a credential \u2014 a webhook URL is\na bearer secret in practice, so it names an environment variable rather\nthan carrying a value into a committed file (S-0001/D-13).",
-      "properties": {
-        "adapter": {
-          "default": "none",
-          "description": "Which notify adapter is in force: none or webhook.",
-          "title": "Adapter",
-          "type": "string"
-        },
-        "attempts": {
-          "default": 5,
-          "description": "How many deliveries one escalation earns before the relay parks it (S-0051/D-7). A\nqueue that retries forever is a queue that never drains.",
-          "title": "Attempts",
-          "type": "integer"
-        },
-        "timeout_s": {
-          "default": 10.0,
-          "description": "How long one delivery attempt may take, in seconds.",
-          "title": "Timeout S",
-          "type": "number"
-        },
-        "url_env": {
-          "default": "TORVE_NOTIFY_URL",
-          "description": "The name of the environment variable holding the webhook URL the relay posts to \u2014\nthe URL is a bearer secret in practice, so it is named, never carried here\n(S-0001/D-13).",
-          "title": "Url Env",
-          "type": "string"
-        }
-      },
-      "title": "NotifyConfig",
-      "type": "object"
-    },
-    "OpenSandboxConfig": {
-      "additionalProperties": false,
-      "description": "The OpenSandbox server the runtime talks to. The advertised broker\nproxy is not a configured key here (extra=\"forbid\" refuses it in the\nyaml): `RunnerConfig` resolves it once at load from `broker.bind` /\n`broker.advertise` and publishes it on this instance \u2014 one location for\nthe address, the broker block, and one derived read, the runtime's\nproxy-env composition (S-0041/D-6: two adapters, no channel, one fact).",
-      "properties": {
-        "api_key_env": {
-          "default": "OPENSANDBOX_API_KEY",
-          "description": "The name of the environment variable holding the server's API key \u2014 the name, never\nthe key itself: configuration is committed, credentials are not.",
-          "title": "Api Key Env",
-          "type": "string"
-        },
-        "domain": {
-          "default": "localhost:5266",
-          "description": "The host:port of the OpenSandbox server the runtime adapter builds its client\nagainst.",
-          "title": "Domain",
-          "type": "string"
-        }
-      },
-      "title": "OpenSandboxConfig",
       "type": "object"
     },
     "Price": {
@@ -717,8 +658,9 @@
       "additionalProperties": false,
       "properties": {
         "adapter": {
+          "const": "docker",
           "default": "docker",
-          "description": "Which runtime adapter creates the run's sandboxes: docker or opensandbox.",
+          "description": "Which runtime adapter creates the run's sandboxes: docker, the one there is.",
           "title": "Adapter",
           "type": "string"
         },
@@ -730,7 +672,7 @@
         },
         "docker": {
           "default": "",
-          "description": "Docker inside the sandbox (S-0017/docker-inside-the-sandbox, S-0017/D-9). \"socket\"\nmounts the host daemon's socket into every sandbox of the run \u2014 attempt and gates\nalike \u2014 and the image supplies the docker CLI. Host-equivalent capability, granted\nknowingly per repository (S-0017/D-10): a container started over the host socket can\nmount any host path. \"nested\" (S-0111/D-1) starts a privileged side container running\nits own daemon and joins each sandbox of a role in `nested.roles` to it \u2014 a task's own\ncontainers, ports and volumes. The review role is refused, and so are OpenSandbox and\nsealed broker mode. OpenSandbox refuses any value here.",
+          "description": "Docker inside the sandbox (S-0017/docker-inside-the-sandbox, S-0017/D-9). \"socket\"\nmounts the host daemon's socket into every sandbox of the run \u2014 attempt and gates\nalike \u2014 and the image supplies the docker CLI. Host-equivalent capability, granted\nknowingly per repository (S-0017/D-10): a container started over the host socket can\nmount any host path. \"nested\" (S-0111/D-1) starts a privileged side container running\nits own daemon and joins each sandbox of a role in `nested.roles` to it \u2014 a task's own\ncontainers, ports and volumes. The review role is refused, and so is sealed broker\nmode.",
           "enum": [
             "",
             "socket",
@@ -751,13 +693,9 @@
         },
         "network": {
           "default": "",
-          "description": "Docker network mode (\"\" = the daemon's default bridge). \"host\" shares the host's\nnetwork stack, which is what lets a sandbox reach a proxy or VPN listening on the\nhost's loopback \u2014 the operator trades network isolation for the host's egress path,\nknowingly. Docker-only; the OpenSandbox server owns its own egress model\n(S-0003/runtime).",
+          "description": "Docker network mode (\"\" = the daemon's default bridge). \"host\" shares the host's\nnetwork stack, which is what lets a sandbox reach a proxy or VPN listening on the\nhost's loopback \u2014 the operator trades network isolation for the host's egress path,\nknowingly (S-0003/runtime).",
           "title": "Network",
           "type": "string"
-        },
-        "opensandbox": {
-          "$ref": "#/$defs/OpenSandboxConfig",
-          "description": "The OpenSandbox server the runtime talks to when the adapter is opensandbox."
         },
         "sandbox_timeout": {
           "default": 1800,
@@ -1260,40 +1198,6 @@
       },
       "title": "VcsConfig",
       "type": "object"
-    },
-    "VerifyConfig": {
-      "additionalProperties": false,
-      "description": "The verify pilot's terms (S-0116/D-2): off by default, so an adopter\nthat never sets the block mints exactly the tasks it minted before.\n\n`variant` names the seat under `executor` the verify role runs on, and a\nconfiguration that turns the pilot on without that seat refuses at load \u2014\nwhile a person is still at the terminal, not at the first dispatch of a\nverify task. `types` and `tests_dir` are what the planner reads when it\nmints a verifier; they carry the defaults the decision names.",
-      "properties": {
-        "enabled": {
-          "default": false,
-          "description": "Whether the planner mints verify tasks ahead of phasing entries (S-0116/D-2).",
-          "title": "Enabled",
-          "type": "boolean"
-        },
-        "tests_dir": {
-          "default": "tests/verify",
-          "description": "Where a verifier writes the tests it mints (S-0116/D-4).",
-          "title": "Tests Dir",
-          "type": "string"
-        },
-        "types": {
-          "description": "The document `change.type` values that earn a verifier (S-0116/D-4).",
-          "items": {
-            "type": "string"
-          },
-          "title": "Types",
-          "type": "array"
-        },
-        "variant": {
-          "default": "verify",
-          "description": "The dotted variant under `executor` the verify role runs on: the seat is\n`executor.<variant>`, and a configuration with `enabled` and no such tier is\nrefused at load.",
-          "title": "Variant",
-          "type": "string"
-        }
-      },
-      "title": "VerifyConfig",
-      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -1332,10 +1236,6 @@
     "night": {
       "$ref": "#/$defs/NightConfig",
       "description": "The terms a served night runs under (S-0079/D-5)."
-    },
-    "notify": {
-      "$ref": "#/$defs/NotifyConfig",
-      "description": "Where an interrupt-class escalation is delivered (S-0051)."
     },
     "poison_ceiling": {
       "default": 3,
@@ -1409,23 +1309,9 @@
       "$ref": "#/$defs/TracesConfig",
       "description": "Retention bounds for the durable trace store (S-0039/retention, S-0039/D-3)."
     },
-    "unmeasured_images": {
-      "default": "refuse",
-      "description": "Whether a tier may dispatch under an image no paired replay verdict has measured\n(S-0027 S-0027/D-7, as amended). `refuse` is the rule as written: a definition edit\nmust not quietly change what a seat runs under. `allow` is for a repository rebuilding\nits own engine, where the images change faster than verdicts can be recorded \u2014 the\ndispatch still records the unmeasured digest as an engine event, so the reading stays\nhonest and the measurement stays owed.",
-      "enum": [
-        "refuse",
-        "allow"
-      ],
-      "title": "Unmeasured Images",
-      "type": "string"
-    },
     "vcs": {
       "$ref": "#/$defs/VcsConfig",
       "description": "Local git at the runner boundary \u2014 the commit signing key (S-0010/signing)."
-    },
-    "verify": {
-      "$ref": "#/$defs/VerifyConfig",
-      "description": "The verify pilot's terms (S-0116/D-2), off by default."
     },
     "worker_slot": {
       "default": 0,

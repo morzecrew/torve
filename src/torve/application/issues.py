@@ -13,8 +13,7 @@ triage or more, and the title and body must not have moved since that event
 before the run is what a later pass finds (S-0119/D-5), so a failed or
 escalated draft is retried by a person, never by the loop.
 
-Everything here fails closed toward not creating work, as the standing leg
-does: a forge read that raises and a source file that cannot be written both
+Everything here fails closed toward not creating work: a forge read that raises and a source file that cannot be written both
 draft nothing and say why in the detail line.
 """
 

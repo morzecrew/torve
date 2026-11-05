@@ -30,8 +30,6 @@ read is exactly what the reaper deletes on every terminal run.
 No single corpus score is computed anywhere in this module (S-0022/D-3): a
 population's `reading` is `None` until its relevant count clears `floor`, and
 every ratio is printed beside the denominator it was taken over (S-0022/D-8).
-The one number this module carries is the `mutation` gate's score per phase
-and per document (S-0107/D-3) — a per-phase reading, not a corpus scalar.
 
 `dispatch_envelope` (S-0022/D-11, S-0022/A-3) reads the same `TaskFacts` join
 prospectively: landed tasks sharing a size verdict's class, median attempts,
@@ -70,12 +68,11 @@ from torve.base.clock import parse
 from torve.base.globs import overlap
 from torve.config import layout, spec
 from torve.config.manifest import read_layout
-from torve.domain.attempt import mutation_reading
 from torve.domain.spec import Corpus, qualify
 from torve.domain.states import TaskState
 from torve.domain.task import Scope
-from torve.gates.decisions_reported import ACTIONS as LOG_ACTIONS
-from torve.gates.decisions_reported import parse_log
+from torve.gates.log_entry import ACTIONS as LOG_ACTIONS
+from torve.gates.log_entry import parse_log
 
 # ----------------------- #
 
@@ -646,68 +643,6 @@ def promotion_counts(tasks: list[TaskFacts]) -> dict[str, Any]:
 # ....................... #
 
 
-def mutation_scores(root: Path, tasks: list[TaskFacts]) -> dict[str, Any]:
-    """The `mutation` gate's score per phase and per document (S-0107/D-3):
-    read from the record's `gates.evaluated` rows the way `_task_cost_usd`
-    reads the stream, each phase taking its latest recorded score and each
-    document the mean of its phases'. A phase whose attempts produced no
-    mutation reading is absent, so the report names exactly the phases whose
-    tests were measured and how well they noticed their own lines going
-    wrong. It is a per-phase score, never the single corpus score S-0022/D-3
-    refuses."""
-
-    spec_of = {task.id: task.spec for task in tasks}
-    by_phase: dict[str, float] = {}
-    telemetry = telemetry_file(root)
-
-    if telemetry.is_file():
-        for line in telemetry.read_text(encoding="utf-8").splitlines():
-            try:
-                record: Any = json.loads(line)
-
-            except json.JSONDecodeError:
-                continue
-
-            if not isinstance(record, dict):
-                continue
-
-            row = cast("dict[str, Any]", record)
-            task_id = row.get("task_id")
-            results = row.get("results")
-
-            if not task_id or not isinstance(results, list):
-                continue
-
-            for result in cast("list[object]", results):
-                if not isinstance(result, dict):
-                    continue
-
-                reading = mutation_reading(cast("dict[str, Any]", result))
-
-                if reading is not None:
-                    by_phase[str(task_id)] = float(cast("float", reading["score"]))
-
-    summed: dict[str, float] = {}
-    counts: dict[str, int] = {}
-
-    for phase, score in by_phase.items():
-        document = spec_of.get(phase)
-
-        if not document:
-            continue
-
-        summed[document] = summed.get(document, 0.0) + score
-        counts[document] = counts.get(document, 0) + 1
-
-    return {
-        "by_phase": dict(sorted(by_phase.items())),
-        "by_document": {name: round(summed[name] / counts[name], 4) for name in sorted(summed)},
-    }
-
-
-# ....................... #
-
-
 def decision_report(root: Path, rfc_dir: Path, floor: int = DEFAULT_FLOOR) -> dict[str, Any]:
     """The whole of S-0022/decision-level-report: one population per decision identifier
     inherited anywhere in `.torve/tasks`, each carrying its raw counts always
@@ -782,7 +717,6 @@ def decision_report(root: Path, rfc_dir: Path, floor: int = DEFAULT_FLOOR) -> di
         "floor": floor,
         "populations": populations,
         "promotions": promotion_counts(tasks),
-        "mutation": mutation_scores(root, tasks),
         **corpus_shape(root, rfc_dir),
     }
 

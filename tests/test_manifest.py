@@ -96,7 +96,7 @@ def test_load_and_resolve_defaults(tmp_path):
     manifest = load_manifest(write_manifest(tmp_path, BASE_MANIFEST))
     gates = {g.name: g for g in manifest.resolved_gates()}
     assert gates["scope"].input == "diff"
-    assert gates["decisions-reported"].input == "log"
+    assert gates["secrets"].input == "diff"
     assert gates["acceptance"].timeout == 600
     assert gates["scope"].timeout == 30
 
@@ -464,20 +464,16 @@ def test_no_shape_borrows_another_shape_s_version():
     assert not hasattr(task, "SCHEMA_VERSION")
 
     # Each shape says its own, and they are free to disagree.
-    from torve.application.evals import SCHEMA_VERSION as evals_version
     from torve.application.runstate import SCHEMA_VERSION as runstate_version
     from torve.application.telemetry import RECORD_SCHEMA_VERSION
-    from torve.config.fleet import FleetManifest
     from torve.config.manifest import SCHEMA_VERSION as manifest_version
     from torve.domain.attempt import SCHEMA_VERSION as attempt_version
 
     declared = (
         RECORD_SCHEMA_VERSION,
-        evals_version,
         runstate_version,
         manifest_version,
         attempt_version,
-        FleetManifest().schema_version,
     )
     assert all(isinstance(v, int) and v >= 1 for v in declared)
 
@@ -552,17 +548,19 @@ def test_the_manifest_scope_names_derived_files_and_defaults_to_the_lock_table(t
     assert manifest.scope.derived == {"src/model.py": ["tests/golden/model.json"]}
 
 
-def test_the_evidence_builtin_resolves_a_worktree_input_and_the_red_on_base_timeout(tmp_path):
-    """S-0115/D-2: the gate runs citing test functions against the base tree
-    and the candidate, so it needs the worktree, and its timeout matches
-    `red-on-base`'s."""
+def test_an_entry_naming_a_removed_builtin_loads_with_a_warning_and_is_dropped(tmp_path):
+    """S-0122/D-17: a manifest written for 0.8 still loads for one release —
+    the entry naming a removed builtin is ignored, and the warning names it."""
 
     data = dict(
         BASE_MANIFEST,
-        gates=[{"name": "evidence", "run": "@evidence", "state": "shadow", "origin": "S-0115"}],
+        gates=[
+            {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"},
+            {"name": "audit", "run": "@self-audit", "state": "shadow", "origin": "structural"},
+        ],
     )
-    manifest = load_manifest(write_manifest(tmp_path, data))
-    (gate,) = manifest.resolved_gates()
 
-    assert gate.input == "worktree"
-    assert gate.timeout == 300
+    with pytest.warns(FutureWarning, match=r"audit name builtins removed in 0\.9\.0"):
+        manifest = load_manifest(write_manifest(tmp_path, data))
+
+    assert [gate.name for gate in manifest.resolved_gates()] == ["scope"]

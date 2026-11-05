@@ -130,7 +130,7 @@ async def battery(taskstore, suffix: str) -> None:
     assert await taskstore.request_cancel(pending.run_id)  # capability declared, ask recorded
 
 
-def test_doctor_store_check_tracks_migration_currency(pg_dsn, monkeypatch, tmp_path):
+def test_doctor_store_check_tracks_migration_currency(pg_dsn, monkeypatch, tmp_path, docker_free):
     """The doctor's store check over a real database: behind before
     migrate (with the instruction), current after (S-0012/D-7's sibling)."""
     import json
@@ -148,7 +148,6 @@ def test_doctor_store_check_tracks_migration_currency(pg_dsn, monkeypatch, tmp_p
         yaml.safe_dump(
             {
                 "schema_version": 1,
-                "runtime": {"adapter": "opensandbox"},
                 "store": {"adapter": "postgres"},
             }
         ),

@@ -87,7 +87,7 @@ BASE = DEFINITIONS / "base" / "Dockerfile"
 # The battery image is the gates' socket image and installs no harness; it
 # inherits the base like the rest, because the CLI and uv are what it needed
 # the duplicated block for.
-AGENTS = ("claude", "codex", "dsh", "mimo", "opencode")
+AGENTS = ("claude", "dsh")
 EVERY = (*AGENTS, "battery")
 
 
@@ -116,9 +116,8 @@ def test_no_definition_carries_its_own_copy_of_the_cli_layer(name: str) -> None:
 
 
 # The definitions carrying the two scripts the engine invokes (S-0063/I-2).
-# claude landed in phase 2 and dsh and mimo in phase 3; `battery` runs no agent
-# and `codex` and `opencode` have no seat, so neither carries one yet.
-SEATED = ("claude", "dsh", "mimo")
+# claude landed in phase 2 and dsh in phase 3; `battery` runs no agent.
+SEATED = ("claude", "dsh")
 
 
 @pytest.mark.parametrize("name", SEATED)
@@ -172,7 +171,7 @@ def test_no_definition_asks_whether_a_broker_is_in_force(name: str) -> None:
     broker's two variables, and one of them refused a brokered seat outright.
     Brokered and direct differ in the value of `TORVE_BASE_URL` and in which
     variable `TORVE_API_KEY_ENV` names, so there is nothing left to branch on
-    — mimo became brokerable by deletion rather than by implementation."""
+    — a seat becomes brokerable by deletion rather than by implementation."""
 
     assert "TORVE_BROKER" not in toolkit(name)
 
@@ -189,7 +188,7 @@ def test_a_definition_ships_its_python_as_files_it_could_be_tested_through(name:
 
 def test_each_harness_answers_the_manifest_its_own_way() -> None:
     """The finding phase 3 exists for, kept where it can be read: one manifest,
-    three translations, and no variable had to change to admit them."""
+    a translation per harness, and no variable had to change to admit them."""
 
     equip = {name: toolkit(name) for name in SEATED}
 
@@ -197,11 +196,6 @@ def test_each_harness_answers_the_manifest_its_own_way() -> None:
     assert "--plugin-dir" in equip["claude"]
     # dsh has one channel and every kind travels it.
     assert "--patch" in equip["dsh"]
-    # mimo has no session channel at all: its equipment is installed state,
-    # so its `equip` runs a command and writes an empty argument file.
-    assert '"mimo", "plugin"' in equip["mimo"]
-    assert "--plugin-dir" not in equip["mimo"]
-    assert "--patch" not in equip["mimo"]
 
 
 def test_no_definition_bakes_a_model(name: str = "dsh") -> None:
@@ -310,16 +304,16 @@ def test_the_anthropic_dialect_carries_no_developer_role_flag() -> None:
     assert "compat" not in route
 
 
-@pytest.mark.parametrize("name", ("dsh", "mimo"))
+@pytest.mark.parametrize("name", ("dsh",))
 def test_a_skill_reaches_the_harness_that_reads_one(name: str) -> None:
-    """S-0063/D-16, measured: dsh watches `.agents/skills`, mimo reads
-    `.mimocode/skill/`. Both take the kind now, so S-0062/D-10's prompt
+    """S-0063/D-16, measured: dsh watches `.agents/skills`. It takes the kind
+    now, so S-0062/D-10's prompt
     paragraph stands for no harness this repository builds."""
 
     from torve.config.agents import load_harness
 
     equip = toolkit(name)
-    expected = {"dsh": ".agents/skills", "mimo": ".mimocode/skill"}[name]
+    expected = {"dsh": ".agents/skills"}[name]
 
     assert expected in equip
     assert "skill" in load_harness(Path("."), name).kinds
@@ -461,7 +455,7 @@ def test_every_image_carries_the_source_version_and_revision_labels() -> None:
     assert "REVISION=$(git rev-parse HEAD)" in Path("justfile").read_text(encoding="utf-8")
 
 
-@pytest.mark.parametrize("name", ["claude", "codex", "dsh", "mimo", "opencode"])
+@pytest.mark.parametrize("name", ["claude", "dsh"])
 def test_a_seat_image_labels_the_harness_version_it_carries(name: str) -> None:
     """S-0112/D-5: a seat image names the version its harness prints, so a
     pulled image is checked against its label before anyone runs it. The
@@ -644,14 +638,13 @@ def test_the_claude_seat_feeds_the_prompt_on_stdin_not_as_an_argument() -> None:
 
 
 def test_no_seat_hands_the_prompt_over_as_one_argument() -> None:
-    """The claude seat's limit is every seat's: the mimo and dsh seats handed
-    the prompt over as one argument after the claude seat stopped, and the same
-    prompt routed to either would have failed the same way. mimo reads stdin;
-    dsh reads argv alone, so it takes the prompt in pieces."""
+    """The claude seat's limit is every seat's: the dsh seat handed the prompt
+    over as one argument after the claude seat stopped, and the same prompt
+    routed to it would have failed the same way. dsh reads argv alone, so it
+    takes the prompt in pieces."""
     for run in DEFINITIONS.glob("*/toolkit/run"):
         assert '"$(cat "$TORVE_PROMPT")"' not in run.read_text(encoding="utf-8"), run
 
-    assert '< "$TORVE_PROMPT"' in (DEFINITIONS / "mimo" / "toolkit" / "run").read_text("utf-8")
     assert "prompt_pieces.py" in (DEFINITIONS / "dsh" / "toolkit" / "run").read_text("utf-8")
 
 
@@ -817,9 +810,8 @@ def test_no_seated_definition_reads_a_mounted_credential() -> None:
 
 
 # Which channel each image puts the engine's staged system text through
-# (S-0073/D-8). `mimo` is absent because it has no seat to test the channel on,
-# which S-0073 put out of scope rather than this forgetting it.
-# dsh's channel is the patch head in `persona.yml`, which the next test reads.
+# (S-0073/D-8). dsh's channel is the patch head in `persona.yml`, which the
+# next test reads.
 SYSTEM_CHANNEL = {"claude": "--append-system-prompt", "dsh": "/opt/torve/persona.yml"}
 
 
@@ -940,7 +932,7 @@ def test_a_manifest_declares_its_dialects_and_names_no_credential() -> None:
 
         assert manifest.api, f"{name} names no dialect its harness speaks"
         # The auth fields keep their model defaults because neither manifest
-        # names one: they stay for a harness with no env form, such as codex.
+        # names one: they stay for a harness with no env form.
         assert manifest.auth_volume == "torve-auth"
 
 
@@ -1104,7 +1096,7 @@ def test_no_equip_writes_to_a_path_the_repository_owns() -> None:
         )
 
 
-@pytest.mark.parametrize("name", ("dsh", "mimo"))
+@pytest.mark.parametrize("name", ("dsh",))
 def test_a_harness_reading_the_workspace_declares_its_root(name: str) -> None:
     """One declaration, two readers: the engine excludes it and names it, and
     `equip` writes where it was told. A path written in two places drifts."""
@@ -1151,101 +1143,6 @@ def test_every_seated_harness_declares_where_equipment_lands(name: str) -> None:
     manifest = {"claude": "claude-subscription"}.get(name, name)
 
     assert load_harness(Path("."), manifest).equip_root, f"{name} declares no equip_root"
-
-
-def _render_mimo_provider(**env: str) -> Any:
-    """The provider document the shipped renderer prints for this environment."""
-
-    script = DEFINITIONS / "mimo" / "toolkit" / "provider_config.py"
-    base = {k: v for k, v in os.environ.items() if not k.startswith("TORVE_")}
-    done = subprocess.run(
-        [sys.executable, str(script)],
-        env={**base, **env},
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-
-    return json.loads(done.stdout)
-
-
-def test_the_mimo_seat_declares_its_provider_and_model() -> None:
-    """mimo's built-in `openai` provider takes only its own catalog, so a base
-    URL and a key alone answered "Model not found". The seat declares a
-    provider that names the one model it runs, its key by variable name, and
-    its limits only as the pair mimo's schema requires."""
-
-    wire = {
-        "TORVE_PROVIDER": "modelstudio",
-        "TORVE_MODEL": "qwen3.8-flash",
-        "TORVE_BASE_URL": "https://example.test/v1",
-        "TORVE_API_KEY_ENV": "MODELSTUDIO_CODING_API_KEY",
-    }
-    provider = _render_mimo_provider(**wire, TORVE_REQUEST_TIMEOUT_S="600")["provider"][
-        "modelstudio"
-    ]
-
-    assert provider["npm"] == "@ai-sdk/openai-compatible"
-    assert provider["options"] == {
-        "baseURL": "https://example.test/v1",
-        "apiKey": "{env:MODELSTUDIO_CODING_API_KEY}",
-        "timeout": 600000,
-    }
-    assert provider["models"] == {"qwen3.8-flash": {"name": "qwen3.8-flash"}}
-
-    halves = _render_mimo_provider(**wire, TORVE_CONTEXT_WINDOW="262144")
-    both = _render_mimo_provider(**wire, TORVE_CONTEXT_WINDOW="262144", TORVE_MAX_TOKENS="32768")
-
-    assert "limit" not in halves["provider"]["modelstudio"]["models"]["qwen3.8-flash"]
-    assert both["provider"]["modelstudio"]["models"]["qwen3.8-flash"]["limit"] == {
-        "context": 262144,
-        "output": 32768,
-    }
-
-    run = (DEFINITIONS / "mimo" / "toolkit" / "run").read_text(encoding="utf-8")
-
-    assert "MIMOCODE_CONFIG_CONTENT=$(python3 /opt/torve/provider_config.py)" in run
-    assert '--model "${TORVE_PROVIDER:-torve-provider}/$TORVE_MODEL"' in run
-    assert "OPENAI_BASE_URL" not in run
-
-
-def test_a_mimo_session_that_reported_an_error_is_a_failed_run() -> None:
-    """mimo exits zero when the session fails ("Model not found" arrived as an
-    `error` event with status 0), and the engine reads zero as work to gate."""
-
-    run = (DEFINITIONS / "mimo" / "toolkit" / "run").read_text(encoding="utf-8")
-
-    assert 'grep -q \'"type":"error"\' "$TORVE_OUTPUT"' in run
-
-
-def test_the_mimo_seat_names_its_scope_guard_only_when_a_hook_is_declared(
-    tmp_path: Path,
-) -> None:
-    """S-0072/D-3 for mimo: the hook is the scope-guard plugin the image ships,
-    named in the configuration when the manifest carries a hook — measured on
-    0.1.15 to refuse a write outside the contract's scope and allow one inside.
-    mimo's write tools name the path `file_path`, which the plugin reads."""
-
-    wire = {
-        "TORVE_MODEL": "qwen3.8-flash",
-        "TORVE_BASE_URL": "https://example.test/v1",
-        "TORVE_API_KEY_ENV": "KEY",
-        "TORVE_EQUIPMENT": str(tmp_path),
-    }
-    manifest = tmp_path / "manifest.json"
-
-    manifest.write_text(json.dumps({"items": [{"kind": "skill", "path": "/x"}]}), "utf-8")
-    assert "plugin" not in _render_mimo_provider(**wire)
-
-    manifest.write_text(json.dumps({"items": [{"kind": "hook", "path": "/x"}]}), "utf-8")
-    assert _render_mimo_provider(**wire)["plugin"] == ["file:///opt/torve/scope-guard.js"]
-
-    guard = (DEFINITIONS / "mimo" / "toolkit" / "scope-guard.js").read_text(encoding="utf-8")
-    assert "implement/scope_guard.py" in guard
-    assert "args.file_path" in guard
-
-    install = (DEFINITIONS / "mimo" / "toolkit" / "equip_install.py").read_text("utf-8")
-    assert 'if kind == "hook":' in install
 
 
 def test_the_claude_seat_maps_the_night_knobs() -> None:

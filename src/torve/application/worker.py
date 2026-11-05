@@ -224,9 +224,8 @@ class Worker:
             )
 
         except (ValueError, RuntimeError) as exc:
-            # A dispatch the engine refuses — an unmeasured image regime, a
-            # provider the repository may not reach, a role this path does
-            # not implement — is an outcome, not a crash (S-0044/A-11). Letting it
+            # A dispatch the engine refuses — a provider the repository may
+            # not reach, a role this path does not implement — is an outcome, not a crash (S-0044/A-11). Letting it
             # escape stranded the claim until the lease ran out, and the
             # failure that showed was "the pass died" rather than "your
             # configuration refuses". It escalates instead: a person is

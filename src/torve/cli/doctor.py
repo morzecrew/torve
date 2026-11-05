@@ -14,22 +14,12 @@ The broker check is S-0021 S-0021/D-9: the adapter in force is named, and the
 the credential-custody requirement (S-0001/D-13) unmet, so that opting out is a
 decision someone can be shown making, never a silent default.
 
-S-0027/D-10 (OPEN, decided here): rather than have a sandbox definition carry a
-pointer to the verdict that installed it — a write to `.torve/sandbox/**`
-out of this task's scope — doctor reads the eval ledger directly and
-matches on the digest it already resolved. Read-only, no new record shape.
-
 The profile check is S-0028 S-0028/D-7: each tier that resolved through a
 profile (`TierConfig.profile`, set by `load_runner_config`'s raw-mapping
 merge) gets one provenance line naming it — no check attached, so this can
 never turn doctor red, and a tier or profile file nobody referenced gets
 no line and no warning. S-0028/A-1: a tier composed from a list of profiles
 carries its chain, in order, in that same field and line.
-
-The verify line is S-0116/D-3: when the pilot is on and the verify seat names
-the executor seat's own model, doctor goes red — a verifier on the executor's
-model is no independent check. Like the reviewer bias line it compares two
-seats' `model` fields; unlike it, this one is a red rather than a warning.
 
 The equipment check is S-0029 S-0029/D-5: each tier whose resolved `skills`
 or `prompt_extras` differ from its role default gets one provenance line —
@@ -39,11 +29,8 @@ Two lines state what is armed rather than judging whether it should be. The
 promotion line is S-0068/D-2: which criteria a served manager would land
 without, and that no landing leg runs at all while `auto_merge` is off — the
 load-time refusal (S-0068/D-1) only fires on a configuration someone wrote, and
-the likelier shape is no `promotion:` block at all. The standing-refusal
-line is S-0068/D-3: a standing job refused instantiation, how many times, and on
-what, read from the `standing_instantiate_refused` records the engine has
-been writing with no reader but the job being refused. Neither carries a
-check, so neither can turn doctor red.
+the likelier shape is no `promotion:` block at all. It carries no check, so it
+cannot turn doctor red.
 
 The image line also covers remote references (S-0033/doctor): a tier
 naming a registry reference — an image with an explicit registry host —
@@ -51,9 +38,8 @@ that the runtime cannot resolve asks the registry itself for the digest,
 anonymously and best-effort, and prints the same line a local image
 gets, so "what exactly will run" has one answer for both kinds of
 reference. The registry leg is informational: an unreachable registry or
-unknown reference keeps the runtime's existing answer (the docker red,
-or silence under the opensandbox runtime, whose server pulls from the
-registry), because resolution failure already fails dispatch loudly.
+unknown reference keeps the runtime's existing answer (the docker red),
+because resolution failure already fails dispatch loudly.
 """
 
 from __future__ import annotations
@@ -64,7 +50,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import typer
@@ -73,46 +59,9 @@ from rich.text import Text
 
 from torve.cli.console import STYLE_FAIL, Format, emit_json, mark, out
 from torve.cli.options import ConfigOption, FormatOption, RootOption, load_config
-from torve.config import layout
 from torve.domain.states import EXIT_CONFIG, EXIT_OK
 
 # ----------------------- #
-
-
-def _config_eval_verdict(root: Path, digest: str) -> dict[str, Any] | None:
-    """The eval ledger's most recent config-eval record citing `digest` as
-    either arm — the same digest a paired replay (S-0027/D-7) measured, whether
-    it won or lost. `None` when the ledger has no such record: an unmeasured
-    digest is not a finding, just a fact doctor cannot add to."""
-
-    from torve.application.evals import EVAL_LEDGER
-
-    path = root / layout.TORVE_DIR / EVAL_LEDGER
-
-    if not path.is_file():
-        return None
-
-    found: dict[str, Any] | None = None
-
-    for line in path.read_text(encoding="utf-8").splitlines():
-        try:
-            record: Any = json.loads(line)
-
-        except json.JSONDecodeError:
-            continue
-
-        if not isinstance(record, dict):
-            continue
-
-        row = cast("dict[str, Any]", record)
-
-        if row.get("kind") != "config-eval":
-            continue
-
-        if digest in row.get("digests", {}).values():
-            found = row  # append-only ledger — the latest citation wins
-
-    return found
 
 
 # What the image carries at `/opt/torve`, listed the way the tree can be
@@ -497,8 +446,6 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 
     try:
         # The runtime's word covers local images (docker daemon, S-0017/D-2).
-        # The opensandbox runtime sees no local images — its server pulls
-        # from a registry — so only the registry leg speaks for it.
         runtime = runtime_for(config, None) if config.runtime.adapter == "docker" else None
 
         for image in configured_images(config):
@@ -527,14 +474,6 @@ def _image_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool,
                 continue
 
             detail = f"{image} = {digest[:19]}"
-            verdict = _config_eval_verdict(root, digest)
-
-            if verdict is not None:
-                role = "incumbent" if verdict["digests"].get("incumbent") == digest else "candidate"
-                detail += (
-                    f" — eval ledger holds a {role} verdict from {verdict['at']} "
-                    f"(candidate_matched={verdict['candidate_matched']})"
-                )
 
             # S-0063/D-6: a `<name>-sandbox` tag names its definition, so an
             # image built here and no longer defined here is an ambient regime.
@@ -954,51 +893,6 @@ def _review_bias_check(root: Path, config_path: Path | None) -> list[tuple[str, 
 # ....................... #
 
 
-def _verify_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
-    """S-0116/D-3: a verifier sharing the executor's own model is not an
-    independent check — it brings the same blind spots to the tests it writes,
-    so the pilot's whole point is undone. Red, unlike the reviewer's same-model
-    warning: the reviewer is still better than none, whereas a verifier on the
-    executor's model proves nothing the executor would not.
-
-    No line when the pilot is off, when either seat is absent (the load already
-    refuses a pilot with no verify seat), or when a fake adapter answers — a
-    fake has no model to compare.
-    """
-
-    config = load_config(root, config_path)
-
-    if not config.verify.enabled:
-        return []
-
-    executor = config.tiers.get("executor")
-    verifier = config.tiers.get(f"executor.{config.verify.variant}")
-
-    if executor is None or verifier is None:
-        return []
-
-    if executor.adapter == "fake" or verifier.adapter == "fake":
-        return []
-
-    if executor.model and executor.model == verifier.model:
-        return [
-            (
-                "verify",
-                False,
-                (
-                    f"verifier runs the executor's own model ({executor.model}) — the "
-                    "verify pilot needs an independent check; seat the verifier on a "
-                    "different model"
-                ),
-            )
-        ]
-
-    return []
-
-
-# ....................... #
-
-
 def _threads_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
     """A review round is judged by the acceptance gate's `commands`, and with
     none the review-thread leg refuses every round it would mint. Red only
@@ -1042,114 +936,6 @@ def _promotion_check(root: Path, config_path: Path | None) -> list[tuple[str, bo
     tail = f"; armed: {', '.join(armed)}" if armed and unarmed else ""
 
     return [("promotion", True, f"promotion: {leg}; a served manager {without}{tail}")]
-
-
-# ....................... #
-
-
-def _standing_refusals(root: Path) -> dict[str, tuple[int, str]]:
-    """Per standing job, how many times instantiation was refused and the most
-    recent reason, read from the engine's own telemetry stream (S-0068/D-3).
-
-    `standing_instantiate_refused` has been a typed record all along; the
-    only reader of that stream was the flake predicate — the job being
-    refused. A job blocked for a reason nobody has read is indistinguishable
-    from one that does not exist.
-    """
-
-    from torve.config.manifest import Manifest, load_manifest
-
-    manifest_path = layout.gates_file(root)
-    telemetry = root / (
-        load_manifest(manifest_path).telemetry
-        if manifest_path.is_file()
-        else Manifest(gates=[]).telemetry
-    )
-
-    if not telemetry.is_file():
-        return {}
-
-    found: dict[str, tuple[int, str]] = {}
-
-    for line in telemetry.read_text(encoding="utf-8").splitlines():
-        try:
-            record: Any = json.loads(line)
-
-        except json.JSONDecodeError:
-            continue
-
-        if not isinstance(record, dict):
-            continue
-
-        row = cast("dict[str, Any]", record)
-
-        if row.get("event") != "standing_instantiate_refused":
-            continue
-
-        job = str(row.get("job") or "")
-
-        if not job:
-            continue
-
-        # Append-only stream: the count is every refusal, the reason the latest.
-        count, _ = found.get(job, (0, ""))
-        found[job] = (count + 1, str(row.get("error") or "")[:200].splitlines()[0])
-
-    return found
-
-
-def _standing_refusal_check(root: Path) -> list[tuple[str, bool, str]]:
-    """S-0068/D-3: a standing job that has been refused instantiation, how many
-    times, and on what. Like the firing summary it rides beside, this is a
-    statement rather than a verdict — the leg fails closed toward not
-    creating work, so a refusal is the check doing what it exists for."""
-
-    refused = _standing_refusals(root)
-
-    if not refused:
-        return []
-
-    lines = [
-        f"{job} refused instantiation {count} time{'s' if count != 1 else ''}"
-        + (f" — {reason}" if reason else "")
-        for job, (count, reason) in sorted(refused.items())
-    ]
-
-    return [("standing-refused", True, f"standing: {'; '.join(lines)}")]
-
-
-# ....................... #
-
-
-def _standing_summary(root: Path) -> str:
-    """How many standing contracts there are and when one last minted a task.
-
-    A contract that has never fired is a capability the tree carries and
-    nobody collects, which is invisible until someone reads the module; the
-    count and the last firing put it in front of whoever runs `doctor`.
-    Never-fired is not a failure — the leg fails closed toward not creating
-    work, so silence is its normal state — which is why this rides the
-    passing check rather than reddening one.
-    """
-
-    from torve.application.standing import firings
-
-    fired = firings(root)
-
-    if not fired:
-        return "no contracts"
-
-    count = f"{len(fired)} contract(s)"
-    latest = [(at, name) for name, at in fired.items() if at is not None]
-
-    if not latest:
-        return f"{count}, none has ever fired"
-
-    at, name = max(latest)
-    never = len(fired) - len(latest)
-    tail = f"; {never} never fired" if never else ""
-
-    return f"{count}, last fired {at:%Y-%m-%d} ({name}){tail}"
 
 
 # ....................... #
@@ -1328,30 +1114,6 @@ def _init_checks(root: Path, config_path: Path | None) -> list[tuple[str, bool, 
     elif ignored:
         checks.append(("worktrees", True, ".wt/: ignored"))
 
-    # S-0059/D-7: a standing contract without its schema line is an editor
-    # validating nothing; `init` adds the line, and a file added later lags.
-    from torve.cli.init import schema_line
-    from torve.config import layout
-    from torve.config.spec import schemas_dir
-
-    standing_schema = schemas_dir(corpus) / "standing.json"
-    unlined = [
-        path.name
-        for path in sorted(layout.standing_dir(root).glob("*.yaml"))
-        if not path.read_text(encoding="utf-8").startswith(schema_line(path, standing_schema))
-    ]
-
-    if unlined:
-        checks.append(
-            (
-                "standing",
-                False,
-                f"standing: {', '.join(unlined)} carry no schema line — `torve init` adds it",
-            )
-        )
-    else:
-        checks.append(("standing", True, f"standing: {_standing_summary(root)}"))
-
     # S-0060/D-1: a source file that does not load is an identifier a
     # contract could name and nobody could open.
     from torve.config.sources import check_sources
@@ -1415,7 +1177,6 @@ def doctor(
         checks += _store_checks(root, config_path)
         checks += _broker_check(root, config_path)
         checks += _review_bias_check(root, config_path)
-        checks += _verify_check(root, config_path)
         checks += _threads_check(root, config_path)
         checks += _promotion_check(root, config_path)
         checks += _profile_checks(root, config_path)
@@ -1425,7 +1186,6 @@ def doctor(
         checks += _nested_proxy_check(root, config_path)
         checks += _init_checks(root, config_path)
         checks += _stub_checks(root)
-        checks += _standing_refusal_check(root)
 
     healthy = all(passed for _, passed, _ in checks)
 

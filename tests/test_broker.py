@@ -21,7 +21,6 @@ from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-import opensandbox_stub
 import pytest
 import yaml
 from conftest import seam
@@ -34,10 +33,8 @@ from torve.adapters.broker import build_broker
 from torve.adapters.broker.local import LocalBroker
 from torve.adapters.broker.none import NoneBroker
 from torve.adapters.eventstore.document import mock_module
-from torve.adapters.runtime.opensandbox import OpenSandboxRuntime
 from torve.application.eventlog import burn_sink, event_log
 from torve.application.ports import (
-    PROXY_ENV,
     AgentContext,
     BrokerBudget,
     BrokerHandle,
@@ -46,15 +43,12 @@ from torve.application.ports import (
     BurnEvent,
     ExecResult,
     SandboxHandle,
-    SandboxSpec,
 )
 from torve.application.telemetry import broker_block, config_hash
-from torve.base import naming
 from torve.cli import app
 from torve.config.runconfig import (
     BrokerConfig,
     BrokerProvider,
-    OpenSandboxConfig,
     ProvidersConfig,
     RunnerConfig,
     RuntimeConfig,
@@ -152,11 +146,11 @@ def test_a_brokered_seat_is_handed_no_provider_key():
     assert credential_names(direct, tier) == (KEY_ENV,)
 
 
-def test_opensandbox_adapter_is_refused_until_a_server_exists():
-    # S-0021/D-2 / S-0021/out-of-scope: the adapter is named and deliberately unbuilt —
-    # condition-gated on a live server, never a prerequisite.
+def test_a_broker_adapter_that_is_not_built_is_refused():
+    # S-0021/D-2: the roster is `none` and `local`; the opensandbox adapter
+    # never got its server and left with the runtime (S-0122/D-17).
     with pytest.raises(ValidationError, match="opensandbox"):
-        BrokerConfig(adapter="opensandbox")
+        BrokerConfig(adapter="opensandbox")  # type: ignore[arg-type]
 
 
 def test_sealed_mode_requires_a_named_internal_network():
@@ -598,76 +592,6 @@ def test_the_remote_bind_joins_the_egress_regime(tmp_path):
     assert config_hash(manifest, tmp_path, local) != config_hash(manifest, tmp_path, remote)
 
 
-def test_advertised_address_reaches_the_sandbox_proxy_env(tmp_path, monkeypatch):
-    # The runtime composes the proxy env from the advertised address
-    # instead of the Docker-gateway derivation — verbatim, and instead of
-    # the runner's own (loopback, meaningless out there) proxy.
-    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9999")
-    config = RunnerConfig(
-        runtime=RuntimeConfig(adapter="opensandbox"),
-        broker=BrokerConfig(
-            adapter="local", bind="0.0.0.0:8321", advertise="broker.example.net:9443"
-        ),
-    )
-    runtime = OpenSandboxRuntime(config.runtime.opensandbox, sdk=opensandbox_stub)
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-    spec = SandboxSpec(
-        name="torve-remote-proxy",
-        image="python:3.13-slim",
-        labels=naming.labels("T-9253", "r", Path.cwd()),
-        timeout_s=60,
-        workdir=str(tmp_path / "remote"),
-    )
-    handle = runtime.create(spec, workspace)
-
-    try:
-        recorded = opensandbox_stub.REGISTRY[handle.id].env
-        assert recorded["http_proxy"] == "http://broker.example.net:9443"
-        assert recorded["HTTPS_PROXY"] == "http://broker.example.net:9443"
-        assert recorded["all_proxy"] == "http://broker.example.net:9443"
-        # The broker's own address is excluded: the provider routes speak
-        # to it directly, run token in hand.
-        assert recorded["NO_PROXY"] == "127.0.0.1,localhost,broker.example.net"
-    finally:
-        runtime.destroy(handle)
-
-    opensandbox_stub.REGISTRY.clear()
-
-
-def test_sandbox_proxy_env_stays_forwarded_without_a_bind(tmp_path, monkeypatch):
-    # The adapter forwards the host's own proxy variables by name, so the
-    # test owns that environment rather than inheriting it: on a developer
-    # machine behind a proxy the lowercase names are set, and the assertion
-    # below would read the host's configuration as something torve composed.
-    for name in PROXY_ENV:
-        monkeypatch.delenv(name, raising=False)
-        monkeypatch.delenv(name.upper(), raising=False)
-
-    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9999")
-    runtime = OpenSandboxRuntime(OpenSandboxConfig(), sdk=opensandbox_stub)
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-    spec = SandboxSpec(
-        name="torve-local-proxy",
-        image="python:3.13-slim",
-        labels=naming.labels("T-9254", "r", Path.cwd()),
-        timeout_s=60,
-        workdir=str(tmp_path / "remote"),
-    )
-    handle = runtime.create(spec, workspace)
-
-    try:
-        recorded = opensandbox_stub.REGISTRY[handle.id].env
-        assert recorded["HTTP_PROXY"] == "http://127.0.0.1:9999"
-        assert "http_proxy" not in recorded  # nothing composed without a remote endpoint
-        assert "no_proxy" not in recorded
-    finally:
-        runtime.destroy(handle)
-
-    opensandbox_stub.REGISTRY.clear()
-
-
 # ....................... #
 # The tier command's substitution (S-0021/the-port)
 
@@ -869,8 +793,8 @@ def _seated(tmp_path: Path, config: dict, record: dict) -> Path:
     return root
 
 
-def test_doctor_names_the_none_broker_and_its_ceiling(tmp_path):
-    root = _doctor_repo(tmp_path, {"runtime": {"adapter": "opensandbox"}})
+def test_doctor_names_the_none_broker_and_its_ceiling(tmp_path, docker_free):
+    root = _doctor_repo(tmp_path, {})
     result = CliRunner().invoke(app, ["doctor", "--root", str(root), "--format", "json"])
     checks = {c["name"]: c for c in json.loads(result.stdout)["checks"]}
     assert checks["broker"]["ok"] is True
@@ -878,10 +802,10 @@ def test_doctor_names_the_none_broker_and_its_ceiling(tmp_path):
     assert "credential-custody requirement unmet" in checks["broker"]["detail"]
 
 
-def test_doctor_names_the_local_broker_in_force(tmp_path):
+def test_doctor_names_the_local_broker_in_force(tmp_path, docker_free):
     root = _seated(
         tmp_path,
-        {"runtime": {"adapter": "opensandbox"}, "broker": {"adapter": "local"}},
+        {"broker": {"adapter": "local"}},
         {
             "key_env": KEY_ENV,
             "routes": {"openai": {"base_url": "https://api.example.com"}},
@@ -1186,7 +1110,6 @@ def test_brokered_docker_run_sandbox_holds_no_key(repo, upstream, monkeypatch):
     from torve.adapters.workspace.git import GitWorkspace
     from torve.application.dispatch import RunDeps
     from torve.application.runner import run_task
-    from torve.config.runconfig import RuntimeConfig
     from torve.gates.context import load_task
     from torve.gates.sabotage import TASK_ID
 
@@ -1248,7 +1171,6 @@ def test_brokered_docker_budget_refusal_escalates_cost_anomaly(repo, upstream, m
     from torve.adapters.workspace.git import GitWorkspace
     from torve.application.dispatch import RunDeps
     from torve.application.runner import run_task
-    from torve.config.runconfig import RuntimeConfig
     from torve.gates.context import load_task
     from torve.gates.sabotage import TASK_ID
 

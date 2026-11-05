@@ -1237,8 +1237,6 @@ def health(
                 "caveat": QUASI_EXPERIMENT_CAVEAT,
                 "populations": populations,
                 "operator_attention": attention,
-                # S-0107/D-3: the mutation gate's score per phase and per document.
-                "mutation": report["mutation"],
             }
         )
         raise typer.Exit(EXIT_OK)
@@ -1258,19 +1256,6 @@ def health(
 
     if attention is not None:
         console.print(Text(specquality.render_operator_attention(attention), STYLE_DIM))
-
-    mutation = report["mutation"]
-
-    if mutation["by_phase"]:
-        # S-0107/D-3: how well each phase's tests noticed their own lines going
-        # wrong, and each document's mean; never one corpus score (S-0022/D-3).
-        scores = [*mutation["by_document"].items(), *mutation["by_phase"].items()]
-        console.print(
-            Text(
-                "mutation score: " + ", ".join(f"{name} {score:.2f}" for name, score in scores),
-                STYLE_DIM,
-            )
-        )
 
     console.print()
 

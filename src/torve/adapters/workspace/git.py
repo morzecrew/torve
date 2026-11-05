@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import tempfile
 from collections.abc import Iterator
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from pathlib import Path
 
 from torve.application.ports import JUDGE_SUFFIX, judge_ref
@@ -372,17 +372,6 @@ class ShadowWorkspace:
 
     # ....................... #
 
-    def create_at(self, label: str, sha: str) -> Path:
-        """The survey's clone-at-landing variant (S-0031 S-0031/D-4): the same
-        bounded-depth mechanics, but the clone is cut at the LANDING sha — the
-        tree the battery runs over — with the landing's first parent as the
-        gate base. Depth 2 is enough for that diff; the mechanics never
-        transfer anything past the requested sha either way."""
-
-        return self._clone(label, sha)
-
-    # ....................... #
-
     def _clone(self, label: str, sha: str) -> Path:
         """The shared truncated-clone mechanics (S-0004/shadow-runs, S-0004/D-7): init a
         fresh repository under `.wt/<label>`, fetch the exact sha at bounded
@@ -454,21 +443,6 @@ class ShadowWorkspace:
 
     def _judge_path(self, task_id: str) -> Path:
         return self.root / naming.WORKTREE_DIR / f"{naming.shadow_id(task_id)}{JUDGE_SUFFIX}"
-
-    # ....................... #
-
-    def remove_at(self, label: str) -> None:
-        """Remove one survey clone and the empty `.wt/` shell this class
-        created around it (S-0031 S-0031/D-1: the target tree ends byte-identical
-        — no workspace residue). rmdir only removes an empty directory, so a
-        `.wt/` holding other work survives untouched."""
-
-        shutil.rmtree(self.root / naming.WORKTREE_DIR / label, ignore_errors=True)
-
-        # rmdir only removes an empty directory, so a `.wt/` holding other
-        # work survives untouched.
-        with suppress(OSError):
-            (self.root / naming.WORKTREE_DIR).rmdir()
 
 
 # ....................... #

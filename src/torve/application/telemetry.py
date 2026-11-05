@@ -22,7 +22,7 @@ import torve
 from torve.application.ports import AgentResult, BrokerUsage, SandboxSpec
 from torve.base.clock import stamp
 from torve.base.globs import matches
-from torve.base.naming import WORKTREE_DIR, shadow_id
+from torve.base.naming import WORKTREE_DIR
 from torve.base.shell import clip
 from torve.config import layout
 from torve.config.providers import Price
@@ -350,86 +350,16 @@ def gate_verdict(report_exit_code: int) -> str:
 
 # ....................... #
 
-# The transfer ledger (S-0041/the-transfer-measured, S-0041/D-5). A runtime that carries a
-# workspace over the wire — the OpenSandbox adapter's tar seed in and base64
-# pipe out — books each leg's bytes and seconds against the task its sandbox
-# spec is labelled with; the attempt-row builders drain the booking into a
-# `transfer` block beside the agent block. A runtime that mounts and transfers
-# nothing never writes here, so its rows lack the key outright — absent stays
-# absent (S-0004/D-6), and an attempt that synced nothing is told apart from one
-# whose sync-out moved zero bytes. The ledger is process-local and dies with
-# the orchestrator's one process (S-0041/D-1).
-
-_TRANSFER_LOCK = threading.Lock()
-_pending_transfers: dict[str, dict[str, float]] = {}
-
-
-def record_transfer(
-    task_id: str,
-    *,
-    seed_bytes: int | None = None,
-    seed_seconds: float | None = None,
-    sync_out_bytes: int | None = None,
-    sync_out_seconds: float | None = None,
-) -> None:
-    """Book one transfer leg's cost against a task. Legs accumulate, because
-    an attempt moves two sandboxes (the agent's and its `-gates` battery,
-    S-0003/D-8) and the row wants their sum; seconds are wall-clock cost of the
-    leg including host-side packing, bytes are the wire bytes that crossed
-    the API."""
-
-    legs = {
-        key: value
-        for key, value in {
-            "seed_bytes": seed_bytes,
-            "seed_seconds": seed_seconds,
-            "sync_out_bytes": sync_out_bytes,
-            "sync_out_seconds": sync_out_seconds,
-        }.items()
-        if value is not None
-    }
-
-    with _TRANSFER_LOCK:
-        booked = _pending_transfers.setdefault(task_id, {})
-
-        for key, value in legs.items():
-            booked[key] = booked.get(key, 0.0) + value
-
-
-def _drain_transfer(task_id: str | None) -> dict[str, Any]:
-    """Pop the booking for a task as the row's `transfer` block — once only,
-    which is what makes it per-attempt. Attempt rows key by task id while
-    sandbox labels key by the infrastructure id, so a shadow replay's booking
-    (whose label reads `shadow-<task id>`) drains into the row of the task it
-    shadows."""
-
-    if task_id is None:
-        return {}
-
-    with _TRANSFER_LOCK:
-        booked = _pending_transfers.pop(task_id, {})
-
-        for key, value in _pending_transfers.pop(shadow_id(task_id), {}).items():
-            booked[key] = booked.get(key, 0.0) + value
-
-    return {
-        key: round(value, 3) if key.endswith("_seconds") else int(value)
-        for key, value in sorted(booked.items())
-    }
-
-
-# ....................... #
-
 # The harness receipt's own account of the attempt (S-0065/D-6), booked by the
-# adapter that read it and drained by whichever row ends the attempt — the
-# transfer ledger's route above, for the same reason: the receipt is parsed
-# where the harness output lives, and the record is built three modules away.
+# adapter that read it and drained by whichever row ends the attempt: the
+# receipt is parsed where the harness output lives, and the record is built
+# three modules away.
 # A harness whose receipt names no field books nothing, so the row lacks
 # the keys outright — absent stays absent (S-0004/D-6), and an ending the engine
 # was not told is never invented. The turn count, the refused calls and the
 # subagent counters ride the same booking under the same rule (S-0073/D-3):
 # recorded when the receipt carries them, and never invented when it does not.
-# Process-local, like the transfer ledger.
+# Process-local, and dies with the orchestrator's one process.
 
 _RECEIPT_LOCK = threading.Lock()
 _pending_receipts: dict[str, dict[str, Any]] = {}
@@ -1039,12 +969,7 @@ RECORDED_OUTPUT = 4000
 _RED = ("fail", "error")
 
 # A truncated red result keeps its tail, where the failure is, or a test run's
-# failure report beside it when the report opens earlier (`clip`). The `mutation`
-# gate (S-0107/D-2) is the exception: its report opens with the score line and
-# its survivors can run past the bound, so the tail alone would drop the score
-# exactly when the tests are weakest — the one reading `torve why` and the
-# quality report are for (S-0107/D-3). Its first line is kept beside the tail.
-_HEAD_LINE_GATES = ("mutation",)
+# failure report beside it when the report opens earlier (`clip`).
 
 
 def _recorded_result(result: GateResult) -> dict[str, Any]:
@@ -1054,14 +979,7 @@ def _recorded_result(result: GateResult) -> dict[str, Any]:
     if result.outcome not in _RED:
         row["output"] = ""
     elif len(output) > RECORDED_OUTPUT:
-        head = output.split("\n", 1)[0] if result.name in _HEAD_LINE_GATES else ""
-        # The head line counts against the bound, so the record stays within it.
-        room = RECORDED_OUTPUT - len(head) - 1
-        row["output"] = (
-            f"{head}\n{clip(output, room) if room > 0 else ''}"
-            if head
-            else clip(output, RECORDED_OUTPUT)
-        )
+        row["output"] = clip(output, RECORDED_OUTPUT)
 
     return row
 
@@ -1115,7 +1033,6 @@ def build_record(
     agent: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     task_id = ctx.task.id if ctx.task else None
-    transfer = _drain_transfer(task_id)
 
     # S-0065/D-4: an attempt row that names no sha at all can never be joined
     # to a contract, a diff or a landing — it is a cost and a duration attached
@@ -1148,10 +1065,6 @@ def build_record(
         # an uncontrolled regime. What the harness receipt said about the
         # ending joins it (S-0065/D-6), where the harness returned it.
         "agent": None if agent is None else priced(_attach_prefix(agent, task_id, ctx.task)),
-        # The workspace transfer's cost, booked by a transferring runtime for
-        # this attempt (S-0041/the-transfer-measured) — a sibling of the agent block because
-        # it is the runtime's measurement, not the agent's self-report.
-        **({} if not transfer else {"transfer": transfer}),
         "decisions": [_recorded_decision(d) for d in ctx.task.decisions] if ctx.task else [],
         "results": [_recorded_result(r) for r in report.results],
         "exit_code": report.exit_code,
@@ -1191,8 +1104,6 @@ def build_attempt_row(
     the row's own fields — the vocabulary adds convenience, never
     information (S-0038/D-2's determinism argument)."""
 
-    transfer = _drain_transfer(task.id)
-
     return {
         "schema_version": RECORD_SCHEMA_VERSION,
         "at": stamp(),
@@ -1206,10 +1117,6 @@ def build_attempt_row(
         # the contract's facts follow it (S-0075/D-2, S-0075/D-4): the spend
         # happened even if nothing else did, and the row must be able to say so.
         "agent": priced(_attach_prefix(agent, task.id, task)),
-        # The runtime's booked transfer legs ride beside the agent block
-        # exactly as on the gate-pass row (S-0041/the-transfer-measured): the spend on
-        # moving the workspace happened even if nothing else did.
-        **({} if not transfer else {"transfer": transfer}),
         "decisions": [_recorded_decision(d) for d in task.decisions],
         "results": [],
         "exit_code": exit_code,

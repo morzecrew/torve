@@ -7,7 +7,6 @@
 .torve/worktrees
 **/__pycache__
 **/*.pyc
-web/node_modules
 node_modules
 htmlcov
 .pytest_cache

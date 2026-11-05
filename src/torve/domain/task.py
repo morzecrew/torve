@@ -180,10 +180,8 @@ class RoundRecord(BaseModel):
 # The roles a worker may take off the board. Review and draft contracts are
 # runner-minted mid-run (S-0005/D-2, S-0020/D-2) and conclude with the run that
 # minted them, so nobody claims one — they are recorded (S-0049/A-1) because the
-# record is what the planning projections read, and offered to nobody. A verify
-# task is claimed like an implement task (S-0116/D-1): the board offers it and a
-# worker takes it.
-DISPATCHABLE_ROLES = ("implement", "revert", "verify")
+# record is what the planning projections read, and offered to nobody.
+DISPATCHABLE_ROLES = ("implement", "revert")
 
 
 # ....................... #
@@ -193,8 +191,8 @@ class Task(BaseModel):
     """The task contract, `.torve/tasks/T-NNNN/contract.yaml` (S-0001/domain, §6).
 
     `decisions` has no default on purpose: an empty list is legal but must be
-    explicit (S-0007/D-5), so `decisions-reported` can distinguish "none apply"
-    from "the field was forgotten".
+    explicit (S-0007/D-5), so a reader can distinguish "none apply" from "the
+    field was forgotten".
     """
 
     model_config = STRICT
@@ -206,7 +204,7 @@ class Task(BaseModel):
     spec: str | None = Field(default=None, pattern=SPEC_PATTERN)
     """The document the contract was minted from, by identifier and never by path
     (S-0059/D-1) — `document_dir` is the one lookup that finds it. None is the
-    document-less lane: an operator's ask, a standing job."""
+    document-less lane: an operator's ask."""
     source: str | None = Field(default=None, pattern=SOURCE_PATTERN)
     """What asked for the work (S-0060/D-3): a source identifier, `S-NNNN` or
     `<kind>/<slug>`, never parsed for inheritance. `spec` says whose rows this
@@ -216,8 +214,8 @@ class Task(BaseModel):
     phase: int = 0
     """The phasing entry the contract was minted from; 0 when no phase minted it."""
     role: Role = "implement"
-    """What the run does: implement, review (S-0005/D-9), revert (S-0010), draft
-    (S-0020) or verify (S-0116/D-1)."""
+    """What the run does: implement, review (S-0005/D-9), revert (S-0010) or draft
+    (S-0020)."""
     title: str = ""
     """A short human name (S-0007/A-1): the landing subject and every board row read
     it; empty falls back to the intent's first line. The planner mints it from the
@@ -235,8 +233,7 @@ class Task(BaseModel):
     targets: list[str] = Field(default_factory=list)
     """The tasks a review examines (S-0005/the-review-contract, S-0005/D-9) or the
     tasks and shas a revert undoes (S-0010/revert-as-a-role): the contract shape
-    is parameterised by role, no new mechanism. Only those two roles carry targets;
-    a verify task names none (S-0116/D-1)."""
+    is parameterised by role, no new mechanism. Only those two roles carry targets."""
     scope: Scope = Field(default_factory=Scope)
     """What the attempt may and may not touch (S-0002/scope-in-detail)."""
     acceptance: list[str] = Field(default_factory=list)
@@ -352,19 +349,6 @@ class Task(BaseModel):
                     "a draft task names at most one target — the contract "
                     "it decomposes, when it is a decomposition run"
                 )
-        elif self.role == "verify":
-            # S-0116/D-1: a verify contract's output is its acceptance commands
-            # — the tests it writes — and it names no target, because what it
-            # acts on is the code the phase will change, not a task. Each such
-            # contract is claimed and run like an implement task.
-            if not self.acceptance:
-                raise ValueError(
-                    "a verify task carries acceptance commands — the tests that "
-                    "prove its rows; one with none has nothing to run"
-                )
-
-            if self.targets:
-                raise ValueError(f"targets is not meaningful for role {self.role!r}")
         elif self.targets:
             raise ValueError(f"targets is not meaningful for role {self.role!r}")
 

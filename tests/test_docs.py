@@ -70,11 +70,10 @@ def test_the_operating_guide_documents_the_review_thread_leg_as_the_code_runs_it
         assert key in guide, f"the operating guide does not name threads.{key}"
 
 
-def test_the_operating_guide_documents_checks_twins_invariants_and_refactors():
-    """S-0106/D-1..D-7: the page an operator reads names a row's check and its
-    vacuous failure, the twin that proves a blocking check can fail, the
-    invariants the document battery runs, and the refactor mode of
-    `red-on-base` — the four things this document turned on."""
+def test_the_operating_guide_documents_checks_twins_and_invariants():
+    """S-0106/D-1..D-5: the page an operator reads names a row's check and its
+    vacuous failure, the twin that proves a blocking check can fail, and the
+    invariants the document battery runs."""
 
     guide = (PAGES / "operating.md").read_text(encoding="utf-8")
 
@@ -82,8 +81,6 @@ def test_the_operating_guide_documents_checks_twins_invariants_and_refactors():
     assert "selects nothing" in guide
     assert "check_twin" in guide
     assert "invariant:<id>" in guide
-    assert "behaviour changed under a refactor" in guide
-    assert "change.type" in guide
 
 
 def test_the_operating_guide_documents_the_suite_gate_and_the_lane_regate():
@@ -110,67 +107,6 @@ def test_the_operating_guide_documents_the_suite_gate_and_the_lane_regate():
     assert "gates whose state is `blocking` and the decision gates" in text
     assert "`lane.judged`" in text
     assert "A red re-gate's output is read from `torve why`" in text
-
-
-def test_the_operating_guide_documents_the_mutation_gate_and_how_to_read_a_survivor():
-    """S-0107/D-1..D-5: the page an operator reads names what a mutant is, the
-    budget that bounds the score, that the gate is shadow, how a survivor is
-    read — evidence, never a finding — where the score is shown, and the twin
-    that proves a weak test scores below a strong one."""
-
-    from torve.gates.mutation import DEFAULT_BUDGET
-
-    guide = (PAGES / "operating.md").read_text(encoding="utf-8")
-
-    # D-1: the operator set and the two lines that are never mutated.
-    for operator in ("comparison", "boolean", "arithmetic", "constant", "condition", "return"):
-        assert operator in guide, f"the guide does not name the {operator} mutant"
-    assert "A line the diff did not add or change is never mutated" in guide
-    assert "a test\nfile is never mutated" in guide
-
-    # D-2: the budget, the scratch copy, and the shadow state.
-    assert f"default {DEFAULT_BUDGET}" in guide
-    assert "scratch copy of the worktree" in guide
-    assert "twice their\nbaseline run" in guide
-    assert "`path:line — edit`" in guide
-    assert "shadow" in guide
-
-    # D-3: where the score and its survivors are read.
-    assert "gates.evaluated" in guide
-    assert "torve\nwhy" in guide or "torve why" in guide
-    assert "per phase and per document" in guide
-
-    # D-4: a survivor is evidence the reviewer grades, never a finding.
-    assert "a survivor is never a finding by itself" in guide
-
-    # D-5: the twin pair.
-    assert "scores 0 with every mutant a survivor" in guide
-    assert "tests pin each line scores 1" in guide
-
-
-def test_the_operating_guide_documents_the_verify_pilot_and_its_held_out_failures():
-    """S-0116/D-13: the page an operator reads says how to turn the pilot on
-    (each name one the engine parses, so a renamed key cannot leave the page
-    teaching a setting nothing reads), how to read a held-out failure, and how
-    a disputed verifier test reaches a person."""
-
-    from torve.config.runconfig import VerifyConfig
-
-    guide = (PAGES / "operating.md").read_text(encoding="utf-8")
-
-    assert "verify:" in guide
-    for key in VerifyConfig.model_fields:
-        assert key in guide, f"the operating guide does not name verify.{key}"
-    assert "executor.<variant>" in guide, "the seat a variant names is not stated"
-
-    # Reading a held-out failure: the event, the gate, and what its output keeps.
-    assert "verify.holdout" in guide
-    assert "the test's identifier, its message and the rows it cites" in guide
-    assert "cites: " in guide
-
-    # A disputed verifier test: the halt, the entry it leaves, and who decides.
-    assert "naming the test and the row it claims to decide" in guide
-    assert "underspecified" in guide
 
 
 def test_the_configuration_reference_names_the_nested_docker_block_the_engine_parses():
@@ -247,39 +183,6 @@ def test_no_page_claims_the_retired_truth_boundary():
 
         assert "D-27, LOCKED" not in body, f"{page.name} still cites the retired boundary"
         assert "Derive, don't record" not in body, f"{page.name} still teaches derive-don't-record"
-
-
-def test_the_operating_guide_documents_the_evidence_gate_and_its_table():
-    """S-0115/D-8: the page an operator reads names the `evidence` gate — the
-    citation it reads, the base-red and candidate-green rule, the check and
-    documentation exemptions, the verify skip and its shadow state — and the
-    four columns the decisions table gains when a joined table exists for the
-    tip it publishes."""
-
-    guide = (PAGES / "operating.md").read_text(encoding="utf-8")
-    text = " ".join(guide.split())
-
-    # The gate: what proves a row, and what does not.
-    assert "`evidence` gate answers, row by row" in text
-    assert "carries the row's full identifier, `S-NNNN/D-n`, as a whole token" in text
-    assert "a module or class docstring above it proves nothing for the tests beneath it" in text
-    assert "only functions that differ from the base tree as parsed syntax count" in text
-    assert "red on the base and green on the candidate" in text
-    assert "A row carrying a `check` is judged by its own `decision:<id>` gate" in text
-
-    # The behavioural line, the skip and the shadow state.
-    assert "unless every path it declares is a `*.md` file or under `pages/`" in text
-    assert "**shadow**" in text
-    assert "In a verify attempt's battery it skips" in text
-    assert "the verifier's file the contract denies counts as changed" in text
-
-    # The joined table's four columns, and the body left alone without one.
-    assert "the decisions table gains four columns beside `Decision`, `Grade` and `Text`" in text
-    assert "`Tests`, the citing tests that proved the row or `none`" in text
-    assert "`Check`, the row's `decision:<id>` outcome or `none`" in text
-    assert "`Survivors`, the number of mutation survivors under its paths or `none`" in text
-    assert "`Findings`, the number of review findings recorded against it or `none`" in text
-    assert "Without a table for that tip the decisions table stays as it is today" in text
 
 
 def test_the_operating_guide_documents_the_engine_the_chain_plans_from():

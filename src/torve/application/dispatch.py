@@ -20,11 +20,10 @@ it opened would leak one.
 from __future__ import annotations
 
 import contextlib
-import json
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from torve.application.ports import (
     Agent,
@@ -66,7 +65,6 @@ from torve.config.runconfig import (
     tier_name_for,
 )
 from torve.domain.attempt import GateResult
-from torve.domain.events import HoldoutFile
 from torve.domain.task import Task
 
 # ----------------------- #
@@ -121,12 +119,6 @@ class RunDeps:
     # Read when the contract is minted, not when the run began: another slot
     # may mint while an attempt runs. None is a run without a store.
     taken: Callable[[], Iterable[str]] | None = None
-    # S-0116/D-12: held-out properties a caller injects into this run's battery
-    # directly, instead of the `verify.holdout` event the host records. The
-    # verifier eval's candidate arm carries a replayed verifier's set this way:
-    # a shadow replay writes no event of its own to read it back from. Empty
-    # for every ordinary dispatch, which reads the latest event instead.
-    holdout: list[HoldoutFile] = field(default_factory=list)
 
 
 # ....................... #
@@ -137,7 +129,7 @@ class RunDeps:
 # the manifest or the contract. Two properties, one name — the prompt's removal
 # and the battery's — so `gated` (the bare prompt with the battery still
 # judging what comes back) is a combination of the two rather than a third
-# mechanism. The eval ledger names the same three arms.
+# mechanism.
 BARE, GATED, CONFIGURED = "bare", "gated", "configured"
 
 
@@ -289,15 +281,11 @@ class Dispatch:
 
 
 def review_gated(config: RunnerConfig, task: Task, shadow: bool) -> bool:
-    """Review follows execution (S-0005/D-11) only for live implement and verify
-    runs with the task-gated trigger configured — one predicate, shared by the
-    review hook and the broker's routing derivation so they cannot disagree.
+    """Review follows execution (S-0005/D-11) only for live implement runs with
+    the task-gated trigger configured — one predicate, shared by the review hook
+    and the broker's routing derivation so they cannot disagree."""
 
-    S-0116/D-7: a verify task is reviewed as an implement task is, so a reviewer
-    reads the verifier's tests — a test that asserts nothing, or one pinning an
-    internal no row names — before they judge any implementation."""
-
-    return not shadow and task.role in ("implement", "verify") and "task_gated" in config.review.on
+    return not shadow and task.role == "implement" and "task_gated" in config.review.on
 
 
 # ....................... #
@@ -396,54 +384,6 @@ def run_routing(
 # ....................... #
 
 
-def _measured_config_eval_digests(root: Path, tier_name: str) -> tuple[str, str] | None:
-    """(incumbent, candidate) digests the eval ledger's most recent
-    config-eval verdict citing `tier_name` measured (S-0027/D-7), or None when no
-    verdict cites it — nothing has been measured, so nothing can have been
-    displaced from it. The ledger is append-only, so the last matching line
-    is the most recent."""
-
-    from torve.application.evals import EVAL_LEDGER
-
-    ledger = root / layout.TORVE_DIR / EVAL_LEDGER
-
-    if not ledger.is_file():
-        return None
-
-    latest: tuple[str, str] | None = None
-
-    for line in ledger.read_text(encoding="utf-8").splitlines():
-        try:
-            record: Any = json.loads(line)
-
-        except json.JSONDecodeError:
-            continue
-
-        if not isinstance(record, dict):
-            continue
-
-        row = cast(dict[str, Any], record)
-
-        if row.get("kind") != "config-eval" or row.get("tier") != tier_name:
-            continue
-
-        raw_digests: Any = row.get("digests")
-
-        if not isinstance(raw_digests, dict):
-            continue
-
-        digests = cast(dict[str, Any], raw_digests)
-        incumbent, candidate = digests.get("incumbent"), digests.get("candidate")
-
-        if isinstance(incumbent, str) and isinstance(candidate, str):
-            latest = (incumbent, candidate)
-
-    return latest
-
-
-# ....................... #
-
-
 def _seat_price(config: RunnerConfig, tier: TierConfig) -> tuple[bool, dict[str, Any] | None]:
     """The rate card the seat's attempts are priced from (S-0064/D-12), and
     whether the roster had anything to say at all.
@@ -512,50 +452,6 @@ def open_dispatch(
     # and the price follows them when the seat itself resolves against the
     # roster (phase 2).
     priced, price = _seat_price(config, tier) if real else (False, None)
-
-    # S-0027/D-7: a candidate configuration displaces the incumbent default only
-    # through a paired replay verdict recorded in the eval ledger citing both
-    # digests — never by a definition edit quietly changing what a tier's
-    # image tag resolves to. Scoped to the live (non-shadow) dispatch of the
-    # task's own seat, with no explicit tier_variant named: a variant is
-    # naming and running a candidate on purpose (free, per S-0027/D-3), and the
-    # eval loop's own shadow arms (run_config_eval) must not trip on the very
-    # candidate they exist to measure.
-    if not shadow and not task.tier_variant and image_digest is not None:
-        measured = _measured_config_eval_digests(root, tier_name)
-
-        if measured is not None and image_digest not in measured:
-            incumbent, candidate = measured
-
-            if config.unmeasured_images == "allow":
-                # The rebuild escape hatch (S-0027/A-2): dispatch proceeds and the
-                # unmeasured regime is recorded rather than assumed. What
-                # the rule protects — comparing numbers from regimes nobody
-                # measured — is protected by the record saying so, not by
-                # the refusal.
-                engine_event(
-                    root,
-                    "unmeasured_dispatch",
-                    {
-                        "task": task.id,
-                        "tier": tier_name,
-                        "digest": image_digest,
-                        "measured": [incumbent, candidate],
-                    },
-                )
-
-            else:
-                raise ValueError(
-                    f"tier {tier_name!r} now resolves image digest {image_digest!r}, "
-                    "which the most recent recorded verdict for this tier never "
-                    f"measured (it measured {incumbent!r} as the running default and "
-                    f"{candidate!r} as the candidate) — the configured image changed "
-                    "since that measurement with no new paired verdict backing it; "
-                    "record a fresh replay verdict before this task can dispatch, "
-                    "name an explicit tier_variant to run a named candidate freely, "
-                    "or set unmeasured_images: allow while the images are being "
-                    "rebuilt"
-                )
 
     return Dispatch(
         root=root,

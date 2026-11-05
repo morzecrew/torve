@@ -47,8 +47,8 @@ layout:
   carried: [migrations]  # top-level directories that ride with any change
 ```
 
-Then every check a root project gets — the source-layout gate, the citation
-scan, the spec-quality frontier, the coverage fallback and the `tests`
+Then every check a root project gets — the citation scan, the spec-quality
+frontier, the coverage fallback and the `tests`
 defaults — reads under `app/`, and `migrations/` rides with a change the way
 `tests` and `.torve` already do. A project at the repository root declares
 nothing and changes nothing.
@@ -191,11 +191,8 @@ attempt's own sandbox has no repository to diff.
 ## 9. The first document: standing decisions
 
 A repository with no corpus starts with one document of standing decisions: the
-next `S-NNNN/` directory, titled "Standing decisions".
-`torve survey --last 40 --format json` replays recent landings through the
-gates and reports which gates fired, which stayed clean and which were
-skipped for want of a contract. Draft the document from that report and from
-the repository's own README, decision records and layout:
+next `S-NNNN/` directory, titled "Standing decisions". Draft the document from
+the repository's own history, README, decision records and layout:
 
 - **Mostly `ASSUMED`.** A grade is the owner's judgement about the cost of
   reversal, and nobody has made it yet. A draft that comes back mostly

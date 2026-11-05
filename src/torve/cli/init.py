@@ -18,7 +18,6 @@ from typing import Any
 
 import typer
 
-from torve.application.standing import StandingContract
 from torve.cli.console import STYLE_DIM, STYLE_PASS, closing, out
 from torve.cli.options import ConfigOption, RootOption, load_config
 from torve.config import layout
@@ -34,9 +33,8 @@ from torve.domain.states import EXIT_OK
 
 # What torve alone writes under `.torve/` (S-0057/D-5): the task directory
 # and the pack are projections (S-0056), the streams are append targets,
-# the rest is run state. The manifest, the configuration, the standing
-# contracts, the specifications and the schemas are reviewed artefacts and
-# stay tracked.
+# the rest is run state. The manifest, the configuration, the
+# specifications and the schemas are reviewed artefacts and stay tracked.
 MINTED_PATTERNS = (
     "tasks/",
     "context/",
@@ -67,10 +65,6 @@ gates:
     origin: structural
   - name: no-test-tampering
     run: "@no-test-tampering"
-    state: blocking
-    origin: structural
-  - name: decisions-reported
-    run: "@decisions-reported"
     state: blocking
     origin: structural
   # Your test gate. Gates run inside the sandbox image (`runtime.image` in
@@ -155,17 +149,6 @@ equipment:
 - kind: skill
   source: torve:working-rules
 """,
-    # S-0116/D-6: the verify seat is equipped with the verifier's brief beside
-    # the working rules every role that runs a contract reads.
-    "verify": """\
-role: verify
-
-equipment:
-- kind: skill
-  source: torve:working-rules
-- kind: skill
-  source: torve:verifier
-""",
 }
 
 
@@ -175,11 +158,10 @@ def _json(schema: dict[str, Any]) -> str:
 
 def expected_schemas(corpus: Path) -> dict[Path, str]:
     """Every schema `init` writes, by path: the four files of a document, the
-    contract, the log, the run configuration, the gate manifest, a standing
-    contract, a source and the fleet manifest."""
+    contract, the log, the run configuration, the gate manifest, a source and
+    the three files a seat is made of."""
 
     from torve.config.agents import AgentProfile, HarnessManifest
-    from torve.config.fleet import FleetManifest
     from torve.config.manifest import Manifest
     from torve.config.providers import Provider
     from torve.config.runconfig import RunnerConfig
@@ -194,11 +176,7 @@ def expected_schemas(corpus: Path) -> dict[Path, str]:
     texts[where / "log.json"] = _json(TaskLog.model_json_schema())
     texts[where / "config.json"] = _json(RunnerConfig.model_json_schema())
     texts[where / "gates.json"] = _json(Manifest.model_json_schema())
-    texts[where / "standing.json"] = _json(StandingContract.model_json_schema())  # S-0059/D-7
     texts[where / f"{SOURCE_SCHEMA}.json"] = source_schema_text()  # S-0060/D-1
-    # The fleet manifest lives on the operator's machine (S-0024), so its schema is
-    # minted here for an editor to be pointed at — every other model has one (T-0321).
-    texts[where / "fleet.json"] = _json(FleetManifest.model_json_schema())
     # S-0061/D-1, S-0061/D-2: the two files a seat names.
     texts[where / "agent.json"] = _json(AgentProfile.model_json_schema())
     texts[where / "harness.json"] = _json(HarnessManifest.model_json_schema())
@@ -457,10 +435,6 @@ def init_cmd(
     lined = [
         (layout.config_file(root), where / "config.json"),
         (layout.gates_file(root), where / "gates.json"),
-    ]
-    # S-0059/D-7: every standing contract names its schema too.
-    lined += [
-        (path, where / "standing.json") for path in sorted(layout.standing_dir(root).glob("*.yaml"))
     ]
     # S-0060/D-1: every filed source names its schema too.
     lined += [(path, where / f"{SOURCE_SCHEMA}.json") for path in source_files(root)]
