@@ -807,7 +807,7 @@ def test_the_sandbox_git_is_a_standalone_copy_of_the_attempt_s_head(repo, tmp_pa
 # the sandbox it ran in, before that sandbox dies.
 
 
-def _repair_loop(repo, monkeypatch, agent, repair):
+def _repair_loop(repo, monkeypatch, agent, repair, config=None):
     """A run whose attempt leg is handed *repair*, with a green gate pass
     that records the meta it judged."""
 
@@ -838,7 +838,7 @@ def _repair_loop(repo, monkeypatch, agent, repair):
     monkeypatch.setattr(
         run_module, "run_agent_session", lambda run, state: session(run, state, repair)
     )
-    run_task(repo.root, task_for(repo), RunnerConfig(), deps)
+    run_task(repo.root, task_for(repo), config or RunnerConfig(), deps)
 
     return runtime, judged
 
@@ -849,17 +849,20 @@ class _SessionAgent:
     def __init__(self, exit_code: int = 0) -> None:
         self.exit_code = exit_code
         self.calls: list[tuple] = []
+        self.clocks: list[float] = []
 
     def run(self, ctx):
         from torve.application.ports import AgentResult
 
         self.calls.append(("run", ctx.handle.id))
+        self.clocks.append(ctx.timeout_s)
         return AgentResult(exit_code=self.exit_code, output="first", cost_usd=0.1)
 
     def follow_up(self, ctx, previous, text):
         from torve.application.ports import AgentResult
 
         self.calls.append(("follow_up", ctx.handle.id, previous.output, text))
+        self.clocks.append(ctx.timeout_s)
         return AgentResult(exit_code=0, output="second", cost_usd=0.3)
 
 
@@ -881,6 +884,21 @@ def test_a_repair_turn_continues_the_attempt_in_its_own_sandbox(repo, monkeypatc
     assert runtime.destroyed == ["sbx-1"]
     # The result is the session's whole: the follow-up's totals count both.
     assert judged[0]["cost_usd"] == 0.3
+    # The sandbox outlives one agent clock: the turn gets what is left of it.
+    assert 0 < agent.clocks[1] < agent.clocks[0]
+
+
+def test_no_repair_turn_once_the_attempt_s_clock_is_spent(repo, monkeypatch):
+    async def repair(result):
+        return "red"
+
+    agent = _SessionAgent()
+    config = RunnerConfig(
+        tiers={"executor": TierConfig(agent_timeout=0.001), "planner": TierConfig()}
+    )
+    _repair_loop(repo, monkeypatch, agent, repair, config)
+
+    assert all(call[0] == "run" for call in agent.calls)
 
 
 @pytest.mark.parametrize(("exit_code", "bought"), [(0, None), (1, "red")])

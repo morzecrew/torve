@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -591,8 +592,13 @@ async def run_agent_session(
 
         if repair is not None and follow_up is not None and result.exit_code == 0:
             text = await repair(result)
+            # The sandbox outlives one agent clock and no more (S-0035/D-6), so
+            # the repair turn gets what is left of it, and no turn when nothing is.
+            left = ctx.timeout_s - (time.monotonic() - attempt_clock)
             continued = (
-                await asyncio.to_thread(follow_up, ctx, result, text) if text is not None else None
+                await asyncio.to_thread(follow_up, replace(ctx, timeout_s=left), result, text)
+                if text is not None and left > 0
+                else None
             )
 
             if continued is not None:
