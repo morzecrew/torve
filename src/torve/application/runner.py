@@ -519,7 +519,7 @@ def _in_flight(root: Path, skip_id: str) -> Iterator[tuple[str, list[str], list[
         if other.role == "review":
             continue
 
-        yield state.task_id, list(other.scope.files), _recorded_promotions(state)
+        yield state.task_id, list(other.scope.allow), _recorded_promotions(state)
 
 
 def _held_contingent(
@@ -1902,10 +1902,10 @@ def _blocking_overlap(root: Path, task: Task) -> tuple[str, str] | None:
     the attempt's diff shows one was actually made."""
 
     for holder, allow, promoted in _in_flight(root, task.id):
-        if not task.scope.files or not allow:
+        if not task.scope.allow or not allow:
             return holder, "unconstrained scope"
 
-        overlap = _scope_overlap(task.scope.files, [*allow, *promoted])
+        overlap = _scope_overlap(task.scope.allow, [*allow, *promoted])
 
         if overlap is not None:
             return holder, overlap

@@ -468,9 +468,9 @@ def test_two_wildcard_scopes_that_share_a_path_fence_each_other():
     run(scenario)
 
 
-def test_tasks_sharing_a_licensed_test_but_not_a_file_are_disjoint():
-    """S-0122/D-12: `files` is the disjointness key. A paired test two tasks
-    are both licensed to touch holds neither off the other."""
+def test_tasks_sharing_only_a_licensed_test_are_never_in_flight_together():
+    """S-0121/D-27 over S-0122/D-12: a paired test two contracts both license
+    is written as surely as a file, so the second task is held off."""
 
     async def scenario(log):
         shared = ["tests/test_app.py"]
@@ -484,8 +484,8 @@ def test_tasks_sharing_a_licensed_test_but_not_a_file_are_disjoint():
 
         board = project(await log.since(partition=PARTITION))
 
-        assert overlaps(board.tasks["T-2"].contract, board) == []
-        assert dispatchable(board, PARTITION) == ["T-2"]
+        assert overlaps(board.tasks["T-2"].contract, board) == ["T-1"]
+        assert dispatchable(board, PARTITION) == []
 
     run(scenario)
 

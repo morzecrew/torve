@@ -151,7 +151,7 @@
           "type": "array"
         },
         "files": {
-          "description": "Globs of what the task owns: the disjointness key between tasks.",
+          "description": "Globs of what the task owns, and what sizing counts.",
           "items": {
             "type": "string"
           },

@@ -63,7 +63,7 @@ class Scope(BaseModel):
     model_config = STRICT
 
     files: list[str] = Field(default_factory=list)
-    """Globs of what the task owns: the disjointness key between tasks."""
+    """Globs of what the task owns, and what sizing counts."""
     tests: list[str] = Field(default_factory=list)
     """The owned files' paired tests, derived at mint and licensed with them."""
     fence: list[str] = Field(default_factory=list)
@@ -97,7 +97,9 @@ class Scope(BaseModel):
     @property
     def allow(self) -> list[str]:
         """What the task may touch: its files and their tests, or nothing, which
-        is unconstrained, when it owns no files."""
+        is unconstrained, when it owns no files. Two tasks whose `allow`
+        intersect are never in flight together (S-0121/D-27): a licensed test
+        is written as surely as a file."""
 
         return [*self.files, *self.tests] if self.files else []
 

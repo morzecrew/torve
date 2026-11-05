@@ -376,7 +376,7 @@ def overlaps(task: Task, board: Board) -> list[str]:
             continue
 
         # Unconstrained on either side holds everything (S-0002/scope-in-detail).
-        if not task.scope.files or not view.contract.scope.files:
+        if not task.scope.allow or not view.contract.scope.allow:
             shared.append(view.task_id)
             continue
 
@@ -388,9 +388,9 @@ def overlaps(task: Task, board: Board) -> list[str]:
         # its attempt may never write refuses far more than the document
         # allows, since the contingent set names every importer and every
         # sibling phase.
-        fence = [*view.contract.scope.files, *view.promoted]
+        fence = [*view.contract.scope.allow, *view.promoted]
 
-        if scopes_clash(task.scope.files, fence):
+        if scopes_clash(task.scope.allow, fence):
             shared.append(view.task_id)
 
     return sorted(shared)
@@ -409,7 +409,7 @@ def in_flight_fences(board: Board) -> dict[str, list[str]]:
     skipped, exactly as `overlaps` skips it."""
 
     return {
-        view.task_id: [*view.contract.scope.files, *view.promoted]
+        view.task_id: [*view.contract.scope.allow, *view.promoted]
         for view in board.in_flight()
         if view.contract is not None and view.contract.role != "review"
     }
