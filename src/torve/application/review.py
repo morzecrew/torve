@@ -1203,6 +1203,7 @@ def run_review(
         trigger,
         {
             "mode": "classic",
+            "blocks_at": config.review.blocks_at,
             "findings": [f.model_dump() for f in kept],
             "discarded": discarded,
             "unparseable": unparseable,

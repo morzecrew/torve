@@ -1359,6 +1359,23 @@ def test_why_events_and_reviews_join_the_task_chronologically(plan_repo):  # noq
     ]
 
 
+def test_why_counts_a_reviews_blockers_at_the_bar_it_was_judged_by():
+    """A `major` finding blocks under `blocks_at: major`, so `why` counts it;
+    a record written before the bar rode on it counts `blocker` alone."""
+
+    from torve.application.projections import _why_reviews
+
+    def row(**extra):
+        findings = [{"severity": "major"}, {"severity": "minor"}]
+        return {"kind": "review", "target": "T-0001", "findings": findings, **extra}
+
+    judged = _why_reviews([row(task_id="T-0002", blocks_at="major")], "T-0001")
+    older = _why_reviews([row(task_id="T-0003")], "T-0001")
+
+    assert judged[0]["blockers"] == 1
+    assert older[0]["blockers"] == 0
+
+
 def test_why_totals_sum_only_what_was_reported(plan_repo):  # noqa: F811
     root, _, _ = plan_repo
     totals = _why_env(root)["totals"]
