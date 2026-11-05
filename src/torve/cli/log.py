@@ -78,7 +78,12 @@ def divergence_cmd(
     action: Annotated[
         list[str] | None, typer.Option("--action", help="halted or departed.")
     ] = None,
-    attempt: Annotated[int, typer.Option("--attempt", min=1, help="Which attempt this is.")] = 1,
+    attempt: Annotated[
+        int | None,
+        typer.Option(
+            "--attempt", min=1, help="Which attempt this is; defaults to the one the engine pinned."
+        ),
+    ] = None,
     kind: Annotated[
         list[str] | None,
         typer.Option("--kind", help="contradicted, departed or blocked."),
@@ -119,6 +124,17 @@ def divergence_cmd(
     root = root.resolve()
     decisions = decision or []
     rows = len(decisions)
+
+    if attempt is None:
+        # The attempt the engine pinned for this task, as `torve abort` reads
+        # it, so a retry's departure is not filed under attempt 1.
+        try:
+            pinned_task, attempt = current(root)
+
+        except IntakeRefused:
+            pinned_task, attempt = task_id, 1
+
+        attempt = attempt if pinned_task == task_id else 1
 
     if not rows:
         raise _refuse(["--decision is required, once per row"], 1, fmt, "nothing was stated")

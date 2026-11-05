@@ -215,6 +215,20 @@ def test_abort_writes_the_attempt_the_engine_pinned(worktree):
     assert [one["attempt"] for one in entries(worktree)] == [3]
 
 
+def test_a_departure_without_attempt_takes_the_pinned_one(worktree):
+    """`working-rules` shows the verb without `--attempt`, so a retry's
+    departure takes the attempt the engine pinned rather than attempt 1; an
+    explicit `--attempt` still wins."""
+
+    from torve.application.divergence import seed
+
+    seed(worktree.root, TASK_ID, base="0" * 40, attempt=3)
+
+    assert run(worktree, *row("S-0001/D-1")).exit_code == EXIT_OK
+    assert run(worktree, *row("S-0001/D-2"), "--attempt", "2").exit_code == EXIT_OK
+    assert [one["attempt"] for one in entries(worktree)] == [3, 2]
+
+
 def test_abort_refuses_a_row_the_contract_does_not_carry_and_writes_nothing(worktree):
     result = abort(
         worktree, "--row", "S-0009/D-7", "--claim", "c", "--evidence", "src/app.py:1 — the line"

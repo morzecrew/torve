@@ -57,9 +57,11 @@ The first halts the task when its rows, its intent and its tests cannot all
 hold: a halt on a LOCKED row escalates to the owner, any other to the author
 as underspecified, and a justified abort is a successful attempt. The second
 records a departure from an ASSUMED or OPEN row, with what the row should say
-instead. Both travel through the channel, and the engine writes the log
-file, so unparseable YAML and unstaged logs are not reachable states. Work
-that keeps to its rows writes no entry.
+instead. Both check every entry before writing it, so unparseable YAML is
+not a reachable state. A brokered run sends them through the channel and the
+engine writes the log file; a run without one writes the file in the
+worktree, and the engine stages what the verb could not. Work that keeps to
+its rows writes no entry.
 
 ## Gates — the battery judges the diff
 

@@ -101,8 +101,11 @@ def test_the_first_message_carries_the_packs_small_files(tmp_path):
     # S-0077/D-4: the map rides the same message, and it is markdown rather
     # than JSON, so the fence it lands in is not the JSON one.
     (pack / "map.md").write_text("# Where things are\n\n- `src/` — the layout", encoding="utf-8")
-    # S-0076/A-1: the scope's own files ride with the task too.
-    (pack / "scope.md").write_text("# The files this scope names\n\nthe bodies", encoding="utf-8")
+    # S-0076/A-1: the scope's own files ride with the task too, each in its
+    # own fence, which the fence around `scope.md` must outlast.
+    (pack / "scope.md").write_text(
+        "# The files this scope names\n\n```python\nthe bodies\n```", encoding="utf-8"
+    )
 
     handed = pack_handover(tmp_path)
     prompt = build_prompt(Task(id="T-0001", decisions=[]), pack=handed)
@@ -115,6 +118,8 @@ def test_the_first_message_carries_the_packs_small_files(tmp_path):
 
     assert "```\n# Where things are" in prompt
     assert "```json\n# Where things are" not in prompt
+    assert "````\n# The files this scope names" in prompt
+    assert "```\n````\n" in prompt  # the inner fence closes before the outer one
 
     # Named once, as what it is — never as a file to open.
     for name in ("map.md", "scope.md", "attempts.json"):

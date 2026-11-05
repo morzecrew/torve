@@ -263,6 +263,17 @@ def tests_file(root: Path, task: Task, tests: TestsConfig | None = None) -> dict
         for glob in task.scope.allow
         if "*" not in glob and not glob.lstrip("/").startswith("tests/") and Path(glob).suffix
     ]
+    # A glob's source matches pair too: `scope.md` carries them as targets, so
+    # their tests belong beside them. A test the glob sweeps in is no module.
+    globs = [glob for glob in task.scope.allow if any(c in glob for c in "*?[")]
+
+    if globs:
+        swept, tested = GitIgnoreSpec.from_lines(globs), GitIgnoreSpec.from_lines(config.patterns)
+        modules += [
+            rel
+            for rel in candidates
+            if swept.match_file(rel) and Path(rel).suffix and not tested.match_file(rel)
+        ]
 
     for module in dict.fromkeys(modules):
         for test in config.paired(module, candidates):

@@ -16,6 +16,7 @@ because the gate record is the one that describes it.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import shutil
 import subprocess
@@ -608,6 +609,14 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
 
         if broker is not None and wire is not None:
             _record_broker_usage(state, broker, wire, run.meta)
+
+        # A brokered `torve abort` reaches the record, not the file: the log
+        # is rewritten from the record before the halt is read, or the gates
+        # would judge an attempt that stopped. A sync that fails here fails
+        # again, closed, before the gate pass.
+        if deps.journal is not None:
+            with contextlib.suppress(Exception):
+                await asyncio.to_thread(deps.journal, worktree)
 
         # Every path out of this hook ends in exactly one row (S-0038/D-1).
         # The endings are inspected in the order the loop itself reads

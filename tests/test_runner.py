@@ -1360,7 +1360,16 @@ class _EndingsAgent:
 
 
 def _drive_endings(
-    repo, results, *, write_on=None, halted_on=None, broker=None, ceiling=6, vcs=None, channel=None
+    repo,
+    results,
+    *,
+    write_on=None,
+    halted_on=None,
+    broker=None,
+    ceiling=6,
+    vcs=None,
+    channel=None,
+    journal=None,
 ):
     """Cut a worktree on a seeded repository (an empty battery: these
     verdicts are about how attempts end, not what any particular gate
@@ -1389,6 +1398,7 @@ def _drive_endings(
         store=None,  # type: ignore[arg-type]
         broker=RefusingBroker() if broker else None,
         channel=channel,
+        journal=journal,
     )
     config = RunnerConfig(poison_ceiling=ceiling)
     state = RunState(task_id=task.id, path=repo.root / ".wt" / f"{task.id}.state.json")
@@ -1473,6 +1483,34 @@ def test_a_halted_attempt_appends_its_verdict_row(repo):
     assert rows[0]["escalation"] == "locked_conflict"
     assert rows[0]["agent"]["attempt"] == 1
     assert rows[0]["exit_code"] == 0
+    assert rows[0]["gates_run"] is False
+
+
+def test_a_halt_sent_through_the_channel_stops_the_attempt_before_its_gates(repo):
+    """A brokered `torve abort` reaches the record, and the journal writes the
+    worktree's log from it. The halt is read after that sync, so an attempt
+    that stopped escalates instead of going on to be judged and landed."""
+    from torve.application.ports import AgentResult
+
+    synced: list[Path] = []
+
+    def journal(worktree: Path) -> None:
+        synced.append(worktree)
+        log = worktree / ".torve" / "tasks" / TASK_ID / "log.yaml"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text(
+            "schema_version: 1\ntask: " + TASK_ID + "\ndrift_count: 0\n"
+            "entries:\n  - decision: D-1\n    grade: LOCKED\n"
+            "    kind: contradicted\n    action: halted\n    attempt: 1\n",
+            encoding="utf-8",
+        )
+
+    ok = AgentResult(exit_code=0, output="")
+    final, (rows, _events) = _drive_endings(repo, [ok], journal=journal)
+
+    assert synced
+    assert final.escalation is not None and final.escalation.reason == "locked_conflict"
+    assert [r["verdict"] for r in rows] == ["halted"]
     assert rows[0]["gates_run"] is False
 
 

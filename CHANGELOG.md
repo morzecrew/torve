@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `decided` and `resolved`, the prompt and `AGENTS.md` sections name no owed entry, and
   the finish hook runs only the acceptance. Logs written before still read.
 
+- `torve log divergence` without `--attempt` files its entries under the attempt the
+  engine pinned in the worktree, not attempt 1.
+
 ### Removed
 
 - `torve log owed` is gone.
