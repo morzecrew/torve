@@ -10,15 +10,16 @@
 # travel it: `--patch <file>`, a list of plugin entries. `equip` installs a
 # plugin through dsh's own verb *before* patching it, since `--patch` configures
 # an entry the profile already carries and cannot add one (S-0063/D-17); it
-# copies a skill into `.agents/skills`, which is where
-# `@deepseek-ai/dsh-skill-filesystem` watches (S-0063/D-16); and it appends
+# copies a skill into `equip_root` below, the one root the image's door leaves
+# `@deepseek-ai/dsh-skill-filesystem` watching (S-0063/D-16); and it appends
 # every other kind verbatim, because those the operator writes in dsh's own
 # vocabulary and a document torve invented would be a schema it does not know.
 adapter: harness
 image: dsh-sandbox:{torve}
-# dsh's skill plugin watches `.agents/skills` and `.dsh/skills`. The first is
-# where a repository keeps its own reviewed skills — this one tracks six — so
-# equipment takes the second, which is torve's (S-0063/D-19).
+# dsh's skill plugin watches `.agents/skills` and `.dsh/skills` by default. The
+# first is where a repository keeps its own reviewed skills — this one tracks
+# six — so equipment takes the second, which is torve's (S-0063/D-19), and the
+# image's door turns the defaults off and names this root alone.
 equip_root: .dsh/skills
 kinds: [skill, plugin, mcp, hook, agent]
 # No `env`. `DSH_MODEL` carried a JSON document in a string — a provider, a

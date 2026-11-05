@@ -34,3 +34,35 @@ amendments:
       `revision_variant` (S-0117/D-1). The poison ceiling keeps counting per
       dispatch: requeues are an operator's act, and a lifetime count would
       escalate a task the operator just requeued.
+  - id: A-2
+    at: '2026-11-04T23:15:46Z'
+    title: >-
+      The dsh seat narrows the headless profile; sdk-minimal waits for the SDK driver
+    changes:
+      - subject: D-10
+        field: text
+        before: >-
+          The dsh seat pins `@deepseek-ai/dsh@0.2.1-rc.5` and `deepseek-v4.1-flash-1017`,
+          runs a `torve-exec` profile built on `sdk-minimal` with `DSH_PERMISSION_MODE=danger-full-access`
+          inside the container, telemetry off, a per-attempt `DSH_HOME`, an empty
+          `DSH_AGENTS_HOME` and a 900 s bash timeout, and every patch carries a `--dump-config`
+          boot assertion
+        after: >-
+          The dsh seat pins @deepseek-ai/dsh@0.2.1-rc.5 and deepseek-v4.1-flash-1017
+          and runs the headless profile narrowed to nine tools, with DSH_PERMISSION_MODE=danger-full-access
+          inside the container, telemetry and the session-log upload off, per-attempt
+          homes and a 900 s bash timeout; the image's smoke check reads every patch
+          back out of --dump-config and fails the build on a dropped key or a disabled
+          plugin
+      - subject: D-10
+        field: fingerprint
+        after: 5346ad146b774b06/af8e7002dead8e91
+    md: |
+      Building phase 4 showed `sdk-minimal` is the SDK's JSON-RPC application,
+      not a profile the headless entry point boots, so the seat keeps the
+      headless profile and narrows its tool set instead: nine tools, with plan
+      mode, session titles and the session-log upload turned off. The
+      `sdk-minimal` profile becomes the seat's when the session driver of
+      phase 6 drives dsh through the SDK. The research's persona finding was
+      half right: the shipped 0.1.2-rc.1 still read `persona`, so only the door
+      was broken in production, and the bump would have broken the persona.
