@@ -576,18 +576,15 @@ def touched_file(root: Path, target: Task, diff_text: str) -> dict[str, Any]:
 # ....................... #
 
 
-def parse_findings(output: str) -> list[Finding] | None:
-    """The last JSON document with a `findings` key anywhere in the output,
-    parsed and validated; None when no such document exists — recorded as
-    unparseable, never invented as clean. A document that exists but fails
-    the model raises `SchemaRefusal` naming the field (S-0054/D-15). Harness
-    output is hostile ground: ANSI escapes are stripped and the document
-    may span lines or be followed by session chatter, so balanced decoding
-    wins over line splitting."""
+def last_document(output: str, key: str = "findings") -> dict[str, Any] | None:
+    """The last JSON object carrying *key* anywhere in a seat's output, or
+    None. Harness output is hostile ground: ANSI escapes are stripped and the
+    document may span lines or be followed by session chatter, so balanced
+    decoding wins over line splitting."""
 
     text = ANSI.sub("", output)
     decoder = json.JSONDecoder()
-    last: object | None = None
+    last: dict[str, Any] | None = None
     envelopes: list[str] = []
 
     for brace in re.finditer(r"\{", text):
@@ -597,7 +594,7 @@ def parse_findings(output: str) -> list[Finding] | None:
         except json.JSONDecodeError:
             continue
 
-        if isinstance(document, dict) and "findings" in document:
+        if isinstance(document, dict) and key in document:
             last = cast("dict[str, Any]", document)
 
         elif isinstance(document, dict):
@@ -608,15 +605,26 @@ def parse_findings(output: str) -> list[Finding] | None:
             # an opus review's two blockers were dropped as unparseable).
             result: Any = cast("dict[str, Any]", document).get("result")
 
-            if isinstance(result, str) and "findings" in result:
+            if isinstance(result, str) and key in result:
                 envelopes.append(result)
 
     if last is None:
         for enveloped in envelopes:
-            nested = parse_findings(enveloped)
+            nested = last_document(enveloped, key)
 
             if nested is not None:
                 return nested
+
+    return last
+
+
+def parse_findings(output: str) -> list[Finding] | None:
+    """The last JSON document with a `findings` key anywhere in the output,
+    parsed and validated; None when no such document exists — recorded as
+    unparseable, never invented as clean. A document that exists but fails
+    the model raises `SchemaRefusal` naming the field (S-0054/D-15)."""
+
+    last = last_document(output)
 
     if last is None:
         return None
@@ -648,6 +656,12 @@ class ReviewOutcome:
     # (an unparseable outcome whose cause is known): a 429 at a usage limit
     # clears on its own, and whoever reads the escalation should know that.
     seat_error: str | None = None
+    # What a revision is handed when this review blocks (S-0122/D-8): the
+    # threads, when the reviewer composed richer ones than the blockers'
+    # claim and evidence, and the measurements the candidate failed. None
+    # leaves the classic shape, `blocker_threads` over the blockers.
+    threads: list[dict[str, Any]] | None = None
+    measured: dict[str, Any] | None = None
 
 
 # ....................... #
@@ -1479,22 +1493,31 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
 
     taken = run.deps.taken() if run.deps.taken is not None else ()
     review_task = mint_review_task(run.root, run.task, taken=taken)
+    outcome: ReviewOutcome
 
-    outcome = await asyncio.to_thread(
-        run_review,
-        run.root,
-        run.worktree,
-        run.task,
-        review_task,
-        run.config,
-        run.deps.runtime,
-        reviewer_for(run),
-        run.last_pass.patch,
-        list(run.last_pass.results),
-        run.last_pass.digest,
-        broker=run.deps.broker,
-        broker_handle=run.broker_handle,
-    )
+    if run.config.review.mode == "critic":
+        # S-0122/D-6: the critic judges the candidate from the evidence the
+        # gate pass measured; what follows treats its verdict as any review's.
+        from torve.application.critic import judge
+
+        outcome = await asyncio.to_thread(judge, run, review_task)
+
+    else:
+        outcome = await asyncio.to_thread(
+            run_review,
+            run.root,
+            run.worktree,
+            run.task,
+            review_task,
+            run.config,
+            run.deps.runtime,
+            reviewer_for(run),
+            run.last_pass.patch,
+            list(run.last_pass.results),
+            run.last_pass.digest,
+            broker=run.deps.broker,
+            broker_handle=run.broker_handle,
+        )
 
     # S-0101/D-4: the findings ride the record, not only this host's stream, so
     # a host that did not run the review reads them from the board. Emitted
@@ -1567,11 +1590,17 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
             # candidate diff ride the S-0005/the-revision-loop-added-by-a-32-2026-08-24 feedback record —
             # the existing S-0005/D-13 plant/frame mechanics carry it into
             # the next attempt with no new delivery path.
+            # S-0122/D-8: a critic's revision is handed its blocking findings
+            # with their repros and the measurements the candidate failed —
+            # never the critic's trace, which no revision reads.
             capture_feedback(
                 run.root,
                 run.task.id,
                 run.last_pass.patch,
-                blocker_threads(outcome.blockers, outcome.review_id),
+                outcome.threads
+                if outcome.threads is not None
+                else blocker_threads(outcome.blockers, outcome.review_id),
+                measured=outcome.measured,
             )
             state.history.append(
                 {

@@ -1229,6 +1229,14 @@ class ReviewConfig(BaseModel):
     surviving blockers — a clean review costs nothing against it. 0 escalates on the first
     surviving blocker, today's behavior exactly."""
 
+    mode: Literal["classic", "critic"] = "classic"
+    """Who judges a gate-green candidate (S-0122/D-6): `classic`, the reviewer
+    handed the diff, the contract and the gate results; or `critic`, the reviewer
+    handed the diff, the evidence package the engine measured on the candidate and
+    its base, the base tree and the rows the unit owns, under a frozen prompt, whose
+    findings the engine turns into block or pass (S-0122/D-1). `classic` stays for
+    one release beside it."""
+
     blocks_at: Literal["blocker", "major"] = "major"
     """The severity that stops a promotion. Three consecutive reviews of this engine's own
     work found a real defect apiece — a leg that shipped the next phase's deliverable, a

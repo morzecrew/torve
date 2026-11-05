@@ -81,6 +81,16 @@ isolated from the executor, judging the candidate diff without the author's
 trace. Its findings gate the merge lane. A surviving blocker escalates the
 target rather than landing it.
 
+`review.mode: critic` swaps the reviewer for the critic. The gate pass that
+turned the candidate green also measures it: the changed tests run at the
+head and over the base's source, a status per row the unit owns, the
+acceptance the battery left unrun, the edits to existing tests and the
+gaming greps, written as `.torve/review/evidence.yaml`. The critic reads
+that, the base tree, the diff and its rows under a frozen prompt, and
+nothing the author wrote about the work. The engine, not the critic, turns
+its findings into block or pass. Neither seat sees an earlier review's
+findings.
+
 ## Landing — the commit is the engine's
 
 The runner composes the commit, not the agent: the author is the agent

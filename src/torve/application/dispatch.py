@@ -66,6 +66,7 @@ from torve.config.runconfig import (
 )
 from torve.domain.attempt import GateResult
 from torve.domain.task import Task
+from torve.gates.evidence_package import EvidencePackage
 
 # ----------------------- #
 
@@ -145,6 +146,9 @@ class GatePass:
     results: list[GateResult] = field(default_factory=list)
     patch: str = ""
     digest: str = ""
+    # The candidate's evidence package (S-0122/D-5), measured in the same
+    # pass when the critic will read it; None when no critic will.
+    evidence: EvidencePackage | None = None
 
 
 # ....................... #
@@ -190,6 +194,9 @@ class Dispatch:
     # review is handed.
     convictions: list[GateResult] = field(default_factory=list)
     last_pass: GatePass = field(default_factory=GatePass)
+    # The package the current pass measured, before `last_pass` is restamped
+    # with it; cleared at the start of every pass.
+    evidence: EvidencePackage | None = None
 
     # The repair routing's own facts (S-0069/D-3, D-6), restamped by the gate
     # leg every red pass like `convictions`: `contract_acceptance` is what the

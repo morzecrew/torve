@@ -609,6 +609,16 @@
           "title": "Blocks At",
           "type": "string"
         },
+        "mode": {
+          "default": "classic",
+          "description": "Who judges a gate-green candidate (S-0122/D-6): `classic`, the reviewer\nhanded the diff, the contract and the gate results; or `critic`, the reviewer\nhanded the diff, the evidence package the engine measured on the candidate and\nits base, the base tree and the rows the unit owns, under a frozen prompt, whose\nfindings the engine turns into block or pass (S-0122/D-1). `classic` stays for\none release beside it.",
+          "enum": [
+            "classic",
+            "critic"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
         "on": {
           "description": "The review triggers in force (S-0005/triggers), from `task_gated`, `pr_opened` and\n`pr_synchronized`. Empty is off: configuring nothing decides nothing.",
           "items": {

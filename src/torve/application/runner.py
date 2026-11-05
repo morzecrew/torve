@@ -95,6 +95,7 @@ from torve.domain.states import BlockedDispatch, EscalationReason, TaskState
 from torve.domain.task import Task
 from torve.gates.context import GateContext, GitError, build_context, git, resolve_base
 from torve.gates.contract import spec
+from torve.gates.evidence_package import build_evidence
 from torve.gates.runner import RunReport, battery, battery_budget, run_gates
 
 # ----------------------- #
@@ -397,7 +398,7 @@ async def _apply_review(hooks: AttemptHooks, state: RunState) -> bool | None:
 # ....................... #
 
 
-class _SandboxExecutor:
+class SandboxExecutor:
     """ExecuteOnce over a fresh sandbox, created lazily so gate passes with no
     shell gates cost nothing, destroyed by the caller when the pass ends."""
 
@@ -833,6 +834,10 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
     the event the board folds. The row is written whether or not anything
     is observing — the record exists before either carrier does."""
 
+    # A package belongs to the pass that measured it; a pass that measures
+    # none leaves none from the attempt before.
+    run.evidence = None
+
     # S-0121/D-3: the battery is the root's, never one the attempt could have
     # edited in its worktree. A replay judges by the manifest its clone holds.
     manifest_path = layout.gates_file(run.worktree if run.shadow else run.root)
@@ -891,7 +896,7 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
             else None
         )
 
-        executor = _SandboxExecutor(run.deps.runtime, _gates_spec(run, state), judge)
+        executor = SandboxExecutor(run.deps.runtime, _gates_spec(run, state), judge)
 
         try:
             judge_task = layout.task_file(judge, run.task.id)
@@ -957,6 +962,13 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
             emit(run, "gates_started", state.attempts, budget_s=battery_budget(battery(ctx), ctx))
             report = run_gates(ctx)
 
+            # S-0122/D-5: a green candidate the critic will judge is measured
+            # here, over the same checkout, base and gates sandbox the battery
+            # just used — the host and that sandbox write every reading in it
+            # (S-0122/D-2). A red one is not: nothing reads its package yet.
+            if report.exit_code == 0 and _critic_reads(run):
+                run.evidence = build_evidence(ctx, report.results, candidate=run.task.id)
+
         finally:
             executor.close()
 
@@ -972,6 +984,13 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
 
     return report.exit_code, summary, digest, report.results, ctx.patch
+
+
+def _critic_reads(run: Dispatch) -> bool:
+    """Whether this run's gate-green candidate goes to the critic, which is
+    the one reader of an evidence package so far (S-0122/D-6)."""
+
+    return run.config.review.mode == "critic" and review_gated(run.config, run.task, run.shadow)
 
 
 def _task_bookkeeping(task_id: str) -> set[str]:
@@ -1178,7 +1197,9 @@ async def judge(run: Dispatch, state: RunState) -> tuple[int, str, str]:
         raise
 
     run.convictions = list(results)
-    run.last_pass = GatePass(results=list(results), patch=patch, digest=digest)
+    run.last_pass = GatePass(
+        results=list(results), patch=patch, digest=digest, evidence=run.evidence
+    )
 
     if exit_code != 0:
         await asyncio.to_thread(_route_repair, run, state)

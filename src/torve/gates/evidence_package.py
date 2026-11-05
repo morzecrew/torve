@@ -356,8 +356,9 @@ def _function_source(source: str, node: ast.FunctionDef | ast.AsyncFunctionDef) 
 
 
 def _row_pattern(row_id: str) -> re.Pattern[str]:
-    """The row's id as a whole token: `S-0122/D-1` never links `S-0122/D-12`
-    or `D-1.2`, and a local `D-1` never links `S-0122/D-1`."""
+    """The row's id as a whole token: a row never links an id that merely
+    starts with its own (its tenth sibling, or a dotted sub-row), and a
+    document-local id never links the same id under a document prefix."""
 
     return re.compile(rf"(?<![\w/-]){re.escape(row_id)}(?!\d|\.\d)")
 
