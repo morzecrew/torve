@@ -575,3 +575,41 @@ def test_a_critic_seat_with_no_verdict_escalates_like_a_reviewer(review_rig):  #
     assert state.state is TaskState.ESCALATED
     assert state.escalation is not None
     assert state.escalation.reason == "gate_infrastructure_failure"
+
+
+# ....................... #
+# S-0122/D-15: the critic's one call over a head's bot threads.
+
+
+def test_a_triage_dismissal_stands_only_on_evidence_the_head_holds(repo):
+    from torve.application.critic import triage_threads
+
+    worktree, _target = _candidate(repo)
+    answer_text = json.dumps(
+        {
+            "schema": "torve.triage/v1",
+            "threads": [
+                {"thread": "t1", "verdict": "invalid", "evidence": "src/app.py:1 — it holds"},
+                {"thread": "t2", "verdict": "out_of_scope", "evidence": "nowhere.py:9 — gone"},
+                {"thread": "t3", "verdict": "apply", "evidence": "src/app.py:2 — fix it"},
+            ],
+        }
+    )
+    seat = ScriptedAgent([AgentResult(exit_code=0, output=answer_text)])
+
+    document = triage_threads(
+        repo.root, worktree, "torve/S-0090", "triage these", critic_config(), MockRuntime(), seat
+    )
+
+    assert document is not None
+    assert [v.verdict for v in document.threads] == ["invalid", "apply", "apply"]
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    (record,) = [row for row in rows if row.get("kind") == "review"]
+    assert (record["target"], record["mode"], record["trigger"]) == (
+        "S-0090",
+        "triage",
+        "pr_threads",
+    )

@@ -2146,3 +2146,137 @@ def test_the_review_fallback_scope_reads_the_manifest_pairing(seeded):
 
     assert "src/foo/bar.go" in allow
     assert "src/foo/bar_test.go" in allow
+
+
+# ----------------------- #
+# Triage (S-0122/D-15): one critic call per head over the unresolved bot
+# threads; what it dismisses is answered from its evidence, and what it would
+# apply is one round judged by the touched modules' tests and the type checker.
+
+
+def _triaged(**verdicts: tuple[str, str]):
+    from torve.application.threads import ThreadVerdict, TriageDocument
+
+    return TriageDocument(
+        schema="torve.triage/v1",
+        threads=[
+            ThreadVerdict(thread=ident, verdict=verdict, evidence=evidence)  # type: ignore[arg-type]
+            for ident, (verdict, evidence) in verdicts.items()
+        ],
+    )
+
+
+class Critic:
+    """A triage seat: the same answer every call, and every prompt kept."""
+
+    def __init__(self, document) -> None:
+        self.document = document
+        self.prompts: list[str] = []
+
+    def __call__(self, branch: str, info: PrInfo, prompt: str):
+        self.prompts.append(prompt)
+        return self.document
+
+
+@pytest.fixture
+def untriaged():
+    from torve.application.reviewleg import TRIAGED
+
+    TRIAGED.clear()
+    yield
+    TRIAGED.clear()
+
+
+def test_triage_answers_what_it_dismisses_and_rounds_what_it_applies(seeded, untriaged):
+    from torve.config.manifest import load_manifest
+
+    open_document(seeded.root)
+    ready(seeded.root, "T-0900")
+    critic = Critic(
+        _triaged(
+            t1=("apply", "src/app.py:1 — the dereference"),
+            t2=("minor", "src/app.py:1 — the name"),
+            t3=("invalid", "src/app.py:1 — the check is already there"),
+        )
+    )
+    forge = StubForge(
+        pr(thread("t1", line=1), thread("t2", line=40), thread("t3", line=80, body="no check"))
+    )
+
+    _detail, minted = review_thread_leg(
+        seeded.root, config(findings=1), forge, lambda _t: None, triage=critic
+    )
+
+    assert minted is True
+    ((ident, reply),) = forge.replied
+    assert ident == "t3" and "Evidence: src/app.py:1 — the check is already there" in reply
+    assert forge.resolved == ["t3"]
+    # One revision for every thread it would apply, whatever the per-round cap.
+    (recorded,) = events(seeded.root, "lane_review_task")
+    assert sorted(t for f in recorded["findings"] for t in f["threads"]) == ["t1", "t2"]
+    contract = yaml.safe_load(
+        layout.task_file(seeded.root, recorded["task"]).read_text(encoding="utf-8")
+    )
+    run = load_manifest(layout.gates_file(seeded.root)).tests.run
+    assert contract["acceptance"] == [f"{run} tests/test_app.py"]
+    assert [row["verdict"] for row in events(seeded.root, "lane_thread_triaged")] == [
+        "apply",
+        "minor",
+        "invalid",
+    ]
+    # Each thread under its own id, inside the fence a third party's claim sits in.
+    assert "[thread t3]" in critic.prompts[0] and "UNTRUSTED REVIEW CLAIMS" in critic.prompts[0]
+
+
+def test_a_head_is_triaged_once_and_a_later_bot_thread_waits_for_the_next(seeded, untriaged):
+    open_document(seeded.root)
+    ready(seeded.root, "T-0900")
+    critic = Critic(_triaged(t1=("invalid", "src/app.py:1 — the check is there")))
+
+    review_thread_leg(
+        seeded.root, config(), StubForge(pr(thread("t1"))), lambda _t: None, triage=critic
+    )
+    later = StubForge(pr(thread("t2", line=60)))
+    _detail, minted = review_thread_leg(
+        seeded.root, config(), later, lambda _t: None, triage=critic
+    )
+
+    assert len(critic.prompts) == 1
+    assert minted is False and later.replied == []
+    assert events(seeded.root, "lane_review_task") == []
+
+
+def test_a_triage_seat_that_gives_no_answer_leaves_the_leg_as_it_was(seeded, untriaged):
+    open_document(seeded.root)
+    ready(seeded.root, "T-0900")
+    forge = StubForge(pr(thread("t1")))
+
+    _detail, minted = review_thread_leg(
+        seeded.root, config(), forge, lambda _t: None, triage=Critic(None)
+    )
+
+    assert minted is True and forge.replied == []
+    contract = yaml.safe_load(
+        layout.task_file(seeded.root, events(seeded.root, "lane_review_task")[0]["task"]).read_text(
+            encoding="utf-8"
+        )
+    )
+    from torve.application import reviewleg
+
+    assert contract["acceptance"] == reviewleg.round_acceptance(seeded.root)
+
+
+def test_a_triage_answer_reads_only_as_its_own_schema():
+    from torve.application.threads import parse_triage
+
+    answer = (
+        "I read the threads.\n"
+        '{"schema": "torve.triage/v1", "threads": [{"thread": "t1", "verdict": "duplicate",'
+        ' "evidence": "src/app.py:1 — same", "duplicate_of": "t2"}]}'
+    )
+
+    document = parse_triage(answer)
+
+    assert document is not None and document.threads[0].duplicate_of == "t2"
+    assert parse_triage('{"schema": "torve.critic/v1", "threads": []}') is None
+    assert parse_triage("no document at all") is None

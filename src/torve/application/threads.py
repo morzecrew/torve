@@ -17,6 +17,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from torve.application.ports import ReviewThread
 
@@ -105,3 +108,57 @@ def group_findings(threads: Sequence[ReviewThread]) -> list[Finding]:
         ]
 
     return findings
+
+
+# ....................... #
+# S-0122/D-15: what one critic call per pull-request head makes of each
+# unresolved bot thread.
+
+TRIAGE_SCHEMA = "torve.triage/v1"
+
+Verdict = Literal["apply", "minor", "invalid", "duplicate", "out_of_scope"]
+
+# The verdicts a revision carries; the rest are answered from their evidence.
+APPLIED: frozenset[str] = frozenset({"apply", "minor"})
+
+
+class ThreadVerdict(BaseModel):
+    """One thread as the critic sorted it."""
+
+    model_config = ConfigDict(extra="ignore", use_attribute_docstrings=True)
+
+    thread: str
+    """The thread's id, as the prompt named it."""
+    verdict: Verdict
+    """apply, minor, invalid, duplicate or out_of_scope."""
+    evidence: str = ""
+    """A `path:line` citation into the head's tree and what it shows."""
+    duplicate_of: str = ""
+    """The thread a duplicate repeats."""
+
+
+class TriageDocument(BaseModel):
+    """The critic's answer about a head's threads."""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
+    schema_name: Literal["torve.triage/v1"] = Field(alias="schema")
+    threads: list[ThreadVerdict] = Field(default_factory=list)
+
+
+def parse_triage(output: str) -> TriageDocument | None:
+    """The last `torve.triage/v1` document in a seat's answer, or None when it
+    holds none that reads."""
+
+    from torve.application.review import last_document
+
+    raw = last_document(output, key="threads")
+
+    if raw is None:
+        return None
+
+    try:
+        return TriageDocument.model_validate(raw)
+
+    except ValidationError:
+        return None
