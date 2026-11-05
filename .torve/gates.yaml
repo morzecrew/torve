@@ -67,7 +67,6 @@ scope:
 # What a battery over an attempt judges (S-0122/D-4): the code, never the
 # engine's bookkeeping. A row's `check` runs when its document completes, not on
 # every attempt, and the spec checks run in CI and at completion.
-rows: completion
 
 gates:
   # The builtins run in the runner's own process over the diff, and measure

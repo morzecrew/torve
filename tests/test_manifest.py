@@ -396,7 +396,6 @@ def test_this_repositorys_attempt_battery_judges_code_only():
         "suite",
         "acceptance",
     }
-    assert manifest.rows == "completion"
     gates = {g.name: g for g in manifest.resolved_gates()}
     assert gates["mypy"].run == "uv run mypy src"
     # A document's completion battery runs under no contract: the fallback.

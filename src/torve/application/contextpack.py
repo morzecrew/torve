@@ -153,13 +153,12 @@ def decisions_file(task: Task, corpus: Corpus | None, rfc_dir: Path) -> dict[str
 # ....................... #
 
 
-def gates_file(root: Path, task: Task, manifest_path: Path) -> dict[str, Any]:
+def gates_file(manifest_path: Path) -> dict[str, Any]:
     """The battery this attempt will face: every manifest entry with its
-    axis, state and command, and the contract's decision gates unless the
-    manifest runs them at the document's completion (S-0122/D-4). `torve
-    brief` prints it; the pack no longer carries it
-    (S-0122/the-evidence-package), because no attempt was measured acting on
-    it."""
+    axis, state and command. A row's check is not among them: it runs when
+    its document completes (S-0122/D-4). `torve brief` prints it; the pack no
+    longer carries it (S-0122/the-evidence-package), because no attempt was
+    measured acting on it."""
 
     entries: list[dict[str, Any]] = []
     manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
@@ -177,27 +176,12 @@ def gates_file(root: Path, task: Task, manifest_path: Path) -> dict[str, Any]:
                 }
             )
 
-    rows = [] if manifest is not None and manifest.rows == "completion" else task.decisions
-
-    for row in rows:
-        if row.check:
-            entries.append(
-                {
-                    "name": f"decision:{row.id}",
-                    "run": row.check,
-                    "axis": "compliance",
-                    "state": row.check_state,
-                    "origin": f"contract row {row.id}",
-                    "convicts_on": "the check exits non-zero",
-                }
-            )
-
     return {"schema_version": 1, "gates": entries}
 
 
 def _convicts_on(name: str) -> str:
     return {
-        "scope": "a changed path outside scope.allow or inside scope.deny",
+        "scope": "a changed path inside the contract's fence",
         "secrets": "a secret pattern in an added line",
         "no-test-tampering": "an existing test edited without a licence",
         "acceptance": "an acceptance command exits non-zero",

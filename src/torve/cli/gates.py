@@ -42,7 +42,7 @@ from torve.config.manifest import load_manifest, read_layout
 from torve.domain.states import EXIT_CONFIG, EXIT_GATES_RED, EXIT_INFRASTRUCTURE, EXIT_OK
 from torve.gates import sabotage
 from torve.gates.context import GitError, build_context, load_task
-from torve.gates.runner import decision_gates, run_gates
+from torve.gates.runner import run_gates
 
 # ----------------------- #
 
@@ -165,7 +165,7 @@ def gates_list(
         typer.Option(
             "--task",
             exists=True,
-            help="Task contract; adds the gates the contract itself carries.",
+            help="Task contract the battery is listed for; named in the header.",
         ),
     ] = None,
     manifest_path: Annotated[
@@ -176,9 +176,8 @@ def gates_list(
     fmt: FormatOption = Format.TEXT,
 ) -> None:
     """The battery as it will run: every gate with its input, timeout and axis
-    resolved, cheapest first. With a task, the gates the contract carries are
-    listed too — a manifest read alone cannot show them, because they exist
-    only for the length of one contract."""
+    resolved, cheapest first. A contract's row checks are not among them: they
+    run in the battery that completes the document (S-0122/D-4)."""
 
     root = root.resolve()
     manifest_path = layout.gates_file(root) if manifest_path is None else manifest_path
@@ -192,8 +191,7 @@ def gates_list(
     try:
         manifest = load_manifest(manifest_path)
         task = load_task(task_path) if task_path is not None else None
-        rows = decision_gates(task) if manifest.rows == "attempt" else []
-        gates = [*manifest.resolved_gates(), *rows]
+        gates = manifest.resolved_gates()
 
     except (ValueError, yaml.YAMLError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc

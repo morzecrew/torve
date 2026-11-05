@@ -33,9 +33,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   before its tree is judged, for example a formatter's fixes. Its exit status never
   fails the attempt.
 
-- `rows: completion` in the gate manifest runs a contract row's `check` only in the
-  battery that completes its document, instead of on every attempt.
-
 - `torve abort --claim … --evidence … [--row <id>]` stops a task from inside its attempt
   when the rows, the intent and the tests cannot all hold. A halt on a LOCKED row goes
   to the owner; any other goes back to the author as underspecified.
@@ -53,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   edited to pass, and code that special-cases `PYTEST_CURRENT_TEST`.
 
 ### Changed
+
+- A contract row's `check` runs only in the battery that completes its document, never
+  on an attempt or a document branch's rebase, and standing invariants' checks no longer
+  run in the lane. A gate manifest's `rows` key is ignored with a warning.
 
 - A task contract's scope is now `files`, `tests`, `fence` and `contingent`. Only an
   edit inside the fence fails the scope gate or meets the pre-write hook; one outside the

@@ -377,7 +377,7 @@ def _failure_first(summary: str) -> str:
 class _Regate:
     """One battery's verdict and the results it was rendered from. Unpacks as
     the `(exit_code, summary)` every caller reads, so a caller that needs the
-    readings themselves — the joined table, S-0115/D-5 — has them too, and the
+    readings themselves — the lane's judgment and its result — has them too, and the
     lane carries the base, head and duration into its `LaneResult`
     (S-0118/D-6, D-7)."""
 
@@ -462,9 +462,11 @@ def _regate(
         if landed and task_path is not None:
             ctx.task = load_task(task_path)
 
-        if task_id is None:
-            # S-0114/D-3: the judge checkout is detached, so the branch the
-            # document is named by is read off the rebased worktree.
+        if task_id is None and _LEG.get() == "completion":
+            # S-0122/D-4: a row's check runs when its document completes, and
+            # in no other lane battery. S-0114/D-3: the judge checkout is
+            # detached, so the branch the document is named by is read off the
+            # rebased worktree.
             _document_inputs(ctx, _branch_of(workdir))
 
         if judge is not None:
@@ -474,9 +476,9 @@ def _regate(
             write_tracked_files(root)
 
         # S-0118/D-6: the lane judges with the gates that can change its
-        # verdict — the blocking ones — and the decision gates. A shadow or
-        # quarantined manifest gate, and a standing invariant, cannot move a
-        # lane verdict, and the attempt already measured the same change.
+        # verdict — the blocking ones — and, completing a document, its rows'
+        # checks. A shadow or quarantined manifest gate cannot move a lane
+        # verdict, and the attempt already measured the same change.
         selected = {
             gate.name
             for gate in battery(ctx)
@@ -533,11 +535,9 @@ def _branch_of(workdir: Path) -> str:
 
 
 def _document_inputs(ctx: GateContext, branch: str) -> None:
-    """What a document-branch battery judges beside the manifest (S-0106/D-2):
-    the rows of the document the branch names — the table every phase inherits
-    whole — and the standing invariants whose paths the branch's diff reaches.
-    One reader, so the completion battery and the document-branch regate run
-    the same checks (S-0106/D-2).
+    """What the battery completing a document judges beside the manifest
+    (S-0106/D-2, S-0122/D-4): the rows of the document the branch names — the
+    table every phase inherits whole.
 
     Read at the worktree the battery judges: the document branch carries the
     corpus, and the diff is the one the battery sees. A branch naming no
@@ -549,7 +549,6 @@ def _document_inputs(ctx: GateContext, branch: str) -> None:
     from `ctx.root`, because the checkout a sandboxed battery reads is detached
     (S-0114/D-3)."""
 
-    from torve.base.globs import matches
     from torve.config import spec
     from torve.domain.task import InheritedDecision
 
@@ -581,16 +580,6 @@ def _document_inputs(ctx: GateContext, branch: str) -> None:
             check_twin=row.check_twin,
         )
         for row in document.decisions
-    ]
-
-    reached = [*ctx.changed_paths, *ctx.untracked]
-
-    ctx.invariants = [
-        invariant
-        for doc in corpus.standing()
-        if not doc.superseded_by
-        for invariant in doc.invariants
-        if any(matches(path, invariant.paths) for path in reached)
     ]
 
 

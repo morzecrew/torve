@@ -3003,11 +3003,11 @@ def test_a_last_phase_that_fast_forwards_is_regated_once_and_published(
     assert not [e for e in _events(lane_repo) if e.get("event") == "lane_document_gates_red"]
 
 
-def test_completion_runs_the_document_rows_and_no_invariant_gates(lane_repo, tmp_path, monkeypatch):
-    """S-0106/D-2, S-0118/D-6: the completion battery judges the document
+def test_only_completion_runs_the_document_rows(lane_repo, tmp_path, monkeypatch):
+    """S-0106/D-2, S-0122/D-4: the completion battery judges the document
     branch under no task's contract, so it runs the decision check of the row
-    the document's phases inherited — and the lane runs no shadow gate, so
-    the invariant gates stay out of its verdict."""
+    the document's phases inherited — and a document branch's rebase regate,
+    any battery but the completing one, runs no row's check."""
 
     import torve.application.lane as lane
 
@@ -3044,10 +3044,24 @@ def test_completion_runs_the_document_rows_and_no_invariant_gates(lane_repo, tmp
     results = process_lane(lane_repo, GitLane(), publish=publish, unit="document", only="T-7352")
 
     assert [r.action for r in results] == ["landed"]
-    completion = seen[-1]
-    assert "decision:S-0930/D-1=pass" in completion
-    assert "invariant:S-0930/I-1" not in completion
-    assert "invariant:S-0930/I-2" not in completion
+    assert "decision:S-0930/D-1=pass" in seen[-1]
+
+    git(lane_repo, "checkout", "-q", document)
+
+    try:
+        rebased = real(lane_repo, "main", None)
+        token = lane._LEG.set("completion")
+
+        try:
+            completing = real(lane_repo, "main", None)
+        finally:
+            lane._LEG.reset(token)
+
+    finally:
+        git(lane_repo, "checkout", "-q", "main")
+
+    assert "decision:" not in rebased.summary
+    assert "decision:S-0930/D-1=pass" in completing.summary
 
 
 def _fileless_document(root: Path, phases: dict[str, object]) -> str:

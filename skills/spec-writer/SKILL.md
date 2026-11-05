@@ -87,11 +87,12 @@ arrives first, invisibly.
        check: pytest tests/test_session.py
    ```
 
-   `check` is a command whose exit code judges the row; the runner appends
-   it to the battery as a `decision:<id>` gate under the row's
+   `check` is a command whose exit code judges the row; the battery that
+   completes the document runs it as a `decision:<id>` gate under the row's
    `check_state` (`shadow` until an amendment promotes it, naming the soak
-   evidence). The gate runs only when the diff touches the row's `paths` or a file its check
-   names; a row without paths runs on every diff. The paths select when the
+   evidence), and no attempt's battery does. The gate runs only when the
+   document's diff touches the row's `paths` or a file its check names; a row
+   without paths runs on every diff. The paths select when the
    check runs, not what its command may read. Which
    check is honest is a fact about the rule, not about what is easy to write:
 

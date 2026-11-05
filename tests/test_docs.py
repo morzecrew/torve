@@ -70,17 +70,19 @@ def test_the_operating_guide_documents_the_review_thread_leg_as_the_code_runs_it
         assert key in guide, f"the operating guide does not name threads.{key}"
 
 
-def test_the_operating_guide_documents_checks_twins_and_invariants():
-    """S-0106/D-1..D-5: the page an operator reads names a row's check and its
-    vacuous failure, the twin that proves a blocking check can fail, and the
-    invariants the document battery runs."""
+def test_the_operating_guide_documents_checks_and_twins():
+    """S-0106/D-1..D-5, S-0122/D-4: the page an operator reads names a row's
+    check and its vacuous failure, that only the battery completing a document
+    runs it, and the twin that proves a blocking check can fail."""
 
     guide = (PAGES / "operating.md").read_text(encoding="utf-8")
+    text = " ".join(guide.split())
 
     assert "decision:<id>" in guide
     assert "selects nothing" in guide
+    assert "the battery that completes the document runs each" in text
     assert "check_twin" in guide
-    assert "invariant:<id>" in guide
+    assert "invariant:<id>" not in guide
 
 
 def test_the_operating_guide_documents_the_suite_gate_and_the_lane_regate():
