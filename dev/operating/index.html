@@ -1490,8 +1490,12 @@ shell has not set is filled in.</p>
 <td>the battery, and the sabotage suite that proves a gate can fail</td>
 </tr>
 <tr>
-<td><code>torve log divergence</code> / <code>owed</code> / <code>notes</code> / <code>land</code></td>
-<td>the task log: an attempt records its divergences and reads its notes; <code>land</code> writes a hand finish's landing file</td>
+<td><code>torve abort</code></td>
+<td>inside an attempt: halt the task when its rows, its intent and its tests cannot all hold; a halt on a LOCKED row goes to the owner, any other back to the author</td>
+</tr>
+<tr>
+<td><code>torve log divergence</code> / <code>notes</code> / <code>land</code></td>
+<td>the task log: an attempt records a departure and reads its notes; <code>land</code> writes a hand finish's landing file</td>
 </tr>
 <tr>
 <td><code>torve review pr &lt;number&gt;</code></td>
@@ -1736,21 +1740,17 @@ tests ran" summary <code>acceptance</code> already reads — fails as vacuous un
 row's state (S-0106/D-1): a <code>-k</code> filter matching no test has judged nothing,
 and it is seen the first time it runs rather than left as a quiet green. The
 <code>decision:&lt;id&gt;</code> gates run first.</p>
-<p>A check stands for its row in the silence check, and what changed is the
-failure side. A row whose check ran and passed owes no divergence entry,
-whatever its paths — the check is its evidence. A <code>LOCKED</code> row whose check
-<em>did not</em> pass — a fail, an error, a check that selected nothing — is owed
-an entry like any other touched locked area, instead of the old rule that
-skipped every row carrying a check (S-0106/D-1).</p>
 <p>A row's paths are its gate's, as an invariant's are: a <code>decision:&lt;id&gt;</code> gate
 whose row declares paths, none of which the diff touches, is reported
-skipped, and a skipped check owes no entry. The files the check's command
-names count too, so an edit to its test runs it, and a renamed file counts
-at both its old and its new path. A row with no paths runs on every diff.
-Every phase of a document carries all of its rows, so without this a row a
-later phase builds fails its check in each earlier phase and costs that
-attempt an entry. The phase that builds the row touches its paths, and the
+skipped. The files the check's command names count too, so an edit to its
+test runs it, and a renamed file counts at both its old and its new path. A
+row with no paths runs on every diff. Every phase of a document carries all
+of its rows, so without this a row a later phase builds fails its check in
+each earlier phase. The phase that builds the row touches its paths, and the
 completion battery reads the whole document's diff.</p>
+<p>No row owes a divergence entry for being touched: the silence check and the
+attestations it demanded are gone (S-0122/D-14), and a red check is the
+check's finding, not a missing entry.</p>
 <p>A <code>check_state: blocking</code> row also names a <code>check_twin</code>: the test that
 proves the check <em>can</em> fail — a plausible wrong implementation of the row,
 run against the check, which must turn it red. <code>torve gates check</code> runs
@@ -1918,10 +1918,10 @@ it differently, it does not belong in one (S-0070/D-1, LOCKED).</p>
 over stdio. It registers four tools and all four are read-only
 (S-0067/D-5, LOCKED): <code>context</code>, <code>show</code>, <code>why</code> — and <code>pack</code>.</p>
 <p><code>pack</code> takes a task id, and optionally one file name, and answers with the
-very files a dispatched sandbox is handed on disk: <code>index.md</code>,
-<code>decisions.json</code>, <code>gates.json</code>, <code>tests.json</code>, <code>attempts.json</code>,
-<code>contended.json</code>, <code>schema/*.json</code>. They are built there by the same pure
-function dispatch calls — the builder derives and the caller writes, so a
+very files a dispatched sandbox is handed on disk: <code>index.md</code>, <code>map.md</code>,
+<code>scope.md</code>, <code>decisions.json</code>, <code>attempts.json</code>, <code>symbols.txt</code>,
+<code>schema/*.json</code>, and <code>source.json</code> when the task has a source. They are
+built there by the same pure function dispatch calls — the builder derives and the caller writes, so a
 query materializes nothing: no file on disk moves because you asked.</p>
 <p>Until that tool existed the pack was a sandbox fact: a session read it off a
 worktree or not at all. Now every session gets the facts a sandbox is handed,

@@ -1088,8 +1088,8 @@ the worktree's index, and none of the host's config or other branches.
 <code>git status</code>, <code>diff</code> and <code>log</code> answer; nothing in the sandbox can write a
 ref or an object. The design does not lean on git either: the divergence pin is dropped
 into the worktree at dispatch instead of being derived, the engine
-records and re-projects the log host-side, and <code>torve log owed</code> takes the
-changed files as arguments rather than computing a diff.</p>
+records and re-projects the log host-side, and <code>torve abort</code> reads its task
+and attempt from that pin.</p>
 </div>
 <h2 id="notes-go-the-other-way">Notes go the other way<a class="headerlink" href="#notes-go-the-other-way" title="Permanent link">&para;</a></h2>
 <p>An operator or the manager may write a note into a running task, and the
