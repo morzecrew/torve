@@ -86,13 +86,13 @@ The issue intake leg is off until `intake.issue_label` names a label, drafts onl
 - Paths: `src/torve/application/issues.py` `src/torve/config/runconfig.py`
 - Check: `uv run pytest tests/test_issues.py -k "off or triage or edited"` (shadow; runs as `decision:S-0121/D-38`)
 
-### S-0122/D-7 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+### S-0122/D-7 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
 
 A unit's class sets its width (S one candidate, M two, L three, never more), stragglers are cut at 1.5 times the first green finisher's wall time capped at 15 minutes, identical normalised diffs collapse, and a deterministic pre-rank orders the rest before any critic call
 
 - Paths: `src/torve/application/selection.py` `src/torve/config/runconfig.py`
 
-### S-0122/D-21 — `OPEN` (Judge-and-select rebuild) — implementation: none
+### S-0122/D-21 — `OPEN` (Judge-and-select rebuild) — implementation: partial
 
 What makes intake demand a document now that one charter is the only standing document: the `document_required` arm counts LOCKED rows from distinct documents and can no longer fire
 

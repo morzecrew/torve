@@ -29,7 +29,7 @@ Torve owns the DDL for every relation it uses as owner-grouped, forward-only, ch
 - Paths: `migrations/**` `src/torve/application/migrate.py` `src/torve/cli/migrate.py` `pyproject.toml`
 - Check: `uv run pytest tests/test_migrate.py` (shadow; runs as `decision:S-0121/D-20`)
 
-### S-0122/D-20 — `ASSUMED` (Judge-and-select rebuild) — implementation: none
+### S-0122/D-20 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
 
 The import-linter independence contract covers every adapter package, including the broker and the event store
 

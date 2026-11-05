@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-05
+
 ### Added
 
 - With `review.mode: critic`, the review-thread leg asks the critic once per pull
@@ -49,11 +51,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reports whether each case would have blocked. Three cases join: a weak test, a test
   edited to pass, and code that special-cases `PYTEST_CURRENT_TEST`.
 
+- **Upgrade:** upgrade every host that shares a store together: a contract 0.9.0 mints
+  is version 3, and a night it closes on `--passes` names a reason 0.8.0 does not know.
+
+- **Upgrade:** `torve init` refreshes `.torve/schemas/` for version 3 contracts, a phasing
+  file's `unit`, a profile's `finish` and `review.mode`. A seat whose harness image names
+  `{torve}` runs the 0.9.0 images the tag's publish workflow builds.
+
 ### Changed
 
-- A contract row's `check` runs only in the battery that completes its document, never
-  on an attempt or a document branch's rebase, and standing invariants' checks no longer
-  run in the lane. A gate manifest's `rows` key is ignored with a warning.
+- A contract row's `check` runs only when its document completes, on the document branch
+  or at the local landing that completes it, never on an attempt or a rebase. Standing
+  invariants' checks no longer run in the lane, and a gate manifest's `rows` key is
+  ignored with a warning.
 
 - A task contract's scope is now `files`, `tests`, `fence` and `contingent`. Only an
   edit inside the fence fails the scope gate or meets the pre-write hook; one outside the
@@ -128,6 +138,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still load in this release: torve ignores them and warns.
 
 ### Fixed
+
+- `torve why` counted only `blocker` findings as a review's blockers, so a review that
+  blocked a candidate on a `major` finding under `review.blocks_at: major` read as having
+  none.
 
 - The dsh seat's door against `AGENTS.md`, `CLAUDE.md` and the default skill roots had
   no effect: it patched keys dsh does not read, so those files reached every attempt.
@@ -2817,7 +2831,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   src+tests pythonpath). `uv run mypy src` joins CI and the acceptance
   fallback in `gates.yaml`.
 
-[Unreleased]: https://github.com/morzecrew/torve/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/morzecrew/torve/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/morzecrew/torve/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/morzecrew/torve/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/morzecrew/torve/compare/v0.6.4...v0.7.0
 [0.6.4]: https://github.com/morzecrew/torve/compare/v0.6.3...v0.6.4
