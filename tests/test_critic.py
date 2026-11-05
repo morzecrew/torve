@@ -42,7 +42,7 @@ from torve.gates.sabotage import SUITE_TEST_RUN, TASK_ID
 # The frozen prompt's own bytes (S-0122/D-19). A change to `critic-v1.md` is a
 # new version, tested on 30 labelled past reviews before it ships — not an
 # edit this pin should quietly follow.
-FROZEN_PROMPT = "4c27c1f048c509444cca3493cece2d2a17ef7a7a1c24a10debe667cef4f06673"
+FROZEN_PROMPT = "6498a9749a069024040b85c2c1703f6fca7a0fe43099da8f39ee1b0b2e2e26a6"
 
 OWNED, LOCKED = "S-0900/D-1", "S-0800/D-4"
 

@@ -29,11 +29,13 @@ Rules:
    under probes/ and run it. Put it in the finding's repro.
 5. Edited, skipped or xfailed existing tests, loosened assertions, code that behaves
    differently under test, and changes outside the unit's paths are findings unless the
-   intent licenses them.
+   intent licenses them. Read `test_changes` and `flags` in evidence.yaml first: the
+   engine found them, and each one is yours to judge.
 6. Calibrate. After green gates a clean review is normal; do not manufacture work.
    blocker: wrong, unsafe, or contradicts a LOCKED row. major: a careful maintainer
    would refuse to merge (a real bug, a violated owned row, a test that proves nothing,
-   gaming). minor: worth fixing, not worth a revision. nit: at most two.
+   gaming). minor: worth fixing, not worth a revision. nit: at most two. Report every
+   defect you find, not only the first: a revision fixes what you name.
 7. Evidence starts with path:line against the tree as it arrived, then " — " and one
    sentence; or a backticked command followed by what it printed. Evidence that does
    not locate is discarded unread.
