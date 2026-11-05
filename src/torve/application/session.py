@@ -568,6 +568,11 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
 
         # S-0122/D-4: what the profile runs over the tree once the agent is
         # done (a formatter's fixes), before the tree leaves the sandbox.
+        # `run.meta` is one dict for the whole run (T-0187): an earlier
+        # attempt's finish must not read as this one's.
+        run.meta.pop("finish_s", None)
+        run.meta.pop("finish_output", None)
+
         if run.tier.finish:
             await _finish(run, handle, spec)
 
@@ -816,9 +821,6 @@ async def _finish(run: Dispatch, handle: SandboxHandle, spec: SandboxSpec) -> No
     beside the attempt (S-0122/D-4). Its exit convicts nothing: the battery
     judges the tree it leaves, and a failure is kept as output on the record."""
 
-    # `run.meta` is one dict for the whole run (T-0187): an earlier attempt's
-    # failure must not read as this one's.
-    run.meta.pop("finish_output", None)
     started = time.monotonic()
     result = await asyncio.to_thread(
         run.deps.runtime.exec, handle, f"cd {spec.workdir} && {run.tier.finish}", spec.timeout_s

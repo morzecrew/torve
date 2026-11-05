@@ -212,6 +212,29 @@ def test_gates_list_the_battery_with_axes_and_the_contract_gates(tmp_path: Path)
     assert "scope.allow" in payload["gates"][0]["convicts_on"]
 
 
+def test_rows_checked_at_completion_are_not_listed_as_attempt_gates(tmp_path: Path) -> None:
+    """S-0122/D-4: under `rows: completion` the attempt's battery runs no
+    row's check, so the pack does not name one as a gate it will face."""
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "rows": "completion",
+                "gates": [
+                    {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = gates_file(tmp_path, _task(), manifest)
+
+    assert [g["name"] for g in payload["gates"]] == ["scope"]
+
+
 def test_the_retry_feedback_says_what_a_suite_conviction_means(tmp_path: Path) -> None:
     """S-0118/D-1: the retry reads the conviction in the pack, so the `suite`
     entry says what it convicts rather than the generic shell-gate line — keyed
