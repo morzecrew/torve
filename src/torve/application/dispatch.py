@@ -232,11 +232,35 @@ class Dispatch:
 
     @property
     def manifest_file(self) -> Path:
-        """The gate manifest this attempt is judged by (S-0121/D-3): the
-        root's, never one the attempt could edit in its worktree. A replay
+        """The gate manifest this attempt is judged by (S-0121/D-3): the one
+        committed at the attempt's merge base with its base, or the root's
+        when that commit holds none — never one the attempt could edit in its
+        worktree, and never one the root changed after the cut. A replay
         judges by the manifest its clone holds."""
 
-        return layout.gates_file(self.worktree if self.shadow else self.root)
+        if self.shadow:
+            return layout.gates_file(self.worktree)
+
+        from torve.base import naming
+        from torve.gates.context import GitError, git, resolve_base
+
+        try:
+            base = resolve_base(self.worktree, self.gates_base or self.config.base)
+
+            if base is None:
+                return layout.gates_file(self.root)
+
+            sha = git(self.worktree, "merge-base", base, "HEAD").strip()
+            text = git(self.worktree, "show", f"{sha}:{layout.gates_file(Path()).as_posix()}")
+
+        except GitError:
+            return layout.gates_file(self.root)
+
+        held = naming.base_manifest_file(self.root, self.task.id)
+        held.parent.mkdir(parents=True, exist_ok=True)
+        held.write_text(text, encoding="utf-8")
+
+        return held
 
     # ....................... #
 
