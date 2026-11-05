@@ -647,6 +647,29 @@ def test_every_scope_file_arrives_whole_however_it_sorts(tmp_path: Path) -> None
     assert all(f"- `{rel}`" in scope for rel in neighbours)
 
 
+def test_a_glob_scopes_modules_bring_their_paired_tests(tmp_path: Path) -> None:
+    """A module the scope reaches by glob is a target like a literal one, so
+    its paired test is carried beside it; a test the glob sweeps in is not
+    paired as though it were a module."""
+
+    (tmp_path / "src" / "pkg").mkdir(parents=True)
+    (tmp_path / "tests" / "pkg").mkdir(parents=True)
+    (tmp_path / "src" / "pkg" / "alpha.py").write_text("ALPHA = 1\n", encoding="utf-8")
+    (tmp_path / "src" / "pkg" / "test_beta.py").write_text("def test_b(): ...\n", encoding="utf-8")
+    (tmp_path / "tests" / "pkg" / "test_alpha.py").write_text(
+        "def test_alpha():\n    assert ALPHA\n", encoding="utf-8"
+    )
+    task = Task(id="T-0502", decisions=[], scope=Scope(allow=["src/pkg/**"]))
+
+    tests = tests_file(tmp_path, task)
+    scope = scope_file(tmp_path, task, tests)
+
+    assert tests["named_tests"] == [
+        {"module": "src/pkg/alpha.py", "test": "tests/pkg/test_alpha.py"}
+    ]
+    assert "## `tests/pkg/test_alpha.py`" in scope and "assert ALPHA" in scope
+
+
 def test_a_scope_carrying_markdown_cannot_close_its_own_fence(tmp_path: Path) -> None:
     """A body that is itself markdown gets a fence longer than any run it
     holds, so the document stays one document."""
@@ -756,3 +779,28 @@ def test_an_ordinary_contracts_prompt_stays_under_35_kb(tmp_path: Path) -> None:
     assert "def far_0()" not in prompt and "- `src/app/neighbour.py`" in prompt
     assert size < 35_000, size
     assert (len(module) + len(test)) / size > 0.5
+
+
+def test_rows_checked_at_completion_are_not_listed_as_attempt_gates(tmp_path: Path) -> None:
+    """S-0122/D-4: under `rows: completion` the attempt's battery runs no
+    row's check, so the battery `torve brief` prints names none as a gate."""
+
+    from torve.application.contextpack import gates_file
+
+    manifest = tmp_path / "gates.yaml"
+    manifest.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "rows": "completion",
+                "gates": [
+                    {"name": "scope", "run": "@scope", "state": "blocking", "origin": "structural"}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = gates_file(tmp_path, _task(), manifest)
+
+    assert [g["name"] for g in payload["gates"]] == ["scope"]

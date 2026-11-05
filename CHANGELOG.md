@@ -46,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `decided` and `resolved`, the prompt and `AGENTS.md` sections name no owed entry, and
   the finish hook runs only the acceptance. Logs written before still read.
 
+- `torve log divergence` without `--attempt` files its entries under the attempt the
+  engine pinned in the worktree, not attempt 1.
+
 - A review no longer sees what earlier reviews of the same task found: `touched.json`
   drops `prior_reviews`, which anchored each review to the last one's reading.
 
@@ -90,12 +93,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - The gates read the gate manifest and the task's contract from the repository root,
-  never from the attempt's worktree. An attempt could previously edit both and change
-  which gates judged it.
+  never from the attempt's worktree. With no contract file at the root, they judge the
+  contract the store dispatched. An attempt could previously edit both and change
+  which gates judged it. A replay still reads the manifest its clone holds.
 
-- The gate battery mounts a cache volume of its own (`<cache_volume>-<slot>-gates`).
-  Code a gate ran could previously leave files in the attempt's cache for the next
-  attempt to read.
+- The gate battery mounts a cache volume of its own (`<cache_volume>-<slot>-gates`),
+  and a nested Docker daemon's state volume of its own. Code a gate ran could
+  previously leave files or images there for the next attempt to read.
 
 ## [0.8.0] - 2026-11-04
 

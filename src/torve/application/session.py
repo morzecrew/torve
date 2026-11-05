@@ -16,6 +16,7 @@ because the gate record is the one that describes it.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import re
 import shutil
 import subprocess
@@ -568,6 +569,11 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
 
         # S-0122/D-4: what the profile runs over the tree once the agent is
         # done (a formatter's fixes), before the tree leaves the sandbox.
+        # `run.meta` is one dict for the whole run (T-0187): an earlier
+        # attempt's finish must not read as this one's.
+        run.meta.pop("finish_s", None)
+        run.meta.pop("finish_output", None)
+
         if run.tier.finish:
             await _finish(run, handle, spec)
 
@@ -608,6 +614,14 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
 
         if broker is not None and wire is not None:
             _record_broker_usage(state, broker, wire, run.meta)
+
+        # A brokered `torve abort` reaches the record, not the file: the log
+        # is rewritten from the record before the halt is read, or the gates
+        # would judge an attempt that stopped. A sync that fails here fails
+        # again, closed, before the gate pass.
+        if deps.journal is not None:
+            with contextlib.suppress(Exception):
+                await asyncio.to_thread(deps.journal, worktree)
 
         # Every path out of this hook ends in exactly one row (S-0038/D-1).
         # The endings are inspected in the order the loop itself reads
@@ -816,9 +830,6 @@ async def _finish(run: Dispatch, handle: SandboxHandle, spec: SandboxSpec) -> No
     beside the attempt (S-0122/D-4). Its exit convicts nothing: the battery
     judges the tree it leaves, and a failure is kept as output on the record."""
 
-    # `run.meta` is one dict for the whole run (T-0187): an earlier attempt's
-    # failure must not read as this one's.
-    run.meta.pop("finish_output", None)
     started = time.monotonic()
     result = await asyncio.to_thread(
         run.deps.runtime.exec, handle, f"cd {spec.workdir} && {run.tier.finish}", spec.timeout_s

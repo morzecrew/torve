@@ -47,8 +47,9 @@ is the amendment's starting point.
 nobody to hand a plan to. Plan internally, then build. If the plan needs three
 or more load-bearing decisions the contract does not settle, it is not
 executable: abort citing no row, and name the missing decisions in the claim.
-Fewer than three: decide them and carry on. A file outside the scope that the
-change cannot avoid is the same finding: name it and halt.
+Fewer than three: decide them and carry on. A contingent file is in reach:
+edit it when the change needs it. A file outside the scope and the contingent
+list that the change cannot avoid is the same finding: name it and halt.
 
 ## Departing
 

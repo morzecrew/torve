@@ -782,6 +782,7 @@ def _gate_dispatch(
     base="main",
     runtime=None,
     workspace=None,
+    task=None,
 ):
     """A dispatch with nothing running behind it — enough for the steps that
     only read the regime off it (S-0046). *runtime* is for the passes that do
@@ -803,7 +804,7 @@ def _gate_dispatch(
 
     return Dispatch(
         root=root or Path("."),
-        task=Task(id=TASK_ID, decisions=[]),
+        task=task or Task(id=TASK_ID, decisions=[]),
         config=RunnerConfig(worker_slot=worker_slot),
         deps=deps,
         worktree=worktree or Path("."),
@@ -818,7 +819,7 @@ def _gate_dispatch(
     )
 
 
-def _gate_pass(repo, worktree, *, base="main", runtime=None):
+def _gate_pass(repo, worktree, *, base="main", runtime=None, task=None):
     """The shipped gate pass over a cut worktree (S-0046): the pass reads
     its regime off a dispatch now, so the test builds one instead of
     threading thirteen positional arguments and hoping the order held. The
@@ -835,6 +836,7 @@ def _gate_pass(repo, worktree, *, base="main", runtime=None):
         base=base,
         runtime=runtime,
         workspace=GitWorkspace(repo.root),
+        task=task,
     )
     state = RunState(task_id=TASK_ID, path=repo.root / "state.json", run_id="run-1")
 
@@ -1126,6 +1128,51 @@ def test_an_attempt_cannot_edit_its_own_judge(repo):
     assert commands == ["echo contract"]
 
 
+def test_a_store_backed_attempt_is_judged_by_its_dispatched_contract(repo):
+    """S-0121/D-3 with no contract file at the root: the store holds the
+    contract, the worktree holds a projection the agent can edit, and the
+    battery judges by the record dispatched."""
+
+    from torve.application.ports import ExecResult, SandboxHandle
+
+    commands: list[str] = []
+
+    class CommandRecordingRuntime:
+        def create(self, spec, workspace):
+            return SandboxHandle(id="h-1", name=spec.name)
+
+        def exec(self, handle, command, timeout_s):
+            commands.append(command)
+            return ExecResult(exit_code=0, output="", duration_s=0.0)
+
+        def sync_out(self, handle, workspace):
+            pass
+
+        def destroy(self, handle):
+            pass
+
+        def resolve_image(self, image):
+            return None
+
+    repo.seed()
+    contract = dict(base_task(allow=["src/**"]), acceptance=["echo contract"])
+    worktree = _cut_worktree(
+        repo, manifest_with([{"name": "acceptance", "run": "@task.acceptance"}]), contract
+    )
+    layout.task_file(repo.root, TASK_ID).unlink()
+    (worktree / "src" / "feature.py").write_text("FEATURE = True\n", encoding="utf-8")
+    layout.task_file(worktree, TASK_ID).write_text(
+        yaml.safe_dump(dict(contract, acceptance=["echo hostile"])), encoding="utf-8"
+    )
+
+    exit_code, summary, *_ = _gate_pass(
+        repo, worktree, runtime=CommandRecordingRuntime(), task=Task.model_validate(contract)
+    )
+
+    assert exit_code == 0, summary
+    assert commands == ["echo contract"]
+
+
 def test_a_tampered_cache_and_tracked_list_never_reach_the_battery(repo):
     """S-0114/D-2: the sandbox mounts the checkout, and the checkout is what
     `git add -A` would commit — so an attempt's `.venv` shim and its rewrite
@@ -1360,7 +1407,16 @@ class _EndingsAgent:
 
 
 def _drive_endings(
-    repo, results, *, write_on=None, halted_on=None, broker=None, ceiling=6, vcs=None, channel=None
+    repo,
+    results,
+    *,
+    write_on=None,
+    halted_on=None,
+    broker=None,
+    ceiling=6,
+    vcs=None,
+    channel=None,
+    journal=None,
 ):
     """Cut a worktree on a seeded repository (an empty battery: these
     verdicts are about how attempts end, not what any particular gate
@@ -1389,6 +1445,7 @@ def _drive_endings(
         store=None,  # type: ignore[arg-type]
         broker=RefusingBroker() if broker else None,
         channel=channel,
+        journal=journal,
     )
     config = RunnerConfig(poison_ceiling=ceiling)
     state = RunState(task_id=task.id, path=repo.root / ".wt" / f"{task.id}.state.json")
@@ -1473,6 +1530,34 @@ def test_a_halted_attempt_appends_its_verdict_row(repo):
     assert rows[0]["escalation"] == "locked_conflict"
     assert rows[0]["agent"]["attempt"] == 1
     assert rows[0]["exit_code"] == 0
+    assert rows[0]["gates_run"] is False
+
+
+def test_a_halt_sent_through_the_channel_stops_the_attempt_before_its_gates(repo):
+    """A brokered `torve abort` reaches the record, and the journal writes the
+    worktree's log from it. The halt is read after that sync, so an attempt
+    that stopped escalates instead of going on to be judged and landed."""
+    from torve.application.ports import AgentResult
+
+    synced: list[Path] = []
+
+    def journal(worktree: Path) -> None:
+        synced.append(worktree)
+        log = worktree / ".torve" / "tasks" / TASK_ID / "log.yaml"
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text(
+            "schema_version: 1\ntask: " + TASK_ID + "\ndrift_count: 0\n"
+            "entries:\n  - decision: D-1\n    grade: LOCKED\n"
+            "    kind: contradicted\n    action: halted\n    attempt: 1\n",
+            encoding="utf-8",
+        )
+
+    ok = AgentResult(exit_code=0, output="")
+    final, (rows, _events) = _drive_endings(repo, [ok], journal=journal)
+
+    assert synced
+    assert final.escalation is not None and final.escalation.reason == "locked_conflict"
+    assert [r["verdict"] for r in rows] == ["halted"]
     assert rows[0]["gates_run"] is False
 
 
@@ -2160,18 +2245,25 @@ REPAIR_MANIFEST = {
 }
 
 
-def _repair_passes(monkeypatch, repo, passes, seen):
-    """The scripted pass, repair edition: the manifest carries the qualifying
-    names, and what each attempt is asked under is recorded — the meta it is
-    stamped with and the acceptance its prompt would carry."""
+def _repair_passes(monkeypatch, repo, passes, seen, worktree_manifest=None):
+    """The scripted pass, repair edition: the root's manifest carries the
+    qualifying names (S-0121/D-3), and what each attempt is asked under is
+    recorded — the meta it is stamped with and the acceptance its prompt
+    would carry. *worktree_manifest*, when given, is the one the attempt
+    wrote over its own copy."""
     import torve.application.runner as run_module
 
     outcomes = list(passes)
 
     def scripted(run, _state):
-        manifest_file = run.worktree / ".torve" / "gates.yaml"
+        manifest_file = run.root / ".torve" / "gates.yaml"
         manifest_file.parent.mkdir(parents=True, exist_ok=True)
         manifest_file.write_text(yaml.safe_dump(REPAIR_MANIFEST), encoding="utf-8")
+
+        if worktree_manifest is not None:
+            edited = run.worktree / ".torve" / "gates.yaml"
+            edited.parent.mkdir(parents=True, exist_ok=True)
+            edited.write_text(yaml.safe_dump(worktree_manifest), encoding="utf-8")
 
         entry = outcomes.pop(0)
         results = [] if entry is None else entry
@@ -2320,6 +2412,29 @@ def test_a_shell_gate_repairs_with_its_own_command_verbatim(repo, monkeypatch):
     repo.seed()
     seen: list[dict] = []
     _repair_passes(monkeypatch, repo, [[conviction("layering")], []], seen)
+    _vcs, deps = _repair_deps(repo)
+
+    state = run_task(repo.root, _contract_task(), _retry_config(), deps)
+
+    assert state.state is TaskState.READY
+    assert seen[1]["meta"]["repair"] == "layering"
+    assert seen[1]["acceptance"] == ["uv run pytest", "uv run lint-imports"]
+
+
+def test_a_repair_is_routed_by_the_manifest_that_convicted(repo, monkeypatch):
+    """S-0121/D-3: the battery reads the root's manifest, so the repair does
+    too. An attempt that rewrote its worktree copy to drop the gate cannot
+    talk the next attempt out of repairing it, or into another command."""
+    from torve.application.runner import run_task
+    from torve.domain.states import TaskState
+
+    repo.seed()
+    seen: list[dict] = []
+    hostile = {
+        **REPAIR_MANIFEST,
+        "gates": [g for g in REPAIR_MANIFEST["gates"] if g["name"] != "layering"],
+    }
+    _repair_passes(monkeypatch, repo, [[conviction("layering")], []], seen, hostile)
     _vcs, deps = _repair_deps(repo)
 
     state = run_task(repo.root, _contract_task(), _retry_config(), deps)
@@ -3681,7 +3796,8 @@ def test_a_held_contingent_write_is_not_a_gate_infrastructure_escalation(tmp_pat
 def test_the_gates_sandbox_is_marked_nested_only_when_the_configuration_nests_gates():
     """S-0111/D-4: the runner marks the gates sandbox when the configuration
     nests the gates role — the daemon is the gates leg's first, and the volume
-    is slot-suffixed like every other per-slot volume."""
+    is slot-suffixed like every other per-slot volume and never the agent's
+    (S-0122/D-3)."""
 
     from torve.application.ports import NestedDocker
     from torve.application.runner import _gates_spec
@@ -3698,7 +3814,7 @@ def test_the_gates_sandbox_is_marked_nested_only_when_the_configuration_nests_ga
     spec = _gates_spec(run, state)
 
     assert spec.nested == NestedDocker(
-        image="docker:29.7.2-dind", volume="torve-dind-2", registry_mirrors=(), ready_s=60
+        image="docker:29.7.2-dind", volume="torve-dind-2-gates", registry_mirrors=(), ready_s=60
     )
     assert spec.name.endswith("-gates")
 

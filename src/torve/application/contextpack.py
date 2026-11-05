@@ -155,14 +155,17 @@ def decisions_file(task: Task, corpus: Corpus | None, rfc_dir: Path) -> dict[str
 
 def gates_file(root: Path, task: Task, manifest_path: Path) -> dict[str, Any]:
     """The battery this attempt will face: every manifest entry with its
-    axis, state and command, and the contract's decision gates. `torve brief`
-    prints it; the pack no longer carries it (S-0122/the-evidence-package),
-    because no attempt was measured acting on it."""
+    axis, state and command, and the contract's decision gates unless the
+    manifest runs them at the document's completion (S-0122/D-4). `torve
+    brief` prints it; the pack no longer carries it
+    (S-0122/the-evidence-package), because no attempt was measured acting on
+    it."""
 
     entries: list[dict[str, Any]] = []
+    manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
 
-    if manifest_path.is_file():
-        for gate in load_manifest(manifest_path).resolved_gates():
+    if manifest is not None:
+        for gate in manifest.resolved_gates():
             entries.append(
                 {
                     "name": gate.name,
@@ -174,7 +177,9 @@ def gates_file(root: Path, task: Task, manifest_path: Path) -> dict[str, Any]:
                 }
             )
 
-    for row in task.decisions:
+    rows = [] if manifest is not None and manifest.rows == "completion" else task.decisions
+
+    for row in rows:
         if row.check:
             entries.append(
                 {
@@ -263,6 +268,17 @@ def tests_file(root: Path, task: Task, tests: TestsConfig | None = None) -> dict
         for glob in task.scope.allow
         if "*" not in glob and not glob.lstrip("/").startswith("tests/") and Path(glob).suffix
     ]
+    # A glob's source matches pair too: `scope.md` carries them as targets, so
+    # their tests belong beside them. A test the glob sweeps in is no module.
+    globs = [glob for glob in task.scope.allow if any(c in glob for c in "*?[")]
+
+    if globs:
+        swept, tested = GitIgnoreSpec.from_lines(globs), GitIgnoreSpec.from_lines(config.patterns)
+        modules += [
+            rel
+            for rel in candidates
+            if swept.match_file(rel) and Path(rel).suffix and not tested.match_file(rel)
+        ]
 
     for module in dict.fromkeys(modules):
         for test in config.paired(module, candidates):

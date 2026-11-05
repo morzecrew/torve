@@ -377,7 +377,7 @@ def test_a_blank_twin_is_refused(tmp_path):
 def test_this_repositorys_attempt_battery_judges_code_only():
     """S-0122/D-4: an attempt here meets the gates that judge code, its rows'
     checks wait for the document's completion, and the spec checks that left
-    the battery run in CI instead."""
+    the battery run in CI and at the document's completion instead."""
 
     from pathlib import Path
 
@@ -397,10 +397,17 @@ def test_this_repositorys_attempt_battery_judges_code_only():
         "acceptance",
     }
     assert manifest.rows == "completion"
+    gates = {g.name: g for g in manifest.resolved_gates()}
+    assert gates["mypy"].run == "uv run mypy src"
+    # A document's completion battery runs under no contract: the fallback.
+    assert {"uv run torve spec check", "uv run torve spec project --check"} <= set(
+        gates["acceptance"].commands
+    )
 
-    ci = (root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
-    assert "uv run torve spec check" in ci
-    assert "uv run torve spec project --check" in ci
+    workflow = yaml.safe_load((root / ".github" / "workflows" / "ci.yml").read_text("utf-8"))
+    runs = [step.get("run") for step in workflow["jobs"]["gates"]["steps"]]
+    assert "uv run torve spec check" in runs
+    assert "uv run torve spec project --check" in runs
 
 
 def test_the_computed_order_puts_no_gate_before_one_declaring_less(repo):

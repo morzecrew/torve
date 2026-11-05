@@ -23,6 +23,7 @@ material and nothing more.
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import subprocess
 from dataclasses import dataclass, replace
@@ -179,8 +180,11 @@ def pack_handover(workspace: Path) -> str:
             continue
 
         if body:
-            fence = "" if name.endswith(".md") else "json"
-            blocks += [f"### `{name}` — {says}", "", f"```{fence}", body, "```", ""]
+            # Longer than any backtick run the body holds: `scope.md` carries
+            # fenced files, and a fixed fence would close at the first of them.
+            fence = "`" * max(3, max((len(run) for run in re.findall(r"`+", body)), default=0) + 1)
+            hint = "" if name.endswith(".md") else "json"
+            blocks += [f"### `{name}` — {says}", "", f"{fence}{hint}", body, fence, ""]
 
     if not blocks:
         return ""

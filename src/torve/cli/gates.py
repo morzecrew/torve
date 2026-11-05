@@ -192,7 +192,8 @@ def gates_list(
     try:
         manifest = load_manifest(manifest_path)
         task = load_task(task_path) if task_path is not None else None
-        gates = [*manifest.resolved_gates(), *decision_gates(task)]
+        rows = decision_gates(task) if manifest.rows == "attempt" else []
+        gates = [*manifest.resolved_gates(), *rows]
 
     except (ValueError, yaml.YAMLError) as exc:
         raise fail(f"configuration error: {exc}", EXIT_CONFIG) from exc
