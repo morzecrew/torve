@@ -244,21 +244,25 @@ class Dispatch:
         from torve.base import naming
         from torve.gates.context import GitError, git, resolve_base
 
+        rel = layout.gates_file(Path()).as_posix()
+
         try:
             base = resolve_base(self.worktree, self.gates_base or self.config.base)
-
-            if base is None:
-                return layout.gates_file(self.root)
-
-            sha = git(self.worktree, "merge-base", base, "HEAD").strip()
-            text = git(self.worktree, "show", f"{sha}:{layout.gates_file(Path()).as_posix()}")
+            sha = git(self.worktree, "merge-base", base, "HEAD").strip() if base else ""
 
         except GitError:
+            sha = ""
+
+        # Only a merge base holding no manifest falls back: a blob it holds
+        # and git cannot read fails the pass rather than judge by another.
+        if not sha or not git(
+            self.worktree, "ls-tree", "--full-tree", "--name-only", sha, "--", rel
+        ):
             return layout.gates_file(self.root)
 
         held = naming.base_manifest_file(self.root, self.task.id)
         held.parent.mkdir(parents=True, exist_ok=True)
-        held.write_text(text, encoding="utf-8")
+        held.write_text(git(self.worktree, "show", f"{sha}:{rel}"), encoding="utf-8")
 
         return held
 

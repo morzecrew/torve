@@ -158,14 +158,12 @@ def retry_rung_for(
     return ""  # unreachable: convicted holds only axes from the full AXIS_SEVERITY ladder
 
 
-def _retry_gate_axes(root: Path) -> Mapping[str, GateAxis]:
+def _retry_gate_axes(manifest_path: Path) -> Mapping[str, GateAxis]:
     """Gate name → declared axis, read from the manifest the gate pass
-    loaded (the root's, S-0121/D-3), so selection classifies
+    loaded (the one at the merge base, S-0121/D-3), so selection classifies
     each conviction exactly as its declaration labels it. A missing or
     unreadable manifest maps nothing: every failing gate then reads as the
     unlabeled default, functional, the fail-safe that routes up (S-0034/D-4)."""
-
-    manifest_path = layout.gates_file(root)
 
     if not manifest_path.is_file():
         return {}
@@ -209,7 +207,7 @@ def advance_tier(run: Dispatch, state: RunState) -> Agent:
         rung = retry_rung_for(
             run.tier,
             run.convictions,
-            _retry_gate_axes(run.worktree if run.shadow else run.root),
+            _retry_gate_axes(run.manifest_file),
         )
 
         if rung:
