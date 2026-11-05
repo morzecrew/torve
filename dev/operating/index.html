@@ -431,10 +431,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#a-rows-check-its-twin-and-the-invariants-the-battery-runs" class="md-nav__link">
+  <a href="#a-rows-check-and-its-twin" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        A row's check, its twin, and the invariants the battery runs
+        A row's check and its twin
       </span>
     </span>
   </a>
@@ -1171,10 +1171,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#a-rows-check-its-twin-and-the-invariants-the-battery-runs" class="md-nav__link">
+  <a href="#a-rows-check-and-its-twin" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
-        A row's check, its twin, and the invariants the battery runs
+        A row's check and its twin
       </span>
     </span>
   </a>
@@ -1731,23 +1731,20 @@ and the results. <strong>A red re-gate's output is read from <code>torve why</co
 <code>lane.judged</code> renders as a row with its leg, base, head, duration and the
 failing gates' output, beside every gate result's <code>inherited_failures</code>, so the
 failing test is named with no reproduction on the host.</p>
-<h2 id="a-rows-check-its-twin-and-the-invariants-the-battery-runs">A row's check, its twin, and the invariants the battery runs<a class="headerlink" href="#a-rows-check-its-twin-and-the-invariants-the-battery-runs" title="Permanent link">&para;</a></h2>
+<h2 id="a-rows-check-and-its-twin">A row's check and its twin<a class="headerlink" href="#a-rows-check-and-its-twin" title="Permanent link">&para;</a></h2>
 <p>A decision row may carry a <code>check</code> — a command whose exit code judges the
-row — and the battery runs each as a <code>decision:&lt;id&gt;</code> gate under the row's
-<code>check_state</code>: shadow until an amendment promotes it on soak evidence, then
-blocking. A check that <strong>selects nothing</strong> — pytest's exit 5, or the "no
+row — and the battery that completes the document runs each as a
+<code>decision:&lt;id&gt;</code> gate under the row's <code>check_state</code>: shadow until an amendment
+promotes it on soak evidence, then blocking. No attempt's battery runs one,
+and neither does a document branch's rebase regate (S-0122/D-4). A check that <strong>selects nothing</strong> — pytest's exit 5, or the "no
 tests ran" summary <code>acceptance</code> already reads — fails as vacuous under the
 row's state (S-0106/D-1): a <code>-k</code> filter matching no test has judged nothing,
 and it is seen the first time it runs rather than left as a quiet green. The
 <code>decision:&lt;id&gt;</code> gates run first.</p>
-<p>A row's paths are its gate's, as an invariant's are: a <code>decision:&lt;id&gt;</code> gate
-whose row declares paths, none of which the diff touches, is reported
-skipped. The files the check's command names count too, so an edit to its
+<p>A row's paths are its gate's: a <code>decision:&lt;id&gt;</code> gate whose row declares
+paths, none of which the document's diff touches, is reported skipped. The files the check's command names count too, so an edit to its
 test runs it, and a renamed file counts at both its old and its new path. A
-row with no paths runs on every diff. Every phase of a document carries all
-of its rows, so without this a row a later phase builds fails its check in
-each earlier phase. The phase that builds the row touches its paths, and the
-completion battery reads the whole document's diff.</p>
+row with no paths runs on every diff.</p>
 <p>No row owes a divergence entry for being touched: the silence check and the
 attestations it demanded are gone (S-0122/D-14), and a red check is the
 check's finding, not a missing entry.</p>
@@ -1758,17 +1755,8 @@ every standing row's twin after the sabotage CASES and fails when one exits
 non-zero, and <code>torve spec check</code> refuses a blocking row that names no twin,
 as the planner already refuses one at mint (S-0106/D-3). A row is never
 blocking on a check nobody has shown can fail.</p>
-<p>The same battery carries the document's <strong>invariants</strong>. A standing
-invariant — an <code>I-n</code> with a <code>statement</code>, <code>paths</code> and a <code>check</code> — enters as
-an <code>invariant:&lt;id&gt;</code> gate, always shadow: an invariant is a statement to read,
-not a wall, until an operator promotes a decision from it. The completion
-battery and the document-branch regate run the <code>decision:&lt;id&gt;</code> gates of
-every row the document's phases inherited, and an <code>invariant:&lt;id&gt;</code> gate for
-every invariant whose declared paths the diff reaches; an invariant the diff
-never touches is reported skipped rather than run for nothing (S-0106/D-2).
-One reader fills both batteries, so a row is judged the same way on an
-attempt and on the whole document, and a task's own attempt battery is
-otherwise unchanged.</p>
+<p>A standing <strong>invariant</strong> — an <code>I-n</code> with a <code>statement</code>, <code>paths</code> and a
+<code>check</code> — is a statement to read: no battery runs its check (S-0122/D-4).</p>
 <p>A repository whose tests are not Python says how they are found, paired and
 run through the manifest's <code>tests:</code> block: <code>run</code>, the command a list of test
 files is appended to, and <code>pair</code>, the templates from a module to its tests
