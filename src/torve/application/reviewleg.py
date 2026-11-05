@@ -1803,9 +1803,10 @@ End with one JSON document:
 {"schema": "torve.triage/v1", "threads": [{"thread": "<id>", "verdict": "apply",
 "evidence": "src/app.py:12 — ...", "duplicate_of": ""}]}"""
 
-# The heads already triaged this process, so a later pass over the same head
-# makes no second call (S-0122/D-15).
-TRIAGED: set[tuple[str, str, str]] = set()
+# The heads already triaged this process, with the verdict each thread got, so
+# a later pass over the same head makes no second call and still carries what
+# the first one said to apply (S-0122/D-15).
+TRIAGED: dict[tuple[str, str, str], dict[str, str]] = {}
 
 # One critic call over a head's bot threads: (branch, the pull request, the
 # prompt) to the critic's answer, or None when its seat gave none.
@@ -1841,9 +1842,10 @@ def _triage(
     triage: Triage,
 ) -> tuple[list[ReviewThread], int, bool]:
     """(what the round still carries, the threads answered now, whether the
-    head is triaged). A head whose call already ran holds back a bot thread
-    raised since for the next head; a seat that gave no answer, or threads no
-    fence can carry, leave the leg as it was."""
+    head is triaged). A head whose call already ran keeps each thread's
+    verdict — what it said to apply still reaches a round a later pass mints —
+    and holds back a bot thread raised since for the next head; a seat that
+    gave no answer, or threads no fence can carry, leave the leg as it was."""
 
     bots = [t for t in info.threads if t.author in config.threads.bots and t in raised]
 
@@ -1852,8 +1854,10 @@ def _triage(
 
     key = (str(root), branch, info.head_sha)
 
-    if key in TRIAGED:
-        held = {thread.id for thread in bots}
+    sorted_ = TRIAGED.get(key)
+
+    if sorted_ is not None:
+        held = {thread.id for thread in bots if sorted_.get(thread.id, "unsorted") not in APPLIED}
         return [thread for thread in raised if thread.id not in held], 0, True
 
     try:
@@ -1867,9 +1871,12 @@ def _triage(
     if document is None:
         return raised, 0, False
 
-    TRIAGED.add(key)
     verdicts = {verdict.thread: verdict for verdict in document.threads}
     asked = {thread.id for thread in bots}
+    # A thread the answer named no verdict for is carried as apply.
+    TRIAGED[key] = {
+        ident: verdicts[ident].verdict if ident in verdicts else "apply" for ident in asked
+    }
     kept: list[ReviewThread] = []
     dismissed = 0
 

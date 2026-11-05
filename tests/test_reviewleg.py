@@ -2246,6 +2246,26 @@ def test_a_head_is_triaged_once_and_a_later_bot_thread_waits_for_the_next(seeded
     assert events(seeded.root, "lane_review_task") == []
 
 
+def test_what_triage_said_to_apply_still_rounds_on_a_later_pass_over_the_head(seeded, untriaged):
+    """A pass that could mint no round (its budget spent) leaves the applied
+    threads to the next pass over the same head, with no second call."""
+
+    open_document(seeded.root)
+    ready(seeded.root, "T-0900")
+    critic = Critic(_triaged(t1=("apply", "src/app.py:1 — the dereference")))
+    forge = StubForge(pr(thread("t1")))
+
+    _detail, first = review_thread_leg(
+        seeded.root, config(rounds=0), forge, lambda _t: None, triage=critic
+    )
+    _detail, second = review_thread_leg(
+        seeded.root, config(), forge, lambda _t: None, triage=critic
+    )
+
+    assert (first, second) == (False, True)
+    assert len(critic.prompts) == 1
+
+
 def test_a_triage_seat_that_gives_no_answer_leaves_the_leg_as_it_was(seeded, untriaged):
     open_document(seeded.root)
     ready(seeded.root, "T-0900")
