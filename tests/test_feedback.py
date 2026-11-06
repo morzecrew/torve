@@ -191,6 +191,7 @@ def test_a_note_outlives_the_cap_and_a_retried_command(root):
     ]
     assert record_operator_note(root, "T-8014", "deliver D-1 only") is True
     assert record_operator_note(root, "T-8014", "deliver D-1 only") is True
+    assert feedback_file(root, "T-8014").read_text(encoding="utf-8").count("deliver D-1 only") == 1
     assert capture_feedback(root, "T-8014", "diff --git a/x b/x\n+1\n", long_thread) is True
 
     text = feedback_file(root, "T-8014").read_text(encoding="utf-8")

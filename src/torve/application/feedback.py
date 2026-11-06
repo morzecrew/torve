@@ -70,11 +70,15 @@ def _notes(root: Path, task_id: str) -> list[str]:
 def _with_note(text: str, note: str) -> str:
     """The record with the note as an operator thread before the superseded
     diff, or at its end when the cap cut the diff off. Added after the cap, so
-    a long review never truncates a person's brief."""
+    a long review never truncates a person's brief; added once, so a retried
+    command leaves the record as it was."""
 
     head, found, tail = text.partition(DIFF_HEADING)
     thread = {"comments": [{"author": OPERATOR, "body": note}]}
     block = "\n".join(_thread_block(thread)) + "\n"
+
+    if block in head:
+        return text
 
     return f"{head}{block}\n{DIFF_HEADING}{tail}" if found else f"{text.rstrip()}\n\n{block}"
 
