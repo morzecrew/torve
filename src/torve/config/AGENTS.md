@@ -106,4 +106,20 @@ What makes intake demand a document now that one charter is the only standing do
 - Consequence: a lane or planner that reads an archived document's landings still finds them
 - Check: `uv run pytest -q tests/test_rfc_archive.py -k execution` (shadow; runs as `decision:S-0123/D-7`)
 
+### S-0124/D-2 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions` revision rounds when the configuration names it, else 2; classic mode keeps 1
+
+- Paths: `src/torve/config/runconfig.py` `src/torve/application/review.py`
+- Consequence: a unit gets the two rounds S-0122/D-8 promises before it escalates
+- Check: `uv run pytest -q tests/test_runconfig.py tests/test_review_run.py -k revision_rounds` (shadow; runs as `decision:S-0124/D-2`)
+
+### S-0124/D-8 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+Under `review.revision: session` a revision round continues the selected candidate in its own still-open session, on that candidate's tier and not `revision_variant`, with the blocking findings, after the same spend and clock checks a fresh attempt passes, then judges its gates and asks the critic again, in place of a fresh revision attempt; `fresh` is the default, and a seat whose harness keeps no session falls back to it
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `src/torve/config/runconfig.py`
+- Consequence: the night can run the in-session arm S-0122/D-9 asks about, one configuration key away
+- Check: `uv run pytest -q tests/test_runner.py tests/test_runconfig.py -k session_revision` (shadow; runs as `decision:S-0124/D-8`)
+
 <!-- /torve:managed -->

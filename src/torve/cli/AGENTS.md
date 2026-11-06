@@ -84,6 +84,14 @@ The divergence log keeps `halted`, written by `torve abort`, and `departed` with
 - Consequence: a lane or planner that reads an archived document's landings still finds them
 - Check: `uv run pytest -q tests/test_rfc_archive.py -k execution` (shadow; runs as `decision:S-0123/D-7`)
 
+### S-0124/D-10 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+A document is complete when its landings cover every phase the root's phasing or the phasing at the ref being landed names; an absent phasing names none, a phasing that is present but cannot be read or validated leaves the document incomplete, and the pull request lane, the local lane and the publisher's draft flag read the same union
+
+- Paths: `src/torve/application/forge.py` `src/torve/application/lane.py` `src/torve/cli/merge.py`
+- Consequence: a phase added on the branch keeps the document a draft until it lands, and the root's phases still count when the branch was cut before an amendment
+- Check: `uv run pytest -q tests/test_lane.py tests/test_forge.py -k phasing_union` (shadow; runs as `decision:S-0124/D-10`)
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's
