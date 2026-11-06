@@ -3110,6 +3110,94 @@ def test_a_checkpoint_the_base_moved_past_is_stale(repo):
     assert _stale_checkpoint(repo.root, "T-0001", "main")
 
 
+def test_a_budget_checkpoint_resumes_once_its_requeue_removed_the_state_file(repo):
+    # T-0809 spent its 90 minutes; `manager resolve … requeued` removed the
+    # state file `_should_resume` reads, and the next dispatch started over.
+    from types import SimpleNamespace
+
+    from torve.application.runner import _checkpointed_for_resume
+
+    repo.seed()
+    repo.git("checkout", "-q", "-b", naming.branch("T-0001"))
+    repo.write("wip.txt", "the attempt's tree\n")
+    repo.commit(
+        "torve checkpoint T-0001: attempt 1 exhausted its budget\n\n"
+        "Torve-Checkpoint: T-0001 attempt 1"
+    )
+
+    assert _checkpointed_for_resume(repo.root, SimpleNamespace(id="T-0001"))
+
+
+def _rebased_document(repo, *, checkpoint: tuple[str, str], main: tuple[str, str]) -> str:
+    """A document branch with one landing, a task checkpoint cut from it, and
+    then main moving and the lane rebasing the document branch onto it."""
+    from torve.gates.context import git
+
+    document = naming.document_branch("S-0083")
+    repo.seed()
+    repo.git("checkout", "-q", "-b", document, "main")
+    repo.write("landed.txt", "a phase that landed\n")
+    repo.commit("torve(T-0000): landing of attempt 1")
+    landing = git(repo.root, "rev-parse", "HEAD").strip()
+    repo.git("checkout", "-q", "-b", naming.branch("T-0001"))
+    # An agent's own commit, with no trailer, under the engine's checkpoint.
+    repo.write("agent.txt", "the agent committed this\n")
+    repo.commit("agent commit")
+    repo.write(*checkpoint)
+    repo.commit(
+        "torve(T-0001): attempt 1 escalated from review on a blocker\n\n"
+        "Torve-Checkpoint: T-0001 attempt 1"
+    )
+    repo.git("checkout", "-q", "main")
+    repo.write(*main)
+    repo.commit("an engine merge")
+    repo.git("checkout", "-q", "-B", document, "main")
+    repo.git("cherry-pick", "--no-gpg-sign", landing)
+
+    return document
+
+
+def test_a_stale_checkpoint_is_carried_onto_the_rebased_document_branch(repo):
+    # Each engine merge rebases the document branch and every checkpoint goes
+    # stale; the recut threw away T-0811's attempt 5.
+    from torve.application.runner import _carry_checkpoint, _stale_checkpoint
+    from torve.gates.context import git
+
+    document = _rebased_document(
+        repo, checkpoint=("wip.txt", "the attempt's tree\n"), main=("main.txt", "merged\n")
+    )
+    branch = naming.branch("T-0001")
+    old = git(repo.root, "rev-parse", branch).strip()
+    assert _stale_checkpoint(repo.root, "T-0001", document)
+
+    assert _carry_checkpoint(repo.root, "T-0001", document)
+
+    assert not _stale_checkpoint(repo.root, "T-0001", document)
+    assert git(repo.root, "rev-parse", f"{branch}^") == git(repo.root, "rev-parse", document)
+    files = git(repo.root, "ls-tree", "-r", "--name-only", branch).split()
+    assert {"landed.txt", "main.txt", "agent.txt", "wip.txt"} <= set(files)
+    assert "Torve-Checkpoint: T-0001 attempt 1" in git(
+        repo.root, "log", "-1", "--format=%B", branch
+    )
+    assert git(repo.root, "rev-parse", f"refs/torve/checkpoints/T-0001/{old[:12]}").strip() == old
+
+
+def test_a_stale_checkpoint_that_does_not_merge_is_left_for_the_recut(repo):
+    from torve.application.runner import _carry_checkpoint
+    from torve.gates.context import git
+
+    document = _rebased_document(
+        repo,
+        checkpoint=("src/app.py", "print('the attempt')\n"),
+        main=("src/app.py", "print('the merge')\n"),
+    )
+    branch = naming.branch("T-0001")
+    before = git(repo.root, "rev-parse", branch)
+
+    assert not _carry_checkpoint(repo.root, "T-0001", document)
+    assert git(repo.root, "rev-parse", branch) == before
+
+
 def test_a_local_document_branch_the_remote_moved_past_is_not_cut_from(repo):
     """A copy the remote already contains carries nothing held: one the remote
     moved past (a hand commit pushed to the pull request) is stale."""
