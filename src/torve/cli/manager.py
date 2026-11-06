@@ -1937,7 +1937,7 @@ def return_cmd(
     starting blind. Only an operator may write this.
     """
 
-    from torve.application.feedback import capture_feedback
+    from torve.application.feedback import capture_feedback, keep_note
     from torve.application.lane import lane_held
     from torve.application.reaper import requeue_returned
 
@@ -1954,13 +1954,13 @@ def return_cmd(
 
     # The critique travels the way a blocker's does (S-0043/D-2, S-0005/D-13): the
     # note is a thread, and an empty one captures nothing rather than
-    # briefing the next attempt with silence.
-    briefed = bool(note) and capture_feedback(
-        root,
-        task_id,
-        "",
-        [{"comments": [{"author": "operator", "body": note}]}],
-    )
+    # briefing the next attempt with silence. The returned candidate's old
+    # critique goes; earlier operator notes stay with the new one. The note is
+    # kept before the record is replaced, so a failure leaves the old one.
+    if note.strip():
+        keep_note(root, task_id, note)
+
+    briefed = bool(note.strip()) and capture_feedback(root, task_id, "", [])
 
     if fmt is Format.JSON:
         emit_json(

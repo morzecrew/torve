@@ -13,6 +13,7 @@ from torve.application.feedback import (
     FEEDBACK_CAP,
     capture_feedback,
     feedback_file,
+    notes_file,
     record_operator_note,
     render_feedback,
     threads_file,
@@ -160,6 +161,53 @@ def test_an_operator_note_joins_the_record_after_the_threads_before_the_diff(roo
         < text.index("## The superseded candidate's diff")
     )
     assert "**operator:**" in text
+
+
+def test_a_later_capture_keeps_every_operator_note_once(root):
+    # T-0808: a revision round replaced the record and the person's brief went
+    # with it, so the next attempt repeated the fault the note named.
+    assert capture_feedback(root, "T-8013", "diff --git a/x b/x\n+1\n", THREADS) is True
+    assert record_operator_note(root, "T-8013", "deliver D-1 only") is True
+    assert record_operator_note(root, "T-8013", "keep the tier") is True
+    assert capture_feedback(root, "T-8013", "diff --git a/y b/y\n+2\n", []) is True
+
+    text = feedback_file(root, "T-8013").read_text(encoding="utf-8")
+    assert "Missing empty-list case." not in text
+    assert "diff --git a/y b/y" in text and "diff --git a/x b/x" not in text
+    assert text.count("deliver D-1 only") == 1 and text.count("keep the tier") == 1
+    assert (
+        text.index("deliver D-1 only")
+        < text.index("keep the tier")
+        < text.index("## The superseded candidate's diff")
+    )
+    # Nothing else to carry, the notes still brief the next attempt.
+    assert capture_feedback(root, "T-8013", "", []) is True
+    assert "keep the tier" in feedback_file(root, "T-8013").read_text(encoding="utf-8")
+
+
+def test_a_note_outlives_the_cap_and_a_retried_command(root):
+    long_thread = [
+        {"path": "a.py", "line": 1, "comments": [{"author": "bot", "body": "x" * FEEDBACK_CAP}]}
+    ]
+    assert record_operator_note(root, "T-8014", "deliver D-1 only") is True
+    assert record_operator_note(root, "T-8014", "deliver D-1 only") is True
+    assert feedback_file(root, "T-8014").read_text(encoding="utf-8").count("deliver D-1 only") == 1
+    assert capture_feedback(root, "T-8014", "diff --git a/x b/x\n+1\n", long_thread) is True
+
+    text = feedback_file(root, "T-8014").read_text(encoding="utf-8")
+    assert "> truncated at the size cap" in text
+    assert text.count("deliver D-1 only") == 1
+
+
+def test_notes_that_cannot_be_read_leave_the_record_in_place(root):
+    assert capture_feedback(root, "T-8015", "diff --git a/x b/x\n+1\n", THREADS) is True
+    before = feedback_file(root, "T-8015").read_bytes()
+    notes_file(root, "T-8015").write_text('["cut sho', encoding="utf-8")
+
+    with pytest.raises(ValueError):
+        capture_feedback(root, "T-8015", "diff --git a/y b/y\n+2\n", [])
+
+    assert feedback_file(root, "T-8015").read_bytes() == before
 
 
 def test_a_note_with_no_record_writes_one_holding_only_it(root):

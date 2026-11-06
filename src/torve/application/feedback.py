@@ -11,7 +11,9 @@ review data under a contract that still governs (S-0005/D-13).
 
 from __future__ import annotations
 
+import fcntl
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,7 @@ from torve.config import layout
 
 FEEDBACK_FILE = "feedback.md"
 FEEDBACK_THREADS = "feedback-threads.json"
+FEEDBACK_NOTES = "feedback-notes.json"
 DIFF_HEADING = "## The superseded candidate's diff"
 MEASURED_HEADING = "## What the engine measured"
 OPERATOR = "operator"
@@ -46,6 +49,59 @@ def threads_file(root: Path, task_id: str) -> Path:
     until the landing that consumed the record answers them."""
 
     return root / layout.TORVE_DIR / "tasks" / task_id / FEEDBACK_THREADS
+
+
+# ....................... #
+
+
+def notes_file(root: Path, task_id: str) -> Path:
+    """The operator notes the task's record carries, in the order they were
+    written. A capture replaces the record, never these."""
+
+    return root / layout.TORVE_DIR / "tasks" / task_id / FEEDBACK_NOTES
+
+
+def _notes(root: Path, task_id: str) -> list[str]:
+    path = notes_file(root, task_id)
+
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
+
+
+def _with_note(text: str, note: str) -> str:
+    """The record with the note as an operator thread before the superseded
+    diff, or at its end when the cap cut the diff off. Added after the cap, so
+    a long review never truncates a person's brief; added once, so a retried
+    command leaves the record as it was."""
+
+    head, found, tail = text.partition(DIFF_HEADING)
+    thread = {"comments": [{"author": OPERATOR, "body": note}]}
+    block = "\n".join(_thread_block(thread)) + "\n"
+
+    if block in head:
+        return text
+
+    return f"{head}{block}\n{DIFF_HEADING}{tail}" if found else f"{text.rstrip()}\n\n{block}"
+
+
+def keep_note(root: Path, task_id: str, note: str) -> None:
+    """Add the note to the ones every capture carries. Under a per-task lock, so
+    two notes written at once both stay; once, so a retried command does not
+    brief the attempt twice; replaced whole, so a write cut short leaves the
+    notes as they were."""
+
+    path = notes_file(root, task_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with path.with_suffix(".lock").open("a") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        notes = _notes(root, task_id)
+
+        if note in notes:
+            return
+
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps([*notes, note], ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, path)
 
 
 # ....................... #
@@ -142,18 +198,27 @@ def capture_feedback(
     not brief the next attempt as if current, and a stale reply address
     must not have the next landing answer threads it never addressed.
     Captured threads also leave their reply addresses (S-0005/D-14, S-0005/A-3) so
-    the landing that consumes this record can answer them."""
+    the landing that consumes this record can answer them. The operator notes
+    are not stale with the round: every capture carries them before the diff,
+    so a revision round cannot drop the person's brief (T-0808). They are read
+    before the record goes, so notes that cannot be read leave it in place."""
 
+    notes = _notes(root, task_id)
     path = feedback_file(root, task_id)
     addresses_path = threads_file(root, task_id)
     path.unlink(missing_ok=True)
     addresses_path.unlink(missing_ok=True)
 
-    if not threads and not diff.strip():
+    if not threads and not notes and not diff.strip():
         return False
 
+    text = render_feedback(task_id, diff, threads, measured)
+
+    for note in notes:
+        text = _with_note(text, note)
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_feedback(task_id, diff, threads, measured), encoding="utf-8")
+    path.write_text(text, encoding="utf-8")
 
     addresses = [
         {"pr": t["pr"], "id": t["id"], "path": t.get("path"), "line": t.get("line")}
@@ -176,24 +241,19 @@ def record_operator_note(root: Path, task_id: str, note: str) -> bool:
     the task's record as an operator thread, after the review threads and before
     the superseded diff, keeping every thread and the diff the record already
     holds. A resolve with no note writes nothing — silence must not rewrite a
-    record that still briefs the next attempt."""
+    record that still briefs the next attempt. The note is kept beside the
+    record too, so every later capture carries it."""
 
     if not note.strip():
         return False
 
-    thread: dict[str, Any] = {"comments": [{"author": OPERATOR, "body": note}]}
+    keep_note(root, task_id, note)
     path = feedback_file(root, task_id)
 
     if not path.exists():
-        capture_feedback(root, task_id, "", [thread])
+        capture_feedback(root, task_id, "", [])
         return True
 
-    text = path.read_text(encoding="utf-8")
-    head, found, tail = text.partition(DIFF_HEADING)
-    block = "\n".join(_thread_block(thread)) + "\n"
-    path.write_text(
-        f"{head}{block}\n{DIFF_HEADING}{tail}" if found else f"{text.rstrip()}\n\n{block}",
-        encoding="utf-8",
-    )
+    path.write_text(_with_note(path.read_text(encoding="utf-8"), note), encoding="utf-8")
 
     return True
