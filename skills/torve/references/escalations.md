@@ -96,6 +96,16 @@ document branch, resolve it `landed` with that commit. Otherwise requeue it.
 The requeue commits the work the stopped run left in its worktree on the task's
 branch, and the next attempt continues from it rather than starting over.
 
+**`budget_exhausted`.** The run spent its time or cost budget, and the engine
+committed its tree on the task's branch. Requeue it with a note: the next
+attempt continues from that tree. Under `review.mode: critic` a unit gets 90
+minutes unless its contract names `budget.wallclock_minutes`.
+
+A tree a requeue continues from survives a move of its document branch, such
+as the rebase after an engine merge: its commits are carried onto the new tip.
+When they conflict with what landed since, the task starts from the tip
+instead, and the old tree stays under `refs/torve/checkpoints/<task>/`.
+
 **`gate_infrastructure_failure`, `seat_refused`.** Infrastructure. Run
 `torve doctor`, fix what it names, then reap and requeue.
 

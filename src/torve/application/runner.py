@@ -152,6 +152,11 @@ _BLOCKER_MARKER = "escalated from review on a blocker"
 _HALTED_MARKER = "escalated halted on a locked row"
 _UNDERSPECIFIED_MARKER = "escalated halted on a spec gap"
 
+# The subject `checkpoint` writes when a run spends its budget (S-0026/D-9).
+# A requeue removes the state file `_should_resume` reads, so the branch tip
+# is the only record left that the run was a continuation.
+_EXHAUSTED_MARKER = "exhausted its budget"
+
 
 def _exhausted(escalation: Escalation) -> bool:
     """S-0026/D-8: budget exhaustion — wallclock or tokens. `iterations`
@@ -1594,7 +1599,7 @@ def checkpoint(run: Dispatch, final: RunState) -> None:
     candidate is (S-0059/D-12)."""
 
     message = (
-        f"torve checkpoint {run.task.id}: attempt {final.attempts} exhausted its budget"
+        f"torve checkpoint {run.task.id}: attempt {final.attempts} {_EXHAUSTED_MARKER}"
         f"\n\nTorve-Checkpoint: {run.task.id} attempt {final.attempts}"
     )
     author = f"{_agent_identity(run.meta)} <agents@torve.local>"
@@ -2107,6 +2112,51 @@ def _stale_checkpoint(root: Path, task_id: str, base: str) -> bool:
     return False
 
 
+def _carry_checkpoint(root: Path, task_id: str, base: str) -> bool:
+    """A stale checkpoint moved onto *base*: the commits only the checkpoint
+    carries, merged three-way onto *base* and committed under the tip's
+    message, with the old tip kept under `refs/torve/checkpoints/`. False,
+    and the branch untouched, when the merge conflicts or git refuses."""
+
+    branch = f"refs/heads/{naming.branch(task_id)}"
+
+    try:
+        tip = git(root, "rev-parse", f"{branch}^{{commit}}").strip()
+        # Oldest first: `-` where *base* already holds the patch (a landing
+        # the lane rebased), `+` where only the checkpoint does.
+        marks = [line.split() for line in git(root, "cherry", base, tip).splitlines()]
+        upstream = [i for i, (mark, _sha) in enumerate(marks) if mark == "-"]
+        own = marks[upstream[-1] + 1 :] if upstream else marks
+
+        if not own:
+            return False
+
+        old = git(root, "rev-parse", f"{own[0][1]}^").strip()
+        # Exit 1 on a conflict, which `git` raises as a GitError.
+        tree = git(root, "merge-tree", "--write-tree", f"--merge-base={old}", base, tip).strip()
+        message = git(root, "log", "-1", "--format=%B", tip).strip()
+        carried = git(
+            root,
+            "-c",
+            "user.name=Torve",
+            "-c",
+            "user.email=torve@local",
+            "commit-tree",
+            tree,
+            "-p",
+            base,
+            "-m",
+            message,
+        ).strip()
+        git(root, "update-ref", f"refs/torve/checkpoints/{task_id}/{tip[:12]}", tip)
+        git(root, "update-ref", branch, carried, tip)
+
+    except GitError:
+        return False
+
+    return True
+
+
 # ....................... #
 
 
@@ -2123,9 +2173,17 @@ async def _run_task_async(
     # A continuation resumes its checkpoint (S-0026/D-9), but under the document
     # unit the battery judges against the branch's tip as it stands now. A
     # checkpoint cut before that tip moved reads as reverting whatever landed
-    # since, so it is recut; the workspace keeps it under a ref. T-0695 ran six
-    # attempts on one past a hand fix, each red on the fix's absence.
-    if resume and gates_base is not None and _stale_checkpoint(root, task.id, gates_base):
+    # since: T-0695 ran six attempts on one past a hand fix, each red on the
+    # fix's absence. So it is carried onto the tip, whose tree then holds what
+    # landed since, and recut only when it does not merge; the workspace keeps
+    # it under a ref either way. Every engine merge rebases the document
+    # branch, and a recut there threw away T-0811's attempt 5.
+    if (
+        resume
+        and gates_base is not None
+        and _stale_checkpoint(root, task.id, gates_base)
+        and not _carry_checkpoint(root, task.id, gates_base)
+    ):
         resume = False
 
     # The keyword is passed only where it is on, so a workspace that never
@@ -2287,8 +2345,8 @@ def _should_resume(previous: RunState) -> bool:
 
 def _checkpointed_for_resume(root: Path, task: Task) -> bool:
     """S-0090/D-2: a task whose run state was reaped still resumes when its
-    branch tip is the checkpoint a review blocker, a halt or a stopped run's
-    requeue (`reaper.clear_escalated`) left — the tree is
+    branch tip is the checkpoint a review blocker, a halt, a spent budget or a
+    stopped run's requeue (`reaper.clear_escalated`) left — the tree is
     on the branch either way, and the reaper removing the state file is not an
     answer to the escalation."""
 
@@ -2301,7 +2359,13 @@ def _checkpointed_for_resume(root: Path, task: Task) -> bool:
     subject = message.splitlines()[0] if message else ""
 
     return f"Torve-Checkpoint: {task.id} " in message and subject.endswith(
-        (_BLOCKER_MARKER, _HALTED_MARKER, _UNDERSPECIFIED_MARKER, STOPPED_MARKER)
+        (
+            _BLOCKER_MARKER,
+            _HALTED_MARKER,
+            _UNDERSPECIFIED_MARKER,
+            _EXHAUSTED_MARKER,
+            STOPPED_MARKER,
+        )
     )
 
 

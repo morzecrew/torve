@@ -25,9 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A note given with `torve manager resolve --resolution requeued` or `torve manager return`
   now stays in the task's feedback record. A revision round used to replace the record and
   drop the note, so the attempt after it ran without the person's instructions.
+
 - A revision candidate no longer commits the review record it was given. When a critic-mode
   candidate's checks ran while the record was still in its worktree, `.torve/feedback.md`
   landed in the candidate, and the critic spent a round convicting it.
+
+- A task requeued after it ran out of its time or cost budget now continues from its last
+  attempt. The requeue used to discard that attempt and start the task over.
+
+- A requeued task now keeps its last attempt's work when its document branch has moved, as it
+  does after every engine merge. The attempt's commits move onto the branch's new tip. The
+  task starts over only when they conflict with what landed since.
 
 ## [0.9.1] - 2026-11-06
 
