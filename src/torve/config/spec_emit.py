@@ -510,6 +510,13 @@ def new_document(number: str, title: str, owner: str, kind: str = "design") -> D
 # The transaction
 
 
+def _no_symlinks(directory: str, names: list[str]) -> set[str]:
+    """The entries `copytree` must not follow: a symlink is not a landing, and
+    following one would carry whatever it points at into the archive."""
+
+    return {name for name in names if Path(directory, name).is_symlink()}
+
+
 def write_transaction(
     spec_dir: Path,
     root: Path,
@@ -542,12 +549,16 @@ def write_transaction(
         for name in archived or {}:
             # The landings are the document's own files: carried unchanged, in
             # the same scratch that the check and the copy-back see
-            # (S-0123/D-7).
+            # (S-0123/D-7). A symlink is not followed — a link to another
+            # directory would copy that directory's contents into the archive.
             execution = spec_dir / name / EXECUTION_DIR
 
-            if execution.is_dir():
+            if execution.is_dir() and not execution.is_symlink():
                 shutil.copytree(
-                    execution, scratch_archive / name / EXECUTION_DIR, dirs_exist_ok=True
+                    execution,
+                    scratch_archive / name / EXECUTION_DIR,
+                    dirs_exist_ok=True,
+                    ignore=_no_symlinks,
                 )
 
         for path in spec_dir.iterdir():

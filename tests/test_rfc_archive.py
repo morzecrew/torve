@@ -184,3 +184,36 @@ def test_a_red_check_carries_no_execution_into_the_archive(tmp_path: Path) -> No
     assert execution.is_dir()
     assert {path.name: path.read_bytes() for path in execution.iterdir()} == before
     assert not (archive_dir(specs) / "S-0001").exists()
+
+
+def test_a_symlinked_execution_is_not_followed_into_the_archive(tmp_path: Path) -> None:
+    """A symlinked `execution/` is not followed: copying through it would carry
+    whatever it points at into the archive and persist it there (S-0123/D-7)."""
+
+    from typer.testing import CliRunner
+
+    from torve.cli import app
+
+    specs = corpus(
+        tmp_path,
+        **{
+            "0001": document("0001", "S-0001/D-1"),
+            "0002": document("0002", "S-0002/D-1"),
+        },
+    )
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    landing = outside / "T-9999-1-20260101T000000Z.yaml"
+    landing.write_text("task: T-9999\nat: '2026-01-01T00:00:00Z'\n", encoding="utf-8")
+    (specs / "S-0001" / "execution").symlink_to(outside, target_is_directory=True)
+
+    result = CliRunner().invoke(
+        app,
+        ["spec", "archive", "0001", "--superseded-by", "0002", "--root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0, result.output
+    archived = archive_dir(specs) / "S-0001"
+    assert archived.is_dir()
+    assert not (archived / "execution").exists()
+    assert landing.is_file()
