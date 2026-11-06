@@ -12,11 +12,12 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
+from pydantic import ValidationError
 
 from torve.config import layout
 from torve.config.spec import SpecError, document_dir, load_document
 from torve.domain.attempt import GateResult
-from torve.domain.spec import Commit, Corpus
+from torve.domain.spec import PHASING_FILE, Commit, Corpus, Phase
 from torve.domain.task import InheritedDecision, Task
 
 # ----------------------- #
@@ -326,6 +327,75 @@ class DocumentLanding:
     results: list[GateResult] = field(default_factory=list)
 
 
+class PhasingUnreadable(ValueError):
+    """A phasing that is present but cannot be parsed or validated
+    (S-0124/D-10): the document it belongs to is not complete."""
+
+
+def phase_numbers(raw: object) -> list[int]:
+    """The phases a parsed `phasing.yaml` names: a mapping carrying a list of
+    entries, each validated as the `Phase` model `load_document` applies. An
+    entry that fails validation makes the whole phasing unreadable — dropping
+    it would let the document read complete (S-0124/D-10).
+
+    A boolean `phase` is dropped before validation, as the intent licenses: a
+    bool is no phase, and coerced it would read as phase 1 and clear the
+    draft flag."""
+
+    if not isinstance(raw, dict):
+        raise PhasingUnreadable("phasing: not a mapping")
+
+    entries = cast("dict[str, Any]", raw).get("phasing")
+
+    if entries is None:
+        return []
+
+    if not isinstance(entries, list):
+        raise PhasingUnreadable("phasing: not a list")
+
+    numbers: list[int] = []
+
+    for entry in cast("list[object]", entries):
+        if isinstance(entry, dict) and isinstance(cast("dict[str, Any]", entry).get("phase"), bool):
+            continue
+
+        try:
+            numbers.append(Phase.model_validate(entry).phase)
+
+        except ValidationError as exc:
+            raise PhasingUnreadable(
+                f"phasing: an entry does not validate — {str(exc).splitlines()[0]}"
+            ) from exc
+
+    return numbers
+
+
+def root_phases(root: Path, document: str) -> list[int] | None:
+    """The phases the root's copy of *document* names, under the same rule
+    `lane.document_phases` reads a ref by (S-0124/D-10): None when the
+    document or its phasing is absent, and `PhasingUnreadable` when the file
+    is there but cannot be parsed or validated. The caller still counts the
+    phases a branch was cut before."""
+
+    directory = document_dir(root / layout.SPECS_DIR, document)
+
+    if directory is None:
+        return None
+
+    path = directory / PHASING_FILE
+
+    if not path.is_file():
+        return None
+
+    try:
+        raw: object = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise PhasingUnreadable(f"{document}/{PHASING_FILE}: {exc}") from exc
+
+    return phase_numbers(raw)
+
+
 def _phasing(
     root: Path, document: str
 ) -> tuple[str, list[tuple[int, str]], Commit | None, list[int | str]]:
@@ -361,13 +431,30 @@ def _gates_line(results: list[GateResult]) -> str:
     return f"gates: all {len(results)} pass"
 
 
-def document_complete(document: str, landings: list[DocumentLanding], root: Path) -> bool:
+def document_complete(
+    document: str,
+    landings: list[DocumentLanding],
+    root: Path,
+    phases: list[int] | None = None,
+) -> bool:
     """Whether every phase the document's phasing names has a landing on the
     branch — the pull request's draft flag is this, read from the same
-    records the body is composed from. A document with no readable phasing
-    is complete when anything landed: nothing says otherwise."""
-    _, phasing, _, _ = _phasing(root, document)
-    numbers = {number for number, _ in phasing}
+    records the body is composed from.
+
+    *phases* are the phase numbers to check (S-0124/D-10): the union of the
+    root's phasing and the phasing at the ref being landed, as the lane reads
+    them. When they are not given, the root's phasing is read under the same
+    rule as `lane.document_phases`: absent names none, and one that is
+    present but cannot be read or validated leaves the document incomplete."""
+
+    if phases is None:
+        try:
+            phases = root_phases(root, document)
+
+        except PhasingUnreadable:
+            return False
+
+    numbers = set(phases or [])
     landed = {number for landing in landings for number in landing.task.covered}
     return not (numbers - landed)
 

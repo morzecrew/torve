@@ -172,12 +172,19 @@ def _document_pr_text(
     from any host, and a host whose stream is empty lists the same results.
     """
 
-    from torve.application.forge import DocumentLanding, compose_document_pr, document_complete
+    from torve.application.forge import (
+        DocumentLanding,
+        PhasingUnreadable,
+        compose_document_pr,
+        document_complete,
+        root_phases,
+    )
     from torve.application.lane import (
         carried_contract,
         carried_landings,
         carried_tasks,
         contract_file,
+        document_phases,
         landed_phases,
     )
     from torve.application.projections import rows_from_events
@@ -214,7 +221,19 @@ def _document_pr_text(
 
     title, body = compose_document_pr(document, landings, root)
 
-    return title, body, document_complete(document, landings, root)
+    # S-0124/D-10: the draft flag counts the union of the root's phases and
+    # the phasing at the ref being landed; a phasing either side cannot read
+    # leaves the document a draft.
+    try:
+        at_ref = document_phases(root, branch, document)
+        at_root = root_phases(root, document)
+
+    except PhasingUnreadable:
+        return title, body, False
+
+    numbers = sorted(set(at_ref or []) | set(at_root or []))
+
+    return title, body, document_complete(document, landings, root, phases=numbers)
 
 
 # ....................... #
