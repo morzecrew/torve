@@ -76,7 +76,7 @@ The divergence log keeps `halted`, written by `torve abort`, and `departed` with
 
 - Paths: `src/torve/application/divergence.py` `src/torve/cli/log.py` `src/torve/domain/spec.py`
 
-### S-0123/D-7 — `ASSUMED` (What the first 0.9.0 run left) — implementation: none
+### S-0123/D-7 — `ASSUMED` (What the first 0.9.0 run left)
 
 `torve spec archive` carries the document's `execution/` directory into the archive unchanged, in the same transaction as the document's own files
 

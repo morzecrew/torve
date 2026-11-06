@@ -7,11 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Under `review.mode: critic` a unit now stops once its notional spend across attempts
+  reaches $3, and escalates `budget_exhausted` naming the spend. Notional spend is each
+  candidate's and critic call's reported `cost_usd`, else its tokens at the model's
+  `list_price`; a call with neither counts nothing.
+
+- Under `review.mode: critic` a task whose contract names no `budget.wallclock_minutes`
+  now runs under 90 minutes, and escalates `budget_exhausted` before an attempt that would
+  start past them. A contract that names a bound keeps it.
+
 ### Fixed
 
-- A document's review rounds from the reviewer now come only from each task's last review. Findings from an attempt or candidate that a revision replaced no longer open a round after the task lands. A red completion battery still opens its own round.
+- A document's review rounds from the reviewer now come only from each task's last review.
+  Findings from an attempt or candidate that a revision replaced no longer open a round
+  after the task lands. A red completion battery still opens its own round.
 
-- A review finding with no cited line now anchors to a landed file the task's own phase covers, or else one the phasing covers. It gets a round where the landing also touched a file outside the phasing, and is still refused when no landed file is phased.
+- A review finding with no cited line now anchors to a landed file the task's own phase
+  covers, or else one the phasing covers. It gets a round where the landing also touched a
+  file outside the phasing, and is still refused when no landed file is phased.
+
+- An attempt that leaves no uncommitted work is judged at its worktree's HEAD, so a
+  document branch no longer collects empty judge snapshot commits.
+
+- A verdict that candidate selection already reached no longer mints a review id that
+  nothing runs; the review is recorded under the id its critic call ran with.
+
+- A host command that times out now takes the processes it started with it, instead of
+  leaving them running after the shell is killed.
+
+- `torve spec archive` now carries the document's `execution/` landing files into the
+  archive. It used to delete them with the document's directory.
 
 ## [0.9.0] - 2026-11-05
 

@@ -9,7 +9,7 @@ Gates run outside the agent session, in a gates sandbox, against a standalone ch
 - Paths: `src/torve/gates/**` `src/torve/application/runner.py` `src/torve/application/lane.py` `src/torve/adapters/workspace/git.py` `src/torve/adapters/vcs/git.py` `src/torve/adapters/runtime/docker.py`
 - Check: `uv run pytest tests/test_judge_checkout.py` (shadow; runs as `decision:S-0121/D-2`)
 
-### S-0123/D-3 — `ASSUMED` (What the first 0.9.0 run left) — implementation: none
+### S-0123/D-3 — `ASSUMED` (What the first 0.9.0 run left)
 
 `GitWorkspace.snapshot` returns the task worktree's HEAD when `git add -A` would stage the tree HEAD already holds, and makes a snapshot commit only over uncommitted work
 
