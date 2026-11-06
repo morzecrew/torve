@@ -36,6 +36,7 @@ from torve.config.spec import (
 from torve.domain.spec import (
     DECISIONS_FILE,
     DOCUMENT_FILE,
+    EXECUTION_DIR,
     FILE_FIELDS,
     LANDING_FILE,
     SCHEMA_VERSION,
@@ -519,7 +520,8 @@ def write_transaction(
     """One parse-mutate-dump-check cycle (S-0025/D-2): *mutations* (directory
     name -> document) is applied and *deletions* removed in a scratch copy
     of the corpus, *archived* is placed in a scratch copy of the archive
-    beside it, and the scratch corpus is checked whole with the archive and
+    beside it with the document's `execution/` landings carried unchanged
+    (S-0123/D-7), and the scratch corpus is checked whole with the archive and
     the schemas in view (S-0053/A-1). Only a clean check is copied back; a red
     check leaves the tree untouched."""
 
@@ -536,6 +538,17 @@ def write_transaction(
 
         for name, doc in (archived or {}).items():
             write_document(scratch_archive / name, doc)
+
+        for name in archived or {}:
+            # The landings are the document's own files: carried unchanged, in
+            # the same scratch that the check and the copy-back see
+            # (S-0123/D-7).
+            execution = spec_dir / name / EXECUTION_DIR
+
+            if execution.is_dir():
+                shutil.copytree(
+                    execution, scratch_archive / name / EXECUTION_DIR, dirs_exist_ok=True
+                )
 
         for path in spec_dir.iterdir():
             if path.is_dir() and path.name not in deletions:

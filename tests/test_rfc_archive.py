@@ -12,7 +12,7 @@ from typing import Any
 from test_decisions import Doc, archived, corpus
 from test_decisions import document as _document
 
-from torve.config.spec import check_corpus, lookup, next_number
+from torve.config.spec import archive_dir, check_corpus, lookup, next_number
 
 # ----------------------- #
 
@@ -116,3 +116,36 @@ def test_an_archived_document_never_counts_as_standing_in_the_check(tmp_path: Pa
 
     assert report.count == 1
     assert report.ok, report.problems
+
+
+def test_execution(tmp_path: Path) -> None:
+    """`archive` carries the document's `execution/` landings into the archive
+    unchanged, in the transaction that moves its own files (S-0123/D-7)."""
+
+    from typer.testing import CliRunner
+
+    from torve.cli import app
+
+    landings = [
+        {"task": "T-0001", "at": "2026-09-09"},
+        {"task": "T-0002", "at": "2026-09-10"},
+    ]
+    specs = corpus(
+        tmp_path,
+        **{
+            "0001": document("0001", "S-0001/D-1", landings=landings),
+            "0002": document("0002", "S-0002/D-1"),
+        },
+    )
+    execution = specs / "S-0001" / "execution"
+    before = {path.name: path.read_bytes() for path in execution.iterdir()}
+
+    result = CliRunner().invoke(
+        app,
+        ["spec", "archive", "0001", "--superseded-by", "0002", "--root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert len(before) == 2
+    archived_execution = archive_dir(specs) / "S-0001" / "execution"
+    assert {path.name: path.read_bytes() for path in archived_execution.iterdir()} == before
