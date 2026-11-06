@@ -149,3 +149,38 @@ def test_execution(tmp_path: Path) -> None:
     assert len(before) == 2
     archived_execution = archive_dir(specs) / "S-0001" / "execution"
     assert {path.name: path.read_bytes() for path in archived_execution.iterdir()} == before
+
+
+def test_a_red_check_carries_no_execution_into_the_archive(tmp_path: Path) -> None:
+    """The landings travel in the transaction that moves the document, not
+    beside it: a red check leaves the `execution/` directory where it was
+    and writes nothing into the archive (S-0123/D-7)."""
+
+    from typer.testing import CliRunner
+
+    from torve.cli import app
+
+    specs = corpus(
+        tmp_path,
+        **{
+            "0001": document(
+                "0001",
+                "S-0001/D-1",
+                landings=[{"task": "T-0001", "at": "2026-09-09"}],
+            ),
+            "0002": document("0002", "S-0002/D-1", informed_by=["0009"]),
+        },
+    )
+    execution = specs / "S-0001" / "execution"
+    before = {path.name: path.read_bytes() for path in execution.iterdir()}
+
+    result = CliRunner().invoke(
+        app,
+        ["spec", "archive", "0001", "--superseded-by", "0002", "--root", str(tmp_path)],
+    )
+
+    assert result.exit_code != 0
+    assert "does not check clean" in result.output
+    assert execution.is_dir()
+    assert {path.name: path.read_bytes() for path in execution.iterdir()} == before
+    assert not (archive_dir(specs) / "S-0001").exists()
