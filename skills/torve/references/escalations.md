@@ -93,6 +93,8 @@ finding and where it came from:
 
 **`lease_expired`, or a killed worker.** If the task's landing file is on its
 document branch, resolve it `landed` with that commit. Otherwise requeue it.
+The requeue commits the work the stopped run left in its worktree on the task's
+branch, and the next attempt continues from it rather than starting over.
 
 **`gate_infrastructure_failure`, `seat_refused`.** Infrastructure. Run
 `torve doctor`, fix what it names, then reap and requeue.

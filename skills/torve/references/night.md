@@ -238,7 +238,8 @@ The night stops itself. To stop it early, kill the manager by its PID. The
 cost is the lease on the attempt in flight. Run `torve reap`: it expires the
 dead run, and the next pass on this host escalates the task `lease_expired`
 rather than waiting out its lease. Take it through `torve guide torve
-escalations`. A task whose work had already landed stays landed.
+escalations`: requeued, it continues from the work its stopped attempt left. A
+task whose work had already landed stays landed.
 
 ## The morning
 

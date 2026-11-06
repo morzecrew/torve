@@ -796,6 +796,63 @@ def test_clear_escalated_takes_the_state_worktree_and_sandbox(tmp_path):
     assert not state.path.exists()
 
 
+def test_a_stopped_run_s_work_is_kept_on_its_branch_for_the_next_dispatch(tmp_path):
+    # A night stopped mid-attempt left T-0811's gated tree only in its
+    # worktree, and the requeue deleted it; the next dispatch started over.
+    from types import SimpleNamespace
+
+    from torve.application.reaper import clear_escalated
+    from torve.application.runner import _checkpointed_for_resume
+    from torve.domain.states import EscalationReason
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-C", str(tmp_path), *args], check=True, capture_output=True, text=True
+        ).stdout
+
+    git("init", "-q", "-b", "main")
+    (tmp_path / "seed").write_text("x", encoding="utf-8")
+    git("add", "-A")
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--no-gpg-sign", "-m", "seed")
+    workspace = GitWorkspace(tmp_path)
+
+    for task_id, reason in (
+        ("T-9810", EscalationReason.KILLED),
+        ("T-9811", EscalationReason.POISON_CEILING),
+    ):
+        worktree = workspace.create(task_id, "main")
+        (worktree / "work.py").write_text("done = True\n", encoding="utf-8")
+        state = state_at(tmp_path, task_id, TaskState.RUNNING)
+        state.escalate(reason, "stopped")
+
+        assert clear_escalated(tmp_path, MockRuntime(), workspace, task_id) is True
+        assert not worktree.exists()
+
+    assert git("show", "torve/T-9810:work.py") == "done = True\n"
+    assert _checkpointed_for_resume(tmp_path, SimpleNamespace(id="T-9810"))
+    # A judged escalation keeps its old rule: its tree is not continued.
+    assert git("rev-parse", "torve/T-9811") == git("rev-parse", "main")
+    assert not _checkpointed_for_resume(tmp_path, SimpleNamespace(id="T-9811"))
+
+
+def test_a_stopped_run_with_nothing_new_adds_no_checkpoint(tmp_path):
+    def git(*args):
+        return subprocess.run(
+            ["git", "-C", str(tmp_path), *args], check=True, capture_output=True, text=True
+        ).stdout
+
+    git("init", "-q", "-b", "main")
+    (tmp_path / "seed").write_text("x", encoding="utf-8")
+    git("add", "-A")
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--no-gpg-sign", "-m", "seed")
+    workspace = GitWorkspace(tmp_path)
+    workspace.create("T-9812", "main")
+
+    assert workspace.checkpoint("T-9812", "torve(T-9812): nothing") is False
+    assert workspace.checkpoint("T-9899", "torve(T-9899): no worktree") is False
+    assert git("rev-parse", "torve/T-9812") == git("rev-parse", "main")
+
+
 def test_clear_escalated_leaves_a_non_escalated_task_alone(tmp_path):
     from torve.application.reaper import clear_escalated
 

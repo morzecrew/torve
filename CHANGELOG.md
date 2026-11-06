@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer blocked for the later phase's work. `torve spec check` refuses a `delivers` entry
   that names no row of the document.
 
+### Changed
+
+- A run stopped mid-attempt, by killing the night or by a lapsed lease, now keeps its work.
+  `torve manager resolve --resolution requeued` commits what the run left in its worktree on
+  the task's branch, and the next attempt continues from it instead of starting over.
+
 ### Fixed
 
 - A note given with `torve manager resolve --resolution requeued` or `torve manager return`

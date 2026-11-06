@@ -97,7 +97,9 @@ def _git_at(path: Path, *args: str, env: dict[str, str] | None = None) -> str:
     return proc.stdout
 
 
-def _snapshot_commit(worktree: Path, *, clean_is_head: bool = False) -> str:
+def _snapshot_commit(
+    worktree: Path, *, clean_is_head: bool = False, message: str = "judge snapshot"
+) -> str:
     """The commit `git add -A` would carry in `worktree`, on its HEAD
     (S-0114/D-1). Staging goes through a temporary index, so the worktree's
     own index is exactly as it was, and no ref moves here.
@@ -120,7 +122,7 @@ def _snapshot_commit(worktree: Path, *, clean_is_head: bool = False) -> str:
         if clean_is_head and tree == _git_at(worktree, "rev-parse", f"{head}^{{tree}}").strip():
             return head
 
-        return stage("commit-tree", tree, "-p", head, "-m", "judge snapshot").strip()
+        return stage("commit-tree", tree, "-p", head, "-m", message).strip()
 
 
 def _standalone_checkout(path: Path, source: Path, snapshot: str, depth: int | None) -> Path:
@@ -314,6 +316,40 @@ class GitWorkspace:
         snapshot commit (S-0123/D-3)."""
 
         return _snapshot_commit(naming.worktree(self.root, task_id), clean_is_head=True)
+
+    # ....................... #
+
+    def checkpoint(self, task_id: str, message: str) -> bool:
+        """The task's uncommitted work committed on its branch with *message*,
+        for a run that stopped before it could checkpoint itself. False when
+        the tree holds nothing HEAD lacks, or when the worktree is missing or
+        does not hold the task's branch, so there is nowhere to keep it."""
+
+        path = naming.worktree(self.root, task_id)
+
+        if not path.is_dir():
+            return False
+
+        branch = f"refs/heads/{naming.branch(task_id)}"
+        held = subprocess.run(
+            ["git", *NO_HOOKS, "-C", str(path), "symbolic-ref", "-q", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+
+        if held != branch:
+            return False
+
+        head = _git_at(path, "rev-parse", "HEAD").strip()
+        commit = _snapshot_commit(path, clean_is_head=True, message=message)
+
+        if commit == head:
+            return False
+
+        _git_at(path, "update-ref", branch, commit, head)
+
+        return True
 
     # ....................... #
 
