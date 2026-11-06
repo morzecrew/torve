@@ -40,7 +40,7 @@ from forze.application.contracts.durable.function import (
 from forze.application.execution import ExecutionContext
 from forze.base.primitives import JsonDict
 
-from torve.application import decisions, selection
+from torve.application import decisions, feedback, selection
 from torve.application.dispatch import (
     BARE,
     CONFIGURED,
@@ -1685,10 +1685,11 @@ def selects(run: Dispatch) -> bool:
 
 
 def _width(run: Dispatch, state: RunState) -> tuple[int, str]:
-    """The unit's width and class (S-0122/D-7). Several candidates only when a
-    critic chooses between them."""
+    """The unit's width and class (S-0122/D-7, S-0124/D-1). Several candidates
+    only when a critic chooses between them; a revision attempt — one whose
+    task has a feedback record at the root — is class S and runs one."""
 
-    revision = (run.worktree / ".torve" / "feedback.md").is_file()
+    revision = feedback.feedback_file(run.root, run.task.id).is_file()
     escalated = any(entry.get("to") == str(TaskState.ESCALATED) for entry in state.history)
     size = selection.unit_class(run.task, run.worktree, revision=revision, escalated=escalated)
     critic = run.config.review.mode == "critic" and review_gated(run.config, run.task, run.shadow)

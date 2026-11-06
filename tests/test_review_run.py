@@ -276,6 +276,98 @@ def test_a_blocker_with_budget_left_continues_in_the_same_worktree(review_rig):
     assert review_records[1]["findings"] == []
 
 
+def test_revision_rounds_are_two_under_a_critic_unless_named(review_rig):
+    """S-0124/D-2: a critic's surviving blocker spends the two rounds S-0122/D-8
+    promises — not the classic one — before the third escalates the target."""
+
+    from test_critic import answer, critic_config, finding
+
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    (worktree / "src").mkdir(parents=True, exist_ok=True)
+    (worktree / "src" / "app.py").write_text("x\n" * 50, encoding="utf-8")
+    critic = SequencedReviewer(
+        [
+            answer(findings=[finding(evidence="src/app.py:1 — the first bound")]),
+            answer(findings=[finding(evidence="src/app.py:20 — the second bound")]),
+            answer(findings=[finding(evidence="src/app.py:40 — the third bound")]),
+        ]
+    )
+
+    state = run_task(repo.root, task_for(repo), critic_config(), deps_for(critic))
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None and state.escalation.reason == "blocker_finding"
+    assert state.attempts == 3
+    revisions = [
+        h["fact"] for h in state.history if h["fact"].startswith("review blocker (revision")
+    ]
+    assert len(revisions) == 2
+    # Two rounds were spent, so the third block escalates. Each fact names the
+    # resolved budget, so the first round reads as one of two.
+    assert revisions[0].startswith("review blocker (revision 1 of 2):")
+    assert revisions[1].startswith("review blocker (revision 2 of 2):")
+
+
+def test_a_reraised_blocker_escalates_without_spending_the_next_round(review_rig):
+    """S-0124/D-3: the same blocker at the same anchor after a revision is a
+    re-raise — the run escalates naming the file and line instead of buying
+    a round the revision the budget still allows would have spent."""
+
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    worktree.mkdir(parents=True, exist_ok=True)
+    (worktree / "app.py").write_text("broken = True\n", encoding="utf-8")
+    blocker = {
+        "severity": "blocker",
+        "claim": "the change is wrong",
+        "evidence": "app.py:1 — the flag",
+    }
+    reviewer = SequencedReviewer([reviewer_output([blocker]), reviewer_output([blocker])])
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], blocker_revisions=2))
+
+    state = run_task(repo.root, task_for(repo), config, deps_for(reviewer))
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None and state.escalation.reason == "blocker_finding"
+    assert "app.py:1" in state.escalation.detail
+    assert "re-raised" in state.escalation.detail
+    # One revision was spent; the second round was refused because the finding
+    # had not moved.
+    assert state.attempts == 2
+    revisions = [
+        h["fact"] for h in state.history if h["fact"].startswith("review blocker (revision")
+    ]
+    assert len(revisions) == 1
+    assert revisions[0].startswith("review blocker (revision 1 of 2):")
+    # The round's anchors ride its fact, where the next round reads them.
+    assert 'anchors=[{"path":"app.py","line":1}]' in revisions[0]
+
+
+def test_an_anchor_with_no_line_matches_the_same_file():
+    """S-0124/D-3: a recorded or raised anchor with no line matches its file,
+    because nothing narrower can say the finding moved."""
+
+    from torve.application.review import _anchor_reraised
+
+    finding = Finding(severity="blocker", claim="file-level", evidence="app.py:7 — here")
+    assert _anchor_reraised([finding], [{"path": "app.py", "line": None}]) == ("app.py", 7)
+
+
+def test_an_anchor_within_the_window_is_the_same_finding():
+    """S-0124/D-3: a finding within `threads.WINDOW` lines of the recorded
+    anchor is the same one; past it, the code moved and the round is spent."""
+
+    from torve.application.review import _anchor_reraised
+    from torve.application.threads import WINDOW
+
+    finding = Finding(severity="blocker", claim="the bound", evidence="app.py:12 — here")
+
+    assert _anchor_reraised([finding], [{"path": "app.py", "line": 12 - WINDOW}]) == ("app.py", 12)
+    assert _anchor_reraised([finding], [{"path": "app.py", "line": 11 - WINDOW}]) is None
+    assert _anchor_reraised([finding], [{"path": "other.py", "line": 12}]) is None
+
+
 def test_a_blocker_that_survives_the_revision_escalates_only_after_the_rung(review_rig):
     # S-0117/D-1: the first blocker sends the revision to the seat's
     # revision_variant — same worktree, same critique, stronger agent — and
