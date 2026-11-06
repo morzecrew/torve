@@ -309,4 +309,108 @@ Under `review.mode: critic` a task whose contract names no `budget.wallclock_min
 - Consequence: every review id the record holds belongs to a review that ran
 - Check: `uv run pytest -q tests/test_review_run.py -k mints_no_review` (shadow; runs as `decision:S-0123/D-4`)
 
+### S-0124/D-1 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+A revision attempt, one whose task has a feedback record at the root, is class S and runs one candidate, on the tier `revision_variant` names
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: a revision costs one session on the revision seat, not a full-width unit split across seats
+- Check: `uv run pytest -q tests/test_runner.py -k revision_width` (shadow; runs as `decision:S-0124/D-1`)
+
+### S-0124/D-2 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions` revision rounds when the configuration names it, else 2; classic mode keeps 1
+
+- Paths: `src/torve/config/runconfig.py` `src/torve/application/review.py`
+- Consequence: a unit gets the two rounds S-0122/D-8 promises before it escalates
+- Check: `uv run pytest -q tests/test_runconfig.py tests/test_review_run.py -k revision_rounds` (shadow; runs as `decision:S-0124/D-2`)
+
+### S-0124/D-3 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+Each revision round records its blocking findings' anchors in the run's history; a blocking finding anchored in the same file within `threads.WINDOW` lines of one the previous round recorded, or in the same file when either has no line, is re-raised, and the run escalates `blocker_finding` naming it instead of spending another round
+
+- Paths: `src/torve/application/review.py`
+- Consequence: a revision that did not fix what the critic named stops at once
+- Check: `uv run pytest -q tests/test_review_run.py -k reraised_blocker` (shadow; runs as `decision:S-0124/D-3`)
+
+### S-0124/D-4 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+Under `review.mode: critic` a unit's candidates start together; from the first green candidate's finish, a candidate whose agent turn runs past `straggler_clock` of that wall time is cancelled and recorded red, a gate pass already running is never cancelled, an escalating candidate cancels the others' turns, and candidates are ordered by index before collapse and pre-rank
+
+- Paths: `src/torve/application/selection.py`
+- Consequence: an L-class unit takes about the time of its slowest candidate, not the sum of three
+- Check: `uv run pytest -q tests/test_selection.py -k side_by_side` (shadow; runs as `decision:S-0124/D-4`)
+
+### S-0124/D-5 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+A candidate after the first runs in an attempt sandbox, gates sandbox and sandbox gitdir whose names carry `-c<k>`, with labels still keyed by task, and `RunState.save` holds a lock around its write
+
+- Paths: `src/torve/application/session.py` `src/torve/application/runstate.py` `src/torve/application/runner.py`
+- Consequence: two candidates of one task never share a container, a gitdir or a half-written state file
+- Check: `uv run pytest -q tests/test_session.py tests/test_runstate.py -k candidate_names` (shadow; runs as `decision:S-0124/D-5`)
+
+### S-0124/D-6 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+Every candidate of one attempt runs on the tier the attempt resolved before any candidate started
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: the first candidate's facts no longer move its siblings to another seat
+- Check: `uv run pytest -q tests/test_runner.py -k one_tier` (shadow; runs as `decision:S-0124/D-6`)
+
+### S-0124/D-7 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+The unit's $3 bound is checked before its candidates launch, before each critic call and before a revision turn, so work launched under the bound, a batch of candidates, a critic call or a turn, may finish above it by that work's own spend; a cancelled candidate's spend from the turns it finished still counts
+
+- Paths: `src/torve/application/selection.py`
+- Consequence: the bound stays a stop before new work, and is soft by the work already launched
+- Check: `uv run pytest -q tests/test_selection.py -k unit_budget` (shadow; runs as `decision:S-0124/D-7`)
+
+### S-0124/D-8 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+Under `review.revision: session` a revision round continues the selected candidate in its own still-open session, on that candidate's tier and not `revision_variant`, with the blocking findings, after the same spend and clock checks a fresh attempt passes, then judges its gates and asks the critic again, in place of a fresh revision attempt; `fresh` is the default, and a seat whose harness keeps no session falls back to it
+
+- Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `src/torve/config/runconfig.py`
+- Consequence: the night can run the in-session arm S-0122/D-9 asks about, one configuration key away
+- Check: `uv run pytest -q tests/test_runner.py tests/test_runconfig.py -k session_revision` (shadow; runs as `decision:S-0124/D-8`)
+
+### S-0124/D-9 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+`unit.closed` is written for every critic-mode attempt whatever its width, carries each candidate's tier, model and notional spend, and on a revision a `revision` block of `kind`, `round`, `rereview`, `reraised`, `spend_usd` and `wall_s`
+
+- Paths: `src/torve/application/selection.py`
+- Consequence: the record answers S-0122/D-9 without joining attempts by hand
+- Check: `uv run pytest -q tests/test_selection.py -k unit_record` (shadow; runs as `decision:S-0124/D-9`)
+
+### S-0124/D-10 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+A document is complete when its landings cover every phase the root's phasing or the phasing at the ref being landed names; an absent phasing names none, a phasing that is present but cannot be read or validated leaves the document incomplete, and the pull request lane, the local lane and the publisher's draft flag read the same union
+
+- Paths: `src/torve/application/forge.py` `src/torve/application/lane.py` `src/torve/cli/merge.py`
+- Consequence: a phase added on the branch keeps the document a draft until it lands, and the root's phases still count when the branch was cut before an amendment
+- Check: `uv run pytest -q tests/test_lane.py tests/test_forge.py -k phasing_union` (shadow; runs as `decision:S-0124/D-10`)
+
+### S-0124/D-11 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+The attempt record carries no ignored-writes result
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: the record stops listing toolchain caches and engine files as an attempt's writes
+- Check: `uv run pytest -q tests/test_runner.py -k ignored_writes` (shadow; runs as `decision:S-0124/D-11`)
+
+### S-0124/D-12 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+`task.minted` carries a review round contract's `round`, and a contract file written from the record keeps it, so an unchanged round contract mints once
+
+- Paths: `src/torve/application/residency.py` `src/torve/application/manager.py` `src/torve/application/planner.py`
+- Consequence: the manager's pass stops writing 18 rows every few seconds
+- Check: `uv run pytest -q tests/test_task_records.py -k round_mints_once` (shadow; runs as `decision:S-0124/D-12`)
+
+### S-0124/D-13 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+
+`lane_landed` and `lane_pr_opened` record as `approver` the actors of the approvals bound to the landed tip's sha, else the empty string
+
+- Paths: `src/torve/application/lane.py`
+- Consequence: a landing nobody approved no longer reads as the operator's
+- Check: `uv run pytest -q tests/test_lane.py -k landing_approver` (shadow; runs as `decision:S-0124/D-13`)
+
 <!-- /torve:managed -->
