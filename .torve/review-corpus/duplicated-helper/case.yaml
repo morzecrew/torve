@@ -16,6 +16,7 @@ decisions:
     grade: LOCKED
     text: One implementation per algorithm; a helper that already exists in the package is reused, never re-implemented
     paths: ["src/**"]
+tests_run: uv run --no-project --with pytest python -m pytest -q -p no:cacheprovider
 expect:
   - severity: blocker
     claim_contains: luhn

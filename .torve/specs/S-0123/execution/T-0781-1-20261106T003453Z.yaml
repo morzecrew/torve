@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0781
+base: add90a9602e093b18abedb3084a62f63aa891082
+at: '2026-11-06T00:34:53Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: S-0121/D-1
+    grade: LOCKED
+  - id: S-0121/D-2
+    grade: LOCKED
+  - id: S-0121/D-3
+    grade: LOCKED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-18
+    grade: ASSUMED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-34
+    grade: LOCKED
+  - id: S-0121/D-39
+    grade: ASSUMED
+  - id: S-0122/D-7
+    grade: ASSUMED
+  - id: S-0122/D-8
+    grade: ASSUMED
+  - id: S-0122/D-9
+    grade: OPEN
+  - id: S-0122/D-20
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-06T00:12:31Z'
+    claim: >-
+      A candidate's notional spend reads the adapter's raw result.cost_usd rather
+      than the cost_usd the record carries, so a roster-priced seat that reports tokens
+      but no cost adds nothing and the $3 cap never trips.
+    evidence: >-
+      src/torve/application/runner.py:1791 — notional_spend is handed priced(crun.meta),
+      the same cost_usd the record and ledger carry; tests/test_runner.py:3901 prices
+      a roster seat from its tokens and asserts unit spend 1.000000 candidate 1, and
+      all four unit-budget tests pass.
+    action: departed
+    proposal: >-
+      No change: S-0123/D-1 already reads the priced block, so torve's price times
+      token counts is what the cap sums, and the existing budget tests pin it.

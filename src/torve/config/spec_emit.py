@@ -36,6 +36,7 @@ from torve.config.spec import (
 from torve.domain.spec import (
     DECISIONS_FILE,
     DOCUMENT_FILE,
+    EXECUTION_DIR,
     FILE_FIELDS,
     LANDING_FILE,
     SCHEMA_VERSION,
@@ -509,6 +510,13 @@ def new_document(number: str, title: str, owner: str, kind: str = "design") -> D
 # The transaction
 
 
+def _no_symlinks(directory: str, names: list[str]) -> set[str]:
+    """The entries `copytree` must not follow: a symlink is not a landing, and
+    following one would carry whatever it points at into the archive."""
+
+    return {name for name in names if Path(directory, name).is_symlink()}
+
+
 def write_transaction(
     spec_dir: Path,
     root: Path,
@@ -519,7 +527,8 @@ def write_transaction(
     """One parse-mutate-dump-check cycle (S-0025/D-2): *mutations* (directory
     name -> document) is applied and *deletions* removed in a scratch copy
     of the corpus, *archived* is placed in a scratch copy of the archive
-    beside it, and the scratch corpus is checked whole with the archive and
+    beside it with the document's `execution/` landings carried unchanged
+    (S-0123/D-7), and the scratch corpus is checked whole with the archive and
     the schemas in view (S-0053/A-1). Only a clean check is copied back; a red
     check leaves the tree untouched."""
 
@@ -536,6 +545,21 @@ def write_transaction(
 
         for name, doc in (archived or {}).items():
             write_document(scratch_archive / name, doc)
+
+        for name in archived or {}:
+            # The landings are the document's own files: carried unchanged, in
+            # the same scratch that the check and the copy-back see
+            # (S-0123/D-7). A symlink is not followed — a link to another
+            # directory would copy that directory's contents into the archive.
+            execution = spec_dir / name / EXECUTION_DIR
+
+            if execution.is_dir() and not execution.is_symlink():
+                shutil.copytree(
+                    execution,
+                    scratch_archive / name / EXECUTION_DIR,
+                    dirs_exist_ok=True,
+                    ignore=_no_symlinks,
+                )
 
         for path in spec_dir.iterdir():
             if path.is_dir() and path.name not in deletions:

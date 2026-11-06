@@ -7,6 +7,7 @@ decisions:
     grade: LOCKED
     text: Errors surface to the caller; swallowing an exception without record is forbidden
     paths: ["src/**"]
+tests_run: uv run --no-project --with pytest python -m pytest -q -p no:cacheprovider
 expect:
   - severity: blocker
     claim_contains: except

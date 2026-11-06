@@ -7,8 +7,11 @@ ceiling once a runner exists.
 
 from __future__ import annotations
 
+import contextlib
 import json
+import os
 import re
+import signal
 import subprocess
 import time
 from collections.abc import Callable
@@ -133,24 +136,36 @@ class CommandResult:
 
 def host_executor(cwd: Path) -> ExecuteOnce:
     def execute(command: str, timeout: float) -> tuple[int | None, str]:
-        try:
-            proc = subprocess.run(
-                command,
-                # Acceptance commands are shell lines by contract (pipes and
-                # redirects included); they come from the task contract the
-                # gates themselves vet, not from untrusted input.
-                shell=True,  # nosec B602
-                cwd=cwd,
-                timeout=timeout,
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+        # Its own session, so a timeout reaches every process the line started,
+        # not just the shell that spawned them (S-0123/D-6): a background
+        # command would otherwise outlive the line that timed out.
+        with subprocess.Popen(
+            command,
+            # Acceptance commands are shell lines by contract (pipes and
+            # redirects included); they come from the task contract the
+            # gates themselves vet, not from untrusted input.
+            shell=True,  # nosec B602
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        ) as proc:
+            try:
+                stdout, stderr = proc.communicate(timeout=timeout)
 
-        except subprocess.TimeoutExpired:
-            return None, f"timed out after {timeout:.0f}s"
+            except subprocess.TimeoutExpired:
+                # The group is the session: the shell leads it and every child
+                # inherits it. Kill it whole, then reap the shell alone: a
+                # descendant that left the session may still hold the pipes,
+                # and draining them would wait for it past the timeout.
+                with contextlib.suppress(ProcessLookupError):
+                    os.killpg(proc.pid, signal.SIGKILL)
 
-        return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+                proc.wait()
+                return None, f"timed out after {timeout:.0f}s"
+
+        return proc.returncode, (stdout or "") + (stderr or "")
 
     return execute
 

@@ -536,3 +536,23 @@ def test_the_classic_replay_reports_whether_it_would_block(tmp_path, monkeypatch
 
     assert report["mode"] == "classic"
     assert report["cases"][0]["blocked"] is True
+
+
+# S-0123 phase 4 (T-0767): the corpus replay builds its evidence from real
+# test results, and no image torve ships installs pytest for the system
+# Python, so every case names the same command that brings pytest with it.
+
+
+CORPUS_TEST_RUN = "uv run --no-project --with pytest python -m pytest -q -p no:cacheprovider"
+
+
+def test_tests_run():
+    """S-0123/D-5 — every review-corpus case runs its tests through uv."""
+
+    corpus = Path(__file__).resolve().parents[1] / ".torve" / "review-corpus"
+    cases = sorted(corpus.glob("*/case.yaml"))
+
+    assert cases
+    for case in cases:
+        document = yaml.safe_load(case.read_text(encoding="utf-8"))
+        assert document.get("tests_run") == CORPUS_TEST_RUN, case

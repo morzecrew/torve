@@ -97,10 +97,13 @@ def _git_at(path: Path, *args: str, env: dict[str, str] | None = None) -> str:
     return proc.stdout
 
 
-def _snapshot_commit(worktree: Path) -> str:
+def _snapshot_commit(worktree: Path, *, clean_is_head: bool = False) -> str:
     """The commit `git add -A` would carry in `worktree`, on its HEAD
     (S-0114/D-1). Staging goes through a temporary index, so the worktree's
-    own index is exactly as it was, and no ref moves here."""
+    own index is exactly as it was, and no ref moves here.
+
+    With *clean_is_head*, a tree HEAD already holds returns HEAD instead of
+    an empty snapshot commit (S-0123/D-3)."""
 
     head = _git_at(worktree, "rev-parse", "HEAD").strip()
 
@@ -113,6 +116,9 @@ def _snapshot_commit(worktree: Path) -> str:
         stage("read-tree", head)
         stage("add", "-A")
         tree = stage("write-tree").strip()
+
+        if clean_is_head and tree == _git_at(worktree, "rev-parse", f"{head}^{{tree}}").strip():
+            return head
 
         return stage("commit-tree", tree, "-p", head, "-m", "judge snapshot").strip()
 
@@ -303,9 +309,11 @@ class GitWorkspace:
     def snapshot(self, task_id: str) -> str:
         """The task's worktree as it stands, uncommitted work included, as a
         commit no ref holds (S-0122/D-7): what a unit's candidates all start
-        from when an earlier attempt left its work in the tree."""
+        from when an earlier attempt left its work in the tree. A tree with
+        nothing to stage is HEAD itself, so a clean unit adds no empty
+        snapshot commit (S-0123/D-3)."""
 
-        return _snapshot_commit(naming.worktree(self.root, task_id))
+        return _snapshot_commit(naming.worktree(self.root, task_id), clean_is_head=True)
 
     # ....................... #
 

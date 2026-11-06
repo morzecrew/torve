@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 import yaml
 from conftest import context_for
+from test_review_run import review_rig  # noqa: F401 — the fixture, by name
 
+import torve.application.runner as run_module
 from torve.application.ports import BrokerHandle, BrokerUsage
 from torve.application.telemetry import append_record, build_record, config_hash
 from torve.base import naming
@@ -3850,3 +3852,253 @@ def test_a_nested_implement_role_does_not_mark_the_gates_sandbox():
     state = RunState(task_id=TASK_ID, path=Path("state.json"), run_id="run-1")
 
     assert _gates_spec(run, state).nested is None
+
+
+# ....................... #
+# The unit's budget (S-0123/D-1, D-2).
+
+
+def _unit_task(minutes: int | None = None) -> Task:
+    """One documentation file's unit (an S class, so one candidate) that may
+    name its own clock."""
+
+    from torve.domain.task import Budget
+
+    return Task(
+        id="T-9001",
+        decisions=[],
+        scope=Scope(files=["README.md"]),
+        budget=Budget(iterations=1, wallclock_minutes=minutes),
+    )
+
+
+def _unit_config(*, price=None, list_price=None) -> RunnerConfig:
+    """A critic-mode configuration whose executor seat reaches a roster model
+    carrying the rate card the test wants priced."""
+
+    from torve.config.providers import Model, Provider, Route
+    from torve.config.runconfig import ReviewConfig
+
+    record = Provider(
+        name="p",
+        key_env="P_KEY",
+        routes={"openai": Route(base_url="https://p.example")},
+        models={"m": Model(price=price, list_price=list_price)},
+    )
+    seat = TierConfig(adapter="harness", provider="p", api=["openai"], model="m")
+
+    return RunnerConfig(
+        review=ReviewConfig(on=["task_gated"], mode="critic"),
+        tiers={"planner": TierConfig(), "reviewer": TierConfig(), "executor": seat},
+        provider_records={"p": record},
+    )
+
+
+def _spend_facts(state) -> list[str]:
+    return [h["fact"] for h in state.history if h["fact"].startswith(run_module.SPEND_MARKER)]
+
+
+def test_unit_budget_prices_a_roster_priced_candidate_from_its_tokens(
+    review_rig,  # noqa: F811
+    monkeypatch,
+) -> None:
+    """S-0123/D-1: the dispatch resolved a roster price, so the candidate's
+    tokens are priced by torve even though the adapter reports no cost."""
+
+    from test_run_loop import ScriptedAgent
+
+    from torve.adapters.agent.harness import HarnessResult
+    from torve.application.runner import run_task
+    from torve.config.providers import Price
+
+    repo, _runtime, deps_for = review_rig
+    monkeypatch.setattr(
+        run_module, "run_gate_pass", lambda run, _state: (1, "scripted red", "cafe", [], "")
+    )
+    config = _unit_config(price=Price(input=1.0, output=5.0))
+    deps = deps_for(ScriptedAgent([]))
+    deps.agent = ScriptedAgent(
+        [HarnessResult(exit_code=0, output="", cost_usd=None, input_tokens=1_000_000)]
+    )
+
+    state = run_task(repo.root, _unit_task(), config, deps)
+
+    assert _spend_facts(state) == ["unit spend 1.000000 candidate 1"]
+
+
+def test_unit_budget_prices_a_seat_with_no_roster_price_at_its_list_price(
+    review_rig,  # noqa: F811
+    monkeypatch,
+) -> None:
+    """S-0123/D-1: a seat the roster lists without a per-token price reports
+    no cost, so its tokens are priced at the model's list price instead."""
+
+    from test_run_loop import ScriptedAgent
+
+    from torve.adapters.agent.harness import HarnessResult
+    from torve.application.runner import run_task
+    from torve.config.providers import Price
+
+    repo, _runtime, deps_for = review_rig
+    monkeypatch.setattr(
+        run_module, "run_gate_pass", lambda run, _state: (1, "scripted red", "cafe", [], "")
+    )
+    config = _unit_config(list_price=Price(input=2.0, output=8.0))
+    deps = deps_for(ScriptedAgent([]))
+    deps.agent = ScriptedAgent(
+        [HarnessResult(exit_code=0, output="", cost_usd=None, input_tokens=1_000_000)]
+    )
+
+    state = run_task(repo.root, _unit_task(), config, deps)
+
+    assert _spend_facts(state) == ["unit spend 2.000000 candidate 1"]
+
+
+def test_unit_budget_records_the_critic_call_and_counts_it_in_the_history(
+    review_rig,  # noqa: F811
+) -> None:
+    """S-0123/D-1: the critic call is priced and recorded beside the
+    candidate it read, and the next attempt's spend sums both."""
+
+    from test_critic import answer
+    from test_run_loop import ScriptedAgent
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+    from torve.domain.states import TaskState
+
+    repo, _runtime, deps_for = review_rig
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic"))
+    deps = deps_for(ScriptedAgent([AgentResult(exit_code=0, output=answer(), cost_usd=0.75)]))
+    deps.agent = ScriptedAgent([AgentResult(exit_code=0, output="", cost_usd=0.25)])
+
+    state = run_task(repo.root, _unit_task(), config, deps)
+
+    assert state.state is TaskState.READY
+    assert _spend_facts(state) == [
+        "unit spend 0.250000 candidate 1",
+        "unit spend 0.750000 critic 1",
+    ]
+    assert run_module._unit_spend(state) == 1.0
+
+
+def test_unit_budget_escalates_naming_the_spend_across_attempts(
+    review_rig,  # noqa: F811
+    monkeypatch,
+) -> None:
+    """S-0123/D-1: each $1.20 candidate is added to the unit's notional spend,
+    and the next attempt starts from what the unit already spent — so the
+    second attempt stops after one candidate, at the $3 bound, and the run
+    escalates naming the spend rather than the red gates."""
+
+    from test_run_loop import ScriptedAgent, task_for
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+    from torve.domain.states import TaskState
+
+    repo, _runtime, deps_for = review_rig
+    monkeypatch.setattr(
+        run_module,
+        "run_gate_pass",
+        lambda run, _state: (1, "scripted red", "cafecafe1234", [], "diff --git a/x b/x"),
+    )
+    candidate = AgentResult(exit_code=0, output="", cost_usd=1.2)
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic"))
+    deps = deps_for(ScriptedAgent([candidate]))
+    deps.agent = ScriptedAgent([candidate])
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "budget_exhausted"
+    assert state.escalation.detail == "unit budget exhausted: $3.60 spent of $3.00"
+
+
+# ....................... #
+# The unit's clock (S-0123/D-2).
+
+
+def _clock_state(tmp_path: Path):
+    """A claimed run whose dispatch began 91 minutes ago."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from torve.application.runstate import RunState
+    from torve.base.clock import stamp
+    from torve.domain.states import TaskState
+
+    state = RunState(task_id="T-9001", path=tmp_path / "T-9001.state.json")
+    state.state = TaskState.CLAIMED
+    state.history = [
+        {
+            "at": stamp(datetime.now(UTC) - timedelta(minutes=91)),
+            "from": "queued",
+            "to": "claimed",
+            "fact": "seeded",
+        }
+    ]
+
+    return state
+
+
+def _clock_hooks(ran: list[int]):
+    from torve.application.ports import AgentResult
+    from torve.application.runner import AttemptHooks
+
+    async def attempt(state):
+        ran.append(state.attempts)
+        return AgentResult(exit_code=0, output="")
+
+    async def gates(_state):
+        return 1, "scripted red", "cafe"
+
+    async def land(_state, _digest):
+        return "landed"
+
+    return AttemptHooks(attempt=attempt, halted=lambda _attempt: None, gates=gates, land=land)
+
+
+def test_unit_clock_defaults_to_ninety_for_a_critic_run(tmp_path: Path) -> None:
+    """S-0123/D-2: a critic-mode contract naming no clock gets 90 minutes, so
+    a dispatch that began 91 minutes ago escalates before its next attempt."""
+
+    from torve.application.runner import drive_attempts
+    from torve.config.runconfig import ReviewConfig
+    from torve.domain.states import TaskState
+
+    ran: list[int] = []
+    state = _clock_state(tmp_path)
+    task = _unit_task()
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic"))
+
+    asyncio.run(drive_attempts(state, task, config, _clock_hooks(ran)))
+
+    assert ran == []
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "budget_exhausted"
+    assert state.escalation.detail.startswith("wallclock budget exhausted")
+    assert "budget 90m" in state.escalation.detail
+
+
+def test_unit_clock_keeps_a_contracts_own_bound(tmp_path: Path) -> None:
+    """S-0123/D-2: a contract that names its own bound keeps it — 91 minutes
+    into a 120-minute unit, the next attempt still runs."""
+
+    from torve.application.runner import drive_attempts
+    from torve.config.runconfig import ReviewConfig
+
+    ran: list[int] = []
+    state = _clock_state(tmp_path)
+    task = _unit_task(minutes=120)
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic"))
+
+    asyncio.run(drive_attempts(state, task, config, _clock_hooks(ran)))
+
+    assert ran == [1]
+    assert state.escalation is not None
+    assert "wallclock" not in state.escalation.detail
