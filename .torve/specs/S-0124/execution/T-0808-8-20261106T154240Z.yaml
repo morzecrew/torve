@@ -1,0 +1,156 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0808
+phase: 1
+attempt: 8
+base: 6751a16215ca7ad1264bcc24e1c718e243bd9bd6
+at: '2026-11-06T15:42:40Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: S-0121/D-1
+    grade: LOCKED
+  - id: S-0121/D-2
+    grade: LOCKED
+  - id: S-0121/D-3
+    grade: LOCKED
+  - id: S-0121/D-11
+    grade: LOCKED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-15
+    grade: LOCKED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-28
+    grade: LOCKED
+  - id: S-0121/D-30
+    grade: LOCKED
+  - id: S-0121/D-34
+    grade: LOCKED
+entries:
+  - decision: D-2
+    grade: ASSUMED
+    kind: blocked
+    at: '2026-11-06T12:06:34Z'
+    attempt: 4
+    claim: >-
+      S-0124/D-2 resolves a critic's unset blocker budget to two rounds, so the first
+      revision fact must name the resolved total ('revision 1 of 2'). tests/test_critic.py:497
+      asserts the old '(revision 1 of 1)' for exactly that configuration. That file
+      is outside this contract's scope.allow, so it is read-only, and a no-test-tampering
+      gate convicts any edit to it (the previous attempt's only blocking red). The
+      row, the intent's anchors fact and that read-only test cannot all hold until
+      the phase licenses tests/test_critic.py or the test is updated outside this
+      task.
+    evidence: >-
+      tests/test_critic.py:497 — asserts 'review blocker (revision 1 of 1)' for a
+      critic whose configuration names no blocker_revisions; src/torve/config/runconfig.py:1249
+      resolves that same configuration to 2 under S-0124/D-2
+    action: halted
+  - decision: D-2
+    grade: ASSUMED
+    kind: blocked
+    at: '2026-11-06T12:10:56Z'
+    attempt: 4
+    claim: >-
+      S-0124/D-2 resolves a critic's unset blocker budget to two rounds, so the first
+      revision fact must name the resolved total ('revision 1 of 2'). tests/test_critic.py:497
+      asserts the old '(revision 1 of 1)' for exactly that configuration. That file
+      is outside this contract's scope.allow, so it is read-only, and a no-test-tampering
+      gate convicts any edit to it (the previous attempt's only blocking red). The
+      row, the intent's anchors fact and that read-only test cannot all hold until
+      the phase licenses tests/test_critic.py or the test is updated outside this
+      task.
+    evidence: >-
+      tests/test_critic.py:497 — asserts 'review blocker (revision 1 of 1)' for a
+      critic whose configuration names no blocker_revisions; src/torve/config/runconfig.py:1249
+      resolves that same configuration to 2 under S-0124/D-2
+    action: halted
+  - decision: D-2
+    grade: ASSUMED
+    kind: blocked
+    at: '2026-11-06T12:17:09Z'
+    attempt: 4
+    claim: >-
+      S-0124/D-2 resolves a critic's unset blocker budget to two rounds, so the first
+      revision fact must name the resolved total ('revision 1 of 2'). tests/test_critic.py:497
+      asserts the old '(revision 1 of 1)' for exactly that configuration. That file
+      is outside this contract's scope.allow, so it is read-only, and a no-test-tampering
+      gate convicts any edit to it (the previous attempt's only blocking red). The
+      row, the intent's anchors fact and that read-only test cannot all hold until
+      the phase licenses tests/test_critic.py or the test is updated outside this
+      task.
+    evidence: >-
+      tests/test_critic.py:497 — asserts 'review blocker (revision 1 of 1)' for a
+      critic whose configuration names no blocker_revisions; src/torve/config/runconfig.py:1249
+      resolves that same configuration to 2 under S-0124/D-2
+    action: halted
+  - decision: D-2
+    grade: ASSUMED
+    kind: blocked
+    at: '2026-11-06T13:59:19Z'
+    attempt: 6
+    claim: >-
+      S-0124/D-2 makes an unset review.blocker_revisions resolve to 2 under review.mode:
+      critic and makes the revision fact name that resolved budget, but tests/test_critic.py:497
+      asserts the old 'review blocker (revision 1 of 1)' for the same unset critic
+      configuration. tests/test_critic.py is only contingent, never in the contract's
+      scope.allow (.torve/tasks/T-0808/contract.yaml:44-52), and the engine's no-test-tampering
+      gate refused the identical test edit on the superseded attempt, so no implementation
+      satisfies D-2 and that protected test together. Decide whether tests/test_critic.py
+      is licensed for this change or whether critic mode keeps a one-round default.
+    evidence: >-
+      tests/test_critic.py:497 — asserts startswith('review blocker (revision 1 of
+      1):') for ReviewConfig(on=['task_gated'], mode='critic') with no blocker_revisions,
+      which S-0124/D-2 resolves to 2; the scope.allow at .torve/tasks/T-0808/contract.yaml:44-52
+      does not license this test file and no-test-tampering blocks editing it.
+    action: halted
+  - decision: D-2
+    grade: ASSUMED
+    kind: blocked
+    at: '2026-11-06T14:13:27Z'
+    attempt: 7
+    claim: >-
+      S-0124/D-2's operator-mandated consequence — the critic budget resolves to 2
+      and the revision fact names that resolved budget — makes the read-only assertion
+      in tests/test_critic.py:497 false, yet that module is still in the task's acceptance
+      and outside the contract's scope.files and scope.tests. tests/test_review_run.py:308
+      runs the identical critic_config() and now requires the fact to read 'revision
+      1 of 2', so no single history string can satisfy both modules; the only edit
+      that reconciles them is to tests/test_critic.py, which the blocking no-test-tampering
+      gate convicts, as it did on the previous attempt. The contract must either license
+      tests/test_critic.py in scope.tests so its assertion can read 'revision 1 of
+      2', or drop it from the acceptance; until then the row, the intent and the acceptance
+      cannot all hold.
+    evidence: >-
+      tests/test_critic.py:497 — asserts a history fact starting 'review blocker (revision
+      1 of 1)' for critic_config(), which ReviewConfig(mode='critic').resolved_blocker_revisions()
+      now resolves to 2; 'uv run pytest -q tests/test_critic.py' fails that test with
+      the resolved-budget behaviour the operator fixed, while 'uv run mypy src' and
+      every other acceptance test pass.
+    action: halted
