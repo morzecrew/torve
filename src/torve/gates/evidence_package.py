@@ -609,14 +609,16 @@ def _log_name(*parts: str) -> str:
 
 def package_rows(task: Task | None, changed: Iterable[str]) -> list[tuple[InheritedDecision, bool]]:
     """The rows the package judges, each with whether the unit owns it
-    (S-0122/D-5): a row owns when its paths meet the contract's scope (an
-    unconstrained scope owns every row with paths), and a LOCKED row the unit
-    does not own joins as a constraint when the diff touches its paths."""
+    (S-0122/D-5): a contract that names the rows it delivers owns those alone;
+    otherwise a row owns when its paths meet the contract's scope (an
+    unconstrained scope owns every row with paths). A LOCKED row the unit does
+    not own joins as a constraint when the diff touches its paths."""
 
     if task is None:
         return []
 
     scope = task.scope.allow
+    delivers = set(task.delivers)
     paths = list(changed)
     rows: list[tuple[InheritedDecision, bool]] = []
 
@@ -624,7 +626,9 @@ def package_rows(task: Task | None, changed: Iterable[str]) -> list[tuple[Inheri
         if not row.paths:
             continue
 
-        if not scope or overlap(row.paths, scope):
+        owned = row.id in delivers if delivers else not scope or overlap(row.paths, scope)
+
+        if owned:
             rows.append((row, True))
 
         elif row.grade == "LOCKED" and any(matches(path, row.paths) for path in paths):

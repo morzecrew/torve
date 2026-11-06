@@ -44,7 +44,7 @@ from torve.base.globs import overlap
 from torve.config import layout, spec
 from torve.config.manifest import read_layout
 from torve.domain.attempt import SizeVerdict
-from torve.domain.spec import Corpus, Document, Phase, document_id, number_of
+from torve.domain.spec import Corpus, Document, Phase, document_id, number_of, qualify
 from torve.domain.task import DISPATCHABLE_ROLES, InheritedDecision, Scope, Task
 from torve.domain.vocabulary import GRADES
 
@@ -690,6 +690,7 @@ def plan_document(
             ),
             acceptance=list(entry.acceptance),
             decisions=[*decisions, *_foreign_locked(rfc_dir, document, entry.scope)],
+            delivers=[qualify(document, row) for row in entry.delivers],
             tier_variant=entry.tier_variant or None,
             character=entry.character or None,
         )
@@ -807,6 +808,7 @@ REFRESHED_FIELDS = (
     "scope",
     "acceptance",
     "decisions",
+    "delivers",
     "tier_variant",
     "character",
 )

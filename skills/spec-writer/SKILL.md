@@ -180,6 +180,10 @@ arrives first, invisibly.
    paths span two phases mints a contract that contradicts itself: the
    executor inherits a decision it cannot satisfy without leaving
    scope.allow. Split the row into per-surface decisions at authoring.
+   When two phases edit one file, a row on that file meets both scopes, and
+   the critic holds the earlier phase to the later one's row. Name the rows
+   each phase settles in its `delivers` list, and its contracts are held to
+   those alone.
 
 3c. **The scope's neighbours are derived, not listed.** Do not pad a phase's
    `scope` with every caller, importer or paired test it might touch: the
@@ -217,7 +221,7 @@ arrives first, invisibly.
 | `contract_example` | phasing | a task contract | optional: a runnable demonstration of what the rows and a phase mint into, validated against the live task schema |
 | `design` | document | `key`, `md` | the design, one entry per workstream, in order; the heading is the key |
 | `sections` | document | `key`, `md` | the extras the anatomy has no key for, at most eight |
-| `phasing` | phasing | `phase`, `title`, `intent`, `scope`, `acceptance`, `depends_on`, `tier_variant`, `character` | the mintable units |
+| `phasing` | phasing | `phase`, `title`, `intent`, `scope`, `acceptance`, `depends_on`, `delivers`, `tier_variant`, `character` | the mintable units |
 | `amendments` | amendments | `id`, `at`, `title`, `changes`, `md` | written by `torve spec amend`; the words are yours |
 
 `cites` resolves over the corpus and the archive in the one grammar: a

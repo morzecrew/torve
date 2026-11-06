@@ -286,6 +286,9 @@ class Task(BaseModel):
     decisions: list[InheritedDecision]
     """The rows inherited at mint, grade and paths copied (S-0007/D-5); an empty
     list is legal but must be explicit."""
+    delivers: list[str] = Field(default_factory=list)
+    """The rows this contract settles, copied from its phasing entry. When named,
+    the critic owns these alone, and any other row is at most a constraint."""
     budget: Budget = Field(default_factory=Budget)
     """What an attempt may spend."""
     tier: Tier = "executor"

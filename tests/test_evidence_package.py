@@ -322,6 +322,19 @@ def test_owned_rows_meet_the_scope_and_a_touched_locked_row_joins_as_a_constrain
     assert [owned for _, owned in package_rows(unconstrained, [])] == [True] * 4
 
 
+def test_a_contract_that_names_its_rows_owns_those_alone():
+    rows = [
+        InheritedDecision(id="S-1/D-1", grade="ASSUMED", text="a", paths=["src/a/x.py"]),
+        InheritedDecision(id="S-1/D-2", grade="ASSUMED", text="b", paths=["src/a/x.py"]),
+        InheritedDecision(id="S-1/D-3", grade="LOCKED", text="c", paths=["src/a/x.py"]),
+    ]
+    task = Task(id="T-1", decisions=rows, delivers=["S-1/D-2"], scope=Scope(allow=["src/a/x.py"]))
+
+    found = [(row.id, owned) for row, owned in package_rows(task, ["src/a/x.py"])]
+
+    assert found == [("S-1/D-2", True), ("S-1/D-3", False)]
+
+
 # ....................... #
 # The diff, the scope and the fence.
 

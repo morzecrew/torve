@@ -211,6 +211,14 @@
       "title": "Decisions",
       "type": "array"
     },
+    "delivers": {
+      "description": "The rows this contract settles, copied from its phasing entry. When named,\nthe critic owns these alone, and any other row is at most a constraint.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Delivers",
+      "type": "array"
+    },
     "depends_on": {
       "description": "The tasks that must land before this one dispatches.",
       "items": {
