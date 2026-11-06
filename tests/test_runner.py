@@ -4269,3 +4269,67 @@ def test_unit_clock_keeps_a_contracts_own_bound(tmp_path: Path) -> None:
     assert ran == [1]
     assert state.escalation is not None
     assert "wallclock" not in state.escalation.detail
+
+
+# ....................... #
+# A revision's width (S-0124/D-1).
+
+
+def test_revision_width_is_one_candidate_on_the_revision_tier(
+    review_rig,  # noqa: F811
+):
+    """S-0124/D-1: a revision attempt — one whose task has a feedback record at
+    the root — is class S, runs one candidate, and runs it on the seat's
+    `revision_variant`, while the ordinary critic-mode unit it follows ran its
+    full width."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import OK, ScriptedAgent, task_for
+
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    calls: dict[int, int] = {}
+
+    class WritingAgent(ScriptedAgent):
+        def run(self, ctx):
+            calls[ctx.attempt] = calls.get(ctx.attempt, 0) + 1
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+            return super().run(ctx)
+
+    built: list[str] = []
+
+    def retry_agent(tier):
+        built.append(tier.model)
+        return WritingAgent([OK])
+
+    critic = SequencedReviewer(
+        [
+            answer(findings=[finding()]),
+            answer(findings=[finding()]),
+        ]
+    )
+    deps = deps_for(critic)
+    deps.agent = WritingAgent([OK])
+    deps.retry_agent = retry_agent
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(adapter="fake", revision_variant="executor.strong"),
+            "executor.strong": TierConfig(adapter="fake", model="strong"),
+        },
+        review=ReviewConfig(on=["task_gated"], mode="critic", blocker_revisions=1),
+    )
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    # The first attempt is an ordinary M unit: two candidates. The blocker it
+    # leaves buys a revision, whose width is one candidate on the strong seat.
+    assert calls == {1: 2, 2: 1}
+    assert built == ["strong"]
+    assert state.attempts == 2
+    assert state.escalation is not None and state.escalation.reason == "blocker_finding"
