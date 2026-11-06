@@ -547,6 +547,9 @@ async def run_agent_session(
 
         planted.parent.mkdir(parents=True, exist_ok=True)
         _shutil.copyfile(captured, planted)
+        # A candidate's repair turn (S-0122/D-8) judges the tree inside the
+        # session, before the record leaves it, and the judge commits.
+        _exclude(worktree, "/.torve/feedback.md", "the planted revision record (S-0005/D-13)")
 
     env_passthrough, volumes = (
         _sandbox_auth(config, run.tier, config.worker_slot) if run_real else ((), {})
@@ -838,6 +841,12 @@ def _exclude_equip_root(worktree: Path, equip_root: str) -> None:
     if not equip_root or equip_root.startswith(("~", "/")):
         return
 
+    _exclude(worktree, f"/{equip_root.strip('/')}/", "the harness's equipment root (S-0063/D-19)")
+
+
+def _exclude(worktree: Path, line: str, why: str) -> None:
+    """Add *line* once to the `info/exclude` of the worktree's common gitdir."""
+
     try:
         where = Path(
             subprocess.run(
@@ -857,14 +866,13 @@ def _exclude_equip_root(worktree: Path, equip_root: str) -> None:
 
     exclude = where / "info" / "exclude"
     exclude.parent.mkdir(parents=True, exist_ok=True)
-    line = f"/{equip_root.strip('/')}/"
     present = exclude.read_text(encoding="utf-8") if exclude.is_file() else ""
 
     if line in present.splitlines():
         return
 
     with exclude.open("a", encoding="utf-8") as handle:
-        handle.write(f"# torve: the harness's equipment root (S-0063/D-19)\n{line}\n")
+        handle.write(f"# torve: {why}\n{line}\n")
 
 
 # ....................... #
