@@ -2112,7 +2112,22 @@ def _stale_checkpoint(root: Path, task_id: str, base: str) -> bool:
     return False
 
 
-def _carry_checkpoint(root: Path, task_id: str, base: str) -> bool:
+def _fork_point(root: Path, document: str, tip: str) -> str | None:
+    """Where *tip* was cut from *document*, read off the branch's reflog — the
+    remote's copy first, then this checkout's — or None when neither reflog
+    names it, as in a fresh clone."""
+
+    for ref in (f"refs/remotes/origin/{document}", f"refs/heads/{document}"):
+        try:
+            return git(root, "merge-base", "--fork-point", ref, tip).strip()
+
+        except GitError:
+            continue
+
+    return None
+
+
+def _carry_checkpoint(root: Path, task_id: str, base: str, document: str | None = None) -> bool:
     """A stale checkpoint moved onto *base*: the commits only the checkpoint
     carries, merged three-way onto *base* and committed under the tip's
     message, with the old tip kept under `refs/torve/checkpoints/`. False,
@@ -2122,16 +2137,29 @@ def _carry_checkpoint(root: Path, task_id: str, base: str) -> bool:
 
     try:
         tip = git(root, "rev-parse", f"{branch}^{{commit}}").strip()
-        # Oldest first: `-` where *base* already holds the patch (a landing
-        # the lane rebased), `+` where only the checkpoint does.
-        marks = [line.split() for line in git(root, "cherry", base, tip).splitlines()]
-        upstream = [i for i, (mark, _sha) in enumerate(marks) if mark == "-"]
-        own = marks[upstream[-1] + 1 :] if upstream else marks
+        # The lane amends the last landing after its rebase, rewriting the
+        # `commit:` its execution record names, so that landing's patch no
+        # longer matches and `cherry` reads it as the checkpoint's own; the
+        # merge then conflicted on the record and T-0809 was recut. The
+        # document branch's reflog still names the tip the checkpoint was cut
+        # from.
+        old = _fork_point(root, document, tip) if document else None
 
-        if not own:
+        if old is None:
+            # Oldest first: `-` where *base* already holds the patch (a landing
+            # the lane rebased), `+` where only the checkpoint does.
+            marks = [line.split() for line in git(root, "cherry", base, tip).splitlines()]
+            upstream = [i for i, (mark, _sha) in enumerate(marks) if mark == "-"]
+            own = marks[upstream[-1] + 1 :] if upstream else marks
+
+            if not own:
+                return False
+
+            old = git(root, "rev-parse", f"{own[0][1]}^").strip()
+
+        elif old == tip:
             return False
 
-        old = git(root, "rev-parse", f"{own[0][1]}^").strip()
         # Exit 1 on a conflict, which `git` raises as a GitError.
         tree = git(root, "merge-tree", "--write-tree", f"--merge-base={old}", base, tip).strip()
         message = git(root, "log", "-1", "--format=%B", tip).strip()
@@ -2182,7 +2210,12 @@ async def _run_task_async(
         resume
         and gates_base is not None
         and _stale_checkpoint(root, task.id, gates_base)
-        and not _carry_checkpoint(root, task.id, gates_base)
+        and not _carry_checkpoint(
+            root,
+            task.id,
+            gates_base,
+            naming.document_branch(task.spec) if task.spec is not None else None,
+        )
     ):
         resume = False
 

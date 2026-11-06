@@ -3198,6 +3198,51 @@ def test_a_stale_checkpoint_that_does_not_merge_is_left_for_the_recut(repo):
     assert git(repo.root, "rev-parse", branch) == before
 
 
+def test_a_checkpoint_carries_past_a_landing_the_lane_amended_after_its_rebase(repo):
+    # The lane amends the last landing after the rebase, rewriting the sha its
+    # record names; `cherry` read that landing as T-0809's own, the merge
+    # conflicted on the record, and attempt 2 was recut (2026-11-06).
+    from torve.application.runner import _carry_checkpoint
+    from torve.gates.context import git
+
+    document = _rebased_document(
+        repo, checkpoint=("wip.txt", "the attempt's tree\n"), main=("main.txt", "merged\n")
+    )
+    main = git(repo.root, "rev-parse", "main").strip()
+    repo.write("landed.txt", f"a phase that landed\ncommit: {main}\n")
+    repo.git("commit", "-q", "--amend", "--no-gpg-sign", "--no-edit", "-a")
+    branch = naming.branch("T-0001")
+    before = git(repo.root, "rev-parse", branch)
+
+    assert not _carry_checkpoint(repo.root, "T-0001", document)
+    assert git(repo.root, "rev-parse", branch) == before
+
+    assert _carry_checkpoint(repo.root, "T-0001", document, document)
+
+    assert git(repo.root, "rev-parse", f"{branch}^") == git(repo.root, "rev-parse", document)
+    assert git(repo.root, "show", f"{branch}:landed.txt").endswith(f"commit: {main}\n")
+    files = git(repo.root, "ls-tree", "-r", "--name-only", branch).split()
+    assert {"main.txt", "agent.txt", "wip.txt"} <= set(files)
+
+
+def test_a_document_branch_with_no_reflog_falls_back_to_the_patches(repo):
+    # A fresh clone's reflog never held the tip the checkpoint was cut from.
+    from torve.application.runner import _carry_checkpoint, _fork_point
+    from torve.gates.context import git
+
+    document = _rebased_document(
+        repo, checkpoint=("wip.txt", "the attempt's tree\n"), main=("main.txt", "merged\n")
+    )
+    repo.git("reflog", "expire", "--expire=now", "--all")
+    branch = naming.branch("T-0001")
+    assert _fork_point(repo.root, document, git(repo.root, "rev-parse", branch).strip()) is None
+
+    assert _carry_checkpoint(repo.root, "T-0001", document, document)
+
+    files = git(repo.root, "ls-tree", "-r", "--name-only", branch).split()
+    assert {"landed.txt", "main.txt", "agent.txt", "wip.txt"} <= set(files)
+
+
 def test_a_local_document_branch_the_remote_moved_past_is_not_cut_from(repo):
     """A copy the remote already contains carries nothing held: one the remote
     moved past (a hand commit pushed to the pull request) is stale."""
