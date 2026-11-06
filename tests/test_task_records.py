@@ -390,3 +390,40 @@ def test_a_contracts_contingent_set_reads_back_off_the_board(tmp_path):
         assert view.contract.scope.contingent == ["src/b.py", "tests/test_a.py"]
 
     run(scenario)
+
+
+def test_round_mints_once(tmp_path):
+    """S-0124/D-12: a round contract's `round` rides in the minted contract, so
+    the board's copy equals the file's and an unchanged round mints once."""
+
+    task_dir = tmp_path / ".torve" / "tasks" / "T-0001"
+    task_dir.mkdir(parents=True)
+    (task_dir / "contract.yaml").write_text(
+        "schema_version: 1\nid: T-0001\nrole: review\nintent: work here\n"
+        "scope: {allow: ['src/a/**']}\nacceptance: []\ndecisions: []\n"
+        "targets: ['T-0000']\n"
+        "round:\n"
+        "  branch: torve/S-0124\n"
+        "  pr: 7\n"
+        "  findings: []\n"
+        "  phases: []\n"
+        "  nonce: n1\n",
+        encoding="utf-8",
+    )
+
+    async def scenario(log):
+        assert await sync(log, tmp_path) == ["T-0001"]
+        assert await sync(log, tmp_path) == []
+
+        history = await log.history("T-0001")
+
+        assert [one.kind for one in history] == [EventKind.TASK_MINTED]
+
+        view = (await board_of(log)).tasks["T-0001"]
+
+        assert view.contract is not None
+        assert view.contract.round is not None
+        assert view.contract.round.branch == "torve/S-0124"
+        assert view.contract == contracts(tmp_path)["T-0001"]
+
+    run(scenario)
