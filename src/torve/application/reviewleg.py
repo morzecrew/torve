@@ -1366,14 +1366,26 @@ def record_threads(
 
     threads: list[ReviewThread] = []
     files: dict[str, list[str]] = {}
+    reviews = [
+        row for row in rows if row.get("kind") == "review" and row.get("trigger") == "task_gated"
+    ]
+    # Only a target's last review read the work that landed: an earlier one read
+    # an attempt or a candidate the revision replaced, and its findings were that
+    # revision's to answer (S-0123: T-0781 re-opened a finding attempt 2 had fixed).
+    latest: dict[str, str] = {}
 
-    for row in rows:
+    for row in reviews:
+        if not row.get("battery"):
+            target = str(row.get("target") or "")
+            latest[target] = max(latest.get(target, ""), str(row.get("at") or ""))
+
+    for row in reviews:
         target = str(row.get("target") or "")
 
-        if row.get("kind") != "review" or row.get("trigger") != "task_gated":
+        if target not in tasks or target in rounds:
             continue
 
-        if target not in tasks or target in rounds:
+        if not row.get("battery") and str(row.get("at") or "") < latest[target]:
             continue
 
         review = str(row.get("task_id") or "")
@@ -1410,7 +1422,10 @@ def record_threads(
             if not touched:
                 continue
 
-            threads.append(ReviewThread(id=ident, path=touched[0], line=None, comments=(comment,)))
+            # A file the phasing reaches, where one is touched: a contingent path
+            # the landing promoted would refuse the round as out of scope.
+            anchor = next((path for path in touched if phased(root, branch, path)), touched[0])
+            threads.append(ReviewThread(id=ident, path=anchor, line=None, comments=(comment,)))
             files[ident] = touched
 
     return threads, files

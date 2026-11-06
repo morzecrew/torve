@@ -295,6 +295,7 @@ def recorded(
     target: str = "T-0900",
     review: str = "T-0901",
     trigger: str = "task_gated",
+    at: datetime | None = None,
 ) -> EventRecord:
     """One review on the board, as the review stage writes it (S-0101/D-4):
     the leg's second source, on whichever host reads the record rather than a
@@ -306,7 +307,7 @@ def recorded(
     from torve.domain.attempt import Finding as ReviewFinding
     from torve.domain.events import ActorKind, EventKind, EventRecord, SubjectType
 
-    now = datetime.now(UTC)
+    now = at or datetime.now(UTC)
 
     return EventRecord(
         id=uuid.uuid4().hex,
@@ -1313,6 +1314,70 @@ def test_a_recorded_finding_outside_the_phasing_scope_mints_nothing(seeded):
     assert events(seeded.root, "lane_review_task") == []
     assert events(seeded.root, "lane_thread_refused")
     assert RunState.load(naming.state_file(seeded.root, "T-0900")).state is TaskState.ESCALATED
+
+
+def test_only_a_target_s_last_review_opens_a_round(seeded):
+    """An earlier review read an attempt the revision replaced; its finding was
+    that revision's to answer, so only the last review of the target is raised
+    (S-0123: T-0781 re-opened a finding attempt 2 had already fixed)."""
+
+    open_document(seeded.root)
+    forge = StubForge(pr())
+    first = datetime(2026, 11, 5, 21, 45, tzinfo=UTC)
+    records = [
+        recorded(("the spend reads the raw cost", "src/app.py:12 — the claim"), at=first),
+        recorded(
+            ("the boundary is untested", "src/app.py:30 — no check at $3"),
+            review="T-0902",
+            at=first + timedelta(hours=1),
+        ),
+    ]
+
+    review_thread_leg(
+        seeded.root, config(sources=["record"]), forge, lambda _t: False, records=records
+    )
+
+    (row,) = events(seeded.root, "lane_review_task")
+
+    assert row["threads"] == ["record:T-0902:0"]
+    assert (row["path"], row["line"]) == ("src/app.py", 30)
+
+
+def test_a_command_evidence_finding_anchors_to_a_touched_file_the_phasing_reaches(seeded):
+    """A landing that also touched a path outside the phasing — a contingent
+    promotion — anchors the finding to a file the phasing reaches, not to the
+    first file git names (S-0123: every such finding on T-0764 was refused at
+    `critic.py`)."""
+
+    place(
+        seeded.root / ".torve" / "specs",
+        "0084",
+        document(
+            "0084",
+            [("D-1", "ASSUMED", "the leg reads threads", "src/app.py")],
+            phasing=[{"phase": 1, "title": "t", "intent": "i", "scope": ["src/**"]}],
+        ),
+    )
+    seeded.commit("the document")
+    seeded.write("lib/promoted.py", "x = 1\n")
+    seeded.write("src/app.py", "print('hello again')\n")
+    seeded.commit("the target's work, with a promoted path")
+    open_document(seeded.root, sha=head(seeded.root))
+    records = [recorded(("the suite is red", "`uv run pytest` — 3 failed"))]
+    forge = StubForge(pr())
+
+    review_thread_leg(
+        seeded.root,
+        config(sources=["record"]),
+        forge,
+        landings_of(seeded.root),
+        records=records,
+    )
+
+    (row,) = events(seeded.root, "lane_review_task")
+
+    assert (row["path"], row["line"]) == ("src/app.py", None)
+    assert events(seeded.root, "lane_thread_refused") == []
 
 
 def test_a_landed_recorded_round_is_answered_on_the_stream_and_once_on_the_forge(seeded):
