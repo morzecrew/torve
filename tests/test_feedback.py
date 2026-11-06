@@ -162,6 +162,28 @@ def test_an_operator_note_joins_the_record_after_the_threads_before_the_diff(roo
     assert "**operator:**" in text
 
 
+def test_a_later_capture_keeps_every_operator_note_once(root):
+    # T-0808: a revision round replaced the record and the person's brief went
+    # with it, so the next attempt repeated the fault the note named.
+    assert capture_feedback(root, "T-8013", "diff --git a/x b/x\n+1\n", THREADS) is True
+    assert record_operator_note(root, "T-8013", "deliver D-1 only") is True
+    assert record_operator_note(root, "T-8013", "keep the tier") is True
+    assert capture_feedback(root, "T-8013", "diff --git a/y b/y\n+2\n", []) is True
+
+    text = feedback_file(root, "T-8013").read_text(encoding="utf-8")
+    assert "Missing empty-list case." not in text
+    assert "diff --git a/y b/y" in text and "diff --git a/x b/x" not in text
+    assert text.count("deliver D-1 only") == 1 and text.count("keep the tier") == 1
+    assert (
+        text.index("deliver D-1 only")
+        < text.index("keep the tier")
+        < text.index("## The superseded candidate's diff")
+    )
+    # Nothing else to carry, the notes still brief the next attempt.
+    assert capture_feedback(root, "T-8013", "", []) is True
+    assert "keep the tier" in feedback_file(root, "T-8013").read_text(encoding="utf-8")
+
+
 def test_a_note_with_no_record_writes_one_holding_only_it(root):
     assert record_operator_note(root, "T-8011", "start over on the guard") is True
     text = feedback_file(root, "T-8011").read_text(encoding="utf-8")

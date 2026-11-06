@@ -23,6 +23,7 @@ from torve.config import layout
 
 FEEDBACK_FILE = "feedback.md"
 FEEDBACK_THREADS = "feedback-threads.json"
+FEEDBACK_NOTES = "feedback-notes.json"
 DIFF_HEADING = "## The superseded candidate's diff"
 MEASURED_HEADING = "## What the engine measured"
 OPERATOR = "operator"
@@ -46,6 +47,26 @@ def threads_file(root: Path, task_id: str) -> Path:
     until the landing that consumed the record answers them."""
 
     return root / layout.TORVE_DIR / "tasks" / task_id / FEEDBACK_THREADS
+
+
+# ....................... #
+
+
+def notes_file(root: Path, task_id: str) -> Path:
+    """The operator notes the task's record carries, in the order they were
+    written. A capture replaces the record, never these."""
+
+    return root / layout.TORVE_DIR / "tasks" / task_id / FEEDBACK_NOTES
+
+
+def _notes(root: Path, task_id: str) -> list[str]:
+    path = notes_file(root, task_id)
+
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
+
+
+def _note_thread(note: str) -> dict[str, Any]:
+    return {"comments": [{"author": OPERATOR, "body": note}]}
 
 
 # ....................... #
@@ -142,18 +163,21 @@ def capture_feedback(
     not brief the next attempt as if current, and a stale reply address
     must not have the next landing answer threads it never addressed.
     Captured threads also leave their reply addresses (S-0005/D-14, S-0005/A-3) so
-    the landing that consumes this record can answer them."""
+    the landing that consumes this record can answer them. The operator notes
+    are not stale with the round: every capture carries them after the threads,
+    so a revision round cannot drop the person's brief (T-0808)."""
 
     path = feedback_file(root, task_id)
     addresses_path = threads_file(root, task_id)
     path.unlink(missing_ok=True)
     addresses_path.unlink(missing_ok=True)
+    notes = [_note_thread(note) for note in _notes(root, task_id)]
 
-    if not threads and not diff.strip():
+    if not threads and not notes and not diff.strip():
         return False
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_feedback(task_id, diff, threads, measured), encoding="utf-8")
+    path.write_text(render_feedback(task_id, diff, [*threads, *notes], measured), encoding="utf-8")
 
     addresses = [
         {"pr": t["pr"], "id": t["id"], "path": t.get("path"), "line": t.get("line")}
@@ -176,16 +200,22 @@ def record_operator_note(root: Path, task_id: str, note: str) -> bool:
     the task's record as an operator thread, after the review threads and before
     the superseded diff, keeping every thread and the diff the record already
     holds. A resolve with no note writes nothing — silence must not rewrite a
-    record that still briefs the next attempt."""
+    record that still briefs the next attempt. The note is kept beside the
+    record too, so every later capture carries it."""
 
     if not note.strip():
         return False
 
-    thread: dict[str, Any] = {"comments": [{"author": OPERATOR, "body": note}]}
+    notes_path = notes_file(root, task_id)
+    notes_path.parent.mkdir(parents=True, exist_ok=True)
+    notes_path.write_text(
+        json.dumps([*_notes(root, task_id), note], ensure_ascii=False), encoding="utf-8"
+    )
+    thread = _note_thread(note)
     path = feedback_file(root, task_id)
 
     if not path.exists():
-        capture_feedback(root, task_id, "", [thread])
+        capture_feedback(root, task_id, "", [])
         return True
 
     text = path.read_text(encoding="utf-8")

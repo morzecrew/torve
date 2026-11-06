@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer blocked for the later phase's work. `torve spec check` refuses a `delivers` entry
   that names no row of the document.
 
+### Fixed
+
+- A note given with `torve manager resolve --resolution requeued` or `torve manager return`
+  now stays in the task's feedback record. A revision round used to replace the record and
+  drop the note, so the attempt after it ran without the person's instructions.
+
 ## [0.9.1] - 2026-11-06
 
 ### Changed
