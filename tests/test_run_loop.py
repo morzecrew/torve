@@ -7,6 +7,8 @@ the real gate integration is exercised in test_run_integration.py.
 from __future__ import annotations
 
 import json
+import subprocess
+from pathlib import Path
 
 import pytest
 import yaml
@@ -840,6 +842,26 @@ def test_revision_record_feeds_the_agent_never_the_gates(rig, monkeypatch):
     class PeekingAgent:
         def run(self, ctx):
             seen["during_attempt"] = (ctx.workspace / ".torve" / "feedback.md").is_file()
+            # A gate pass inside the session (a candidate's repair turn) commits
+            # the tree while the record is still there, so git must not see it;
+            # test_session proves the exclude is live in a linked worktree.
+            git_dir = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(ctx.workspace),
+                    "rev-parse",
+                    "--path-format=absolute",
+                    "--git-common-dir",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.strip()
+            exclude = Path(git_dir) / "info" / "exclude"
+            seen["ignored"] = (
+                "/.torve/feedback.md" in exclude.read_text(encoding="utf-8").splitlines()
+            )
             return OK
 
     def peeking_gates(run, _state):
@@ -852,6 +874,7 @@ def test_revision_record_feeds_the_agent_never_the_gates(rig, monkeypatch):
 
     assert state.state is TaskState.READY
     assert seen["during_attempt"] is True
+    assert seen["ignored"] is True
     assert seen["at_gates"] is False
     assert not (repo.root / ".wt" / task.id / ".torve" / "feedback.md").exists()
 
