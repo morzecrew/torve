@@ -1,0 +1,186 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+unit: phase
+phasing:
+  - phase: 1
+    title: The revision S-0122/D-8 describes
+    intent: >-
+      `_width` in `runner.py` reads `feedback.feedback_file(run.root, task.id)`, so
+      a revision attempt is `unit_class(..., revision=True)`, class S, width 1. Under
+      `review.mode: critic` `ReviewConfig.blocker_revisions` resolves to 2 when the
+      configuration names none, and to 1 in classic mode; the field becomes `int |
+      None` with that resolution in one place. `review_step`, before it spends a round,
+      reads the previous round's thread anchors from `feedback.threads_file(root,
+      task.id)` and compares each blocking finding's anchor with them, the same file
+      within `threads.WINDOW` lines or the same file when either has no line; a match
+      escalates `blocker_finding` at once with a detail naming the file and line.
+      Tests named `revision_width` in `tests/test_runner.py`, `revision_rounds` in
+      `tests/test_runconfig.py` and `tests/test_review_run.py`, and `reraised_blocker`
+      in `tests/test_review_run.py`.
+    scope:
+      - src/torve/application/runner.py
+      - src/torve/application/review.py
+      - src/torve/config/runconfig.py
+      - tests/test_runner.py
+      - tests/test_review_run.py
+      - tests/test_runconfig.py
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_runner.py tests/test_review_run.py tests/test_runconfig.py
+        tests/test_selection.py tests/test_critic.py tests/test_run_loop.py
+      - uv run mypy src
+  - phase: 2
+    title: Candidates side by side
+    intent: >-
+      `selection.select` starts each candidate's `launch` with `asyncio.create_task`
+      after one budget check, waits with `asyncio.wait(FIRST_COMPLETED)`, and from
+      the first green candidate sets a deadline at `straggler_clock` of its wall time;
+      a candidate still in its agent turn at the deadline is cancelled and recorded
+      as `Candidate(index, None, wall_s=elapsed)`, and when `stop()` turns true the
+      others are cancelled. Candidates are sorted by index before collapse and pre-rank.
+      In `select_attempt`, `launch` shields its gate pass so a cancel waits for it,
+      and `_candidate_dispatch` copies the attempt's starting dispatch, so every candidate
+      takes the tier resolved before any started. The attempt sandbox name and sandbox
+      gitdir in `session.py`, and `_gates_spec`'s sandbox name in `runner.py`, gain
+      `-c<k>` for candidate k above 1. `RunState.save` takes a `threading.Lock` around
+      the dump and the replace. `tests/dst_world.py` keeps driving `select` through
+      the same `Launch` signature. Tests named `side_by_side` and `unit_budget` in
+      `tests/test_selection.py`, `one_tier` in `tests/test_runner.py`, and `candidate_names`
+      in `tests/test_session.py` and a new `tests/test_runstate.py`.
+    scope:
+      - src/torve/application/selection.py
+      - src/torve/application/runner.py
+      - src/torve/application/session.py
+      - src/torve/application/runstate.py
+      - tests/test_selection.py
+      - tests/test_runner.py
+      - tests/test_session.py
+      - tests/test_runstate.py
+      - tests/dst_world.py
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_selection.py tests/test_runner.py tests/test_session.py
+        tests/test_runstate.py tests/test_dst.py tests/test_critic.py tests/test_run_loop.py
+        tests/test_run_integration.py tests/test_lane_prevention.py
+      - uv run mypy src
+    depends_on:
+      - 1
+  - phase: 3
+    title: >-
+      The in-session revision arm, and what a unit records
+    intent: >-
+      `ReviewConfig.revision: Literal["fresh", "session"] = "fresh"`. Under `session`,
+      `run_agent_session` hands back its open sandbox and session instead of destroying
+      them, and `select_attempt` closes every candidate's once the critic pass ends.
+      When every green candidate is blocked, the selected one gets `follow_up` in
+      its own session with `render_feedback` of the blocking findings, on a clock
+      of the unit's remaining time capped at the seat's `agent_timeout`; its gates
+      are judged again and the critic asked again, and that is the round `review_step`
+      would otherwise spend on a fresh attempt. When `follow_up` returns None the
+      round falls back to `fresh`. The fake agent gains a `follow_up` so tests can
+      drive the arm. `selection.unit_record` is written for every critic-mode attempt
+      and carries, per candidate, `tier`, `model` and `spend_usd`, and on a revision
+      a `revision` block with `kind`, `round`, `rereview`, `reraised`, `spend_usd`
+      and `wall_s`. Tests named `session_revision` in `tests/test_runner.py` and `tests/test_runconfig.py`,
+      and `unit_record` in `tests/test_selection.py`.
+    scope:
+      - src/torve/application/runner.py
+      - src/torve/application/selection.py
+      - src/torve/application/session.py
+      - src/torve/config/runconfig.py
+      - src/torve/adapters/agent/fake.py
+      - tests/test_runner.py
+      - tests/test_selection.py
+      - tests/test_session.py
+      - tests/test_runconfig.py
+      - tests/test_fake_agent.py
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_runner.py tests/test_selection.py tests/test_session.py
+        tests/test_runconfig.py tests/test_fake_agent.py tests/test_dst.py tests/test_critic.py
+        tests/test_dsh_session.py tests/test_run_loop.py tests/test_run_integration.py
+      - uv run mypy src
+    depends_on:
+      - 2
+  - phase: 4
+    title: Completion reads both phasings
+    intent: >-
+      `forge.document_complete(document, landings, root, phases=None)` checks the
+      phase numbers it is given, else reads the root as today. `lane.document_phases(root,
+      ref, document) -> list[int] | None` reads `phasing.yaml` at `ref` with `git
+      show`, keeps real integer phases, and returns None when the file is absent or
+      unreadable. The pull request lane's `_completes`, the local lane's `_local_completion`
+      and `_document_pr_text` in `cli/merge.py` pass the union of the root's phases
+      and `document_phases` at the ref being landed. Tests named `phasing_union` in
+      `tests/test_lane.py` show a branch that adds a phase stays a draft with no battery,
+      a local candidate that amends the phasing runs or skips the rows by the union,
+      and in `tests/test_forge.py` that `document_phases` returns None for a missing
+      file and drops a boolean phase.
+    scope:
+      - src/torve/application/forge.py
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+      - tests/test_lane.py
+      - tests/test_forge.py
+      - tests/test_cli.py
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_lane.py tests/test_forge.py tests/test_cli.py
+        tests/test_reviewleg.py tests/test_lane_prevention.py tests/test_manager.py
+      - uv run mypy src
+  - phase: 5
+    title: No ignored-writes fact
+    intent: >-
+      `runner.py` drops `_ignored_writes`, `_ignored_write_result`, `_with_ignored_writes`,
+      `_IGNORED_CACHES` and `_canonical_tracked`, and whatever only they use, and
+      the attempt record is built from the battery's own report. `_task_bookkeeping`
+      stays for its other caller. The three `ignored_writes` tests in `tests/test_runner.py`
+      become one test named `ignored_writes` that shows an attempt leaving an ignored
+      file records no such result.
+    scope: [src/torve/application/runner.py, tests/test_runner.py]
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_runner.py tests/test_run_loop.py tests/test_run_integration.py
+        tests/test_sabotage.py tests/test_provenance.py
+      - uv run mypy src
+    depends_on:
+      - 3
+  - phase: 6
+    title: A round contract mints once
+    intent: >-
+      `residency._record_mint` adds the contract's `round`, dumped as JSON, to the
+      minted payload when the task has one, and `manager.minted_contract` restores
+      it, so the board's contract equals the file's and `_remintable` finds it unchanged.
+      `planner.write_contract` writes the `round` mapping when the task carries one.
+      A test named `round_mints_once` in `tests/test_task_records.py` syncs a repository
+      holding a round contract twice and finds one minted row and `view.contract.round`
+      set.
+    scope:
+      - src/torve/application/residency.py
+      - src/torve/application/planner.py
+      - src/torve/application/manager.py
+      - tests/test_task_records.py
+      - tests/test_residency.py
+      - tests/test_plan.py
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_task_records.py tests/test_residency.py tests/test_plan.py
+        tests/test_manager.py tests/test_projections.py tests/test_state_parity.py
+      - uv run mypy src
+  - phase: 7
+    title: The approver who approved
+    intent: >-
+      `process_lane` stops reading `vcs.approver(root)` once per pass. For each candidate
+      it joins the actors of `state.approvals` whose `sha` is the tip it lands, else
+      the empty string, and passes that to `lane_landed` and `lane_pr_opened`; a landing
+      the forge merged records the empty string. `GitLane.approver` stays for `torve
+      approve`. Tests named `landing_approver` in `tests/test_lane.py`: an unapproved
+      landing records "", a landing of an approved tip records its actor; the existing
+      assertion that a landing records the fixture's git user changes to "".
+    scope: [src/torve/application/lane.py, tests/test_lane.py]
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_lane.py tests/test_reviewleg.py tests/test_lane_prevention.py
+        tests/test_manager.py
+      - uv run mypy src
+    depends_on:
+      - 4

@@ -1,0 +1,208 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A revision attempt, one whose task has a feedback record at the root, is class
+      S and runs one candidate, on the tier `revision_variant` names
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      a revision costs one session on the revision seat, not a full-width unit split
+      across seats
+    rationale: >-
+      `_width` read the feedback file inside the worktree, which exists only while
+      a session runs, so T-0764, T-0768 and T-0790 revised at width 3 or 2
+    cites: [S-0122/D-7, S-0122/D-8]
+    check: >-
+      uv run pytest -q tests/test_runner.py -k revision_width
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions`
+      revision rounds when the configuration names it, else 2; classic mode keeps
+      1
+    paths: [src/torve/config/runconfig.py, src/torve/application/review.py]
+    consequence: >-
+      a unit gets the two rounds S-0122/D-8 promises before it escalates
+    rationale: >-
+      S-0122/D-8 says two rounds and the default spent one
+    cites: [S-0122/D-8]
+    check: >-
+      uv run pytest -q tests/test_runconfig.py tests/test_review_run.py -k revision_rounds
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      A blocking finding anchored in the same file within `threads.WINDOW` lines of
+      a thread the previous round's feedback record answered, or in the same file
+      when either has no line, is re-raised, and the run escalates `blocker_finding`
+      naming it instead of spending another round
+    paths: [src/torve/application/review.py]
+    consequence: >-
+      a revision that did not fix what the critic named stops at once
+    rationale: >-
+      S-0122/D-8 says a re-raised finding escalates and nothing compared rounds
+    cites: [S-0122/D-8]
+    check: >-
+      uv run pytest -q tests/test_review_run.py -k reraised_blocker
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      Under `review.mode: critic` a unit's candidates start together; from the first
+      green candidate's finish, a candidate whose agent turn runs past `straggler_clock`
+      of that wall time is cancelled and recorded red, a gate pass already running
+      is never cancelled, an escalating candidate cancels the others' turns, and candidates
+      are ordered by index before collapse and pre-rank
+    paths: [src/torve/application/selection.py]
+    consequence: >-
+      an L-class unit takes about the time of its slowest candidate, not the sum of
+      three
+    rationale: >-
+      the S-0123 night's L units spent 10,848 s of candidate time where 4,125 s would
+      have run them together
+    cites: [S-0122/D-7]
+    check: >-
+      uv run pytest -q tests/test_selection.py -k side_by_side
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      A candidate after the first runs in an attempt sandbox, gates sandbox and sandbox
+      gitdir whose names carry `-c<k>`, with labels still keyed by task, and `RunState.save`
+      holds a lock around its write
+    paths:
+      - src/torve/application/session.py
+      - src/torve/application/runstate.py
+      - src/torve/application/runner.py
+    consequence: >-
+      two candidates of one task never share a container, a gitdir or a half-written
+      state file
+    rationale: >-
+      every one of these was keyed by task, which held only while candidates ran one
+      at a time
+    check: >-
+      uv run pytest -q tests/test_session.py tests/test_runstate.py -k candidate_names
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      Every candidate of one attempt runs on the tier the attempt resolved before
+      any candidate started
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      the first candidate's facts no longer move its siblings to another seat
+    rationale: >-
+      `_candidate_dispatch` copied the run after candidate 1 changed its tier, and
+      `advance_tier` read history candidate 1 had appended to
+    cites: [S-0122/D-7]
+    check: >-
+      uv run pytest -q tests/test_runner.py -k one_tier
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The unit's $3 bound is checked before its candidates launch and before each
+      critic call, so a batch launched under the bound may finish above it by at most
+      width-1 candidates' spend
+    paths: [src/torve/application/selection.py]
+    consequence: >-
+      the bound stays a stop before new work, and is soft by one batch
+    rationale: >-
+      a check before each launch cannot hold once candidates launch together; departs
+      from S-0123/D-1's per-candidate check
+    cites: [S-0123/D-1]
+    check: >-
+      uv run pytest -q tests/test_selection.py -k unit_budget
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      Under `review.revision: session` a revision round continues the selected candidate
+      in its own still-open session with the blocking findings, then judges its gates
+      and asks the critic again, in place of a fresh revision attempt; `fresh` is
+      the default, and a seat whose harness keeps no session falls back to it
+    paths:
+      - src/torve/application/runner.py
+      - src/torve/application/session.py
+      - src/torve/config/runconfig.py
+    consequence: >-
+      the night can run the in-session arm S-0122/D-9 asks about, one configuration
+      key away
+    rationale: >-
+      a dsh session dies with its sandbox, so the session must outlive the critic
+      pass for the arm to exist
+    cites: [S-0122/D-8, S-0122/D-9]
+    check: >-
+      uv run pytest -q tests/test_runner.py tests/test_runconfig.py -k session_revision
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      `unit.closed` is written for every critic-mode attempt whatever its width, carries
+      each candidate's tier, model and notional spend, and on a revision a `revision`
+      block of `kind`, `round`, `rereview`, `reraised`, `spend_usd` and `wall_s`
+    paths: [src/torve/application/selection.py]
+    consequence: >-
+      the record answers S-0122/D-9 without joining attempts by hand
+    rationale: >-
+      width-1 units wrote no record, and nothing recorded which revision ran or what
+      it cost
+    cites: [S-0122/D-9]
+    check: >-
+      uv run pytest -q tests/test_selection.py -k unit_record
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      A document is complete when its landings cover every phase the root's phasing
+      or the phasing at the ref being landed names, an unreadable phasing naming none;
+      the pull request lane, the local lane and the publisher's draft flag read the
+      same union
+    paths:
+      - src/torve/application/forge.py
+      - src/torve/application/lane.py
+      - src/torve/cli/merge.py
+    consequence: >-
+      a phase added on the branch keeps the document a draft until it lands, and the
+      root's phases still count when the branch was cut before an amendment
+    rationale: >-
+      completion took landings from the landed tree and phasing from the root, and
+      amendments travel with the code
+    cites: [S-0123]
+    check: >-
+      uv run pytest -q tests/test_lane.py tests/test_forge.py -k phasing_union
+  - id: D-11
+    grade: ASSUMED
+    text: >-
+      The attempt record carries no ignored-writes result
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      the record stops listing toolchain caches and engine files as an attempt's writes
+    rationale: >-
+      117 of 117 recorded results were noise, and the judge checkout already keeps
+      an ignored file out of the gates
+    cites: [S-0121/D-2]
+    check: >-
+      uv run pytest -q tests/test_runner.py -k ignored_writes
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      `task.minted` carries a review round contract's `round`, and a contract file
+      written from the record keeps it, so an unchanged round contract mints once
+    paths:
+      - src/torve/application/residency.py
+      - src/torve/application/manager.py
+      - src/torve/application/planner.py
+    consequence: >-
+      the manager's pass stops writing 18 rows every few seconds
+    rationale: >-
+      the minted payload dropped the private `round`, so the board's contract never
+      equalled the file's
+    check: >-
+      uv run pytest -q tests/test_task_records.py -k round_mints_once
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      `lane_landed` and `lane_pr_opened` record as `approver` the actors of the approvals
+      bound to the landed tip's sha, else the empty string
+    paths: [src/torve/application/lane.py]
+    consequence: >-
+      a landing nobody approved no longer reads as the operator's
+    rationale: >-
+      all 278 recorded landings named the lane host's git user
+    cites: [S-0121/D-39]
+    check: >-
+      uv run pytest -q tests/test_lane.py -k landing_approver
