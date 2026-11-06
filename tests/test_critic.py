@@ -494,7 +494,7 @@ def test_a_critic_block_revises_with_its_findings_and_what_the_engine_measured(
     state = run_task(repo.root, task_for(repo), critic_config(), deps_for(critic))
 
     assert state.state is TaskState.READY
-    assert any(h["fact"].startswith("review blocker (revision 1 of 1):") for h in state.history)
+    assert any(h["fact"].startswith("review blocker (revision 1 of 2):") for h in state.history)
     text = feedback_file(repo.root, "T-9001").read_text(encoding="utf-8")
     assert "the bound is off by one" in text
     assert "repro: `python probes/p.py`" in text
