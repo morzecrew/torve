@@ -871,8 +871,11 @@ def _exclude(worktree: Path, line: str, why: str) -> None:
     if line in present.splitlines():
         return
 
+    # A file without a final newline would join the comment to its last rule.
+    gap = "\n" if present and not present.endswith("\n") else ""
+
     with exclude.open("a", encoding="utf-8") as handle:
-        handle.write(f"# torve: {why}\n{line}\n")
+        handle.write(f"{gap}# torve: {why}\n{line}\n")
 
 
 # ....................... #

@@ -438,6 +438,25 @@ def test_the_equipment_root_is_excluded_in_the_worktree(tmp_path):
     assert again == exclude
 
 
+def test_an_exclude_line_never_joins_the_last_rule(tmp_path):
+    import subprocess
+
+    from torve.application.session import _exclude
+
+    worktree = tmp_path / "wt"
+    worktree.mkdir()
+    subprocess.run(["git", "init", "-q", str(worktree)], check=True)
+    exclude = worktree / ".git" / "info" / "exclude"
+    exclude.write_text("/build", encoding="utf-8")
+    _exclude(worktree, "/.torve/feedback.md", "the planted revision record")
+
+    assert exclude.read_text(encoding="utf-8").splitlines() == [
+        "/build",
+        "# torve: the planted revision record",
+        "/.torve/feedback.md",
+    ]
+
+
 def test_a_harness_reading_the_mount_excludes_nothing(tmp_path):
     """claude points `--add-dir` at the read-only mount, so nothing lands in
     the workspace and there is nothing to hide."""
