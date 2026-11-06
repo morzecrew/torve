@@ -682,6 +682,14 @@
           "description": "The phase's structural or routine character, copied onto its contracts (S-0034/D-1).",
           "title": "Character"
         },
+        "delivers": {
+          "description": "The rows this phase settles. When named, its contracts are held to these\nrows alone; otherwise every row whose paths meet the scope is theirs, which\ncharges an earlier phase with a later one's row on a file both touch.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Delivers",
+          "type": "array"
+        },
         "depends_on": {
           "description": "The phases that must land first.",
           "items": {
@@ -857,6 +865,14 @@
             "$ref": "#/$defs/InheritedDecision"
           },
           "title": "Decisions",
+          "type": "array"
+        },
+        "delivers": {
+          "description": "The rows this contract settles, copied from its phasing entry. When named,\nthe critic owns these alone, and any other row is at most a constraint.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Delivers",
           "type": "array"
         },
         "depends_on": {

@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-11-06T10:43:12Z'
+    title: Each phase names the rows it delivers
+    md: |
+      Phases 1, 2, 3 and 5 all edit `runner.py`, and phases 4 and 7 both edit `lane.py`. The
+      critic counted a row as a task's own whenever the row's paths met its scope, so phase 1's
+      first attempt (T-0808) was blocked for not delivering D-5, D-8 and D-11, which belong to
+      phases 2, 3 and 5. Each phase now lists the rows it settles in `delivers`, and the critic
+      holds its tasks to those alone. No row's text, grade or paths changes.

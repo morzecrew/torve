@@ -129,6 +129,9 @@ def _value(doc: Document, name: str) -> Any:
         # its canonical form.
         if not example.get("scope", {}).get("contingent"):
             example.get("scope", {}).pop("contingent", None)
+        # Likewise the rows a phase delivers, which the planner copies from it.
+        if not example.get("delivers"):
+            example.pop("delivers", None)
         return example
 
     # A header object such as `change` (S-0087/D-1): only what its author set,

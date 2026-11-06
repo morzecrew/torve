@@ -89,6 +89,7 @@ phasing:
     scope: [src/example/**]   # a module; its paired tests are licensed at mint
     acceptance: [uv run pytest tests/test_example.py]
     depends_on: []
+    delivers: [D-1]         # optional: the rows this phase settles; the critic holds it to these alone
     character: structural   # optional: structural | routine
   - phase: 2
     title: <the follow-up>

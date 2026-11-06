@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A phase can name the decisions it settles in `delivers`. The critic then holds that phase's
+  tasks to those rows alone, so an earlier phase that edits the same file as a later one is
+  no longer blocked for the later phase's work. `torve spec check` refuses a `delivers` entry
+  that names no row of the document.
+
 ## [0.9.1] - 2026-11-06
 
 ### Changed

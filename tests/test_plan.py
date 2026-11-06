@@ -23,7 +23,7 @@ from torve.application.planner import (
 )
 from torve.base.globs import overlap
 from torve.cli import app
-from torve.config.spec import SpecError, load_document
+from torve.config.spec import SpecError, check_document, load_document
 from torve.domain.spec import Document
 from torve.domain.task import InheritedDecision, Scope, Task
 from torve.gates.context import load_task
@@ -575,6 +575,23 @@ def test_minting_copies_tier_variant_onto_the_contract(plan_repo):
     equipped, plain = report.tasks[0].task, report.tasks[1].task
     assert equipped.tier_variant == "copywriter"
     assert plain.tier_variant is None
+
+
+def test_minting_copies_delivers_onto_the_contract_qualified(plan_repo):
+    root, write_doc, git = plan_repo
+    write_doc("0090", "Widgets", phasing=phasing(delivers=["D-2"]))
+    git("add", "-A")
+    git("commit", "-qm", "delivers")
+    report = plan_document(root, root / ".torve" / "specs", "0090")
+    assert [t.task.delivers for t in report.tasks] == [["S-0090/D-2"], [], []]
+
+
+def test_a_phase_that_delivers_a_row_the_document_lacks_is_a_problem(tmp_path):
+    doc = loaded(tmp_path, phasing=phasing(delivers=["D-2", "D-9"]))
+    problems, _ = check_document(doc, tmp_path, tmp_path)
+    assert [p for p in problems if "delivers" in p] == [
+        "S-0090: phase 1 delivers 'D-9', which is not one of its rows"
+    ]
 
 
 @pytest.mark.parametrize("character", ["structural", "routine"])

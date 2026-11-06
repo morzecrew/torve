@@ -40,7 +40,7 @@
             }
           ],
           "default": null,
-          "description": "The vendor's published rate card, for a seat that is not billed by it \u2014 a\nsubscription. `torve ledger` prices the seat's attempts at it from their token counts and\nmarks the figure an estimate; the attempt's own cost stays unreported, and no budget\nreads it."
+          "description": "The vendor's published rate card, for a seat that is not billed by it \u2014 a\nsubscription. `torve ledger` prices the seat's attempts at it from their token counts and\nmarks the figure an estimate; the unit's notional-spend cap reads it the same way\n(S-0123/D-1) and never as the attempt's own cost."
         },
         "max_tokens": {
           "default": 0,

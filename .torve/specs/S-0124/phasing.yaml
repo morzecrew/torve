@@ -29,6 +29,7 @@ phasing:
         uv run pytest -q tests/test_runner.py tests/test_review_run.py tests/test_runconfig.py
         tests/test_selection.py tests/test_critic.py tests/test_run_loop.py
       - uv run mypy src
+    delivers: [D-1, D-2, D-3]
   - phase: 2
     title: Candidates side by side
     intent: >-
@@ -67,6 +68,7 @@ phasing:
       - uv run mypy src
     depends_on:
       - 1
+    delivers: [D-4, D-5, D-6, D-7]
   - phase: 3
     title: >-
       The in-session revision arm, and what a unit records
@@ -107,6 +109,7 @@ phasing:
       - uv run mypy src
     depends_on:
       - 2
+    delivers: [D-8, D-9]
   - phase: 4
     title: Completion reads both phasings
     intent: >-
@@ -136,6 +139,7 @@ phasing:
         uv run pytest -q tests/test_lane.py tests/test_forge.py tests/test_cli.py
         tests/test_reviewleg.py tests/test_lane_prevention.py tests/test_manager.py
       - uv run mypy src
+    delivers: [D-10]
   - phase: 5
     title: No ignored-writes fact
     intent: >-
@@ -153,6 +157,7 @@ phasing:
       - uv run mypy src
     depends_on:
       - 3
+    delivers: [D-11]
   - phase: 6
     title: A round contract mints once
     intent: >-
@@ -175,6 +180,7 @@ phasing:
         uv run pytest -q tests/test_task_records.py tests/test_residency.py tests/test_plan.py
         tests/test_manager.py tests/test_projections.py tests/test_state_parity.py
       - uv run mypy src
+    delivers: [D-12]
   - phase: 7
     title: The approver who approved
     intent: >-
@@ -193,3 +199,4 @@ phasing:
       - uv run mypy src
     depends_on:
       - 4
+    delivers: [D-13]

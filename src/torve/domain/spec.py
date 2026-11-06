@@ -487,6 +487,10 @@ class Phase(Item):
     """The acceptance commands the contract gets; exit 0 is satisfied."""
     depends_on: list[int] = Field(default_factory=list)
     """The phases that must land first."""
+    delivers: list[str] = Field(default_factory=list)
+    """The rows this phase settles. When named, its contracts are held to these
+    rows alone; otherwise every row whose paths meet the scope is theirs, which
+    charges an earlier phase with a later one's row on a file both touch."""
     tier_variant: str = ""
     """The seat variant the contract routes to, when one is named (S-0027/D-3)."""
     character: Character | None = None
@@ -693,6 +697,7 @@ class Document(Item):
             acceptance=list(
                 dict.fromkeys(command for entry in entries for command in entry.acceptance)
             ),
+            delivers=list(dict.fromkeys(row for entry in entries for row in entry.delivers)),
             tier_variant=next((e.tier_variant for e in entries if e.tier_variant), ""),
             character=next((e.character for e in entries if e.character), None),
         )

@@ -1049,6 +1049,13 @@ def check_document(doc: Document, root: Path, spec_dir: Path) -> tuple[list[str]
     problems += check_sections(doc)
     warnings += check_landings(doc)
 
+    for phase in doc.phasing:
+        for ident in phase.delivers:
+            if doc.decision(ident) is None:
+                problems.append(
+                    f"{where}: phase {phase.phase} delivers {ident!r}, which is not one of its rows"
+                )
+
     # S-0001/D-32: for a document not yet built the globs name intended areas;
     # once implemented an unmatched LOCKED glob is rot.
     check_globs = doc.status == "accepted" and doc.implementation != "none" and not doc.archived
