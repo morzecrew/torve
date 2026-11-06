@@ -306,6 +306,15 @@ async def _record_mint(log: EventLog, task: Task, *, partition: str, actor_id: s
     what makes the second one a version rather than a transition is the
     board's fold and not a different kind."""
 
+    # S-0124/D-12: `round` is a private attribute, so the model's own dump
+    # drops it. Put it back inside the recorded contract, where
+    # `manager.minted_contract` restores it — otherwise the board's contract
+    # never equals the file's and every pass re-mints the round.
+    contract = task.model_dump(mode="json")
+
+    if task.round is not None:
+        contract["round"] = task.round.model_dump(mode="json")
+
     await log.record(
         EventKind.TASK_MINTED,
         partition=partition,
@@ -322,7 +331,7 @@ async def _record_mint(log: EventLog, task: Task, *, partition: str, actor_id: s
             # written before S-0044/A-8 and pinned equal to it by test.
             "phase": task.phase,
             "depends_on": list(task.depends_on),
-            "contract": task.model_dump(mode="json"),
+            "contract": contract,
         },
     )
 
