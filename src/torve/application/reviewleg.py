@@ -1422,9 +1422,15 @@ def record_threads(
             if not touched:
                 continue
 
-            # A file the phasing reaches, where one is touched: a contingent path
-            # the landing promoted would refuse the round as out of scope.
-            anchor = next((path for path in touched if phased(root, branch, path)), touched[0])
+            # A file the target's phase owns, else one the phasing reaches: a
+            # contingent path the landing promoted would refuse the round as out
+            # of scope, or sit outside the scope the round takes from that phase.
+            from torve.application.decisions import _governs
+
+            own = _phase_scope(_phasing(root, branch), "", _target_phases(root, landed, [target]))
+            anchor = min(
+                touched, key=lambda path: (not _governs(own, path), not phased(root, branch, path))
+            )
             threads.append(ReviewThread(id=ident, path=anchor, line=None, comments=(comment,)))
             files[ident] = touched
 

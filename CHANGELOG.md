@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- A document's review rounds now come only from each task's last review. Findings from an attempt or candidate that a revision replaced no longer open a round after the task lands.
+- A document's review rounds from the reviewer now come only from each task's last review. Findings from an attempt or candidate that a revision replaced no longer open a round after the task lands. A red completion battery still opens its own round.
 
-- A review finding with no cited line is now anchored to a landed file that the document's phasing covers, so it gets a round instead of being refused as out of scope when the landing also touched a file outside the phasing.
+- A review finding with no cited line now anchors to a landed file the task's own phase covers, or else one the phasing covers. It gets a round where the landing also touched a file outside the phasing, and is still refused when no landed file is phased.
 
 ## [0.9.0] - 2026-11-05
 

@@ -1380,6 +1380,35 @@ def test_a_command_evidence_finding_anchors_to_a_touched_file_the_phasing_reache
     assert events(seeded.root, "lane_thread_refused") == []
 
 
+def test_a_command_evidence_finding_anchors_to_a_file_its_target_s_phase_owns(seeded):
+    """A promoted path another phase owns is phased, but outside the scope the
+    round takes from its target's phase; the anchor is the file that phase owns."""
+
+    phased_document(seeded.root, ["src/**"], ["lib/**"])
+    seeded.commit("the document")
+    seeded.write("lib/promoted.py", "x = 1\n")
+    seeded.write("src/app.py", "print('hello again')\n")
+    seeded.commit("the target's work, with a path phase 2 owns")
+    seeded.write(
+        f"{layout.TORVE_DIR}/tasks/T-0900/contract.yaml",
+        yaml.safe_dump({"id": "T-0900", "phase": 1}),
+    )
+    open_document(seeded.root, sha=head(seeded.root))
+    records = [recorded(("the suite is red", "`uv run pytest` — 3 failed"))]
+
+    review_thread_leg(
+        seeded.root,
+        config(sources=["record"]),
+        StubForge(pr()),
+        landings_of(seeded.root),
+        records=records,
+    )
+
+    (row,) = events(seeded.root, "lane_review_task")
+
+    assert (row["path"], row["line"]) == ("src/app.py", None)
+
+
 def test_a_landed_recorded_round_is_answered_on_the_stream_and_once_on_the_forge(seeded):
     """S-0086/D-5: the answer is a stream record and one pull-request
     comment, and the finding is never a round again."""
