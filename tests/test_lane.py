@@ -3476,6 +3476,40 @@ def test_phasing_union_an_invalid_phasing_at_the_root_leaves_a_draft(lane_repo, 
     assert _document_pr_text(lane_repo, "T-7412", document, tip=tip)[2] is False
 
 
+def test_phasing_union_a_root_phase_the_branch_lacks_stays_a_draft(lane_repo):
+    """S-0124/D-10: the branch was cut before the root's amendment added phase
+    3, so its own phasing names 1 and 2, both landed; the root's phase still
+    counts and the document stays a draft."""
+
+    import torve.application.lane as lane
+    from torve.cli.merge import _document_pr_text
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    _append_phase(lane_repo, 3)
+    git(lane_repo, "commit", "-qam", "the root adds phase 3", "--no-gpg-sign")
+    tip = git(lane_repo, "rev-parse", document)
+
+    assert lane.document_phases(lane_repo, document, "S-0930") == [1, 2]
+    assert not lane._completes(lane_repo, "T-7412", document)
+    assert _document_pr_text(lane_repo, "T-7412", document, tip=tip)[2] is False
+
+
+def test_phasing_union_an_empty_phasing_names_no_phases(lane_repo):
+    """S-0124/D-10: a comment-only phasing parses to nothing, which the loader
+    reads as no phases, so it names none rather than reading unreadable."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    path = lane_repo / ".torve" / "specs" / "S-0930" / "phasing.yaml"
+    path.write_text("# no phases yet\n", encoding="utf-8")
+    git(lane_repo, "commit", "-qam", "an empty phasing", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+
+    assert lane.document_phases(lane_repo, document, "S-0930") == []
+
+
 @pytest.mark.parametrize("contract", [True, False])
 def test_a_phase_landed_without_a_lane_record_still_completes_the_document(
     lane_repo, tmp_path, monkeypatch, contract

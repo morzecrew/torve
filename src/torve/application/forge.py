@@ -342,6 +342,10 @@ def phase_numbers(raw: object) -> list[int]:
     bool is no phase, and coerced it would read as phase 1 and clear the
     draft flag."""
 
+    # An empty or comment-only file names no phases, as `load_document` reads it.
+    if raw is None:
+        return []
+
     if not isinstance(raw, dict):
         raise PhasingUnreadable("phasing: not a mapping")
 
