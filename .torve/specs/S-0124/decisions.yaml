@@ -32,15 +32,18 @@ decisions:
   - id: D-3
     grade: ASSUMED
     text: >-
-      A blocking finding anchored in the same file within `threads.WINDOW` lines of
-      a thread the previous round's feedback record answered, or in the same file
-      when either has no line, is re-raised, and the run escalates `blocker_finding`
-      naming it instead of spending another round
+      Each revision round records its blocking findings' anchors in the run's history;
+      a blocking finding anchored in the same file within `threads.WINDOW` lines of
+      one the previous round recorded, or in the same file when either has no line,
+      is re-raised, and the run escalates `blocker_finding` naming it instead of spending
+      another round
     paths: [src/torve/application/review.py]
     consequence: >-
       a revision that did not fix what the critic named stops at once
     rationale: >-
-      S-0122/D-8 says a re-raised finding escalates and nothing compared rounds
+      S-0122/D-8 says a re-raised finding escalates and nothing compared rounds; a
+      critic thread carries no reply address, so `capture_feedback` writes no `threads_file`
+      for it
     cites: [S-0122/D-8]
     check: >-
       uv run pytest -q tests/test_review_run.py -k reraised_blocker
@@ -97,12 +100,13 @@ decisions:
   - id: D-7
     grade: ASSUMED
     text: >-
-      The unit's $3 bound is checked before its candidates launch and before each
-      critic call, so a batch launched under the bound may finish above it by at most
-      width-1 candidates' spend
+      The unit's $3 bound is checked before its candidates launch, before each critic
+      call and before a revision turn, so work launched under the bound, a batch of
+      candidates, a critic call or a turn, may finish above it by that work's own
+      spend; a cancelled candidate's spend from the turns it finished still counts
     paths: [src/torve/application/selection.py]
     consequence: >-
-      the bound stays a stop before new work, and is soft by one batch
+      the bound stays a stop before new work, and is soft by the work already launched
     rationale: >-
       a check before each launch cannot hold once candidates launch together; departs
       from S-0123/D-1's per-candidate check
@@ -113,9 +117,11 @@ decisions:
     grade: ASSUMED
     text: >-
       Under `review.revision: session` a revision round continues the selected candidate
-      in its own still-open session with the blocking findings, then judges its gates
-      and asks the critic again, in place of a fresh revision attempt; `fresh` is
-      the default, and a seat whose harness keeps no session falls back to it
+      in its own still-open session, on that candidate's tier and not `revision_variant`,
+      with the blocking findings, after the same spend and clock checks a fresh attempt
+      passes, then judges its gates and asks the critic again, in place of a fresh
+      revision attempt; `fresh` is the default, and a seat whose harness keeps no
+      session falls back to it
     paths:
       - src/torve/application/runner.py
       - src/torve/application/session.py
@@ -148,9 +154,10 @@ decisions:
     grade: ASSUMED
     text: >-
       A document is complete when its landings cover every phase the root's phasing
-      or the phasing at the ref being landed names, an unreadable phasing naming none;
-      the pull request lane, the local lane and the publisher's draft flag read the
-      same union
+      or the phasing at the ref being landed names; an absent phasing names none,
+      a phasing that is present but cannot be read or validated leaves the document
+      incomplete, and the pull request lane, the local lane and the publisher's draft
+      flag read the same union
     paths:
       - src/torve/application/forge.py
       - src/torve/application/lane.py

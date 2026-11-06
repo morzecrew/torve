@@ -1,7 +1,6 @@
 # yaml-language-server: $schema=../../schemas/document.json
 id: S-0124
-title: >-
-  Candidates side by side, and the revision S-0122 describes
+title: Candidates side by side, and S-0122's revision
 kind: design
 change:
   type: feat
@@ -62,16 +61,16 @@ current_state: |
     whether anyone approved or not.
 goals: |
   - An L-class unit's candidates finish in the time of the slowest, not the sum.
-  - A revision after a critic block is one candidate on the revision seat, for up to two
-    rounds, and a re-raised finding escalates.
+  - A fresh revision after a critic block is one candidate on the revision seat, for up to
+    two rounds, and a re-raised finding escalates.
   - The night can run S-0122/D-9's in-session arm, and the record answers D-9's question.
   - Completion, the draft flag and the rows agree with what the branch carries.
   - An unchanged contract mints once.
   - The attempt record holds no fact that is always noise, and no attribution nobody made.
 non_goals: |
   - Deciding S-0122/D-9. This document builds the arm and the record; 20 revisions decide it.
-  - A provider concurrency limit. ModelStudio and the Claude subscription are left to refuse
-    on their own (Q-1).
+  - A provider concurrency limit. ModelStudio has none the owner knows of (Q-1), and the
+    Claude subscription is left to refuse on its own.
   - Recording who merged a pull request on the forge. A forge-merged landing records no
     approver.
   - Retiring the archive or stripping its citations.
@@ -83,10 +82,13 @@ design:
       `revision_variant` names. Under `review.mode: critic` the revision budget is
       `review.blocker_revisions` when the configuration names it, else 2. Classic mode keeps 1.
 
-      Before it spends a round, `review_step` compares each blocking finding's anchor with the
-      threads the previous round's feedback record answered (`threads_file`). A finding in the
-      same file within `threads.WINDOW` lines of one of them, or on the same file when either
-      has no line, is re-raised. A re-raise escalates `blocker_finding` at once and names it.
+      Each round's history fact records the anchors (`path`, `line`) of the findings it
+      revises. A critic thread carries no reply address, so `capture_feedback` writes no
+      `threads_file` for it, and the run's own history is where the next round can find them.
+      Before it spends a round, `review_step` compares each blocking finding's anchor with
+      the anchors the previous round recorded. A finding in the same file within
+      `threads.WINDOW` lines of one of them, or in the same file when either has no line, is
+      re-raised. A re-raise escalates `blocker_finding` at once and names it.
   - key: candidates-side-by-side
     md: |
       `select` starts every candidate's `launch` as a task, waits for the first to finish, and
@@ -101,9 +103,10 @@ design:
       `RunState.save` holds a lock around its write. Every candidate takes the tier its
       attempt resolved before any of them started.
 
-      The $3 bound is checked once before the batch launches and before each critic call. A
-      batch launched under the bound can finish above it, by at most the spend of width-1
-      candidates.
+      The $3 bound is checked once before the batch launches, before each critic call and
+      before a revision turn. Work launched under the bound can finish above it by its own
+      spend: a whole batch, a critic call or a turn. A cancelled candidate keeps the spend its
+      finished turns reported, in the bound and in the unit record.
   - key: in-session-revision
     md: |
       `review.revision` is `fresh` (default) or `session`. Under `session`, candidate sandboxes
@@ -111,24 +114,34 @@ design:
       one, first in rank order, gets a follow-up turn in its own dsh session with the blocking
       findings as the feedback record renders them. Its gates run again, then the critic. That
       is one revision round, and it replaces the fresh attempt the round would otherwise start.
-      The turn gets its own clock, the unit's remaining time capped at the seat's
-      `agent_timeout`. The other sandboxes close once the selected candidate is known. A seat
-      whose harness keeps no session (`follow_up` returns None) falls back to `fresh`.
+      The turn runs on the candidate's own tier, not on `revision_variant`. That is the
+      exception the arm exists to measure: D-9 compares a continued dsh session with a fresh
+      Opus one. Before the turn, the unit's spend and clock are checked as they are before a
+      fresh attempt, and either bound escalates `budget_exhausted`. The turn gets its own
+      clock, the unit's remaining time capped at the seat's `agent_timeout`. The other
+      sandboxes close once the selected candidate is known. A seat whose harness keeps no
+      session (`follow_up` returns None) falls back to `fresh`.
   - key: the-unit-record
     md: |
       `unit.closed` is written for every critic-mode attempt, whatever its width. Each
       candidate carries its tier, model and notional spend. A revision adds a `revision`
       block: `kind` (`fresh` or `session`), `round`, `rereview` (`clean` or `blocked`),
       `reraised`, `spend_usd` and `wall_s`. For `session`, the turn's spend is the session's
-      cumulative cost minus the first turn's. For `fresh`, it is the revision attempt's own.
+      cumulative cost right after the revision turn minus its cumulative cost right before it,
+      so a gate-repair turn earlier in the session is not counted. For `fresh`, it is the
+      revision attempt's own.
   - key: completion
     md: |
       `document_complete` takes the phase numbers it checks. The lane passes the union of the
       root's phasing and the phasing at the ref being landed (`document_phases(root, ref,
-      document)`, read with `git show` and None when unreadable). The same union feeds the pull
-      request lane's `_completes`, the local lane's `_local_completion` and the publisher's draft
-      flag in `cli/merge.py`. A phase added on the branch keeps the document a draft until it
-      lands. A phase removed on the branch still needs its amendment on main, as it does today.
+      document)`, read with `git show`). An absent phasing names no phases. A phasing that is
+      present but cannot be read or validated, at the root or at the ref, leaves the document
+      incomplete: no battery runs and the pull request stays a draft. Today an unreadable root
+      reads as no phases, so the first landing completes the document. The same union feeds
+      the pull request lane's `_completes`, the local lane's `_local_completion` and the
+      publisher's draft flag in `cli/merge.py`. A phase added on the branch keeps the document
+      a draft until it lands. A phase removed on the branch still needs its amendment on main,
+      as it does today.
   - key: record-repairs
     md: |
       `_record_mint` writes a round contract's `round` into the minted payload, and a contract
@@ -143,11 +156,13 @@ design:
       as the default actor for `torve approve`.
   - key: the-d-9-experiment
     md: |
-      Once this document merges, the night config sets `review.revision: session` until 20
-      `unit.closed` records carry a `session` revision. The fresh arm's records come from the
-      nights before and from any unit whose seat has no session. S-0122/D-9 is then settled by
-      amendment: `session` becomes the default if 14 or more of the 20 re-reviews are `clean`
-      and its median `spend_usd` and `wall_s` are below the fresh arm's.
+      Once this document merges, the night alternates `review.revision` between `fresh` and
+      `session`, one night each, until 20 `unit.closed` records carry a `session` revision and
+      at least 10 carry a `fresh` one. Only records written after the merge count. Earlier
+      revisions ran at full width on mixed seats and recorded no `revision` block, so they
+      measure a different thing. S-0122/D-9 is then settled by amendment: `session` becomes
+      the default if 14 or more of its 20 re-reviews are `clean` and its median `spend_usd`
+      and `wall_s` are below the fresh arm's.
 tests: |
   Each phase writes the tests its rows' checks select, beside the module it changes, and keeps
   the full suite green. The concurrency phase drives `select` with fake launches that sleep, so
@@ -164,10 +179,13 @@ risks: |
     can stretch it, and a battery's timeouts are not raised.
   - Under `session`, a blocked unit holds its sandboxes open through the critic pass, a few
     minutes of idle containers per unit.
-  - The $3 bound is now soft by up to width-1 candidates' spend.
+  - The $3 bound is now soft by the spend of the work launched under it.
 questions:
   - id: Q-1
     text: >-
       Does the ModelStudio plan limit concurrent requests per key, and at what number?
       If it is below three per worker, side-by-side candidates on the dsh seat need
-      a width cap.
+      a width cap. No limit the owner knows of (owner, 2026-11-06): candidates run
+      in parallel with no width cap.
+    status: settled
+    settled_by: D-4
