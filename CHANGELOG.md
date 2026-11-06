@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-06
+
 ### Changed
 
 - Under `review.mode: critic` a unit now stops once its notional spend across attempts
@@ -2864,7 +2866,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   src+tests pythonpath). `uv run mypy src` joins CI and the acceptance
   fallback in `gates.yaml`.
 
-[Unreleased]: https://github.com/morzecrew/torve/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/morzecrew/torve/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/morzecrew/torve/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/morzecrew/torve/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/morzecrew/torve/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/morzecrew/torve/compare/v0.6.4...v0.7.0
