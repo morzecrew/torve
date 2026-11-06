@@ -67,6 +67,7 @@ from torve.application.ports import (
     SandboxSpec,
     judge_ref,
 )
+from torve.application.reaper import STOPPED_MARKER
 from torve.application.review import mint_review_task, review_step, reviewer_for
 from torve.application.runstate import Escalation, RunState
 from torve.application.session import (
@@ -2286,7 +2287,8 @@ def _should_resume(previous: RunState) -> bool:
 
 def _checkpointed_for_resume(root: Path, task: Task) -> bool:
     """S-0090/D-2: a task whose run state was reaped still resumes when its
-    branch tip is the checkpoint a review blocker or a halt left — the tree is
+    branch tip is the checkpoint a review blocker, a halt or a stopped run's
+    requeue (`reaper.clear_escalated`) left — the tree is
     on the branch either way, and the reaper removing the state file is not an
     answer to the escalation."""
 
@@ -2299,7 +2301,7 @@ def _checkpointed_for_resume(root: Path, task: Task) -> bool:
     subject = message.splitlines()[0] if message else ""
 
     return f"Torve-Checkpoint: {task.id} " in message and subject.endswith(
-        (_BLOCKER_MARKER, _HALTED_MARKER, _UNDERSPECIFIED_MARKER)
+        (_BLOCKER_MARKER, _HALTED_MARKER, _UNDERSPECIFIED_MARKER, STOPPED_MARKER)
     )
 
 

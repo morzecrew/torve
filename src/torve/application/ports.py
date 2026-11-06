@@ -225,6 +225,10 @@ class WorkspacePort(JudgePort, Protocol):
 
     def promote_candidate(self, task_id: str, index: int) -> None: ...
 
+    # A run that stopped before it could checkpoint leaves its work only in
+    # the worktree; the requeue that clears the worktree commits it first.
+    def checkpoint(self, task_id: str, message: str) -> bool: ...
+
 
 # ....................... #
 

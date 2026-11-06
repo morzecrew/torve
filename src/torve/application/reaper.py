@@ -399,6 +399,15 @@ def recover(
 # ....................... #
 
 
+# The subject of the checkpoint a requeue commits for a run that stopped
+# mid-attempt, and what `runner._checkpointed_for_resume` reads off the tip.
+STOPPED_MARKER = "escalated when its run stopped"
+
+# A run the operator stopped or whose lease lapsed was cut off, not judged:
+# its tree is unfinished work to continue, as a wallclock exhaustion's is.
+STOPPED = (str(EscalationReason.KILLED), str(EscalationReason.LEASE_EXPIRED))
+
+
 def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task_id: str) -> bool:
     """One escalated task's host footprint — its run-state file, worktree
     and sandbox — cleared ahead of a requeue (S-0094/D-3), so dispatch
@@ -408,7 +417,11 @@ def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task
     it (S-0026/D-9) are never touched here — `remove` takes only the
     worktree, not the branch it was cut from. A task with no escalated
     state file is left exactly as it is: this is not a general-purpose
-    reap, only the one task a resolution names."""
+    reap, only the one task a resolution names.
+
+    A run that stopped mid-attempt (KILLED, LEASE_EXPIRED) never reached the
+    checkpoint a blocker or a clock commits, so its work is committed on the
+    branch first, under STOPPED_MARKER, and the next dispatch resumes it."""
 
     from contextlib import suppress
 
@@ -425,6 +438,13 @@ def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task
     if state.sandbox_id:
         with suppress(Exception):  # best-effort, as the operator kill is (cli/run.py)
             runtime.destroy_by_id(state.sandbox_id)
+
+    if state.escalation is not None and state.escalation.reason in STOPPED:
+        workspace.checkpoint(
+            task_id,
+            f"torve({task_id}): attempt {state.attempts} {STOPPED_MARKER}\n\n"
+            f"Torve-Checkpoint: {task_id} attempt {state.attempts}",
+        )
 
     workspace.remove(task_id)
     state.path.unlink(missing_ok=True)
