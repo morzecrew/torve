@@ -24,6 +24,7 @@ phasing:
       - tests/test_runner.py
       - tests/test_review_run.py
       - tests/test_runconfig.py
+      - tests/test_critic.py
     acceptance:
       - >-
         uv run pytest -q tests/test_runner.py tests/test_review_run.py tests/test_runconfig.py

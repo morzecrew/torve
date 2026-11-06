@@ -9,3 +9,14 @@ amendments:
       first attempt (T-0808) was blocked for not delivering D-5, D-8 and D-11, which belong to
       phases 2, 3 and 5. Each phase now lists the rows it settles in `delivers`, and the critic
       holds its tasks to those alone. No row's text, grade or paths changes.
+  - id: A-2
+    at: '2026-11-06T14:20:14Z'
+    title: >-
+      Phase 1 owns the critic test that pins the old revision count
+    md: |
+      `tests/test_critic.py` runs `critic_config()`, a critic-mode review that names no
+      revision budget, and asserts its first round reads `revision 1 of 1`. D-2 makes that
+      budget 2, so the line reads `revision 1 of 2`. Phase 1's acceptance already runs the
+      file, but its scope did not own it, so the only edit that passes was an edit the
+      `no-test-tampering` gate convicts. T-0808's seventh attempt stopped on it. Phase 1's
+      scope now includes `tests/test_critic.py`. No row's text, grade or paths changes.
