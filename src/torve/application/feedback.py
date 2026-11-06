@@ -11,7 +11,9 @@ review data under a contract that still governs (S-0005/D-13).
 
 from __future__ import annotations
 
+import fcntl
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -65,8 +67,37 @@ def _notes(root: Path, task_id: str) -> list[str]:
     return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else []
 
 
-def _note_thread(note: str) -> dict[str, Any]:
-    return {"comments": [{"author": OPERATOR, "body": note}]}
+def _with_note(text: str, note: str) -> str:
+    """The record with the note as an operator thread before the superseded
+    diff, or at its end when the cap cut the diff off. Added after the cap, so
+    a long review never truncates a person's brief."""
+
+    head, found, tail = text.partition(DIFF_HEADING)
+    thread = {"comments": [{"author": OPERATOR, "body": note}]}
+    block = "\n".join(_thread_block(thread)) + "\n"
+
+    return f"{head}{block}\n{DIFF_HEADING}{tail}" if found else f"{text.rstrip()}\n\n{block}"
+
+
+def keep_note(root: Path, task_id: str, note: str) -> None:
+    """Add the note to the ones every capture carries. Under a per-task lock, so
+    two notes written at once both stay; once, so a retried command does not
+    brief the attempt twice; replaced whole, so a write cut short leaves the
+    notes as they were."""
+
+    path = notes_file(root, task_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with path.with_suffix(".lock").open("a") as handle:
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        notes = _notes(root, task_id)
+
+        if note in notes:
+            return
+
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps([*notes, note], ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, path)
 
 
 # ....................... #
@@ -164,20 +195,26 @@ def capture_feedback(
     must not have the next landing answer threads it never addressed.
     Captured threads also leave their reply addresses (S-0005/D-14, S-0005/A-3) so
     the landing that consumes this record can answer them. The operator notes
-    are not stale with the round: every capture carries them after the threads,
-    so a revision round cannot drop the person's brief (T-0808)."""
+    are not stale with the round: every capture carries them before the diff,
+    so a revision round cannot drop the person's brief (T-0808). They are read
+    before the record goes, so notes that cannot be read leave it in place."""
 
+    notes = _notes(root, task_id)
     path = feedback_file(root, task_id)
     addresses_path = threads_file(root, task_id)
     path.unlink(missing_ok=True)
     addresses_path.unlink(missing_ok=True)
-    notes = [_note_thread(note) for note in _notes(root, task_id)]
 
     if not threads and not notes and not diff.strip():
         return False
 
+    text = render_feedback(task_id, diff, threads, measured)
+
+    for note in notes:
+        text = _with_note(text, note)
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_feedback(task_id, diff, [*threads, *notes], measured), encoding="utf-8")
+    path.write_text(text, encoding="utf-8")
 
     addresses = [
         {"pr": t["pr"], "id": t["id"], "path": t.get("path"), "line": t.get("line")}
@@ -206,24 +243,13 @@ def record_operator_note(root: Path, task_id: str, note: str) -> bool:
     if not note.strip():
         return False
 
-    notes_path = notes_file(root, task_id)
-    notes_path.parent.mkdir(parents=True, exist_ok=True)
-    notes_path.write_text(
-        json.dumps([*_notes(root, task_id), note], ensure_ascii=False), encoding="utf-8"
-    )
-    thread = _note_thread(note)
+    keep_note(root, task_id, note)
     path = feedback_file(root, task_id)
 
     if not path.exists():
         capture_feedback(root, task_id, "", [])
         return True
 
-    text = path.read_text(encoding="utf-8")
-    head, found, tail = text.partition(DIFF_HEADING)
-    block = "\n".join(_thread_block(thread)) + "\n"
-    path.write_text(
-        f"{head}{block}\n{DIFF_HEADING}{tail}" if found else f"{text.rstrip()}\n\n{block}",
-        encoding="utf-8",
-    )
+    path.write_text(_with_note(path.read_text(encoding="utf-8"), note), encoding="utf-8")
 
     return True
