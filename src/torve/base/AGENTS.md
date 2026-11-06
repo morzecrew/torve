@@ -23,7 +23,7 @@ The engine writes one instant format, `YYYY-MM-DDTHH:MM:SSZ`, from `base.clock.s
 - Paths: `src/torve/base/globs.py` `skills/hooks/implement/globs.py`
 - Check: `uv run pytest tests/test_globs.py && uv run pytest tests/test_equipment.py -k reads_its_globs_through_the_engine` (shadow; runs as `decision:S-0121/D-17`)
 
-### S-0123/D-6 — `ASSUMED` (What the first 0.9.0 run left) — implementation: none
+### S-0123/D-6 — `ASSUMED` (What the first 0.9.0 run left)
 
 `host_executor` starts each command in a session of its own and, on a timeout, kills that session's process group before it reports the timeout
 
