@@ -73,6 +73,41 @@ def test_the_width_reads_the_revision_record_at_the_root(tmp_path: Path) -> None
     assert run_module._width(run, state) == (1, "S")
 
 
+def test_the_width_is_capped_by_the_configuration_and_a_round_runs_one(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    from torve.application.runstate import RunState
+
+    files = ["src/a/**", "src/b/**", "src/c/**"]
+    state = RunState(task_id="T-0001", path=tmp_path / ".wt" / "T-0001.state.json")
+
+    def width(max_width: int | None, task: Task) -> tuple[int, str]:
+        review = ReviewConfig(on=["task_gated"], mode="critic", max_width=max_width)
+        run = SimpleNamespace(
+            root=tmp_path,
+            task=task,
+            worktree=tmp_path,
+            config=RunnerConfig(review=review),
+            shadow=False,
+        )
+        return run_module._width(run, state)
+
+    assert width(None, _task(*files)) == (3, "L")
+    assert width(2, _task(*files)) == (2, "L")
+    assert width(1, _task(*files)) == (1, "L")
+
+    round_task = Task.model_validate(
+        {
+            "id": "T-0001",
+            "decisions": [],
+            "scope": {"files": files},
+            "round": {"branch": "torve/S-0001"},
+        }
+    )
+
+    assert width(None, round_task) == (1, "L")
+
+
 def test_a_straggler_gets_half_again_the_first_green_time_capped() -> None:
     assert selection.straggler_clock(100, 1200) == 150
     assert selection.straggler_clock(3000, 5000) == 3000 + selection.STRAGGLER_CAP_S
