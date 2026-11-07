@@ -40,7 +40,7 @@ from forze.application.contracts.durable.function import (
 from forze.application.execution import ExecutionContext
 from forze.base.primitives import JsonDict
 
-from torve.application import decisions, selection
+from torve.application import decisions, feedback, selection
 from torve.application.dispatch import (
     BARE,
     CONFIGURED,
@@ -1685,10 +1685,11 @@ def selects(run: Dispatch) -> bool:
 
 
 def _width(run: Dispatch, state: RunState) -> tuple[int, str]:
-    """The unit's width and class (S-0122/D-7). Several candidates only when a
-    critic chooses between them."""
+    """The unit's width and class (S-0122/D-7, S-0124/D-1). Several candidates
+    only when a critic chooses between them; a revision attempt — one whose
+    task has a feedback record at the root — is class S and runs one."""
 
-    revision = (run.worktree / ".torve" / "feedback.md").is_file()
+    revision = feedback.feedback_file(run.root, run.task.id).is_file()
     escalated = any(entry.get("to") == str(TaskState.ESCALATED) for entry in state.history)
     size = selection.unit_class(run.task, run.worktree, revision=revision, escalated=escalated)
     critic = run.config.review.mode == "critic" and review_gated(run.config, run.task, run.shadow)
@@ -2127,6 +2128,39 @@ def _fork_point(root: Path, document: str, tip: str) -> str | None:
     return None
 
 
+def _merge_tree(root: Path, old: str, base: str, tip: str) -> str:
+    """The tree a three-way merge of *base* and *tip* over *old* writes.
+
+    `merge-tree --merge-base` arrived in git 2.40, and the battery runs on the
+    agent's image, whose git is older (`dsh-sandbox:0.9.0` ships 2.39.5). There
+    *base*'s tree is anchored under *old* so a plain two-commit merge-tree
+    computes *old* as the merge base: the same merge, with one dangling commit
+    left behind. A conflict raises, as it does on the newer form."""
+
+    try:
+        return git(root, "merge-tree", "--write-tree", f"--merge-base={old}", base, tip).strip()
+
+    except GitError as exc:
+        if "unknown option" not in str(exc):
+            raise  # a conflict, not an old git
+
+    anchor = git(
+        root,
+        "-c",
+        "user.name=Torve",
+        "-c",
+        "user.email=torve@local",
+        "commit-tree",
+        f"{base}^{{tree}}",
+        "-p",
+        old,
+        "-m",
+        "torve: checkpoint merge anchor",
+    ).strip()
+
+    return git(root, "merge-tree", "--write-tree", anchor, tip).strip()
+
+
 def _carry_checkpoint(root: Path, task_id: str, base: str, document: str | None = None) -> bool:
     """A stale checkpoint moved onto *base*: the commits only the checkpoint
     carries, merged three-way onto *base* and committed under the tip's
@@ -2161,7 +2195,7 @@ def _carry_checkpoint(root: Path, task_id: str, base: str, document: str | None 
             return False
 
         # Exit 1 on a conflict, which `git` raises as a GitError.
-        tree = git(root, "merge-tree", "--write-tree", f"--merge-base={old}", base, tip).strip()
+        tree = _merge_tree(root, old, base, tip)
         message = git(root, "log", "-1", "--format=%B", tip).strip()
         carried = git(
             root,

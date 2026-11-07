@@ -3198,6 +3198,40 @@ def test_a_stale_checkpoint_that_does_not_merge_is_left_for_the_recut(repo):
     assert git(repo.root, "rev-parse", branch) == before
 
 
+@pytest.mark.parametrize(
+    ("main", "carries"), [(("main.txt", "merged\n"), True), (("wip.txt", "the merge\n"), False)]
+)
+def test_a_checkpoint_carries_on_a_git_without_merge_base(repo, monkeypatch, main, carries):
+    # The battery runs on the agent's image, whose git (2.39.5) has no
+    # `merge-tree --merge-base`: the carry went red there, and T-0809 grew its
+    # own fallback. The older form makes the same merge, and still conflicts.
+    from torve.application.runner import _carry_checkpoint
+    from torve.gates.context import GitError, git
+
+    def old_git(root, *args):
+        if any(arg.startswith("--merge-base=") for arg in args):
+            raise GitError("error: unknown option `merge-base=…'")
+
+        return git(root, *args)
+
+    document = _rebased_document(repo, checkpoint=("wip.txt", "the attempt's tree\n"), main=main)
+    branch = naming.branch("T-0001")
+    before = git(repo.root, "rev-parse", branch)
+    monkeypatch.setattr(run_module, "git", old_git)
+
+    assert _carry_checkpoint(repo.root, "T-0001", document) is carries
+
+    if carries:
+        assert git(repo.root, "rev-parse", f"{branch}^") == git(repo.root, "rev-parse", document)
+        landed = git(repo.root, "ls-tree", "-r", "--name-only", document).split()
+        files = git(repo.root, "ls-tree", "-r", "--name-only", branch).split()
+        assert sorted(files) == sorted([*landed, "agent.txt", "wip.txt"])
+        assert git(repo.root, "show", f"{branch}:wip.txt") == "the attempt's tree\n"
+        assert git(repo.root, "show", f"{branch}:main.txt") == "merged\n"
+    else:
+        assert git(repo.root, "rev-parse", branch) == before
+
+
 def test_a_checkpoint_carries_past_a_landing_the_lane_amended_after_its_rebase(repo):
     # The lane amends the last landing after the rebase, rewriting the sha its
     # record names; `cherry` read that landing as T-0809's own, the merge

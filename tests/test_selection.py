@@ -44,6 +44,35 @@ def test_a_unit_s_class_sets_its_width(tmp_path: Path) -> None:
     assert [selection.WIDTHS[size] for size in "SML"] == [1, 2, 3]
 
 
+def test_the_width_reads_the_revision_record_at_the_root(tmp_path: Path) -> None:
+    # S-0124/D-1: the session plants the record in the worktree only after the
+    # width is read, so every revision of T-0809 and T-0811 ran three.
+    from types import SimpleNamespace
+
+    from torve.application.feedback import feedback_file
+    from torve.application.runstate import RunState
+
+    worktree = tmp_path / ".wt" / "T-0001"
+    (worktree / "src").mkdir(parents=True)
+    (worktree / "src" / "app.py").write_text("x = 1\n", encoding="utf-8")
+    run = SimpleNamespace(
+        root=tmp_path,
+        task=_task("src/app.py"),
+        worktree=worktree,
+        config=RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic")),
+        shadow=False,
+    )
+    state = RunState(task_id="T-0001", path=tmp_path / ".wt" / "T-0001.state.json")
+
+    assert run_module._width(run, state) == (2, "M")
+
+    record = feedback_file(tmp_path, "T-0001")
+    record.parent.mkdir(parents=True)
+    record.write_text("# Revision feedback for T-0001\n", encoding="utf-8")
+
+    assert run_module._width(run, state) == (1, "S")
+
+
 def test_a_straggler_gets_half_again_the_first_green_time_capped() -> None:
     assert selection.straggler_clock(100, 1200) == 150
     assert selection.straggler_clock(3000, 5000) == 3000 + selection.STRAGGLER_CAP_S
