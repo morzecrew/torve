@@ -1,0 +1,223 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0125
+title: A unit that converges
+kind: design
+change:
+  type: fix
+  scope: engine
+status: draft
+implementation: none
+depends_on: [S-0122, S-0124]
+informed_by: [S-0123]
+supersedes: []
+superseded_by: null
+owner: misery7100
+schema_version: 4
+summary: |
+  The repairs that let a unit finish on its own. A revision's critic judges what the revision
+  changed and the blockers it was asked to fix, not the whole diff afresh. A review round
+  carries at most five findings, and says so on its threads as it starts. A seat can state the
+  context window its harness compacts against. Two night failures that each needed a person
+  are fixed.
+motivation: |
+  S-0124 was accepted at 09:28Z on 2026-11-06. Its last phase landed about 31 hours later, and
+  its pull request (#289) is still not mergeable. Almost every phase and round needed a
+  person.
+
+  - **Revisions do not converge.** Attempts per phase, counting candidates: T-0811 28, T-0809
+    19, T-0808 17, T-0810 8. In the seven days to 2026-11-07, 11 of 27 escalations were
+    `blocker_finding` and 4 were `budget_exhausted`. Each revision's critic call named a new
+    blocker. T-0810's three escalations each named a different one (T-0860, T-0865, T-0867),
+    and its critic calls cost $0.7, $1.1 and $2.0 as the diff grew. T-0809 and T-0810 were
+    finished by hand.
+  - **Review rounds are too big.** The bots review only once the PR leaves draft, so all 21
+    threads on #289 arrived at once, 17:06–17:20Z. Triage put 15 of them into one round,
+    T-0880. It touched seven source files, so it was class L and ran three candidates in
+    series: 85 minutes and 88.6M ModelStudio tokens. The critic blocked both green candidates
+    (3 and 4 findings at or above major). The unit's 90-minute clock escalated it at 98.2
+    minutes, and no thread had been answered. The one-finding round T-0877 took 11 minutes.
+  - **Sessions grow without bound.** T-0880's candidates made 543 model calls. The context per
+    call grew linearly to 289k tokens, because every turn resends the session. 70% of
+    candidate 1's tool calls were orientation (152 of 222). That day the night spent 274M
+    tokens over 2,978 calls, and T-0880 and T-0810 were two thirds of it. ModelStudio is a
+    flat quota (S-0123/Q-1), so these tokens are the quota.
+  - **Night failures need a hand.** Six engine fixes merged while S-0124 ran (#290–#292,
+    #294–#296), each a hand repair after the night stopped. Stale state files refused dispatch
+    six times in the week (`gate_infrastructure_failure`). A durable run past
+    `store.max_run_duration` ended the serve process (2026-11-07 02:49Z).
+current_state: |
+  Verified against main at e346f72f and `torve/S-0124` at 053c188b.
+
+  - **Width.** `selection.unit_class` makes a unit with three or more source globs class L,
+    and `_width` gives L three candidates (`runner.py:1687-1697`), run one after another.
+    #297 adds `review.max_width` and runs a review round with one candidate. The night sets the
+    cap to 1.
+  - **A revision's review.** After a block, `review_step` saves the findings with
+    `capture_feedback` and retries in place (`review.py:1598-1638`). Each capture replaces the
+    earlier record (`feedback.py:196-215`), so only the latest round's blockers survive. `judge`
+    hands the critic `run.last_pass.patch` (`critic.py:818-835`). That is the cumulative diff
+    from the unit's merge base (`gates/context.py:276-288`), staged with the whole base tree,
+    `evidence.yaml` and every gate log. `scrub_copy` removes the feedback record on purpose
+    (`critic.py:93-104`), and the frozen prompt `prompts/critic-v1.md` never mentions an
+    earlier review. `decide` blocks on every located finding at or above `blocks_at`
+    (`critic.py:264-327`, S-0122/D-1), and nothing tells a new finding from a carried one.
+    S-0124/D-3, on the document branch, escalates a re-raised anchor within `threads.WINDOW`,
+    but still blocks on every new one.
+  - **Rounds.** `batch_claims` packs whole files into a round up to a cap
+    (`reviewleg.py:660-690`). For a triaged head the cap is every kept claim,
+    `cap = max(len(claims), 1) if triaged` (`reviewleg.py:2281`, S-0122/D-15). Otherwise it is
+    `threads.findings_per_round`, default 15 (S-0097/D-5). Nothing is posted on a thread that
+    goes to a round until `answer_round` runs after the round lands (`reviewleg.py:1653-1757`).
+    A round's intent renders each thread as `path:line` plus the comment bodies, with no code
+    excerpt and without triage's verdict or evidence (`reviewleg.py:243-286, 623`). The leg
+    triages and mints on a draft PR too: `reviewleg.py:1064` only ends the review wait early.
+  - **Session context.** torve passes `TORVE_CONTEXT_WINDOW` from the tier
+    (`harness.py:1718-1728`). The tier's `context_window` is always overwritten by the
+    roster's (`runconfig.py:1580-1588`): 1,000,000 for deepseek-v4.1-flash
+    (`.torve/providers/modelstudio.yaml`). Nothing in `sandboxes/dsh/**` configures dsh's
+    compaction, and no tier field bounds turns or tokens. The only per-attempt bound is
+    `agent_timeout`.
+  - **Requeue.** `manager resolve --resolution requeued` calls `clear_escalated`
+    (`cli/manager.py:2119-2133`). That clears the state file only when it says `escalated`
+    (`reaper.py:435`). A serve that dies mid-run leaves the file `running` or `gated`. The next
+    dispatch refuses (`runner.py:2532-2538`), and the worker turns the refusal into
+    `gate_infrastructure_failure` without touching the file (`worker.py:226-242`). So every
+    requeue is refused again.
+  - **Durable timeout.** A run past `store.max_run_duration` is cancelled, and forze raises a
+    `CoreException` (`durable.run_timed_out`) out of `run_now`. `Worker.once` catches only
+    `BlockedDispatch`, `ValueError` and `RuntimeError` (`worker.py:213-244`), and nothing above
+    it catches more (`residency.py:660, 728-743`; `cli/manager.py:1797-1803`). The serve
+    process ends and the night is never closed.
+goals: |
+  - A revision is blocked only by what it changed or by a blocker it failed to fix. A unit then
+    converges within `review.blocker_revisions` rounds or escalates naming a re-raised finding.
+  - A review round carries at most five findings, says on each thread that it is being fixed,
+    and answers as soon as it lands.
+  - A round's executor reads the code at each finding without first orienting in the tree.
+  - A seat can state the context window its harness compacts against.
+  - A requeue never meets a refusal from the run it replaced, and a durable timeout never ends
+    the serve.
+non_goals: |
+  - Changing the $3 unit cap or the 90-minute clock (S-0123/D-1, D-2). With one candidate and a
+    revision review that reads the revision, the pressure on both drops. They are measured
+    again after this document lands, not guessed at here.
+  - Running candidates side by side. That is S-0124's.
+  - Replacing the critic or its location filter. The filter stays; this document only narrows
+    where a revision's blocking finding must locate.
+  - The board's `queued` for a critic call in its JSON. It is deliberate (S-0049/A-1), and the
+    text board says `consumed`.
+  - Re-mint churn from round contracts. That is S-0124/D-12, which lands with #289.
+design:
+  - key: a-revision-s-review
+    md: |
+      A revision attempt is one whose task has a feedback record at the root (S-0124/D-1). Its
+      critic call gets two inputs beside today's:
+
+      - `revision.diff`: the diff from the selected candidate's head before the revision to the
+        revision's head.
+      - `blockers.yaml`: the anchor and claim of every blocker the unit's earlier rounds raised,
+        read from the run's history, where S-0124/D-3 already writes them.
+
+      The per-call prompt (`build_critic_prompt`) names both. The frozen prompt does not
+      change.
+
+      `decide` then reads each of a revision's kept findings by its anchor:
+
+      | The finding's anchor | Its effect |
+      |---|---|
+      | within `threads.WINDOW` of an earlier blocker's anchor | re-raised: escalates `blocker_finding` (S-0124/D-3) |
+      | within `threads.WINDOW` of a line `revision.diff` changed | blocks, as today |
+      | anywhere else, or no anchor | recorded non-blocking, as `carried` |
+
+      A carried finding stays in the review record. The lane's `record` thread source offers it
+      to the document's PR like any recorded finding, so the next round fixes it. It does not
+      stop the unit that did not cause it. A first attempt is judged exactly as today.
+  - key: small-rounds
+    md: |
+      Every round carries at most `threads.findings_per_round` findings, triaged or not, and
+      the default becomes 5. `batch_claims` still never splits a file across rounds, so a file
+      with more findings than the cap is one round of its own. `rounds_per_pass` still bounds
+      what one pass mints.
+
+      When a round is minted, the leg replies `Fixing in T-NNNN.` on each of its bot threads
+      and leaves the thread unresolved. When the round lands, `answer_round` replies as today.
+      When the round escalates, the leg replies once with the escalation's reason and leaves
+      the thread for a person.
+  - key: a-round-s-brief
+    md: |
+      A round's intent carries, under each finding, the base tree's lines from 10 above to 10
+      below the anchor, numbered. When triage ran, it also carries triage's verdict and
+      evidence for that thread. The fence and its nonce are unchanged, and the excerpt sits
+      inside the fence.
+  - key: a-seat-s-window
+    md: |
+      A tier's `context_window` keeps the value the seat states, and takes the roster's only
+      when the seat states none. The night's dsh seats state 200,000. The phase reads the
+      image's `dsh-compaction-basic` to settle whether dsh compacts against that window and at
+      what fraction (D-9). Its evidence is an attempt whose telemetry carries
+      `compaction_events` above zero.
+  - key: night-failures
+    md: |
+      - `clear_escalated` also clears a state file that says `claimed`, `running`, `gated` or
+        `reviewed` when no live engine run holds it, after #292's commit of the tree. A requeue
+        is then never refused by a run that no longer exists.
+      - `Worker.once` catches the durable `CoreException` whose code is `durable.run_timed_out`.
+        It escalates the task `budget_exhausted` naming the duration, releases the claim, and
+        the serve goes on to its next pass.
+tests: |
+  Each phase writes the tests its rows' checks select, beside the module it changes, and keeps
+  the full suite green. The revision review is tested with a scripted critic over a fixture
+  repository: a first review that blocks, a revision that fixes it, and a second review that
+  raises one finding on an unchanged line and one on a changed line. The round size is tested
+  on `batch_claims` and on a triaged head of 15 threads. The seat window is tested on the
+  merged tier. Whether compaction fires is read from one live attempt after the phase lands,
+  not from the suite.
+docs: |
+  The changelog's Changed and Fixed sections. `skills/torve/references/review.md` says what a
+  carried finding is and where it goes.
+out_of_scope: |
+  - A token or turn budget per attempt. The broker meters tokens but does not stop a session.
+    A window the harness compacts against is the smaller change. A hard budget waits until
+    D-9's measurement shows compaction is not enough.
+  - Code excerpts in an implement phase's context pack. Phases name whole files on purpose;
+    only a round, whose findings are anchored to lines, gets excerpts.
+risks: |
+  - A carried finding can be a real bug, and it now lands before it is fixed, which today's
+    rule does not allow. It is not dropped: it reaches the PR as a recorded thread, and the
+    next round fixes it.
+  - D-1 narrows when S-0122/D-1, a LOCKED row, blocks a candidate. The owner must amend
+    S-0122/D-1 before this document is accepted (Q-1).
+  - Five-finding rounds mean more rounds, each with its own critic call. On #289's 15 findings
+    that is three or four rounds instead of one. Each is cheaper, and a block in one no longer
+    sinks the other findings.
+  - A smaller window makes dsh compact, and a compaction can drop facts the session needed.
+    Nothing measures that yet beyond the attempt's outcome.
+alternatives:
+  - option: >-
+      Raise the $3 cap and the 90-minute clock so a big phase can afford more revisions
+    rejected_because: >-
+      T-0810's critic calls grew with the diff and each named a new blocker. More
+      budget buys more rounds of the same treadmill, not convergence.
+  - option: Keep 15-finding rounds and rely on width 1 alone
+    rejected_because: >-
+      Width 1 removes the three-candidate cost, but one long session still carries
+      15 findings' context, and one critic block still escalates all 15.
+  - option: >-
+      Give the critic the previous review and let the model decide what is new
+    rejected_because: >-
+      S-0122/D-1 keeps the block decision with the engine. Anchors and changed lines
+      are facts the engine can compute; a model's sense of novelty is not.
+questions:
+  - id: Q-1
+    text: >-
+      D-1 makes a revision's finding on a line the revision did not change non-blocking.
+      S-0122/D-1 (LOCKED) says any located finding at or above `blocks_at` blocks.
+      Does the owner amend S-0122/D-1 to say that a revision's blocking finding must
+      also locate to the revision's changed lines or to an earlier blocker?
+  - id: Q-2
+    text: >-
+      Should CodeRabbit review draft pull requests, so each landing push is reviewed
+      while the night still works the document, instead of 21 threads at once when
+      it leaves draft? It is a CodeRabbit setting (the UI's draft review, or `reviews.auto_review.drafts`
+      in `.coderabbit.yaml`) and the owner's to set. The thread leg already triages
+      on a draft.

@@ -1,0 +1,108 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+after: [S-0124]
+unit: phase
+phasing:
+  - phase: 1
+    title: A revision's review reads the revision
+    intent: >-
+      `review_step` writes the head the critic judged into the `review blocker (revision
+      k of n)` history fact beside its anchors. On a revision attempt, `run_critic`
+      stages `revision.diff` (that head to the current head) and `blockers.yaml` (every
+      earlier round's blocker anchors and claims, read from the history), and `build_critic_prompt`
+      names both. `decide` takes the revision's changed lines and the earlier anchors:
+      a kept finding within `threads.WINDOW` lines of a changed line blocks as today,
+      one near an earlier anchor is re-raised (S-0124/D-3), and every other kept finding,
+      anchorless ones included, is recorded non-blocking with `carried: true` in the
+      review record. A first attempt is decided exactly as today. Tests named `carried_finding`
+      in `tests/test_critic.py` drive `decide` with a revision context; tests named
+      `revision_inputs` in `tests/test_critic.py` and `tests/test_review_run.py` show
+      the staged files and the history fact.
+    scope:
+      - src/torve/application/critic.py
+      - src/torve/application/review.py
+      - tests/test_critic.py
+      - tests/test_review_run.py
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_critic.py tests/test_review_run.py tests/test_feedback.py
+      - uv run mypy src
+    delivers: [D-1, D-2]
+  - phase: 2
+    title: Rounds of five that say so
+    intent: >-
+      `ThreadsConfig.findings_per_round` defaults to 5, and the triaged head's cap
+      in the leg's round composition is `config.threads.findings_per_round`, as for
+      an untriaged head. When the leg mints a round it calls `reply_thread` on each
+      of the round's bot threads with `Fixing in T-NNNN.` and does not resolve them.
+      When a round's task escalates, the next pass replies once on each of its bot
+      threads with the escalation's reason. Tests named `findings_per_round` in `tests/test_reviewleg.py`
+      (a triaged head of 15 threads over three files becomes rounds of at most five,
+      no file split) and `tests/test_runconfig.py` (the default), and tests named
+      `fixing_reply` in `tests/test_reviewleg.py`.
+    scope:
+      - src/torve/application/reviewleg.py
+      - src/torve/config/runconfig.py
+      - tests/test_reviewleg.py
+      - tests/test_runconfig.py
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_reviewleg.py tests/test_threads.py tests/test_runconfig.py
+      - uv run mypy src
+    delivers: [D-3, D-4]
+  - phase: 3
+    title: A night that survives its own failures
+    intent: >-
+      `reaper.clear_escalated` also clears a state file that says claimed, running,
+      gated or reviewed when no live engine run holds it, committing the tree as a
+      stopped run's work first as it does for KILLED. `Worker.once` catches the durable
+      run's `CoreException` with code `durable.run_timed_out`, escalates the task's
+      state file `budget_exhausted` naming the duration, releases the claim and returns.
+      Tests named `requeue_clears` in `tests/test_reaper.py` and `durable_timeout`
+      in `tests/test_worker.py`.
+    scope:
+      - src/torve/application/reaper.py
+      - src/torve/application/worker.py
+      - tests/test_reaper.py
+      - tests/test_worker.py
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_reaper.py tests/test_worker.py tests/test_residency.py
+      - uv run mypy src
+    delivers: [D-5, D-6]
+  - phase: 4
+    title: A round starts at the code
+    intent: >-
+      The leg's round intent renders, under each finding, the base tree's lines from
+      10 above to 10 below the anchor, each prefixed with its line number, and, when
+      triage ran for the head, triage's verdict and evidence for that thread. The
+      excerpt sits inside the fence; the nonce and the fence check are unchanged.
+      A finding whose file is absent from the base tree renders no excerpt. Tests
+      named `round_excerpt` in `tests/test_reviewleg.py`.
+    scope: [src/torve/application/reviewleg.py, tests/test_reviewleg.py]
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_reviewleg.py tests/test_threads.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    delivers: [D-7]
+  - phase: 5
+    title: A seat states its window
+    intent: >-
+      The roster merge in `runconfig.py` keeps a tier's stated `context_window` and
+      takes the model's only when the tier states 0, so `TORVE_CONTEXT_WINDOW` carries
+      the seat's window. The phase reads `dsh-compaction-basic` inside the dsh image
+      to settle D-9, whether dsh compacts against that window and at what fraction,
+      and records the answer in its log. Tests named `context_window` in `tests/test_runconfig.py`
+      and `tests/test_providers.py`.
+    scope:
+      - src/torve/config/runconfig.py
+      - tests/test_runconfig.py
+      - tests/test_providers.py
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_runconfig.py tests/test_providers.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    delivers: [D-8, D-9]
