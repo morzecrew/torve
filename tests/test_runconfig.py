@@ -687,6 +687,61 @@ def _paired(tmp_path: Path, seat: str, api: str = "[openai]") -> RunnerConfig:
     )
 
 
+def test_a_seat_states_its_own_context_window(tmp_path: Path):
+    """S-0125/D-8: the roster supplies the window only where the seat states
+    none, so a seat can hand its harness a smaller window than the model's."""
+
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(
+        root,
+        "acme",
+        "key_env: ACME_KEY\n"
+        "routes: {openai: {base_url: https://acme.test/v1}}\n"
+        "models: {fast: {context_window: 1000000}}\n",
+    )
+    harness(root, "dialled", "adapter: api\nimage: probe-sandbox\napi: [openai]\n")
+
+    config = load(
+        tmp_path,
+        "schema_version: 1\ntiers:\n"
+        "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+        "  executor: {harness: dialled, provider: acme, model: fast, context_window: 200000}\n",
+    )
+
+    assert config.tiers["executor"].context_window == 200_000
+
+
+def test_an_absent_or_zero_context_window_takes_the_rosters(tmp_path: Path):
+    """S-0125/D-8: 0 and absence both mean the seat states none, so the model's
+    window still reaches a seat that names no window of its own."""
+
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(
+        root,
+        "acme",
+        "key_env: ACME_KEY\n"
+        "routes: {openai: {base_url: https://acme.test/v1}}\n"
+        "models: {fast: {context_window: 1000000}}\n",
+    )
+    harness(root, "dialled", "adapter: api\nimage: probe-sandbox\napi: [openai]\n")
+
+    def loaded(seat: str) -> int:
+        extra = f", {seat}" if seat else ""
+        config = load(
+            tmp_path,
+            "schema_version: 1\ntiers:\n"
+            "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+            f"  executor: {{harness: dialled, provider: acme, model: fast{extra}}}\n",
+        )
+
+        return config.tiers["executor"].context_window
+
+    assert loaded("context_window: 0") == 1_000_000
+    assert loaded("") == 1_000_000
+
+
 def test_a_seat_reaches_only_a_model_its_provider_declares(tmp_path: Path):
     """The roster is what a seat may reach. An undeclared model would reach the
     provider under whatever name was typed, and the regime hash would record a

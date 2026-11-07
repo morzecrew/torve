@@ -100,7 +100,9 @@ class TierConfig(BaseModel):
     """S-0064/D-3: what actually reaches the provider. The seat writes a roster key, which
     may be a local shorthand for a slug that is awkward to type; this is what travels."""
     context_window: int = 0
-    """S-0064/D-1: the model's window, merged off the roster; 0 is unstated."""
+    """S-0064/D-1, S-0125/D-8: the window this seat's harness compacts against, kept when
+    the seat states one and merged off the roster only when the seat states none; 0 is
+    unstated."""
     max_tokens: int = 0
     """S-0064/D-1: the cap on one response, merged off the roster; 0 is unstated."""
     request_timeout_s: float | None = None
@@ -1576,6 +1578,9 @@ def merge_records(tiers: dict[str, Any], records: dict[str, Provider]) -> None:
     every call site would be the split leaking out of the files it belongs in.
     Run after `resolve_seats` so a seat cannot write any of these itself — they
     are the record's, and a seat that could restate one could disagree with it.
+    `context_window` is the exception (S-0125/D-8): the window a harness
+    compacts against is the seat's to state, so the roster fills it only where
+    the seat states none.
     """
 
     for entry in tiers.values():
@@ -1607,13 +1612,14 @@ def merge_records(tiers: dict[str, Any], records: dict[str, Provider]) -> None:
             entry["base_url"] = route.base_url
 
         if model is not None:
-            entry.update(
-                {
-                    "model_id": model.id or str(entry.get("model") or ""),
-                    "context_window": model.context_window,
-                    "max_tokens": model.max_tokens,
-                }
-            )
+            entry["model_id"] = model.id or str(entry.get("model") or "")
+
+            # S-0125/D-8: a seat may hand its harness a smaller window than the
+            # model's, so the roster supplies one only where the seat states none.
+            if not entry.get("context_window"):
+                entry["context_window"] = model.context_window
+
+            entry["max_tokens"] = model.max_tokens
 
 
 # ....................... #
