@@ -1275,61 +1275,9 @@ def test_a_base_that_moved_since_the_cut_is_named_by_its_merge_base(repo):
     assert commands == [f"echo {cut}"]
 
 
-def test_ignored_writes_names_a_written_file_and_a_rewritten_tracked_list(repo):
-    """S-0114/D-4: an ignored file the attempt wrote is a divergence from the
-    commit, and the engine's own tracked-file list is one too once its content
-    is no longer what the engine wrote."""
-
-    from torve.application.runner import _ignored_writes
-
-    worktree = _ignored_repo(repo)
-    (worktree / "agent.log").write_text("steering the verdict\n", encoding="utf-8")
-    (worktree / ".torve" / "tmp").mkdir(parents=True, exist_ok=True)
-    (worktree / ".torve" / "tmp" / "tracked-files").write_text("a lie\n", encoding="utf-8")
-
-    run = _gate_dispatch(root=repo.root, worktree=worktree, base="main")
-
-    assert _ignored_writes(run) == [".torve/tmp/tracked-files", "agent.log"]
-
-
-def test_ignored_writes_stays_silent_for_caches_and_the_engines_own_files(repo):
-    """S-0114/D-4: the toolchain caches an attempt's own run leaves are not
-    writes, and the engine's files count only once their content changed — an
-    untouched tracked-file list reads as the engine left it."""
-
-    from torve.application.runner import _ignored_writes
-
-    worktree = _ignored_repo(repo)
-    (worktree / ".venv" / "lib").mkdir(parents=True, exist_ok=True)
-    (worktree / ".venv" / "lib" / "site.py").write_text("cache\n", encoding="utf-8")
-    (worktree / "__pycache__").mkdir(parents=True, exist_ok=True)
-    (worktree / "__pycache__" / "app.cpython-312.pyc").write_bytes(b"\x00")
-    # The engine's own list, at the content `git ls-files -z` answers.
-    (worktree / ".torve" / "tmp").mkdir(parents=True, exist_ok=True)
-    (worktree / ".torve" / "tmp" / "tracked-files").write_text(
-        _canonical(worktree), encoding="utf-8"
-    )
-
-    run = _gate_dispatch(root=repo.root, worktree=worktree, base="main")
-
-    assert _ignored_writes(run) == []
-
-
-def _canonical(worktree) -> str:
-    import subprocess
-
-    return subprocess.run(
-        ["git", "-C", str(worktree), "ls-files", "-z"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-
-
-def test_the_ignored_writes_fact_is_a_shadow_result_the_reviewer_never_reads(repo):
-    """S-0114/D-4, S-0054/D-13: the write shows in the attempt's record as a
-    `shadow` result, and the results the review reads carry it not — a fact
-    beside the verdict, never a change to it."""
+def test_ignored_writes(repo):
+    """S-0124/D-11: an attempt leaving an ignored file records no ignored-writes
+    result — the record is the battery's own report, with nothing beside it."""
 
     worktree = _ignored_repo(repo)
     (worktree / "src" / "feature.py").write_text("FEATURE = True\n", encoding="utf-8")
@@ -1337,16 +1285,14 @@ def test_the_ignored_writes_fact_is_a_shadow_result_the_reviewer_never_reads(rep
 
     exit_code, _summary, _digest, results, _patch = _gate_pass(repo, worktree)
 
-    assert exit_code == 0  # a shadow result convicts nothing
-    assert [r.name for r in results] == []  # the reviewer reads no ignored-writes
+    assert exit_code == 0
+    assert [r.name for r in results] == []
 
     records = [
         json.loads(line)
         for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
     ]
-    written = [r for r in records[0]["results"] if r["name"] == "ignored-writes"]
-    assert written[0]["state"] == "shadow"
-    assert "agent.log" in written[0]["output"]
+    assert [r["name"] for r in records[0]["results"]] == []
 
 
 # ....................... #

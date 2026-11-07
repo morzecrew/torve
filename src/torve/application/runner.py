@@ -29,7 +29,7 @@ from collections.abc import Awaitable, Callable, Iterator, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import partial
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -97,7 +97,7 @@ from torve.config import layout
 from torve.config.manifest import UNLABELED_AXIS, Gate, Manifest, load_manifest
 from torve.config.providers import Price
 from torve.config.runconfig import RunnerConfig, agent_timeout_for
-from torve.config.spec import TRACKED_LIST, write_tracked_files
+from torve.config.spec import write_tracked_files
 from torve.domain.attempt import GateResult
 from torve.domain.states import BlockedDispatch, EscalationReason, TaskState
 from torve.domain.task import Task
@@ -698,127 +698,6 @@ def _gates_spec(run: Dispatch, state: RunState) -> SandboxSpec:
 
 # ....................... #
 
-# The toolchain caches an attempt's own run leaves behind (S-0114/D-4): never
-# an ignored write, whichever path they sit under.
-_IGNORED_CACHES = frozenset(
-    {".venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "node_modules"}
-)
-
-
-def _attempt_started(run: Dispatch) -> float | None:
-    """When the attempt's sandbox started, as a POSIX timestamp — the line
-    between an ignored file the attempt left and one already there. None
-    when the run stamped nothing (a test pass, a replay)."""
-
-    raw = run.meta.get("started_at")
-
-    if not raw:
-        return None
-
-    try:
-        return parse(str(raw)).timestamp()
-
-    except ValueError:
-        return None
-
-
-def _canonical_tracked(worktree: Path) -> str:
-    """What the engine's own `write_tracked_files` would leave in the
-    worktree's list right now — the content an engine-written file is
-    compared against (S-0114/D-4)."""
-
-    try:
-        return git(worktree, "ls-files", "-z")
-
-    except GitError:
-        return ""
-
-
-def _ignored_writes(run: Dispatch) -> list[str]:
-    """The ignored files the attempt left in the worktree, by path
-    (S-0114/D-4): the toolchain caches its own run wrote are not writes, and
-    a file the engine wrote there counts only once its content differs from
-    what the engine wrote. An empty list is an attempt that wrote nothing
-    outside its commit.
-
-    A file the host cannot stat — a broken symlink, a path that vanished
-    between the listing and the read — is left out rather than reported."""
-
-    worktree = run.worktree
-
-    try:
-        listed = git(worktree, "ls-files", "--others", "--ignored", "--exclude-standard")
-
-    except GitError:
-        return []
-
-    started = _attempt_started(run)
-    engine = _task_bookkeeping(run.task.id)
-    canonical: str | None = None
-    found: list[str] = []
-
-    for name in listed.splitlines():
-        name = name.strip()
-
-        if not name or name in engine:
-            continue
-
-        if any(part in _IGNORED_CACHES for part in PurePosixPath(name).parts):
-            continue
-
-        path = worktree / name
-
-        try:
-            if not path.is_file():
-                continue
-
-            if name == TRACKED_LIST:
-                if canonical is None:
-                    canonical = _canonical_tracked(worktree)
-
-                if path.read_text(encoding="utf-8", errors="replace") == canonical:
-                    continue
-
-            # The instant's resolution is the second (S-0058/D-7), so a file
-            # the engine wrote in the attempt's starting second reads as
-            # before it: the engine writes the pack and the tracked list in
-            # that window, and an attempt's own run outlives it.
-            if started is not None and int(path.stat().st_mtime) <= int(started):
-                continue
-
-        except OSError:
-            continue
-
-        found.append(name)
-
-    return sorted(found)
-
-
-def _ignored_write_result(names: list[str]) -> GateResult:
-    """The attempt's ignored writes as a shadow result (S-0114/D-4): it
-    changes no verdict and the reviewer never reads it (S-0054/D-13) — the
-    record, `torve why` and the next attempt's feedback carry it."""
-
-    return GateResult(
-        name="ignored-writes",
-        outcome="fail",
-        state="shadow",
-        sha="",
-        output="the attempt wrote ignored files outside its commit:\n" + "\n".join(names),
-    )
-
-
-def _with_ignored_writes(report: RunReport, names: list[str]) -> RunReport:
-    """The battery as the record carries it: the same results, with the
-    ignored-writes fact beside them when there is one to record."""
-
-    if not names:
-        return report
-
-    return RunReport(
-        results=[*report.results, _ignored_write_result(names)], exit_code=report.exit_code
-    )
-
 
 def _deepen_judge(judge: Path, root: Path, task_id: str) -> None:
     """Hand the checkout its ancestry, the attempt's base among it
@@ -873,11 +752,6 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
     if not task_file.is_file() and source.is_file():
         task_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(source, task_file)
-
-    # S-0114/D-4: the attempt is over and the gate pass has not written into
-    # the worktree again — the ignored files it left there are listed once,
-    # here, and recorded as a shadow fact beside the battery.
-    ignored = _ignored_writes(run)
 
     opener = run.judge or run.deps.workspace
     judge = opener.judge_checkout(run.workspace_key)
@@ -965,7 +839,7 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
                 )
                 record = build_record(
                     ctx,
-                    _with_ignored_writes(RunReport(results=[refusal], exit_code=1), ignored),
+                    RunReport(results=[refusal], exit_code=1),
                     digest,
                     agent=run.meta,
                 )
@@ -1013,7 +887,7 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
         opener.remove_judge(run.workspace_key)
 
     digest = config_hash(manifest_path, run.worktree, run.config, image_digest=run.image_digest)
-    record = build_record(ctx, _with_ignored_writes(report, ignored), digest, agent=run.meta)
+    record = build_record(ctx, report, digest, agent=run.meta)
     _write_attempt_record(run, record, state.attempts)
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
 
