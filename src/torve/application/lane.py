@@ -1382,13 +1382,20 @@ def _phases_at(root: Path, ref: str, name: str) -> list[int] | None:
     from torve.domain.spec import PHASING_FILE
 
     spec = f"{ref}:{layout.SPECS_DIR}/{name}/{PHASING_FILE}"
-    shown = subprocess.run(
-        ["git", *NO_HOOKS, "-C", str(root), "show", spec],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+
+    try:
+        shown = subprocess.run(
+            ["git", *NO_HOOKS, "-C", str(root), "show", spec],
+            capture_output=True,
+            encoding="utf-8",
+            check=False,
+        )
+
+    except UnicodeDecodeError as exc:
+        # Strict, as `forge.root_phases` reads the root's copy (S-0124/D-10):
+        # a file whose bytes are not UTF-8 cannot be read, so the ref must not
+        # read it through replacement characters and call the document done.
+        raise PhasingUnreadable(f"{spec}: not UTF-8 — {exc}") from exc
 
     if shown.returncode != 0:
         # The same failing `git show` covers a file that is not there and a

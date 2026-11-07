@@ -3606,6 +3606,37 @@ def test_phasing_union_a_phasing_the_loader_would_refuse_is_unreadable(lane_repo
     assert not lane._completes(lane_repo, "T-7412", document)
 
 
+def test_phasing_union_a_phasing_that_is_not_utf8_is_unreadable_at_the_ref(lane_repo):
+    """S-0124/D-10: the ref reader decodes strictly, as `forge.root_phases`
+    reads the root's copy — a phasing carrying a byte that is not UTF-8 cannot
+    be read, so it is unreadable at the ref rather than read through
+    replacement characters and counted as complete."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    path = lane_repo / ".torve" / "specs" / "S-0930" / "phasing.yaml"
+    path.write_bytes(
+        b"phasing:\n"
+        b"  - phase: 1\n"
+        b"    title: one\n"
+        b"    intent: One.\n"
+        b"    scope: [one.py]\n"
+        b"  - phase: 2\n"
+        b"    title: caf\xe9\n"
+        b"    intent: Two.\n"
+        b"    scope: [two.py]\n"
+    )
+    git(lane_repo, "commit", "-qam", "a phasing that is not UTF-8", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+
+    with pytest.raises(lane.PhasingUnreadable):
+        lane.document_phases(lane_repo, document, "S-0930")
+
+    assert not lane._completes(lane_repo, "T-7412", document)
+
+
 @pytest.mark.parametrize("contract", [True, False])
 def test_a_phase_landed_without_a_lane_record_still_completes_the_document(
     lane_repo, tmp_path, monkeypatch, contract
