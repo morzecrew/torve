@@ -84,7 +84,7 @@ The divergence log keeps `halted`, written by `torve abort`, and `departed` with
 - Consequence: a lane or planner that reads an archived document's landings still finds them
 - Check: `uv run pytest -q tests/test_rfc_archive.py -k execution` (shadow; runs as `decision:S-0123/D-7`)
 
-### S-0124/D-10 — `ASSUMED` (Candidates side by side, and S-0122's revision) — implementation: none
+### S-0124/D-10 — `ASSUMED` (Candidates side by side, and S-0122's revision)
 
 A document is complete when its landings cover every phase the root's phasing or the phasing at the ref being landed names; an absent phasing names none, a phasing that is present but cannot be read or validated leaves the document incomplete, and the pull request lane, the local lane and the publisher's draft flag read the same union
 

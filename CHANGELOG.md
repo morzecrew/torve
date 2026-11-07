@@ -15,10 +15,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that names no row of the document.
 
 - `review.max_width` caps how many candidates the critic chooses between, and unset keeps
-  today's widths. Candidates run one after another, so each extra one adds a full session's
-  time and tokens. A review round now always runs one candidate.
+  today's widths. Each extra candidate costs a full session's tokens. A review round now
+  always runs one candidate.
+
+- `review.revision: session` makes a critic revision round continue the selected candidate
+  in its own open session, on that candidate's tier, with the blocking findings. `fresh`,
+  the default, keeps a new attempt, and a seat whose harness keeps no session falls back to it.
 
 ### Changed
+
+- Under `review.mode: critic` a unit's candidates now run side by side, so a unit takes
+  about its slowest candidate's time rather than the sum. From the first green candidate's
+  finish, a candidate whose turn runs past `straggler_clock` of that time is cancelled and
+  recorded red.
+
+- A revision after a critic block now runs one candidate, on the `revision_variant` tier. A
+  surviving blocker gets `review.blocker_revisions` rounds, 2 by default, and classic mode
+  keeps 1. A revision whose blocker lies near the one it was asked to fix escalates
+  `blocker_finding` at once.
+
+- Every candidate of an attempt now runs on the tier the attempt resolved before they
+  started. The unit's $3 bound is checked before candidates launch, before each critic call
+  and before a revision turn, so work already launched may finish above it.
+
+- `unit.closed` is now written for every critic-mode attempt, with each candidate's tier,
+  model and notional spend, and a `revision` block on a revision round.
 
 - A run stopped mid-attempt, by killing the night or by a lapsed lease, now keeps its work.
   `torve manager resolve --resolution requeued` commits what the run left in its worktree on
@@ -40,6 +61,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A requeued task now keeps its last attempt's work when its document branch has moved, as it
   does after every engine merge. The attempt's commits move onto the branch's new tip. The
   task starts over only when they conflict with what landed since.
+
+- A document's pull request now stays a draft until its landings cover every phase of the
+  root's phasing or of the branch's, so a phase added on the branch counts. A phasing that
+  cannot be read leaves the document incomplete.
+
+- An unchanged review round contract now mints once. The manager used to record it again on
+  every pass.
+
+- A landing nobody approved now records an empty `approver`, not the operator. The attempt
+  record no longer lists toolchain caches and engine files as ignored writes.
 
 ## [0.9.1] - 2026-11-06
 
