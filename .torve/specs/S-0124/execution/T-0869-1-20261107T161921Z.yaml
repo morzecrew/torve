@@ -1,0 +1,250 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0869
+base: ce729d47be75a22f33a00afd6347397d054d7c66
+commit: 782fa091ef20ca3291b97b21c51d369a159e8d3b
+at: '2026-11-07T16:19:21Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: S-0121/D-1
+    grade: LOCKED
+  - id: S-0121/D-2
+    grade: LOCKED
+  - id: S-0121/D-3
+    grade: LOCKED
+  - id: S-0121/D-7
+    grade: LOCKED
+  - id: S-0121/D-11
+    grade: LOCKED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-13
+    grade: ASSUMED
+  - id: S-0121/D-14
+    grade: LOCKED
+  - id: S-0121/D-15
+    grade: LOCKED
+  - id: S-0121/D-18
+    grade: ASSUMED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-28
+    grade: LOCKED
+  - id: S-0121/D-30
+    grade: LOCKED
+  - id: S-0121/D-31
+    grade: LOCKED
+  - id: S-0121/D-32
+    grade: ASSUMED
+  - id: S-0121/D-33
+    grade: ASSUMED
+  - id: S-0121/D-34
+    grade: LOCKED
+  - id: S-0121/D-36
+    grade: LOCKED
+  - id: S-0121/D-38
+    grade: LOCKED
+  - id: S-0121/D-39
+    grade: ASSUMED
+  - id: S-0122/D-1
+    grade: LOCKED
+  - id: S-0122/D-2
+    grade: LOCKED
+  - id: S-0122/D-3
+    grade: LOCKED
+  - id: S-0122/D-4
+    grade: ASSUMED
+  - id: S-0122/D-6
+    grade: ASSUMED
+  - id: S-0122/D-7
+    grade: ASSUMED
+  - id: S-0122/D-8
+    grade: ASSUMED
+  - id: S-0122/D-9
+    grade: OPEN
+  - id: S-0122/D-20
+    grade: ASSUMED
+  - id: S-0122/D-21
+    grade: OPEN
+  - id: S-0123/D-1
+    grade: ASSUMED
+  - id: S-0123/D-2
+    grade: ASSUMED
+  - id: S-0123/D-4
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-07T15:10:27Z'
+    claim: >-
+      The session loop never checks whether the turn itself timed out or exited non-zero
+      before judging gates and calling the critic, so a timed-out turn gets a paid
+      critic call and records rereview 'clean'.
+    evidence: >-
+      src/torve/application/runner.py:2064-2080 — the turn's ending is read before
+      any gate pass or critic call: continued.timed_out, continued.exit_code != 0,
+      a refusal, an escalation and a halt all close the session and record rereview
+      failed; tests/test_runner.py:4802 pins the timed-out turn as unjudged.
+    action: departed
+    proposal: >-
+      No amendment: the tree already reads the turn's ending before judging it; the
+      claim describes code this branch no longer has.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-07T15:10:27Z'
+    claim: >-
+      After a session turn the gate verdict from judge() is thrown away: crun.preselected
+      is set to None and never restamped, so the attempt loop's gates step runs the
+      whole battery again on the same tree.
+    evidence: >-
+      src/torve/application/runner.py:2085-2090 — gate_verdict = await judge(crun,
+      state) is stored in crun.preselected, so the loop's gates step reads it; tests/test_runner.py:4738
+      (test_session_revision_judges_the_turn_once) asserts one pass per judged tree.
+    action: departed
+    proposal: >-
+      No amendment: the verdict is kept and the tree is judged once, as S-0124/D-8
+      already says.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-07T15:10:27Z'
+    claim: >-
+      The diff adds _merged_tree, a fallback for checkpoint carrying on git older
+      than 2.40, which the intent does not cover and no test drives on purpose; it
+      is an environment fix the suite needed.
+    evidence: >-
+      tests/test_runner.py:3152 — test_a_checkpoint_carries_on_a_git_without_merge_base
+      drives the fallback on purpose by making --merge-base an unknown option; src/torve/application/runner.py:2396-2427
+      is the fallback, and the battery's git 2.39.5 image needs it for the carry tests
+      to run at all.
+    action: departed
+    proposal: >-
+      No amendment: the fallback is tested, predates this unit's diff, and is required
+      by the agent image's git.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-07T15:30:24Z'
+    claim: >-
+      The session loop never checks whether the turn itself timed out or exited non-zero
+      before judging gates and calling the critic: a timed-out turn gets a paid critic
+      call and unit.closed records rereview clean.
+    evidence: >-
+      src/torve/application/runner.py:2064-2078 — the loop rejects a turn whose state
+      escalated, was refused, halted, timed out or exited non-zero before judge()
+      and review(), records rereview "failed" and breaks; tests/test_runner.py:4798
+      drives that path.
+    action: departed
+    proposal: >-
+      Keep the code as it stands: the session loop already refuses to judge a turn
+      that timed out or exited non-zero, so rereview is recorded as failed, never
+      clean.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-07T15:30:24Z'
+    claim: >-
+      After a session turn the gate verdict from judge() is thrown away: crun.preselected
+      is set to None and never restamped, so the attempt loop runs the whole gate
+      battery again on the same tree.
+    evidence: >-
+      src/torve/application/runner.py:2086-2090 — judge() returns the verdict and
+      the code assigns it to crun.preselected, so the loop gates step reads that pass
+      instead of running another; tests/test_runner.py:4781 asserts one pass per candidate
+      and one for the turn.
+    action: departed
+    proposal: >-
+      Keep the code as it stands: the session turn judges its tree once and restamps
+      crun.preselected, so the loop reuses the verdict the critic was asked after.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-07T15:30:24Z'
+    claim: >-
+      The diff adds a fallback for checkpoint carrying on git older than 2.40; the
+      intent does not cover this, and no test drives the fallback branch on purpose.
+    evidence: >-
+      tests/test_runner.py:3152-3185 — test_a_checkpoint_carries_on_a_git_without_merge_base
+      drives the fallback on purpose, parametrized over carry and conflict, by wrapping
+      git to raise the pre-2.40 unknown-option error; the fallback itself is src/torve/application/runner.py:2396.
+    action: departed
+    proposal: >-
+      Keep the fallback: it is the checkpoint carry the agent image needs on git 2.39,
+      and a test drives both its carrying and its conflicting branch.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-07T15:37:31Z'
+    claim: >-
+      The session loop never checks whether the turn itself timed out or exited non-zero
+      before judging gates and calling the critic: a timed-out turn gets a paid critic
+      call and unit.closed records rereview clean.
+    evidence: >-
+      src/torve/application/runner.py:2064-2078 — the loop rejects a turn whose state
+      escalated, was refused, halted, timed out or exited non-zero before judge()
+      and review(), records rereview "failed" and breaks; tests/test_runner.py:4798
+      drives that path.
+    action: departed
+    proposal: >-
+      Keep the code as it stands: the session loop already refuses to judge a turn
+      that timed out or exited non-zero, so rereview is recorded as failed, never
+      clean.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-07T15:37:31Z'
+    claim: >-
+      After a session turn the gate verdict from judge() is thrown away: crun.preselected
+      is set to None and never restamped, so the attempt loop runs the whole gate
+      battery again on the same tree.
+    evidence: >-
+      src/torve/application/runner.py:2086-2090 — judge() returns the verdict and
+      the code assigns it to crun.preselected, so the loop gates step reads that pass
+      instead of running another; tests/test_runner.py:4781 asserts one pass per candidate
+      and one for the turn.
+    action: departed
+    proposal: >-
+      Keep the code as it stands: the session turn judges its tree once and restamps
+      crun.preselected, so the loop reuses the verdict the critic was asked after.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-07T15:37:31Z'
+    claim: >-
+      The diff adds a fallback for checkpoint carrying on git older than 2.40; the
+      intent does not cover this, and no test drives the fallback branch on purpose.
+    evidence: >-
+      tests/test_runner.py:3152-3185 — test_a_checkpoint_carries_on_a_git_without_merge_base
+      drives the fallback on purpose, parametrized over carry and conflict, by wrapping
+      git to raise the pre-2.40 unknown-option error; the fallback itself is src/torve/application/runner.py:2396.
+    action: departed
+    proposal: >-
+      Keep the fallback: it is the checkpoint carry the agent image needs on git 2.39,
+      and a test drives both its carrying and its conflicting branch.
