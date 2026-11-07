@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Keep every setting made in the CodeRabbit UI; this file changes one key.
+inheritance: true
+reviews:
+  auto_review:
+    # A document's pull request stays a draft until its last phase lands, and
+    # the night's thread leg answers bot threads on a draft (S-0125/Q-2). Reviewing
+    # each landing push spreads the findings over the night instead of 21 at once.
+    drafts: true
