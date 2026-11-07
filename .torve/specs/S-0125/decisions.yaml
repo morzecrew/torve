@@ -142,3 +142,24 @@ decisions:
     rationale: >-
       nothing in the repository configures dsh's compaction, and the package's default
       could not be read outside the image
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      A run that escalates `poison_ceiling` after a revision attempt, one following
+      a `review blocker (revision k of n)` fact in the run's history, commits its
+      last attempt's tree on the task's branch as a checkpoint marked `escalated at
+      the ceiling on a revision`, and the dispatch after a requeue resumes from it
+      as from a review blocker; a run whose attempts saw no critic block still restarts
+      from base
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      a unit whose critic blocks converged but whose last revision went red on a gate
+      is requeued from that revision's tree, not from base
+    rationale: >-
+      T-0883's three attempts went from four blockers to one to none, and its third
+      went red only on one lint finding; `_continuable` excluded `poison_ceiling`,
+      so a requeue would have restarted it from base and lost all three
+    cites: [S-0026/D-9, S-0090/D-2, S-0086/D-2]
+    check: >-
+      uv run pytest -q tests/test_run_loop.py tests/test_runner.py -k ceiling_on_a_revision
+    fingerprint: 4e93a18f98333147/14bd8ed0a79735ba

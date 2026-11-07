@@ -469,4 +469,12 @@ A round's intent carries, under each finding, the base tree's numbered lines fro
 - Consequence: a round's executor starts at the code each finding names
 - Check: `uv run pytest -q tests/test_reviewleg.py -k round_excerpt` (shadow; runs as `decision:S-0125/D-7`)
 
+### S-0125/D-10 — `ASSUMED` (A unit that converges) — implementation: none
+
+A run that escalates `poison_ceiling` after a revision attempt, one following a `review blocker (revision k of n)` fact in the run's history, commits its last attempt's tree on the task's branch as a checkpoint marked `escalated at the ceiling on a revision`, and the dispatch after a requeue resumes from it as from a review blocker; a run whose attempts saw no critic block still restarts from base
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: a unit whose critic blocks converged but whose last revision went red on a gate is requeued from that revision's tree, not from base
+- Check: `uv run pytest -q tests/test_run_loop.py tests/test_runner.py -k ceiling_on_a_revision` (shadow; runs as `decision:S-0125/D-10`)
+
 <!-- /torve:managed -->
