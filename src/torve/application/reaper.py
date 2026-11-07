@@ -435,9 +435,9 @@ def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task
     if state.state is not TaskState.ESCALATED:
         return False
 
-    if state.sandbox_id:
+    for sandbox in state.live_sandboxes():
         with suppress(Exception):  # best-effort, as the operator kill is (cli/run.py)
-            runtime.destroy_by_id(state.sandbox_id)
+            runtime.destroy_by_id(sandbox)
 
     if state.escalation is not None and state.escalation.reason in STOPPED:
         workspace.checkpoint(

@@ -29,6 +29,7 @@ from typing import Any, Generic, TypeVar, cast
 import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from torve.application import threads
 from torve.application.dispatch import Dispatch, emit, run_routing
 from torve.application.ports import (
     Agent,
@@ -1474,6 +1475,102 @@ def _blocker_revisions_spent(state: RunState) -> int:
     return sum(1 for h in state.history if is_blocker_revision_fact(h["fact"]))
 
 
+# The anchors a revision fact carries (S-0124/D-3): `path` and `line` of every
+# blocking finding the round revised, as JSON after the human-readable fact.
+# A critic thread has no reply address and leaves no `threads_file`, so the
+# run's own history is where the next round finds what the last one named.
+BLOCKER_ANCHORS_MARKER = " anchors="
+
+
+def _finding_anchor(finding: Finding) -> dict[str, Any] | None:
+    """The `path`/`line` a finding's evidence cites, or None when it cites no
+    filesystem coordinate (a backticked command with its output)."""
+
+    citation = CITATION.match(finding.evidence.split(" — ")[0].split(" - ")[0].strip())
+
+    if citation is None:
+        return None
+
+    return {"path": citation.group("path"), "line": int(citation.group("start"))}
+
+
+def _blocker_anchors(blockers: list[Finding]) -> list[dict[str, Any]]:
+    """The anchors a revision round records for the findings it revises."""
+
+    return [anchor for finding in blockers if (anchor := _finding_anchor(finding)) is not None]
+
+
+def _anchors_suffix(anchors: list[dict[str, Any]]) -> str:
+    return f"{BLOCKER_ANCHORS_MARKER}{json.dumps(anchors, separators=(',', ':'))}"
+
+
+def _recorded_blocker_anchors(state: RunState) -> list[dict[str, Any]]:
+    """The anchors the previous revision round recorded (S-0124/D-3), from the
+    most recent `review blocker (revision k of n)` fact. A fact written before
+    anchors existed reads as none, so the round is spent exactly as before."""
+
+    for entry in reversed(state.history):
+        fact = str(entry.get("fact", ""))
+
+        if not is_blocker_revision_fact(fact):
+            continue
+
+        _, found, payload = fact.rpartition(BLOCKER_ANCHORS_MARKER)
+
+        if not found:
+            return []
+
+        try:
+            recorded = json.loads(payload)
+
+        except ValueError:
+            return []
+
+        if not isinstance(recorded, list):
+            return []
+
+        return [
+            one for one in recorded if isinstance(one, dict) and isinstance(one.get("path"), str)
+        ]
+
+    return []
+
+
+def _anchor_reraised(
+    blockers: list[Finding], previous: list[dict[str, Any]]
+) -> tuple[str, int | None] | None:
+    """The finding this round re-raises (S-0124/D-3): one anchored in the same
+    file within `threads.WINDOW` lines of an anchor the previous round
+    recorded, or in the same file when either has no line. A re-raise stops
+    the run instead of buying another round."""
+
+    for finding in blockers:
+        anchor = _finding_anchor(finding)
+
+        if anchor is None:
+            continue
+
+        path, line = anchor["path"], anchor["line"]
+
+        for one in previous:
+            if one.get("path") != path:
+                continue
+
+            recorded = one.get("line")
+
+            if recorded is not None:
+                try:
+                    recorded = int(recorded)
+
+                except (TypeError, ValueError):
+                    continue
+
+            if line is None or recorded is None or abs(recorded - line) <= threads.WINDOW:
+                return path, line
+
+    return None
+
+
 # ....................... #
 
 
@@ -1600,9 +1697,21 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
 
         detail = "; ".join(f.claim for f in outcome.blockers)
         spent = _blocker_revisions_spent(state)
-        budget = run.config.review.blocker_revisions
+        budget = run.config.review.resolved_blocker_revisions()
 
         if spent < budget:
+            reraised = _anchor_reraised(outcome.blockers, _recorded_blocker_anchors(state))
+
+            if reraised is not None:
+                path, line = reraised
+                where = path if line is None else f"{path}:{line}"
+                state.escalate(
+                    EscalationReason.BLOCKER_FINDING,
+                    f"{outcome.review_id}: blocker re-raised at {where}: {detail[:300]}",
+                )
+
+                return None
+
             # S-0043 S-0043/D-1/D-43.2: the blockers and the convicted
             # candidate diff ride the S-0005/the-revision-loop-added-by-a-32-2026-08-24 feedback record —
             # the existing S-0005/D-13 plant/frame mechanics carry it into
@@ -1627,6 +1736,7 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
                     "fact": (
                         f"{BLOCKER_REVISION_MARKER}{spent + 1} of {budget}): "
                         f"{outcome.review_id}: {detail[:300]}"
+                        f"{_anchors_suffix(_blocker_anchors(outcome.blockers))}"
                     ),
                 }
             )

@@ -12,11 +12,12 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
+from pydantic import TypeAdapter, ValidationError
 
 from torve.config import layout
 from torve.config.spec import SpecError, document_dir, load_document
 from torve.domain.attempt import GateResult
-from torve.domain.spec import Commit, Corpus
+from torve.domain.spec import FILE_FIELDS, PHASING_FILE, Commit, Corpus, Document, Phase
 from torve.domain.task import InheritedDecision, Task
 
 # ----------------------- #
@@ -326,6 +327,101 @@ class DocumentLanding:
     results: list[GateResult] = field(default_factory=list)
 
 
+class PhasingUnreadable(ValueError):
+    """A phasing that is present but cannot be parsed or validated
+    (S-0124/D-10): the document it belongs to is not complete."""
+
+
+def _boolean_phase(entry: object) -> bool:
+    """Whether *entry* names its phase with a bool, which is no phase number:
+    coerced it would read as phase 1 and clear the draft flag."""
+
+    return isinstance(entry, dict) and isinstance(cast("dict[str, Any]", entry).get("phase"), bool)
+
+
+def phase_numbers(raw: object) -> list[int]:
+    """The phases a parsed `phasing.yaml` names, read the way `load_document`
+    reads the file (S-0124/D-10): no file names no phases, a key outside the
+    fields `phasing.yaml` carries is refused, and every present field is
+    validated against the `Document` model — so `phasing: null`, a bad `unit`
+    or a malformed `after` is unreadable. Each phase entry is validated as the
+    `Phase` model; an entry that fails makes the whole phasing unreadable,
+    since dropping it would let the document read complete.
+
+    A boolean `phase` is dropped before validation, as the intent licenses."""
+
+    # An empty or comment-only file names no phases, as `load_document` reads it.
+    if raw is None:
+        return []
+
+    if not isinstance(raw, dict):
+        raise PhasingUnreadable("phasing: not a mapping")
+
+    data = cast("dict[str, Any]", raw)
+    carried = FILE_FIELDS[PHASING_FILE]
+    # The boolean entry is dropped before the model sees it; everything else
+    # is validated as the loader would validate the joined document.
+    checked = dict(data)
+
+    if isinstance(data.get("phasing"), list):
+        checked["phasing"] = [
+            entry for entry in cast("list[object]", data["phasing"]) if not _boolean_phase(entry)
+        ]
+
+    for key, value in checked.items():
+        if key not in carried:
+            raise PhasingUnreadable(f"phasing: {key} is not carried by {PHASING_FILE}")
+
+        annotation = Document.model_fields[key].annotation
+
+        # Every carried field is typed on the model; an untyped one would be
+        # no field the loader could validate, so refuse it rather than guess.
+        if annotation is None:
+            raise PhasingUnreadable(f"phasing: {key} names no type")
+
+        try:
+            TypeAdapter(annotation).validate_python(value)
+
+        except ValidationError as exc:
+            raise PhasingUnreadable(
+                f"phasing: {key} does not validate — {str(exc).splitlines()[0]}"
+            ) from exc
+
+    entries = checked.get("phasing")
+
+    if entries is None:
+        return []
+
+    # The list validated above, its boolean entry already dropped.
+    return [Phase.model_validate(entry).phase for entry in cast("list[object]", entries)]
+
+
+def root_phases(root: Path, document: str) -> list[int] | None:
+    """The phases the root's copy of *document* names, under the same rule
+    `lane.document_phases` reads a ref by (S-0124/D-10): None when the
+    document or its phasing is absent, and `PhasingUnreadable` when the file
+    is there but cannot be parsed or validated. The caller still counts the
+    phases a branch was cut before."""
+
+    directory = document_dir(root / layout.SPECS_DIR, document)
+
+    if directory is None:
+        return None
+
+    path = directory / PHASING_FILE
+
+    if not path.is_file():
+        return None
+
+    try:
+        raw: object = yaml.safe_load(path.read_text(encoding="utf-8"))
+
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as exc:
+        raise PhasingUnreadable(f"{document}/{PHASING_FILE}: {exc}") from exc
+
+    return phase_numbers(raw)
+
+
 def _phasing(
     root: Path, document: str
 ) -> tuple[str, list[tuple[int, str]], Commit | None, list[int | str]]:
@@ -361,13 +457,30 @@ def _gates_line(results: list[GateResult]) -> str:
     return f"gates: all {len(results)} pass"
 
 
-def document_complete(document: str, landings: list[DocumentLanding], root: Path) -> bool:
+def document_complete(
+    document: str,
+    landings: list[DocumentLanding],
+    root: Path,
+    phases: list[int] | None = None,
+) -> bool:
     """Whether every phase the document's phasing names has a landing on the
     branch — the pull request's draft flag is this, read from the same
-    records the body is composed from. A document with no readable phasing
-    is complete when anything landed: nothing says otherwise."""
-    _, phasing, _, _ = _phasing(root, document)
-    numbers = {number for number, _ in phasing}
+    records the body is composed from.
+
+    *phases* are the phase numbers to check (S-0124/D-10): the union of the
+    root's phasing and the phasing at the ref being landed, as the lane reads
+    them. When they are not given, the root's phasing is read under the same
+    rule as `lane.document_phases`: absent names none, and one that is
+    present but cannot be read or validated leaves the document incomplete."""
+
+    if phases is None:
+        try:
+            phases = root_phases(root, document)
+
+        except PhasingUnreadable:
+            return False
+
+    numbers = set(phases or [])
     landed = {number for landing in landings for number in landing.task.covered}
     return not (numbers - landed)
 

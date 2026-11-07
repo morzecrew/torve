@@ -750,6 +750,12 @@ def write_contract(root: Path, task: Task, title: str = "", *, minted_by: str = 
     )
     document = task.model_dump()
     document["title"] = document.get("title") or title.replace("-", " ")
+
+    # S-0124/D-12: `round` is a private attribute, so the model's dump drops
+    # it; a contract file written from the record keeps it.
+    if task.round is not None:
+        document["round"] = task.round.model_dump(mode="json")
+
     path.write_text(header + _dump_contract(document), encoding="utf-8")
 
     return path

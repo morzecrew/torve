@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, ParamSpec, Protocol, cast
 
 from torve.application.feedback import capture_feedback
+from torve.application.forge import PhasingUnreadable, phase_numbers
 from torve.application.ports import (
     COMPLETION_CONTEXT,
     REBASE_CONTEXT,
@@ -1342,11 +1343,83 @@ def _restate_landings(workdir: Path, onto: str) -> None:
 # ....................... #
 
 
+def document_phases(root: Path, ref: str, document: str) -> list[int] | None:
+    """The phases *document*'s `phasing.yaml` names at *ref* (S-0124/D-10),
+    read with `git show`: only real integer phases count, None when the file
+    is absent, and `PhasingUnreadable` when it is there but cannot be parsed
+    or validated. The root's copy is read under the same rule by
+    `forge.root_phases`; completion checks the union of the two.
+
+    A branch name is read at its remote tip beside the local one, as
+    `_branch_landings` reads the landings the same check counts: a host that
+    only fetched the branch reads the phases the landing host reads."""
+
+    name = document.rsplit("/", 1)[-1]
+    refs = [ref] if ref.startswith(("origin/", "refs/")) else [f"origin/{ref}", ref]
+    found = [phases for at in refs if (phases := _phases_at(root, at, name)) is not None]
+
+    return sorted({number for phases in found for number in phases}) if found else None
+
+
+def _phases_at(root: Path, ref: str, name: str) -> list[int] | None:
+    """`document_phases` at one ref: None when the ref or the file is absent."""
+
+    import yaml
+
+    from torve.domain.spec import PHASING_FILE
+
+    spec = f"{ref}:{layout.SPECS_DIR}/{name}/{PHASING_FILE}"
+    shown = subprocess.run(
+        ["git", *NO_HOOKS, "-C", str(root), "show", spec],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+
+    if shown.returncode != 0:
+        # The same failing `git show` covers a file that is not there and a
+        # file that is there but unreadable; `cat-file` says which.
+        present = subprocess.run(
+            ["git", *NO_HOOKS, "-C", str(root), "cat-file", "-e", spec],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if present.returncode != 0:
+            return None
+
+        raise PhasingUnreadable(f"{spec}: git show failed — {shown.stderr.strip()}")
+
+    try:
+        raw: object = yaml.safe_load(shown.stdout)
+
+    except yaml.YAMLError as exc:
+        raise PhasingUnreadable(f"{spec}: not YAML — {str(exc).splitlines()[0]}") from exc
+
+    return phase_numbers(raw)
+
+
 def _completes(root: Path, task_id: str, document: str) -> bool:
-    """Whether this landing leaves the document complete (S-0093/D-1)."""
+    """Whether this landing leaves the document complete (S-0093/D-1), under
+    the union of the root's phases and the phasing at the ref being landed
+    (S-0124/D-10): a phase added on the branch still has to land, the root's
+    phases still count when the branch was cut before an amendment, and an
+    unreadable phasing at either leaves the document incomplete."""
 
-    from torve.application.forge import DocumentLanding, document_complete
+    from torve.application.forge import DocumentLanding, document_complete, root_phases
 
+    name = document.rsplit("/", 1)[-1]
+
+    try:
+        at_ref = document_phases(root, document, name)
+        at_root = root_phases(root, name)
+
+    except PhasingUnreadable:
+        return False
+
+    numbers = sorted(set(at_ref or []) | set(at_root or []))
     landings = []
     phases = landed_phases(root, document)
 
@@ -1357,7 +1430,7 @@ def _completes(root: Path, task_id: str, document: str) -> bool:
         except (OSError, ValueError):
             continue
 
-    return document_complete(document.rsplit("/", 1)[-1], landings, root)
+    return document_complete(name, landings, root, phases=numbers)
 
 
 def _completion_battery(
@@ -3027,7 +3100,7 @@ def _local_completion(
     None when green, when the task names no document, or when the document
     has phases still to land."""
 
-    from torve.application.forge import DocumentLanding, document_complete
+    from torve.application.forge import DocumentLanding, document_complete, root_phases
     from torve.gates.context import load_task
 
     path = contract_file(root, task_id)
@@ -3042,6 +3115,17 @@ def _local_completion(
     if document is None:
         return None
 
+    # S-0124/D-10: the union of the root's phases and the candidate's, so an
+    # amendment that adds a phase keeps the document incomplete until it lands
+    # and one that covers every phase by its landing file still completes it.
+    try:
+        at_ref = document_phases(root, head, document)
+        at_root = root_phases(root, document)
+
+    except PhasingUnreadable:
+        return None
+
+    numbers = sorted(set(at_ref or []) | set(at_root or []))
     branch = naming.document_branch(document)
     phases = {t: covered for _at, t, _c, _a, covered in _branch_landings(root, head, document)}
     landings = []
@@ -3054,7 +3138,7 @@ def _local_completion(
         except (OSError, ValueError):
             continue
 
-    if not document_complete(document, landings, root):
+    if not document_complete(document, landings, root, phases=numbers):
         return None
 
     workdir = root / naming.WORKTREE_DIR / f"lane-rows-{task_id}"

@@ -134,6 +134,30 @@ def test_written_contracts_load_through_the_gates_model(plan_repo):
     assert task.id == "T-0001" and task.decisions[0].grade == "LOCKED"
 
 
+def test_a_written_round_contract_keeps_its_round(tmp_path):
+    """S-0124/D-12: a contract file written from the record keeps the round,
+    so the copy on disk equals the board's."""
+
+    review = Task(
+        id="T-0001",
+        role="review",
+        targets=["T-0000"],
+        decisions=[],
+        round={
+            "branch": "torve/S-0124",
+            "pr": 7,
+            "findings": [],
+            "phases": [],
+            "nonce": "n1",
+        },
+    )
+
+    written = load_task(write_contract(tmp_path, review))
+
+    assert written.round == review.round
+    assert written == review
+
+
 def test_replanning_a_minted_phase_is_refused(plan_repo):
     root, _, _ = plan_repo
     write_contracts(root, plan_document(root, root / ".torve" / "specs", "0090"))
