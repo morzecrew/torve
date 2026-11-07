@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0887
+phase: 5
+base: d7582c8ed3208a94d0a65d53219a25845bf86059
+commit: f6f6456aeeddbfa1acffad6fce68d326ea8a381c
+at: '2026-11-07T23:30:38Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: OPEN
+  - id: S-0121/D-3
+    grade: LOCKED
+  - id: S-0121/D-11
+    grade: LOCKED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-15
+    grade: LOCKED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-30
+    grade: LOCKED
+  - id: S-0121/D-36
+    grade: LOCKED
+  - id: S-0121/D-38
+    grade: LOCKED
+entries:
+  - decision: D-9
+    grade: OPEN
+    kind: departed
+    at: '2026-11-07T23:25:31Z'
+    claim: >-
+      dsh does compact against the window torve passes: the headless profile mounts
+      @deepseek-ai/dsh-compaction-basic 0.2.1-rc.5 with its defaults, and TORVE_CONTEXT_WINDOW
+      becomes the model overlay's contextWindow, which pi-ai reports as the adapter
+      capacity. With window W and routed output reservation O, the backend triggers
+      at floor(min(W × 0.8, W − O − 65536)) and keeps the newest 16% of W − O; fixed
+      headroom and output can pull the effective fraction well below 0.8 (200,000
+      − 65,536 − 65,536 = 68,928, about 34.5%). Today the repository's dsh seats (executor.dsh,
+      executor.dsh-deepseek, executor.dsh-qwen-medium) state no window of their own,
+      so under D-8 they take their roster's 1,000,000; the S-0125 design's 200,000
+      is not written because .torve/config.yaml is fenced for this task.
+    evidence: >-
+      sandboxes/dsh/toolkit/model_overlay.py:71-75 — the seat's TORVE_CONTEXT_WINDOW
+      and TORVE_MAX_TOKENS become the pi-ai model's contextWindow and maxTokens; sandboxes/dsh/harness/package-lock.json:2108-2110
+      pins @deepseek-ai/dsh-compaction-basic 0.2.1-rc.5, whose /opt/harness/node_modules/@deepseek-ai/dsh-compaction-basic/lib/index.js:15-17,63-67,132
+      sets thresholdRatio 0.8, headroomTokens 65536, retainRatio 0.16 and floor(min(contextWindow
+      × thresholdRatio, contextWindow − reservedOutputTokens − headroomTokens)), and
+      /opt/harness/node_modules/@deepseek-ai/dsh-base/cordis.patch.yml:351-352 mounts
+      it with no override.
+    action: departed
+    proposal: >-
+      S-0125/D-9 should say: dsh compacts against the window torve passes (TORVE_CONTEXT_WINDOW
+      → model overlay contextWindow → pi-ai adapter capacity); with window W and routed
+      output reservation O it triggers at floor(min(W × 0.8, W − O − 65536)) and retains
+      the newest 16% of W − O; the night's dsh seats state 200,000.
