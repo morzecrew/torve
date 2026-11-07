@@ -185,7 +185,7 @@ Session traces live under `.torve/traces/`, are never committed, uploaded or put
 
 ### S-0122/D-1 — `LOCKED` (Judge-and-select rebuild) — implementation: partial
 
-The engine, not a model, turns a critic's findings into block or pass: a candidate is blocked when a finding that survives the location filter is at or above `review.blocks_at`, or when an owned row is `violated` with located evidence, and an `unknown` row never blocks
+The engine, not a model, turns a critic's findings into block or pass: a candidate is blocked when a finding that survives the location filter is at or above `review.blocks_at`, or when an owned row is `violated` with located evidence, and an `unknown` row never blocks; on a revision attempt such a finding counts only when it also locates within `threads.WINDOW` lines of a line the revision changed or of an earlier round's blocker, and every other is recorded non-blocking
 
 - Paths: `src/torve/application/review.py` `src/torve/application/critic.py` `src/torve/gates/evidence.py`
 

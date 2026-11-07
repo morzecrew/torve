@@ -6,7 +6,9 @@ decisions:
       The engine, not a model, turns a critic's findings into block or pass: a candidate
       is blocked when a finding that survives the location filter is at or above `review.blocks_at`,
       or when an owned row is `violated` with located evidence, and an `unknown` row
-      never blocks
+      never blocks; on a revision attempt such a finding counts only when it also
+      locates within `threads.WINDOW` lines of a line the revision changed or of an
+      earlier round's blocker, and every other is recorded non-blocking
     paths:
       - src/torve/application/review.py
       - src/torve/application/critic.py
@@ -15,6 +17,7 @@ decisions:
       A verdict the model states is wording; findings with located evidence are what
       the owner's sample found real, ten of sixteen
     cites: [S-0121/D-1, S-0121/D-28]
+    fingerprint: ab5ee4a9a6da81c9/03a530a15ac3f0d0
   - id: D-2
     grade: LOCKED
     text: >-

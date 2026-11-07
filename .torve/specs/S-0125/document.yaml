@@ -185,8 +185,8 @@ risks: |
   - A carried finding can be a real bug, and it now lands before it is fixed, which today's
     rule does not allow. It is not dropped: it reaches the PR as a recorded thread, and the
     next round fixes it.
-  - D-1 narrows when S-0122/D-1, a LOCKED row, blocks a candidate. The owner must amend
-    S-0122/D-1 before this document is accepted (Q-1).
+  - D-1 narrows when S-0122/D-1, a LOCKED row, blocks a candidate. The owner amended it in
+    session (S-0122/A-3, Q-1), and a reader of S-0122 alone now meets the narrower rule.
   - Five-finding rounds mean more rounds, each with its own critic call. On #289's 15 findings
     that is three or four rounds instead of one. Each is cheaper, and a block in one no longer
     sinks the other findings.
@@ -213,11 +213,16 @@ questions:
       D-1 makes a revision's finding on a line the revision did not change non-blocking.
       S-0122/D-1 (LOCKED) says any located finding at or above `blocks_at` blocks.
       Does the owner amend S-0122/D-1 to say that a revision's blocking finding must
-      also locate to the revision's changed lines or to an earlier blocker?
+      also locate to the revision's changed lines or to an earlier blocker? Yes (owner,
+      2026-11-07): S-0122/A-3.
+    status: settled
+    settled_by: S-0122/A-3
   - id: Q-2
     text: >-
       Should CodeRabbit review draft pull requests, so each landing push is reviewed
       while the night still works the document, instead of 21 threads at once when
       it leaves draft? It is a CodeRabbit setting (the UI's draft review, or `reviews.auto_review.drafts`
       in `.coderabbit.yaml`) and the owner's to set. The thread leg already triages
-      on a draft.
+      on a draft. Yes (owner, 2026-11-07): `.coderabbit.yaml` sets `reviews.auto_review.drafts:
+      true` with `inheritance: true`, in #299.
+    status: settled
