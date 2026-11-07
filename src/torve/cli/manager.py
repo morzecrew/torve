@@ -1234,6 +1234,7 @@ async def _serve(
         worker_obj = Worker(
             log=log,
             name=worker,
+            root=root,
             execute=runner_execute(
                 root,
                 config,
@@ -2127,8 +2128,13 @@ def resolve_cmd(
         # behind. `abandoned` (S-0094/D-5) leaves this to `torve reap
         # --escalated` instead — a person can still read the worktree first.
         root = root.resolve()
+        config = load_config(root, None)
         clear_escalated(
-            root, runtime_for(load_config(root, None), None), GitWorkspace(root), task_id
+            root,
+            runtime_for(config, None),
+            GitWorkspace(root),
+            task_id,
+            config=config,
         )
 
     asyncio.run(

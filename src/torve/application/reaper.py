@@ -408,20 +408,34 @@ STOPPED_MARKER = "escalated when its run stopped"
 STOPPED = (str(EscalationReason.KILLED), str(EscalationReason.LEASE_EXPIRED))
 
 
-def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task_id: str) -> bool:
+def clear_escalated(
+    root: Path,
+    runtime: Runtime,
+    workspace: WorkspacePort,
+    task_id: str,
+    config: RunnerConfig | None = None,
+) -> bool:
     """One escalated task's host footprint — its run-state file, worktree
     and sandbox — cleared ahead of a requeue (S-0094/D-3), so dispatch
     neither refuses on a state file still claiming the task nor fails the
     overlap gate on a worktree its own escalation left behind. The branch
     and whatever checkpoint ref a fresh `GitWorkspace.create` would tag onto
     it (S-0026/D-9) are never touched here — `remove` takes only the
-    worktree, not the branch it was cut from. A task with no escalated
-    state file is left exactly as it is: this is not a general-purpose
-    reap, only the one task a resolution names.
+    worktree, not the branch it was cut from. A task with no state file is
+    left exactly as it is: this is not a general-purpose reap, only the one
+    task a resolution names.
 
-    A run that stopped mid-attempt (KILLED, LEASE_EXPIRED) never reached the
-    checkpoint a blocker or a clock commits, so its work is committed on the
-    branch first, under STOPPED_MARKER, and the next dispatch resumes it."""
+    A state file that still says claimed, running, gated or reviewed is a run
+    that died mid-attempt: the record handed the task to a person, but the
+    runner never wrote that verdict to the file, so every next dispatch
+    refuses (S-0125/D-5). When no live engine run holds it — its heartbeat is
+    stale, the reaper's own host liveness test — it is cleared too rather
+    than left to block the requeue.
+
+    A run that stopped mid-attempt (KILLED, LEASE_EXPIRED, or an active file
+    with no live run behind it) never reached the checkpoint a blocker or a
+    clock commits, so its work is committed on the branch first, under
+    STOPPED_MARKER, and the next dispatch resumes it."""
 
     from contextlib import suppress
 
@@ -432,7 +446,14 @@ def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task
 
     state = RunState.load(state_path)
 
-    if state.state is not TaskState.ESCALATED:
+    # An escalated file is already a person's and always cleared. An active
+    # one is cleared only when its heartbeat says no engine run still holds
+    # it; a fresh heartbeat is a live attempt, not debris.
+    stopped = state.state in ACTIVE
+
+    if state.state is not TaskState.ESCALATED and not (
+        stopped and state.heartbeat_age_s() > (config or RunnerConfig()).reap.stale_after
+    ):
         return False
 
     # The state records each sandbox's own id, never a nested sandbox's
@@ -457,7 +478,7 @@ def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task
         with suppress(Exception):  # best-effort, as the operator kill is (cli/run.py)
             runtime.destroy_by_id(sandbox)
 
-    if state.escalation is not None and state.escalation.reason in STOPPED:
+    if stopped or (state.escalation is not None and state.escalation.reason in STOPPED):
         workspace.checkpoint(
             task_id,
             f"torve({task_id}): attempt {state.attempts} {STOPPED_MARKER}\n\n"

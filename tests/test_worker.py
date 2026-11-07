@@ -307,6 +307,136 @@ def test_a_refused_dispatch_escalates_rather_than_stranding_the_claim():
     run(scenario)
 
 
+def test_durable_timeout_escalates_budget_exhausted_and_the_serve_continues(tmp_path):
+    """S-0125/D-6: on 2026-11-07 the store's watchdog timed a run out and its
+    `CoreException` (`durable.run_timed_out`) passed every handler, ending the
+    serve process and leaving the night unclosed. The timeout costs its task:
+    the worker escalates the task's own state file `budget_exhausted` naming
+    the duration, releases the claim, and the next pass claims again."""
+
+    from forze.base.exceptions import exc
+
+    from torve.base import naming
+
+    async def scenario(log):
+        await mint(log, "T-1")
+        state = RunState(task_id="T-1", path=naming.state_file(tmp_path, "T-1"))
+        state.transition(TaskState.CLAIMED, "test claim")
+        state.transition(TaskState.RUNNING, "test run")
+        state.save()
+
+        async def execute(task):
+            if task.id == "T-1":
+                raise exc.timeout(
+                    "Durable run abc (torve.task) exceeded max_run_duration (0:00:10); "
+                    "the body was cancelled before its lease could lapse",
+                    code="durable.run_timed_out",
+                )
+
+            return green()
+
+        worker = Worker(log=log, name="w-1", execute=execute, root=tmp_path)
+
+        assert await worker.once(PARTITION) == "T-1"
+
+        reloaded = RunState.load(state.path)
+        assert reloaded.state is TaskState.ESCALATED
+        assert reloaded.escalation is not None
+        assert reloaded.escalation.reason == "budget_exhausted"
+        assert "0:00:10" in reloaded.escalation.detail
+
+        board = project(await log.since(partition=PARTITION))
+        view = board.tasks["T-1"]
+        assert view.state is TaskState.ESCALATED
+        assert view.escalation == "budget_exhausted"
+        # The claim is released, and the timeout did not end the night.
+        assert view.claimed_by is None
+        await mint(log, "T-2")
+        assert await worker.once(PARTITION) == "T-2"
+
+    run(scenario)
+
+
+def test_durable_timeout_through_the_store_replaces_the_cancels_killed(tmp_path):
+    """S-0125/D-6, on the production ordering: the store's watchdog cancels the
+    body first, the runner's cancel path escalates the file `killed`
+    (runner.py's CancelledError handler), and only then does
+    `durable.run_timed_out` reach the worker. The timeout's reason and
+    duration are what the state file ends up saying, as the board does."""
+
+    from torve.adapters.store.durable import open_mock_store
+    from torve.application.taskstore import TaskStore
+    from torve.base import naming
+    from torve.config.runconfig import StoreConfig
+
+    taskstore = TaskStore(
+        open_mock_store(), StoreConfig(lease_for=0.2, heartbeat_divisor=2, max_run_duration=0.5)
+    )
+    state = RunState(task_id="T-1", path=naming.state_file(tmp_path, "T-1"))
+
+    async def body(_ctx, _input_json):
+        try:
+            await asyncio.sleep(30)
+
+        except asyncio.CancelledError:
+            state.escalate(EscalationReason.KILLED, "cancellation observed via the lease heartbeat")
+            raise
+
+        return {}
+
+    taskstore.register(body)
+
+    async def execute(task):
+        state.transition(TaskState.CLAIMED, "test claim")
+        state.transition(TaskState.RUNNING, "test run")
+        state.save()
+        await taskstore.run_now({"task_id": task.id})
+
+        return green()
+
+    async def scenario(log):
+        await mint(log, "T-1")
+        worker = Worker(log=log, name="w-1", execute=execute, root=tmp_path)
+
+        assert await worker.once(PARTITION) == "T-1"
+
+        reloaded = RunState.load(state.path)
+        assert reloaded.state is TaskState.ESCALATED
+        assert reloaded.escalation is not None
+        assert reloaded.escalation.reason == "budget_exhausted"
+        assert "max_run_duration (0:00:00.500000)" in reloaded.escalation.detail
+
+        view = project(await log.since(partition=PARTITION)).tasks["T-1"]
+        assert view.escalation == "budget_exhausted"
+        assert view.claimed_by is None
+
+    run(scenario)
+
+
+def test_a_non_timeout_core_exception_still_escapes_the_lifecycle():
+    """S-0125/D-6 narrows the new handler to `durable.run_timed_out`; another
+    CoreException keeps travelling rather than becoming an invented outcome."""
+
+    from forze.base.exceptions import CoreException, exc
+
+    async def broken(task):
+        raise exc.internal("the store is unreachable", code="core.internal")
+
+    async def scenario(log):
+        await mint(log, "T-1")
+        worker = Worker(log=log, name="w-1", execute=broken)
+
+        with pytest.raises(CoreException):
+            await worker.once(PARTITION)
+
+        assert [event.kind for event in await log.history("T-1")] == [
+            EventKind.TASK_MINTED,
+            EventKind.TASK_CLAIMED,
+        ]
+
+    run(scenario)
+
+
 def test_a_claim_waits_for_its_dependency_to_reach_the_base():
     """The board says a dependency landed the moment its attempt went green;
     the lane puts that candidate on the base a pass later. A worker handed an
