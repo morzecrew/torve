@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0871
+base: 68230b910fb49f1c716140b9e58d110034c4f9dd
+commit: 49e944836b29a23edcfab2e75321238c139e1c6b
+at: '2026-11-07T16:56:27Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: S-0121/D-1
+    grade: LOCKED
+  - id: S-0121/D-2
+    grade: LOCKED
+  - id: S-0121/D-3
+    grade: LOCKED
+  - id: S-0121/D-7
+    grade: LOCKED
+  - id: S-0121/D-11
+    grade: LOCKED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-14
+    grade: LOCKED
+  - id: S-0121/D-15
+    grade: LOCKED
+  - id: S-0121/D-18
+    grade: ASSUMED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-28
+    grade: LOCKED
+  - id: S-0121/D-30
+    grade: LOCKED
+  - id: S-0121/D-34
+    grade: LOCKED
+  - id: S-0121/D-36
+    grade: LOCKED
+  - id: S-0121/D-38
+    grade: LOCKED
+  - id: S-0121/D-39
+    grade: ASSUMED
+  - id: S-0122/D-1
+    grade: LOCKED
+  - id: S-0122/D-2
+    grade: LOCKED
+  - id: S-0122/D-3
+    grade: LOCKED
+  - id: S-0122/D-4
+    grade: ASSUMED
+  - id: S-0122/D-6
+    grade: ASSUMED
+  - id: S-0122/D-7
+    grade: ASSUMED
+  - id: S-0122/D-8
+    grade: ASSUMED
+  - id: S-0122/D-9
+    grade: OPEN
+  - id: S-0122/D-20
+    grade: ASSUMED
+  - id: S-0122/D-21
+    grade: OPEN
+  - id: S-0123/D-1
+    grade: ASSUMED
+  - id: S-0123/D-2
+    grade: ASSUMED
+  - id: S-0123/D-4
+    grade: ASSUMED
