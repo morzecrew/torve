@@ -418,6 +418,141 @@ def test_fence_redraws_past_one_collision(seeded):
 
 
 # ----------------------- #
+# The round's excerpt (S-0125/D-7): the base tree's numbered lines from 10
+# above to 10 below each finding's anchor, and triage's verdict and evidence
+# for its threads when the head was triaged, all inside the round's fence.
+
+
+def test_round_excerpt_renders_the_base_tree_around_each_finding(seeded):
+    """S-0125/D-7: a finding's anchor comes with the 21 base lines around it,
+    numbered, between the round's fence markers."""
+
+    seeded.write("src/app.py", "\n".join(f"line {number}" for number in range(1, 41)) + "\n")
+    seeded.commit("forty lines")
+    finding = group_findings([thread("t1", line=20)])[0]
+
+    round_ = compose_round(seeded.root, BRANCH, pr(), finding)
+
+    assert "base src/app.py:10-30" in round_.intent
+    for number in (10, 20, 30):
+        assert f"{number:>4} | line {number}" in round_.intent
+
+    assert f"{9:>4} | line 9" not in round_.intent
+    assert f"{31:>4} | line 31" not in round_.intent
+    begin = round_.intent.index(f"----- BEGIN {MARKER} {round_.nonce} -----")
+    end = round_.intent.index(f"----- END {MARKER} {round_.nonce} -----")
+    assert begin < round_.intent.index("base src/app.py:10-30") < end
+
+
+def test_round_excerpt_clamps_to_the_base_file_s_edges(seeded):
+    """S-0125/D-7: ten above or below runs off the file, the excerpt stops at
+    the tree's own first and last line instead of inventing them."""
+
+    seeded.write("src/app.py", "\n".join(f"line {number}" for number in range(1, 4)) + "\n")
+    seeded.commit("three lines")
+    finding = group_findings([thread("t1", line=2)])[0]
+
+    round_ = compose_round(seeded.root, BRANCH, pr(), finding)
+
+    assert "base src/app.py:1-3" in round_.intent
+    for number in (1, 2, 3):
+        assert f"{number:>4} | line {number}" in round_.intent
+
+    assert f"{0:>4} |" not in round_.intent
+    assert f"{4:>4} |" not in round_.intent
+
+
+def test_round_excerpt_is_absent_for_a_file_the_base_tree_does_not_hold(seeded):
+    """S-0125/D-7: a finding whose file is not in the base tree — a file the
+    pull request adds, or one since removed — renders no excerpt at all."""
+
+    finding = group_findings([thread("t1", path="src/absent.py", line=12)])[0]
+
+    round_ = compose_round(seeded.root, BRANCH, pr(), finding)
+
+    assert "base src/absent.py" not in round_.intent
+    assert f"{12:>4} |" not in round_.intent
+
+
+def test_round_excerpt_reads_the_document_branch_not_the_checkout(seeded):
+    """S-0125/D-7: the round is cut from the remote's copy of the document
+    branch, so the excerpt holds that tip's lines, not the checkout's main."""
+
+    seeded.write("src/app.py", "\n".join(f"main {number}" for number in range(1, 41)) + "\n")
+    seeded.commit("main")
+    seeded.git("checkout", "-q", "-B", BRANCH)
+    seeded.write("src/app.py", "\n".join(f"branch {number}" for number in range(1, 41)) + "\n")
+    seeded.commit("branch")
+    seeded.git("update-ref", f"refs/remotes/origin/{BRANCH}", BRANCH)
+    seeded.git("checkout", "-q", "main")
+    finding = group_findings([thread("t1", line=20)])[0]
+
+    round_ = compose_round(seeded.root, BRANCH, pr(), finding)
+
+    assert f"{20:>4} | branch 20" in round_.intent
+    assert "main 20" not in round_.intent
+
+
+def test_round_excerpt_is_absent_for_a_file_the_document_branch_does_not_hold(seeded):
+    """S-0125/D-7: a file the checkout holds but the document branch's tip
+    does not is absent from the base tree, and renders no excerpt."""
+
+    seeded.git("checkout", "-q", "-B", BRANCH)
+    seeded.git("update-ref", f"refs/remotes/origin/{BRANCH}", BRANCH)
+    seeded.git("checkout", "-q", "main")
+    seeded.write("src/later.py", "\n".join(f"main {number}" for number in range(1, 41)) + "\n")
+    seeded.commit("main only")
+    finding = group_findings([thread("t1", path="src/later.py", line=20)])[0]
+
+    round_ = compose_round(seeded.root, BRANCH, pr(), finding)
+
+    assert "base src/later.py" not in round_.intent
+    assert "main 20" not in round_.intent
+
+
+def test_round_excerpt_withholds_base_lines_carrying_the_fence_marker(seeded):
+    """S-0125/D-7: base code that names the fence marker is the tree's, not a
+    thread's — the round still composes, with the excerpt withheld."""
+
+    body = [f"line {number}" for number in range(1, 41)]
+    body[14] = f'MARKER = "{MARKER}"'
+    seeded.write("src/app.py", "\n".join(body) + "\n")
+    seeded.commit("marker in code")
+    finding = group_findings([thread("t1", line=20)])[0]
+
+    round_ = compose_round(seeded.root, BRANCH, pr(), finding)
+
+    assert "base src/app.py:10-30 withheld" in round_.intent
+    assert f'MARKER = "{MARKER}"' not in round_.intent
+
+
+def test_round_excerpt_carries_triage_s_verdict_and_evidence_when_triaged(seeded, untriaged):
+    """S-0125/D-7: a triaged head's round names, for each of its threads,
+    triage's verdict and evidence, inside the same fence as the excerpt."""
+
+    open_document(seeded.root)
+    ready(seeded.root, "T-0900")
+    critic = Critic(_triaged(t1=("apply", "src/app.py:1 — the dereference is unchecked")))
+    forge = StubForge(pr(thread("t1", line=1)))
+
+    _detail, minted = review_thread_leg(
+        seeded.root, config(), forge, lambda _t: None, triage=critic
+    )
+
+    assert minted is True
+    (recorded,) = events(seeded.root, "lane_review_task")
+    contract = yaml.safe_load(
+        layout.task_file(seeded.root, recorded["task"]).read_text(encoding="utf-8")
+    )
+    intent = contract["intent"]
+    assert "triage t1: apply — src/app.py:1 — the dereference is unchecked" in intent
+    begin = intent.index("----- BEGIN")
+    end = intent.index("----- END")
+    assert begin < intent.index("triage t1:") < end
+    assert begin < intent.index("base src/app.py:") < end
+
+
+# ----------------------- #
 # Injection (S-0084/D-9).
 
 

@@ -33,7 +33,7 @@ import shlex
 import shutil
 import subprocess
 import uuid
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -266,6 +266,92 @@ def thread_text(thread: ReviewThread) -> str:
 # ....................... #
 
 
+def _base_text(root: Path, branch: str, path: str) -> str | None:
+    """*path* as the tree the round is cut from holds it: the remote's copy of
+    the document branch, as `runner` cuts a document task from it, else the
+    local branch; the checkout only when neither ref exists. None when that
+    tree does not hold the file."""
+
+    for ref in (f"refs/remotes/origin/{branch}", f"refs/heads/{branch}"):
+        probe = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
+            capture_output=True,
+            check=False,
+        )
+
+        if probe.returncode != 0:
+            continue
+
+        proc = subprocess.run(
+            ["git", "-C", str(root), "show", f"{ref}:{path}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+        return proc.stdout if proc.returncode == 0 else None
+
+    try:
+        tree = root.resolve()
+        target = (root / path).resolve()
+
+        if not target.is_relative_to(tree) or not target.is_file():
+            return None
+
+        return target.read_text(encoding="utf-8", errors="replace")
+
+    except OSError:
+        return None
+
+
+def _excerpt(root: Path, branch: str, finding: Finding) -> str:
+    """The base tree's numbered lines from `WINDOW` above to `WINDOW` below the
+    finding's anchor (S-0125/D-7), or "" when the finding has no anchor or its
+    file is absent from the base tree.
+
+    The base tree is the one the round is cut from (`_base_text`) — never the
+    pull request's head, where a line the reviewer saw may no longer be the
+    line the base tree holds. Lines that carry the fence marker are the
+    tree's own code, not a thread's: the excerpt is withheld rather than the
+    round refused in the thread's name."""
+
+    if finding.line is None:
+        return ""
+
+    text = _base_text(root, branch, finding.path)
+
+    if text is None:
+        return ""
+
+    lines = text.splitlines()
+
+    first = max(1, finding.line - WINDOW)
+    last = min(len(lines), finding.line + WINDOW)
+
+    if first > last:
+        return ""
+
+    numbered = [f"{number:>4} | {lines[number - 1]}" for number in range(first, last + 1)]
+
+    if any(MARKER in line for line in numbered):
+        return f"base {finding.path}:{first}-{last} withheld: the lines carry the fence marker"
+
+    return "\n".join([f"base {finding.path}:{first}-{last}", *numbered])
+
+
+def _verdict(thread: ReviewThread, verdict: ThreadVerdict) -> str:
+    """Triage's verdict and evidence for one thread (S-0125/D-7), as the round
+    reads it under the finding that thread raised."""
+
+    evidence = verdict.evidence.strip()
+
+    return f"triage {thread.id}: {verdict.verdict}" + (f" — {evidence}" if evidence else "")
+
+
+# ....................... #
+
+
 # A collapsed block, innermost first: CodeRabbit nests them.
 DETAILS = re.compile(r"<details\b(?:(?!<details\b).)*?</details\s*>", re.IGNORECASE | re.DOTALL)
 UNCLOSED = re.compile(r"<details\b.*\Z", re.IGNORECASE | re.DOTALL)
@@ -316,6 +402,14 @@ def fence(
     """
 
     body = "\n\n".join(text(thread) for thread in threads)
+
+    return _seal(body, nonce_source)
+
+
+def _seal(body: str, nonce_source: Callable[[], str]) -> tuple[str, str]:
+    """*body* behind the nonce-delimited fence (S-0084/D-8): the same check
+    `fence` has always run, over whatever the round's body now carries
+    (S-0125/D-7)."""
 
     if MARKER in body:
         raise FenceRefused("a thread body carries the fence marker — the round is not composable")
@@ -586,6 +680,38 @@ def _allow(
 # ....................... #
 
 
+def _wave_body(
+    root: Path,
+    branch: str,
+    claims: Sequence[Claim],
+    verdicts: Mapping[str, ThreadVerdict],
+) -> str:
+    """The fenced body of a wave (S-0125/D-7): under each finding its threads,
+    the base tree's numbered lines around its anchor, and triage's verdict and
+    evidence for each of those threads when the head was triaged."""
+
+    parts: list[str] = []
+
+    for claim in claims:
+        finding = claim.finding
+        parts += [thread_text(collapsed(thread)) for thread in finding.threads]
+        excerpt = _excerpt(root, branch, finding)
+
+        if excerpt:
+            parts.append(excerpt)
+
+        parts += [
+            _verdict(thread, verdicts[thread.id])
+            for thread in finding.threads
+            if thread.id in verdicts
+        ]
+
+    return "\n\n".join(parts)
+
+
+# ....................... #
+
+
 def compose_round(
     root: Path,
     branch: str,
@@ -595,6 +721,7 @@ def compose_round(
     files: Sequence[str] = (),
     phases: Collection[int] = (),
     nonce_source: Callable[[], str] = _mint_nonce,
+    verdicts: Mapping[str, ThreadVerdict] | None = None,
 ) -> Round:
     """One finding composed into a round (S-0084/D-7, S-0084/D-8, S-0084/D-9)."""
 
@@ -605,6 +732,7 @@ def compose_round(
         (Claim(finding, tuple(files), tuple(phases)),),
         acceptance=round_acceptance(root),
         nonce_source=nonce_source,
+        verdicts=verdicts,
     )
 
 
@@ -619,13 +747,15 @@ def compose_wave(
     *,
     acceptance: Sequence[str],
     nonce_source: Callable[[], str] = _mint_nonce,
+    verdicts: Mapping[str, ThreadVerdict] | None = None,
 ) -> Round:
     """The findings of one file-disjoint wave into one round (S-0097/D-5):
     every claim's threads fenced together, and a scope wide enough for every
     one of them.
 
     `acceptance` is the caller's one read of `round_acceptance`, so the list a
-    guard refused on empty is the list the round carries.
+    guard refused on empty is the list the round carries. `verdicts` is
+    triage's answer for the head, empty when it did not run (S-0125/D-7).
 
     Nothing is written and nothing reaches the forge: an injecting thread
     raises here, before the round exists, and so does a text that could close
@@ -640,7 +770,7 @@ def compose_wave(
         if reason:
             raise InjectionRefused(f"{thread.id} {reason}")
 
-    nonce, fenced = fence(threads, nonce_source=nonce_source)
+    nonce, fenced = _seal(_wave_body(root, branch, claims, verdicts or {}), nonce_source)
 
     allow: list[str] = []
 
@@ -1939,12 +2069,13 @@ End with one JSON document:
 {"schema": "torve.triage/v1", "threads": [{"thread": "<id>", "verdict": "apply",
 "evidence": "src/app.py:12 — ...", "duplicate_of": ""}]}"""
 
-# The heads already triaged by this manager process, with the verdict each
-# thread got, so a later pass over the same head makes no second call and still
-# carries what the first one said to apply (S-0122/D-15); and the heads whose
-# call gave no answer, which take the ordinary rounds without asking again. A
-# restart asks again, once.
-TRIAGED: dict[tuple[str, str, str], dict[str, str]] = {}
+# The heads already triaged by this manager process, with the verdict and
+# evidence each thread got, so a later pass over the same head makes no second
+# call and still carries what the first one said to apply and show in a round's
+# fence (S-0122/D-15, S-0125/D-7); and the heads whose call gave no answer,
+# which take the ordinary rounds without asking again. A restart asks again,
+# once.
+TRIAGED: dict[tuple[str, str, str], dict[str, ThreadVerdict]] = {}
 UNANSWERED: set[tuple[str, str, str]] = set()
 
 # One critic call over a head's bot threads: (branch, the pull request, the
@@ -1979,12 +2110,14 @@ def _triage(
     info: PrInfo,
     raised: list[ReviewThread],
     triage: Triage,
-) -> tuple[list[ReviewThread], int, bool]:
+) -> tuple[list[ReviewThread], int, bool, dict[str, ThreadVerdict]]:
     """(what the round still carries, the threads answered now, whether the
-    head is triaged). A head whose call already ran keeps each thread's
-    verdict — what it said to apply still reaches a round a later pass mints —
-    and holds back a bot thread raised since for the next head; a seat that
-    gave no answer, or threads no fence can carry, leave the leg as it was."""
+    head is triaged, triage's verdict and evidence by thread). A head whose
+    call already ran keeps each thread's verdict — what it said to apply still
+    reaches a round a later pass mints, and its evidence reaches that round's
+    fence (S-0125/D-7) — and holds back a bot thread raised since for the next
+    head; a seat that gave no answer, or threads no fence can carry, leave the
+    leg as it was."""
 
     # A thread flagged as injection is the refusal path's, never the critic's.
     bots = [
@@ -1995,25 +2128,29 @@ def _triage(
     key = (str(root), branch, info.head_sha)
 
     if not bots or key in UNANSWERED:
-        return raised, 0, False
+        return raised, 0, False, {}
 
     sorted_ = TRIAGED.get(key)
 
     if sorted_ is not None:
-        held = {thread.id for thread in bots if sorted_.get(thread.id, "unsorted") not in APPLIED}
-        return [thread for thread in raised if thread.id not in held], 0, True
+        held = {
+            thread.id
+            for thread in bots
+            if thread.id not in sorted_ or sorted_[thread.id].verdict not in APPLIED
+        }
+        return [thread for thread in raised if thread.id not in held], 0, True, dict(sorted_)
 
     try:
         prompt = triage_prompt(bots)
 
     except FenceRefused:
-        return raised, 0, False
+        return raised, 0, False, {}
 
     document = triage(branch, info, prompt)
 
     if document is None:
         UNANSWERED.add(key)
-        return raised, 0, False
+        return raised, 0, False, {}
 
     asked = {thread.id for thread in bots}
     verdicts: dict[str, ThreadVerdict] = {}
@@ -2035,10 +2172,13 @@ def _triage(
         ):
             verdicts[ident] = verdict.model_copy(update={"verdict": "apply"})
 
-    # A thread the answer named no verdict for is carried as apply.
-    TRIAGED[key] = {
-        ident: verdicts[ident].verdict if ident in verdicts else "apply" for ident in asked
+    # A thread the answer named no verdict for is carried as apply, and every
+    # verdict keeps its evidence so a later pass's round can carry both.
+    stored = {
+        ident: verdicts.get(ident) or ThreadVerdict(thread=ident, verdict="apply")
+        for ident in asked
     }
+    TRIAGED[key] = stored
     kept: list[ReviewThread] = []
     dismissed = 0
 
@@ -2067,7 +2207,7 @@ def _triage(
         forge.resolve_thread(thread.id)
         dismissed += 1
 
-    return kept, dismissed, True
+    return kept, dismissed, True, stored
 
 
 def _revision_acceptance(root: Path, claims: Sequence[Claim]) -> list[str]:
@@ -2236,9 +2376,12 @@ def review_thread_leg(
             continue
 
         triaged = False
+        verdicts: dict[str, ThreadVerdict] = {}
 
         if triage is not None:
-            raised, dismissed, triaged = _triage(root, config, forge, branch, info, raised, triage)
+            raised, dismissed, triaged, verdicts = _triage(
+                root, config, forge, branch, info, raised, triage
+            )
             answered += dismissed
 
         claims: list[Claim] = []
@@ -2406,7 +2549,9 @@ def review_thread_leg(
                 break
 
             try:
-                composed = [compose_wave(root, branch, info, wave, acceptance=acceptance)]
+                composed = [
+                    compose_wave(root, branch, info, wave, acceptance=acceptance, verdicts=verdicts)
+                ]
 
             except FenceRefused:
                 # A body that could close its own fence aborts the whole wave,
@@ -2418,7 +2563,14 @@ def review_thread_leg(
                 for claim in wave:
                     try:
                         composed.append(
-                            compose_wave(root, branch, info, (claim,), acceptance=acceptance)
+                            compose_wave(
+                                root,
+                                branch,
+                                info,
+                                (claim,),
+                                acceptance=acceptance,
+                                verdicts=verdicts,
+                            )
                         )
 
                     except (InjectionRefused, FenceRefused) as one:
