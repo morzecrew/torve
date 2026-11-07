@@ -12,12 +12,12 @@ from pathlib import Path
 from typing import Any, cast
 
 import yaml
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from torve.config import layout
 from torve.config.spec import SpecError, document_dir, load_document
 from torve.domain.attempt import GateResult
-from torve.domain.spec import PHASING_FILE, Commit, Corpus, Phase
+from torve.domain.spec import FILE_FIELDS, PHASING_FILE, Commit, Corpus, Document, Phase
 from torve.domain.task import InheritedDecision, Task
 
 # ----------------------- #
@@ -332,15 +332,23 @@ class PhasingUnreadable(ValueError):
     (S-0124/D-10): the document it belongs to is not complete."""
 
 
-def phase_numbers(raw: object) -> list[int]:
-    """The phases a parsed `phasing.yaml` names: a mapping carrying a list of
-    entries, each validated as the `Phase` model `load_document` applies. An
-    entry that fails validation makes the whole phasing unreadable — dropping
-    it would let the document read complete (S-0124/D-10).
+def _boolean_phase(entry: object) -> bool:
+    """Whether *entry* names its phase with a bool, which is no phase number:
+    coerced it would read as phase 1 and clear the draft flag."""
 
-    A boolean `phase` is dropped before validation, as the intent licenses: a
-    bool is no phase, and coerced it would read as phase 1 and clear the
-    draft flag."""
+    return isinstance(entry, dict) and isinstance(cast("dict[str, Any]", entry).get("phase"), bool)
+
+
+def phase_numbers(raw: object) -> list[int]:
+    """The phases a parsed `phasing.yaml` names, read the way `load_document`
+    reads the file (S-0124/D-10): no file names no phases, a key outside the
+    fields `phasing.yaml` carries is refused, and every present field is
+    validated against the `Document` model — so `phasing: null`, a bad `unit`
+    or a malformed `after` is unreadable. Each phase entry is validated as the
+    `Phase` model; an entry that fails makes the whole phasing unreadable,
+    since dropping it would let the document read complete.
+
+    A boolean `phase` is dropped before validation, as the intent licenses."""
 
     # An empty or comment-only file names no phases, as `load_document` reads it.
     if raw is None:
@@ -349,29 +357,43 @@ def phase_numbers(raw: object) -> list[int]:
     if not isinstance(raw, dict):
         raise PhasingUnreadable("phasing: not a mapping")
 
-    entries = cast("dict[str, Any]", raw).get("phasing")
+    data = cast("dict[str, Any]", raw)
+    carried = FILE_FIELDS[PHASING_FILE]
+    # The boolean entry is dropped before the model sees it; everything else
+    # is validated as the loader would validate the joined document.
+    checked = dict(data)
+
+    if isinstance(data.get("phasing"), list):
+        checked["phasing"] = [
+            entry for entry in cast("list[object]", data["phasing"]) if not _boolean_phase(entry)
+        ]
+
+    for key, value in checked.items():
+        if key not in carried:
+            raise PhasingUnreadable(f"phasing: {key} is not carried by {PHASING_FILE}")
+
+        annotation = Document.model_fields[key].annotation
+
+        # Every carried field is typed on the model; an untyped one would be
+        # no field the loader could validate, so refuse it rather than guess.
+        if annotation is None:
+            raise PhasingUnreadable(f"phasing: {key} names no type")
+
+        try:
+            TypeAdapter(annotation).validate_python(value)
+
+        except ValidationError as exc:
+            raise PhasingUnreadable(
+                f"phasing: {key} does not validate — {str(exc).splitlines()[0]}"
+            ) from exc
+
+    entries = checked.get("phasing")
 
     if entries is None:
         return []
 
-    if not isinstance(entries, list):
-        raise PhasingUnreadable("phasing: not a list")
-
-    numbers: list[int] = []
-
-    for entry in cast("list[object]", entries):
-        if isinstance(entry, dict) and isinstance(cast("dict[str, Any]", entry).get("phase"), bool):
-            continue
-
-        try:
-            numbers.append(Phase.model_validate(entry).phase)
-
-        except ValidationError as exc:
-            raise PhasingUnreadable(
-                f"phasing: an entry does not validate — {str(exc).splitlines()[0]}"
-            ) from exc
-
-    return numbers
+    # The list validated above, its boolean entry already dropped.
+    return [Phase.model_validate(entry).phase for entry in cast("list[object]", entries)]
 
 
 def root_phases(root: Path, document: str) -> list[int] | None:

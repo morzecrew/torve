@@ -3494,20 +3494,47 @@ def test_phasing_union_a_root_phase_the_branch_lacks_stays_a_draft(lane_repo):
     assert _document_pr_text(lane_repo, "T-7412", document, tip=tip)[2] is False
 
 
-def test_phasing_union_an_empty_phasing_names_no_phases(lane_repo):
-    """S-0124/D-10: a comment-only phasing parses to nothing, which the loader
-    reads as no phases, so it names none rather than reading unreadable."""
+@pytest.mark.parametrize("content", ["", "# no phases yet\n"], ids=["empty", "comment-only"])
+def test_phasing_union_an_empty_phasing_names_no_phases(lane_repo, content):
+    """S-0124/D-10: an empty or comment-only phasing parses to nothing, which
+    the loader reads as no phases, so it names none rather than reading
+    unreadable."""
 
     import torve.application.lane as lane
 
     document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
     git(lane_repo, "checkout", "-q", document)
     path = lane_repo / ".torve" / "specs" / "S-0930" / "phasing.yaml"
-    path.write_text("# no phases yet\n", encoding="utf-8")
+    path.write_text(content, encoding="utf-8")
     git(lane_repo, "commit", "-qam", "an empty phasing", "--no-gpg-sign")
     git(lane_repo, "checkout", "-q", "main")
 
     assert lane.document_phases(lane_repo, document, "S-0930") == []
+
+
+@pytest.mark.parametrize(
+    "content",
+    ["phasing: null\n", "unit: bogus\n", "wibble: 1\n", "decisions: []\n", "phaseing: []\n"],
+    ids=["null-phasing", "bad-unit", "unknown-key", "decisions-key", "misspelled-key"],
+)
+def test_phasing_union_a_phasing_the_loader_would_refuse_is_unreadable(lane_repo, content):
+    """S-0124/D-10: `phasing.yaml` carries four fields and `load_document`
+    refuses the rest — an unowned key, `phasing: null` or a bad unit — so the
+    lane refuses the same file instead of reading it as complete."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    path = lane_repo / ".torve" / "specs" / "S-0930" / "phasing.yaml"
+    path.write_text(content, encoding="utf-8")
+    git(lane_repo, "commit", "-qam", "a phasing the loader refuses", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+
+    with pytest.raises(lane.PhasingUnreadable):
+        lane.document_phases(lane_repo, document, "S-0930")
+
+    assert not lane._completes(lane_repo, "T-7412", document)
 
 
 @pytest.mark.parametrize("contract", [True, False])
