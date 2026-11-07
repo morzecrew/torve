@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0812
+phase: 5
+base: 8be303141c0be366e8a03c739b31931e4a279b46
+commit: e65e4b02870757c0e43d1cf948f05262d722147a
+at: '2026-11-07T14:56:27Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: S-0121/D-1
+    grade: LOCKED
+  - id: S-0121/D-2
+    grade: LOCKED
+  - id: S-0121/D-3
+    grade: LOCKED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-34
+    grade: LOCKED
