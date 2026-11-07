@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0809
+phase: 2
+attempt: 9
+base: af660d9354087cf2bcadadf17537c3119f051368
+commit: d0107fd2c944edba07d99412bc4cd1be5a56504f
+at: '2026-11-07T09:44:56Z'
+agent: Lev Litvinov
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: S-0121/D-1
+    grade: LOCKED
+  - id: S-0121/D-2
+    grade: LOCKED
+  - id: S-0121/D-3
+    grade: LOCKED
+  - id: S-0121/D-7
+    grade: LOCKED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-14
+    grade: LOCKED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-34
+    grade: LOCKED
+  - id: S-0122/D-3
+    grade: LOCKED

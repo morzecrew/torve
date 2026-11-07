@@ -20,6 +20,7 @@ it opened would leak one.
 from __future__ import annotations
 
 import contextlib
+import uuid
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -218,6 +219,11 @@ class Dispatch:
     # replay hands its own.
     judge: JudgePort | None = None
 
+    # S-0124/D-6: the Agent the attempt resolved before any of its candidates
+    # started. Left None, the session resolves the tier itself as it always
+    # did; a unit's candidates all share this one resolution.
+    resolved_agent: Agent | None = None
+
     # S-0122/D-7: which of a unit's candidates this dispatch runs — the second
     # and later ones work in `<task>~<k>` worktrees, 0 and 1 in the task's own —
     # the clock selection hands it, and what selection already judged of the
@@ -227,6 +233,12 @@ class Dispatch:
     clock: float | None = None
     preselected: tuple[int, str, str] | None = None
     preselected_review: Any = None
+
+    # S-0124/D-8: the sandbox and session a clean candidate left open for a
+    # possible in-session revision turn. typed loosely here because the
+    # session module imports this one; `OpenSession` is resolved where it is
+    # read, and None is a session that was torn down as usual.
+    open_session: Any = None
 
     # ....................... #
 
@@ -287,7 +299,17 @@ class Dispatch:
 
         held = naming.base_manifest_file(self.root, self.task.id)
         held.parent.mkdir(parents=True, exist_ok=True)
-        held.write_text(git(self.worktree, "show", f"{sha}:{rel}"), encoding="utf-8")
+        # Publish the cache whole: sibling candidates run gate passes
+        # together, and a reader must never observe a half-written manifest
+        # (S-0124/D-4). A unique temp file per write, then one rename.
+        tmp = held.with_name(f".{held.name}.{uuid.uuid4().hex}.tmp")
+
+        try:
+            tmp.write_text(git(self.worktree, "show", f"{sha}:{rel}"), encoding="utf-8")
+            tmp.replace(held)
+
+        finally:
+            tmp.unlink(missing_ok=True)
 
         return held
 

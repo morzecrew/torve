@@ -435,9 +435,27 @@ def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task
     if state.state is not TaskState.ESCALATED:
         return False
 
-    if state.sandbox_id:
+    # The state records each sandbox's own id, never a nested sandbox's
+    # `-dockerd` side container (S-0111/D-2): removing only the recorded ids
+    # left that daemon running after its state and worktree were gone. It
+    # carries the run's labels, so the one-task clear finds it the same way
+    # the sweep does.
+    sandboxes = state.live_sandboxes()
+    own = naming.root_key(root)
+
+    with suppress(Exception):  # a runtime that cannot list is still cleared by id
+        for info in runtime.list_torve_sandboxes():
+            owner = info.labels.get(naming.LABEL_ROOT)
+
+            if owner is not None and owner != own:
+                continue
+
+            if info.labels.get(naming.LABEL_RUN) == state.run_id and info.id not in sandboxes:
+                sandboxes.append(info.id)
+
+    for sandbox in sandboxes:
         with suppress(Exception):  # best-effort, as the operator kill is (cli/run.py)
-            runtime.destroy_by_id(state.sandbox_id)
+            runtime.destroy_by_id(sandbox)
 
     if state.escalation is not None and state.escalation.reason in STOPPED:
         workspace.checkpoint(

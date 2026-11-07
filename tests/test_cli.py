@@ -1747,3 +1747,56 @@ def test_the_contract_schema_follows_the_model():
 
     assert schema == Task.model_json_schema()
     assert "contingent" in schema["$defs"]["Scope"]["properties"]
+
+
+def _kill_with_a_failing_destroy(repo, monkeypatch, task_id: str):
+    """`torve kill --format json` over two candidates' sandboxes, the first of
+    which the runtime cannot destroy: the result and the run state after."""
+
+    from types import SimpleNamespace
+
+    from test_lane_prevention import active_run
+
+    import torve.cli.run as run_cli
+    from torve.application.runstate import RunState
+    from torve.base import naming
+
+    def destroy(sandbox: str) -> None:
+        if sandbox == "sbx-a":
+            raise RuntimeError("daemon unreachable")
+
+    monkeypatch.setattr(
+        run_cli, "runtime_for", lambda *_args: SimpleNamespace(destroy_by_id=destroy)
+    )
+    repo.seed()
+    state = active_run(repo.root, task_id, ["src/**"])
+    state.sandboxes = ["sbx-a", "sbx-b"]
+    state.sandbox_id = "sbx-b"
+    state.save()
+
+    result = CliRunner().invoke(
+        app, ["kill", task_id, "--root", str(repo.root), "--format", "json"]
+    )
+    assert result.exit_code == 0, result.output
+
+    return result, RunState.load(naming.state_file(repo.root, task_id))
+
+
+def test_a_kill_keeps_the_sandbox_it_could_not_destroy(repo, monkeypatch):
+    """A sandbox whose destroy raised stays on the run's record, so the
+    reaper's clear tries it again; the one destroyed leaves it."""
+
+    _result, state = _kill_with_a_failing_destroy(repo, monkeypatch, "T-8008")
+
+    assert state.live_sandboxes() == ["sbx-a"]
+
+
+def test_a_kill_s_v1_sandbox_is_one_sandbox(repo, monkeypatch):
+    """v1's `sandbox` stays one outcome, the last-started sandbox's, however
+    many candidates ran; `sandboxes` carries every one (S-0124/D-4)."""
+
+    result, _state = _kill_with_a_failing_destroy(repo, monkeypatch, "T-8009")
+    record = json.loads(result.stdout)
+
+    assert record["sandbox"] == "sbx-b"
+    assert record["sandboxes"] == ["destroy failed: daemon unreachable", "sbx-b"]

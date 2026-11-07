@@ -88,7 +88,7 @@ def test_two_candidates_land_serially_first_ff_then_rebased(lane_repo):
     ]
     landed = [r for r in records if r.get("event") == "lane_landed"]
     assert {r["mode"] for r in landed} == {"fast-forward", "rebased"}
-    assert all(r["approver"] == "Lane Operator" for r in landed)
+    assert all(r["approver"] == "" for r in landed)
 
 
 def _landing_commit(root: Path, task_id: str) -> str:
@@ -890,6 +890,76 @@ def test_an_approval_of_the_current_tip_lands(lane_repo):
     assert json.loads(result.stdout)["results"][0]["action"] == "landed"
 
 
+def test_landing_approver_is_empty_for_an_unapproved_landing(lane_repo):
+    """S-0124/D-13: a landing nobody approved records the empty string, not
+    the lane host's git user."""
+    candidate(lane_repo, "T-7024", "twentyfour.py", "t = 24\n")
+
+    results = process_lane(lane_repo, GitLane())
+
+    assert results[0].action == "landed"
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed and landed[-1]["approver"] == ""
+
+
+def test_landing_approver_records_the_actor_of_an_approved_tip(lane_repo):
+    """S-0124/D-13: the approval bound to the landed tip names the approver."""
+    from torve.application.lane import record_approval
+
+    candidate(lane_repo, "T-7025", "twentyfive.py", "t = 25\n")
+    (lane_repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\npromotion:\n  approvals: 1\n", encoding="utf-8"
+    )
+    git(lane_repo, "add", ".torve/config.yaml")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: approvals")
+    tip = git(lane_repo, "rev-parse", naming.branch("T-7025"))
+    record_approval(lane_repo, "T-7025", "operator", tip)
+
+    result = invoke_merge(lane_repo)
+
+    assert result.exit_code == 0, result.output
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed and landed[-1]["approver"] == "operator"
+
+
+def test_landing_approver_joins_every_actor_of_an_approved_tip(lane_repo):
+    """S-0124/D-13: every actor whose approval is bound to the landed tip is
+    named, joined — not only the first one."""
+    from torve.application.lane import record_approval
+
+    candidate(lane_repo, "T-7027", "twentyseven.py", "t = 27\n")
+    tip = git(lane_repo, "rev-parse", naming.branch("T-7027"))
+    record_approval(lane_repo, "T-7027", "alice", tip)
+    record_approval(lane_repo, "T-7027", "bob", tip)
+
+    results = process_lane(lane_repo, GitLane())
+
+    assert results[0].action == "landed"
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed and landed[-1]["approver"] == "alice, bob"
+
+
+def test_landing_approver_ignores_an_approval_of_a_superseded_tip(lane_repo):
+    """S-0124/D-13: an approval binds to its sha; one of an earlier tip names
+    nobody on the landing of the tip that replaced it."""
+    from torve.application.lane import record_approval
+
+    candidate(lane_repo, "T-7026", "twentysix.py", "t = 26\n")
+    old_tip = git(lane_repo, "rev-parse", naming.branch("T-7026"))
+    record_approval(lane_repo, "T-7026", "operator", old_tip)
+    git(lane_repo, "checkout", "-q", naming.branch("T-7026"))
+    (lane_repo / "twentysix.py").write_text("t = 27\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "pushed after approval")
+    git(lane_repo, "checkout", "-q", "main")
+
+    results = process_lane(lane_repo, GitLane())
+
+    assert results[0].action == "landed"
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed and landed[-1]["approver"] == ""
+
+
 def test_an_approval_of_a_superseded_tip_counts_for_nothing(lane_repo):
     from torve.application.lane import record_approval
 
@@ -1132,6 +1202,22 @@ def test_pull_request_mode_publishes_the_candidate_and_never_moves_the_base(lane
     assert RunState.load(naming.state_file(lane_repo, "T-7101")).state is TaskState.READY
 
 
+def test_landing_approver_on_a_published_pull_request_names_the_tip_approval(lane_repo):
+    """S-0124/D-13: `lane_pr_opened` records the actor approving the tip it
+    publishes."""
+    from torve.application.lane import record_approval
+
+    candidate(lane_repo, "T-7102", "two.py", "two = 2\n")
+    tip = git(lane_repo, "rev-parse", naming.branch("T-7102"))
+    record_approval(lane_repo, "T-7102", "operator", tip)
+
+    results = process_lane(lane_repo, GitLane(), publish=_recording_publisher([]))
+
+    assert [r.action for r in results] == ["pull request"]
+    opened = [e for e in _events(lane_repo) if e.get("event") == "lane_pr_opened"]
+    assert opened and opened[0]["approver"] == "operator"
+
+
 def test_pull_request_mode_rebases_and_regates_before_it_publishes(lane_repo):
     candidate(lane_repo, "T-7102", "two.py", "two = 2\n")
     (lane_repo / "app.py").write_text("base = 2\n", encoding="utf-8")
@@ -1302,6 +1388,30 @@ def test_a_merged_task_pull_request_is_read_with_an_empty_stream(lane_repo, tmp_
     assert gone[0].action == "already landed"
     # No task branch on the remote, so the forge is asked nothing (S-0102/D-1).
     assert asked == [naming.branch("T-7110")] * 2
+
+
+def test_a_forge_merged_landing_records_no_approver(lane_repo, tmp_path):
+    """S-0124/D-13: a landing the forge merged records the empty string, even
+    when this checkout holds an approval of the tip — the approval that
+    counted was given on the forge, not here."""
+    from torve.application.lane import record_approval
+
+    _remote_candidate(lane_repo, tmp_path, "T-7112", "twelve.py", "twelve = 12\n")
+    tip = git(lane_repo, "rev-parse", naming.branch("T-7112"))
+    record_approval(lane_repo, "T-7112", "operator", tip)
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher([]),
+        forge=_forge(_pr(number=13, state="merged", merge_commit="b" * 40), asked),
+    )
+
+    assert results[0].action == "landed"
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed and landed[-1]["mode"] == "pull-request"
+    assert landed[-1]["approver"] == ""
 
 
 def test_a_closed_task_pull_request_is_an_abandonment_and_is_never_re_opened(lane_repo, tmp_path):
@@ -3253,6 +3363,405 @@ def test_a_landing_phase_that_is_not_an_integer_counts_for_nothing(lane_repo):
 
     assert lane.landed_phases(lane_repo, document) == {"T-7393": [], "T-7394": [2]}
     assert not lane._completes(lane_repo, "T-7394", document)
+
+
+# S-0124/D-10 (T-0811): completion reads the union of the root's phasing and
+# the phasing at the ref being landed, and an unreadable phasing is not
+# complete.
+
+
+def _append_phase(root: Path, phase: int) -> None:
+    path = root / ".torve" / "specs" / "S-0930" / "phasing.yaml"
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    raw["phasing"].append(
+        {"phase": phase, "title": f"p{phase}", "intent": "Work.", "scope": [f"p{phase}.py"]}
+    )
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+
+def _strip_phase_field(root: Path, field: str) -> None:
+    """Remove *field* from the second phasing entry, leaving YAML that parses
+    but no longer validates as the project's `Phase` model."""
+
+    path = root / ".torve" / "specs" / "S-0930" / "phasing.yaml"
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    del raw["phasing"][1][field]
+    path.write_text(yaml.safe_dump(raw), encoding="utf-8")
+
+
+def test_phasing_union_document_phases_reads_the_ref_and_drops_a_boolean(lane_repo):
+    """S-0124/D-10: `document_phases` reads the file at the ref with git, keeps
+    real integers, returns None for a missing file and refuses one that is
+    present but unreadable."""
+
+    import torve.application.lane as lane
+
+    _phased(lane_repo)
+    document = naming.document_branch("S-0930")
+    git(lane_repo, "checkout", "-q", "-b", document, "main")
+    path = lane_repo / ".torve" / "specs" / "S-0930" / "phasing.yaml"
+    path.write_text(
+        "phasing:\n"
+        "  - phase: true\n"
+        "    title: not a phase\n"
+        "  - phase: 3\n"
+        "    title: three\n"
+        "    intent: Three.\n"
+        "    scope: [three.py]\n",
+        encoding="utf-8",
+    )
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "phasing adds three")
+    git(lane_repo, "checkout", "-q", "main")
+
+    assert lane.document_phases(lane_repo, document, "S-0930") == [3]
+    assert lane.document_phases(lane_repo, "main", "S-0930") == [1, 2]
+    assert lane.document_phases(lane_repo, "main", "S-0999") is None
+
+    git(lane_repo, "checkout", "-q", document)
+    path.write_text("phasing: [unclosed\n", encoding="utf-8")
+    git(lane_repo, "commit", "-qam", "unreadable phasing", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+
+    with pytest.raises(lane.PhasingUnreadable):
+        lane.document_phases(lane_repo, document, "S-0930")
+
+
+def test_phasing_union_a_branch_that_adds_a_phase_stays_a_draft(lane_repo, tmp_path, monkeypatch):
+    """S-0124/D-10: every root phase is landed and the document is complete;
+    a branch that amends the phasing, adding phase 3, leaves one still to
+    come, so the union turns the document a draft and runs no battery."""
+
+    import torve.application.lane as lane
+    from torve.cli.merge import _document_pr_text
+
+    _origin(lane_repo, tmp_path)
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "push", "-q", "origin", f"{document}:refs/heads/{document}")
+    published: list[tuple[str, str]] = []
+    publish = _recording_publisher(published, root=lane_repo)
+
+    # No amendment yet: every root phase is landed, so the document is
+    # complete without the union having anything extra to add.
+    assert lane._completes(lane_repo, "T-7412", document)
+    tip = git(lane_repo, "rev-parse", document)
+    assert _document_pr_text(lane_repo, "T-7412", document, tip=tip)[2] is True
+
+    git(lane_repo, "checkout", "-q", "-b", naming.branch("T-7413"), document)
+    (lane_repo / "three.py").write_text("three = 3\n", encoding="utf-8")
+    git(lane_repo, "add", "three.py")
+    _append_phase(lane_repo, 3)
+    git(lane_repo, "add", ".torve/specs/S-0930/phasing.yaml")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "work and a new phase (T-7413)")
+    git(lane_repo, "checkout", "-q", "main")
+    state = RunState(task_id="T-7413", path=naming.state_file(lane_repo, "T-7413"))
+    state.state = TaskState.READY
+    state.save()
+    _phase_contract(lane_repo, "T-7413", 2)
+    calls = _counting_regate(monkeypatch)
+
+    results = process_lane(lane_repo, GitLane(), publish=publish, unit="document", only="T-7413")
+
+    assert [r.action for r in results] == ["landed"]
+    assert calls == []
+    assert not lane._completes(lane_repo, "T-7413", document)
+
+    tip = git(lane_repo, "rev-parse", document)
+    assert _document_pr_text(lane_repo, "T-7413", document, tip=tip)[2] is False
+
+
+def test_phasing_union_a_fetched_only_host_reads_the_branch_s_phasing(lane_repo, tmp_path):
+    """S-0124/D-10: a host with no local document branch reads its landings
+    from the remote tip, and reads the phasing there too — a phase the branch
+    added keeps the document a draft on that host as on the landing one."""
+
+    import torve.application.lane as lane
+    from torve.cli.merge import _document_pr_text
+
+    _origin(lane_repo, tmp_path)
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    _append_phase(lane_repo, 3)
+    git(lane_repo, "commit", "-qam", "adds phase 3", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+    git(lane_repo, "push", "-q", "origin", f"{document}:refs/heads/{document}")
+    git(lane_repo, "fetch", "-q", "origin")
+    git(lane_repo, "branch", "-q", "-D", document)
+
+    assert lane.document_phases(lane_repo, document, "S-0930") == [1, 2, 3]
+    assert not lane._completes(lane_repo, "T-7412", document)
+    assert _document_pr_text(lane_repo, "T-7412", document)[2] is False
+
+
+@pytest.mark.parametrize(("covered", "runs"), [([1, 2], True), ([1], False)])
+def test_phasing_union_a_local_candidate_amending_the_phasing(
+    lane_repo, monkeypatch, covered, runs
+):
+    """S-0124/D-10: the branch adds phase 2, and the union decides whether a
+    local landing leaves the document complete — its landing file covers the
+    new phase and the rows run, or it covers only the root's and they skip."""
+
+    _one_phase_checked(lane_repo, "true", phases=1)
+    candidate(lane_repo, "T-7451", "one.py", "one = 1\n")
+    git(lane_repo, "checkout", "-q", naming.branch("T-7451"))
+    _append_phase(lane_repo, 2)
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the branch adds a phase")
+    git(lane_repo, "checkout", "-q", "main")
+
+    path = lane_repo / ".torve" / "tasks" / "T-7451" / "contract.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = "schema_version: 2\nid: T-7451\ndecisions: []\nspec: S-0930\n"
+    body += f"phases: {covered}\n" if len(covered) > 1 else f"phase: {covered[0]}\n"
+    path.write_text(body, encoding="utf-8")
+    _carry_landing(lane_repo, "T-7451", "S-0930")
+
+    calls = _counting_regate(monkeypatch)
+    results = process_lane(lane_repo, GitLane())
+
+    assert [r.action for r in results] == ["landed"]
+    assert calls == ([None] if runs else [])
+
+
+def test_phasing_union_an_unreadable_phasing_at_the_ref_leaves_a_draft(lane_repo):
+    """S-0124/D-10: every phase is landed, but the branch's phasing is present
+    and unreadable, which is not complete — the pull request stays a draft."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    path = lane_repo / ".torve" / "specs" / "S-0930" / "phasing.yaml"
+    path.write_text("phasing: [unclosed\n", encoding="utf-8")
+    git(lane_repo, "commit", "-qam", "unreadable phasing", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+    tip = git(lane_repo, "rev-parse", document)
+
+    assert not lane._completes(lane_repo, "T-7412", document)
+
+    from torve.cli.merge import _document_pr_text
+
+    assert _document_pr_text(lane_repo, "T-7412", document, tip=tip)[2] is False
+
+
+@pytest.mark.parametrize("field", ["title", "intent", "scope"])
+def test_phasing_union_an_invalid_phasing_at_the_ref_leaves_a_draft(lane_repo, field):
+    """S-0124/D-10: every phase is landed, but the branch's phasing parses and
+    does not validate — an entry missing its title, intent or scope — so it
+    cannot be read and the document is not complete."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    _strip_phase_field(lane_repo, field)
+    git(lane_repo, "commit", "-qam", f"an invalid {field}", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+    tip = git(lane_repo, "rev-parse", document)
+
+    assert not lane._completes(lane_repo, "T-7412", document)
+
+    from torve.cli.merge import _document_pr_text
+
+    assert _document_pr_text(lane_repo, "T-7412", document, tip=tip)[2] is False
+
+
+@pytest.mark.parametrize("field", ["title", "intent", "scope"])
+def test_phasing_union_an_invalid_phasing_at_the_root_leaves_a_draft(lane_repo, field):
+    """S-0124/D-10: the branch's phasing is valid and every phase is landed,
+    but the root's copy parses and does not validate — an entry missing its
+    title, intent or scope — so the document stays incomplete."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    _strip_phase_field(lane_repo, field)
+    git(lane_repo, "commit", "-qam", f"an invalid {field}", "--no-gpg-sign")
+    tip = git(lane_repo, "rev-parse", document)
+
+    assert not lane._completes(lane_repo, "T-7412", document)
+
+    from torve.cli.merge import _document_pr_text
+
+    assert _document_pr_text(lane_repo, "T-7412", document, tip=tip)[2] is False
+
+
+def test_phasing_union_a_root_phase_the_branch_lacks_stays_a_draft(lane_repo):
+    """S-0124/D-10: the branch was cut before the root's amendment added phase
+    3, so its own phasing names 1 and 2, both landed; the root's phase still
+    counts and the document stays a draft."""
+
+    import torve.application.lane as lane
+    from torve.cli.merge import _document_pr_text
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    _append_phase(lane_repo, 3)
+    git(lane_repo, "commit", "-qam", "the root adds phase 3", "--no-gpg-sign")
+    tip = git(lane_repo, "rev-parse", document)
+
+    assert lane.document_phases(lane_repo, document, "S-0930") == [1, 2]
+    assert not lane._completes(lane_repo, "T-7412", document)
+    assert _document_pr_text(lane_repo, "T-7412", document, tip=tip)[2] is False
+
+
+@pytest.mark.parametrize("content", ["", "# no phases yet\n"], ids=["empty", "comment-only"])
+def test_phasing_union_an_empty_phasing_names_no_phases(lane_repo, content):
+    """S-0124/D-10: an empty or comment-only phasing parses to nothing, which
+    the loader reads as no phases, so it names none rather than reading
+    unreadable."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    path = lane_repo / ".torve" / "specs" / "S-0930" / "phasing.yaml"
+    path.write_text(content, encoding="utf-8")
+    git(lane_repo, "commit", "-qam", "an empty phasing", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+
+    assert lane.document_phases(lane_repo, document, "S-0930") == []
+
+
+@pytest.mark.parametrize(
+    "content",
+    ["phasing: null\n", "unit: bogus\n", "wibble: 1\n", "decisions: []\n", "phaseing: []\n"],
+    ids=["null-phasing", "bad-unit", "unknown-key", "decisions-key", "misspelled-key"],
+)
+def test_phasing_union_a_phasing_the_loader_would_refuse_is_unreadable(lane_repo, content):
+    """S-0124/D-10: `phasing.yaml` carries four fields and `load_document`
+    refuses the rest — an unowned key, `phasing: null` or a bad unit — so the
+    lane refuses the same file instead of reading it as complete."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    path = lane_repo / ".torve" / "specs" / "S-0930" / "phasing.yaml"
+    path.write_text(content, encoding="utf-8")
+    git(lane_repo, "commit", "-qam", "a phasing the loader refuses", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+
+    with pytest.raises(lane.PhasingUnreadable):
+        lane.document_phases(lane_repo, document, "S-0930")
+
+    assert not lane._completes(lane_repo, "T-7412", document)
+
+
+def test_phasing_union_a_phasing_that_is_not_utf8_is_unreadable_at_the_ref(lane_repo):
+    """S-0124/D-10: the ref reader decodes strictly, as `forge.root_phases`
+    reads the root's copy — a phasing carrying a byte that is not UTF-8 cannot
+    be read, so it is unreadable at the ref rather than read through
+    replacement characters and counted as complete."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    path = lane_repo / ".torve" / "specs" / "S-0930" / "phasing.yaml"
+    path.write_bytes(
+        b"phasing:\n"
+        b"  - phase: 1\n"
+        b"    title: one\n"
+        b"    intent: One.\n"
+        b"    scope: [one.py]\n"
+        b"  - phase: 2\n"
+        b"    title: caf\xe9\n"
+        b"    intent: Two.\n"
+        b"    scope: [two.py]\n"
+    )
+    git(lane_repo, "commit", "-qam", "a phasing that is not UTF-8", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+
+    with pytest.raises(lane.PhasingUnreadable):
+        lane.document_phases(lane_repo, document, "S-0930")
+
+    assert not lane._completes(lane_repo, "T-7412", document)
+
+
+def test_phasing_union_a_phase_the_landing_removed_no_longer_counts_from_the_remote(
+    lane_repo, tmp_path
+):
+    """S-0124/D-10: the published branch names phase 3 and the landing tip
+    removes it, so completion reads the landing tip and the stale remote copy
+    no longer holds the document incomplete."""
+
+    import torve.application.lane as lane
+
+    _origin(lane_repo, tmp_path)
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    _append_phase(lane_repo, 3)
+    git(lane_repo, "commit", "-qam", "adds phase 3", "--no-gpg-sign")
+    git(lane_repo, "push", "-q", "origin", f"{document}:refs/heads/{document}")
+    git(lane_repo, "fetch", "-q", "origin")
+    git(lane_repo, "checkout", "-q", "main", "--", ".torve/specs/S-0930/phasing.yaml")
+    git(lane_repo, "commit", "-qam", "removes phase 3", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+
+    assert lane.document_phases(lane_repo, f"origin/{document}", "S-0930") == [1, 2, 3]
+    assert lane.document_phases(lane_repo, document, "S-0930") == [1, 2]
+    assert lane._completes(lane_repo, "T-7412", document)
+
+
+def test_phasing_union_an_archived_phasing_is_read_at_the_ref(lane_repo):
+    """S-0124/D-10, S-0057/D-3: a branch that retires its document into the
+    archive still names its phases there, as the root's copy is found in
+    the archive too, so a phase it adds is not read as absent."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    _append_phase(lane_repo, 3)
+    (lane_repo / ".torve" / "archive").mkdir()
+    git(lane_repo, "mv", ".torve/specs/S-0930", ".torve/archive/S-0930")
+    git(lane_repo, "commit", "-qam", "archives the document", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+
+    assert lane.document_phases(lane_repo, document, "S-0930") == [1, 2, 3]
+
+
+def test_phasing_union_a_phasing_blob_git_cannot_read_is_unreadable(lane_repo):
+    """S-0124/D-10: the branch's tree names a phasing whose blob git cannot
+    read — a missing object — which is a phasing that is there and unreadable,
+    never an absent one, so the document is not complete."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    _append_phase(lane_repo, 3)
+    git(lane_repo, "commit", "-qam", "adds phase 3", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+    blob = git(lane_repo, "rev-parse", f"{document}:.torve/specs/S-0930/phasing.yaml")
+    (lane_repo / ".git" / "objects" / blob[:2] / blob[2:]).unlink()
+
+    with pytest.raises(lane.PhasingUnreadable):
+        lane.document_phases(lane_repo, document, "S-0930")
+
+    assert not lane._completes(lane_repo, "T-7412", document)
+
+
+def test_phasing_union_the_body_counts_the_phases_the_draft_flag_counts(lane_repo):
+    """S-0124/D-10: every root phase is landed and the branch adds phase 3, so
+    the body names it still to come — untitled, as the root's phasing holds
+    no title for it — and never says every phase is on the branch."""
+
+    from torve.cli.merge import _document_pr_text
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    _append_phase(lane_repo, 3)
+    git(lane_repo, "commit", "-qam", "adds phase 3", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+    tip = git(lane_repo, "rev-parse", document)
+
+    _, body, complete = _document_pr_text(lane_repo, "T-7412", document, tip=tip)
+
+    assert complete is False
+    assert "1 of this document's 3 phases are still to come" in body
+    assert "- phase 3" in body.splitlines()
+    assert "Every phase of this document" not in body
 
 
 @pytest.mark.parametrize("contract", [True, False])

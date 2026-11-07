@@ -1,0 +1,117 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0856
+base: 34db93047412a16853d91225f94e3ae170f40ddf
+at: '2026-11-07T13:54:01Z'
+agent: harness/deepseek-v4.1-flash@deepseek-v4.1-flash
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: ASSUMED
+  - id: D-10
+    grade: ASSUMED
+  - id: D-11
+    grade: ASSUMED
+  - id: D-12
+    grade: ASSUMED
+  - id: D-13
+    grade: ASSUMED
+  - id: S-0121/D-1
+    grade: LOCKED
+  - id: S-0121/D-2
+    grade: LOCKED
+  - id: S-0121/D-3
+    grade: LOCKED
+  - id: S-0121/D-7
+    grade: LOCKED
+  - id: S-0121/D-11
+    grade: LOCKED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-14
+    grade: LOCKED
+  - id: S-0121/D-15
+    grade: LOCKED
+  - id: S-0121/D-18
+    grade: ASSUMED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-28
+    grade: LOCKED
+  - id: S-0121/D-30
+    grade: LOCKED
+  - id: S-0121/D-34
+    grade: LOCKED
+  - id: S-0121/D-36
+    grade: LOCKED
+  - id: S-0121/D-38
+    grade: LOCKED
+  - id: S-0121/D-39
+    grade: ASSUMED
+  - id: S-0122/D-1
+    grade: LOCKED
+  - id: S-0122/D-2
+    grade: LOCKED
+  - id: S-0122/D-3
+    grade: LOCKED
+  - id: S-0122/D-4
+    grade: ASSUMED
+  - id: S-0122/D-6
+    grade: ASSUMED
+  - id: S-0122/D-7
+    grade: ASSUMED
+  - id: S-0122/D-8
+    grade: ASSUMED
+  - id: S-0122/D-9
+    grade: OPEN
+  - id: S-0122/D-20
+    grade: ASSUMED
+  - id: S-0122/D-21
+    grade: OPEN
+  - id: S-0123/D-1
+    grade: ASSUMED
+  - id: S-0123/D-2
+    grade: ASSUMED
+  - id: S-0123/D-4
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-07T13:18:16Z'
+    claim: >-
+      Reality contradicts the claim: the tree defines no `_merge_tree`, and `_carry_checkpoint`
+      has no git<2.40 branch. Its only merge-tree call runs `git merge-tree --write-tree
+      --merge-base=<old>` directly, and the commit-tree it uses writes the carried
+      tree under the checkpoint tip message, not a "torve: checkpoint merge anchor".
+      The cited line 2276 is a `state: RunState` parameter, not a call. The cited
+      test fails on this host because git 2.39 lacks `merge-tree --merge-base`, not
+      because a fallback is present in the tree, so there is nothing unlicensed to
+      remove.
+    evidence: >-
+      src/torve/application/runner.py:2210 — the function at this line is `_carry_checkpoint`,
+      not `_merge_tree`; the module defines neither `_merge_tree` nor any "checkpoint
+      merge anchor" string. `src/torve/application/runner.py:2244` is the only merge-tree
+      call (`--write-tree --merge-base=<old>`, no fallback), and `src/torve/application/runner.py:2252`
+      is the commit-tree that reuses the tip message from `runner.py:2245`; `src/torve/application/runner.py:2276`
+      is the `state: RunState` parameter of `_run_task_async`, not a call site.
+    action: departed
+    proposal: >-
+      Add no row licensing a git<2.40 merge-tree fallback or a checkpoint merge anchor:
+      the checkpoint carry uses `merge-tree --write-tree --merge-base=` alone, and
+      any older-git support is a separate decision about the host toolchain, not part
+      of this path.

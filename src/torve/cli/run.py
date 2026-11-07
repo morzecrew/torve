@@ -319,19 +319,28 @@ def kill(
         )
 
     config = load_config(root, config_path)
-    destroyed = ""
+    outcomes: list[str] = []
+    failed: list[str] = []
 
-    if state.sandbox_id:
+    # Every candidate's sandbox, not only the last one started (S-0124/D-4).
+    for sandbox in state.live_sandboxes():
         try:
-            runtime_for(config, runtime_name).destroy_by_id(state.sandbox_id)
-            destroyed = state.sandbox_id
+            runtime_for(config, runtime_name).destroy_by_id(sandbox)
+            outcomes.append(sandbox)
 
         except Exception as exc:  # the kill proceeds; the sandbox is reported
-            destroyed = f"destroy failed: {exc}"
+            outcomes.append(f"destroy failed: {exc}")
+            failed.append(sandbox)
 
-    state.sandbox_id = None
+    destroyed = ", ".join(outcomes)
+    # v1's `sandbox` stays one outcome, the last-started sandbox's; `sandboxes`
+    # carries every candidate's.
+    last = outcomes[-1] if outcomes else None
+    # A sandbox that would not die stays on the record for the reaper's clear.
+    state.sandboxes = failed
+    state.sandbox_id = failed[-1] if failed else None
     state.escalate(EscalationReason.KILLED, "operator kill")
-    engine_event(root, "killed", {"task": task_id, "sandbox": destroyed or None})
+    engine_event(root, "killed", {"task": task_id, "sandbox": last, "sandboxes": outcomes})
 
     if fmt is Format.JSON:
         emit_json(
@@ -339,7 +348,8 @@ def kill(
                 "schema_version": 1,
                 "task_id": task_id,
                 "state": str(state.state),
-                "sandbox": destroyed or None,
+                "sandbox": last,
+                "sandboxes": outcomes,
             }
         )
 

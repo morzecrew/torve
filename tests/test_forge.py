@@ -765,6 +765,40 @@ def test_a_document_with_phases_still_to_come_is_a_draft(tmp_path: Path):
     assert document_complete("S-0091", first, tmp_path / "nowhere")  # no phasing to wait on
 
 
+def test_phasing_union_document_complete_checks_the_phases_it_is_given(tmp_path: Path):
+    """S-0124/D-10: completion checks the phase numbers the caller gives it —
+    the union of the root's phasing and the phasing at the ref being landed —
+    so a phase added on the branch holds the document a draft."""
+    from torve.application.forge import document_complete
+
+    root = corpus_with_phasing(tmp_path)
+    first = [DocumentLanding(task=phase_task("T-8401", 1, "one"))]
+
+    assert document_complete("S-0090", first, root, phases=[1])
+    assert not document_complete("S-0090", first, root, phases=[1, 2])
+    assert document_complete("S-0090", first, root, phases=[])
+
+
+def test_phasing_union_a_dangling_phasing_link_at_the_root_is_unreadable(tmp_path: Path):
+    """S-0124/D-10: a root `phasing.yaml` that is a dangling symlink is there
+    and unreadable, never absent, so every phase landed does not complete it."""
+    from torve.application.forge import PhasingUnreadable, document_complete, root_phases
+
+    root = corpus_with_phasing(tmp_path)
+    path = root / ".torve" / "specs" / "S-0090" / "phasing.yaml"
+    path.unlink()
+    path.symlink_to("gone.yaml")
+    both = [
+        DocumentLanding(task=phase_task("T-8401", 1, "one")),
+        DocumentLanding(task=phase_task("T-8403", 2, "two")),
+    ]
+
+    with pytest.raises(PhasingUnreadable):
+        root_phases(root, "S-0090")
+
+    assert not document_complete("S-0090", both, root)
+
+
 def test_a_phase_whose_landing_file_rides_in_the_branch_counts_as_landed(tmp_path: Path):
     # S-0091/D-3: a phase finished by hand has no lane record, but its landing
     # file is in the branch tip's tree — the pull request counts it.

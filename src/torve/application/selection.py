@@ -11,17 +11,20 @@ normalised diffs are the same, a deterministic pre-rank orders the rest, and
 the critic reviews them one per call in that order (S-0122/D-6); the first it
 passes is the one that lands.
 
-The candidates run one after another, not side by side: each holds the
-task's run state, its sandbox and its judge checkout in turn, and the
-straggler cut is the clock a later candidate gets. The orchestration here
-takes its candidates and its critic as callables, so the simulation drives
-the same code the runner does.
+The candidates run side by side (S-0124/D-4): each `launch` is started as a
+task, the first green one's finish sets the straggler deadline, and a
+candidate still in its agent turn at that deadline is cancelled and recorded
+red with the spend its finished turns reported. The orchestration here takes
+its candidates and its critic as callables, so the simulation drives the same
+code the runner does.
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
-from collections.abc import Awaitable, Callable, Mapping
+import time
+from collections.abc import Awaitable, Callable, Coroutine, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -174,6 +177,13 @@ class Candidate:
     clean: bool = False
     verdict: Any = None
     run: Any = None
+    # Whether the straggler deadline cut this candidate's turn (S-0124/D-4):
+    # it is recorded red with the spend its finished turns reported.
+    cut: bool = False
+    # The seat the candidate ran on (S-0124/D-9), recorded by whoever launched
+    # it — selection only carries the names to the unit record.
+    tier: str = ""
+    model: str = ""
     # What this candidate and the critic call that read it cost the unit
     # notionally (S-0123/D-1); None when nothing priced them.
     spend: float | None = None
@@ -223,6 +233,30 @@ def prerank(candidates: list[Candidate], seed: str) -> list[Candidate]:
 
 
 @dataclass
+class Revision:
+    """What one revision round was (S-0124/D-9): a `fresh` attempt on the
+    revision seat, or a `session` turn continuing the selected candidate.
+
+    `rereview` is `clean`, `blocked`, `stopped` when the unit's budget
+    ended the round before its re-review, or `failed` when the turn itself
+    timed out, failed or was refused, or its gates were red, so no critic read
+    it; `reraised` says the critic named the
+    same finding again; `spend_usd` and `wall_s` are the round's own — for a
+    session turn, the cumulative session cost after the turn minus before it,
+    so a gate-repair turn earlier in the same session is not counted."""
+
+    kind: str
+    round: int
+    rereview: str
+    reraised: bool = False
+    spend_usd: float | None = None
+    wall_s: float | None = None
+
+
+# ....................... #
+
+
+@dataclass
 class Selection:
     """What one round of candidates came to: every candidate, the ones the
     critic read in order, and the one the unit goes on with — the first clean
@@ -236,6 +270,8 @@ class Selection:
     # bound stopped a candidate or critic call the unit still needed.
     spent_usd: float = 0.0
     exhausted: bool = False
+    # The revision round this selection was, when it was one (S-0124/D-9).
+    revision: Revision | None = None
 
     @property
     def chosen(self) -> Candidate:
@@ -255,8 +291,10 @@ class Selection:
 # ....................... #
 
 
-Launch = Callable[[int, float], Awaitable[Candidate]]
+Launch = Callable[[int, float], Coroutine[Any, Any, Candidate]]
 Review = Callable[[Candidate], Awaitable[bool]]
+# What a cancelled candidate's finished turns cost the unit, by index.
+CancelledSpend = Callable[[int], float | None]
 
 
 async def select(
@@ -270,42 +308,159 @@ async def select(
     stop: Callable[[], bool] = lambda: False,
     spent: float = 0.0,
     budget_usd: float = UNIT_BUDGET_USD,
+    cancelled_spend: CancelledSpend | None = None,
 ) -> Selection:
-    """Run *width* candidates one after another, then ask *review* — the
+    """Run *width* candidates side by side (S-0124/D-4), then ask *review* — the
     critic, or None when no critic judges this unit — about the green ones in
     rank order until one is clean, *critic_budget* calls are spent, or the
     unit's notional spend reaches *budget_usd*. *spent* is what its earlier
     attempts already spent; each candidate's and critic call's own spend is
     added as it is known (S-0123/D-1), and a bound that stops a call the unit
-    still needed leaves *exhausted* set. *stop* ends the round early, when the
-    run itself has escalated."""
+    still needed leaves *exhausted* set. The bound is checked once before the
+    batch launches and before each critic call (S-0124/D-7), never between
+    candidates that already started together. *stop* ends the round early, when
+    the run itself has escalated; the candidates still in their turns are
+    cancelled. A candidate cut at the straggler deadline is recorded red, and
+    *cancelled_spend* names what the turns it finished cost."""
 
+    started = time.monotonic()
     candidates: list[Candidate] = []
-    first_green: float | None = None
     total = spent
-    exhausted = False
 
-    for index in range(1, width + 1):
-        if total >= budget_usd:
-            exhausted = True
-            break
+    # The bound is a stop before new work (S-0124/D-7): one check before the
+    # batch, so the batch may finish above it by the spend it launched with.
+    if total >= budget_usd:
+        return Selection([], spent_usd=total, exhausted=True)
 
-        clock = agent_clock if first_green is None else straggler_clock(first_green, agent_clock)
-        candidate = await launch(index, clock)
+    tasks: dict[asyncio.Task[Candidate], int] = {
+        asyncio.create_task(launch(index, agent_clock)): index for index in range(1, width + 1)
+    }
+
+    pending = set(tasks)
+    deadline: float | None = None
+    first_green: float | None = None
+
+    def record(candidate: Candidate) -> None:
+        nonlocal total, first_green, deadline
+
         candidates.append(candidate)
 
         if candidate.spend is not None:
             total += candidate.spend
 
-        if stop():
-            return Selection(candidates, spent_usd=total)
-
         if candidate.green and first_green is None:
             first_green = candidate.wall_s
+            # The straggler cut runs from the first green one's finish: the
+            # others get what its clock leaves beyond the time it took
+            # (S-0122/D-7, S-0124/D-4).
+            deadline = time.monotonic() + max(
+                0.0, straggler_clock(first_green, agent_clock) - first_green
+            )
+
+    async def cut(index: int) -> Candidate:
+        """The record of a candidate cancelled in its agent turn: red, with
+        its elapsed time, what its finished turns spent and its seat."""
+
+        spend = cancelled_spend(index) if cancelled_spend is not None else None
+        # Every candidate of an attempt runs on one seat (S-0124/D-6), so the
+        # cut one, which returned no record of its own, carries a sibling's.
+        tier, model = next(((c.tier, c.model) for c in candidates if c.tier), ("", ""))
+
+        return Candidate(
+            index=index,
+            result=None,
+            wall_s=time.monotonic() - started,
+            spend=spend,
+            cut=True,
+            tier=tier,
+            model=model,
+        )
+
+    async def collect(finished: list[asyncio.Task[Candidate]]) -> list[Candidate]:
+        """Settle *finished* tasks, turning every cancellation into its red
+        record; an exception from a launch is raised after the rest settle."""
+
+        outcomes = await asyncio.gather(*finished, return_exceptions=True)
+        collected: list[Candidate] = []
+
+        for task, outcome in zip(finished, outcomes, strict=True):
+            if isinstance(outcome, asyncio.CancelledError):
+                collected.append(await cut(tasks[task]))
+
+            elif isinstance(outcome, BaseException):
+                raise outcome
+
+            else:
+                collected.append(outcome)
+
+        return collected
+
+    try:
+        while pending:
+            if stop():
+                # The run escalated under one of the candidates: the others'
+                # turns are cut (S-0124/D-4).
+                waiting = list(pending)
+
+                for task in waiting:
+                    task.cancel()
+
+                for candidate in await collect(waiting):
+                    record(candidate)
+
+                pending = set()
+                break
+
+            timeout = None if deadline is None else max(0.0, deadline - time.monotonic())
+
+            done, pending = await asyncio.wait(
+                pending, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
+            )
+
+            for task in sorted(done, key=lambda task: tasks[task]):
+                try:
+                    record(task.result())
+
+                except asyncio.CancelledError:
+                    record(await cut(tasks[task]))
+
+            if not done:
+                # The straggler deadline passed: cut the candidates still in
+                # their agent turn. A gate pass already running is shielded in
+                # the runner and finishes (S-0124/D-4).
+                waiting = list(pending)
+
+                for task in waiting:
+                    task.cancel()
+
+                for candidate in await collect(waiting):
+                    record(candidate)
+
+                pending = set()
+
+    finally:
+        # A cancelled `select` must not leave its candidates running.
+        if pending:
+            for task in pending:
+                task.cancel()
+
+            await asyncio.gather(*pending, return_exceptions=True)
+
+    # The run escalated under its candidates: the others' turns are already
+    # cancelled, and the round ends here — nothing is collapsed, ranked or
+    # shown to the critic (S-0124/D-4). The loop stops on the escalation.
+    if stop():
+        candidates.sort(key=lambda candidate: candidate.index)
+
+        return Selection(candidates, spent_usd=total)
+
+    # Completion order is a scheduling fact, not the unit's order: candidates
+    # are sorted by index before collapse and pre-rank (S-0124/D-4).
+    candidates.sort(key=lambda candidate: candidate.index)
 
     # A protected-test edit is a red blocking gate, so a green one made none.
     pool = collapse([c for c in candidates if c.green])
-    selection = Selection(candidates, prerank(pool, seed), spent_usd=total, exhausted=exhausted)
+    selection = Selection(candidates, prerank(pool, seed), spent_usd=total)
 
     if review is None:
         selection.winner = selection.ranked[0] if selection.ranked else None
@@ -338,14 +493,59 @@ async def select(
 # ....................... #
 
 
-def unit_record(
-    selection: Selection, *, task_id: str, attempt: int, width: int, size: str, at: str
-) -> dict[str, Any]:
-    """The `unit.closed` record (S-0122/D-16): the unit's class and width,
-    every candidate with its wall time, cost, gate outcome, rank and the
-    critic's verdict, the one selected and the outcome."""
+def _revision_block(revision: Any) -> dict[str, Any] | None:
+    """The revision block a `unit.closed` record carries (S-0124/D-9). A
+    `Revision`, a mapping and None all read the same, so a caller building
+    the record from a plain dict and one carrying the dataclass agree."""
+
+    if revision is None:
+        return None
+
+    if isinstance(revision, Mapping):
+        values: Mapping[str, Any] = revision
+    else:
+        values = {
+            name: getattr(revision, name, None)
+            for name in ("kind", "round", "rereview", "reraised", "spend_usd", "wall_s")
+        }
+
+    kind = values.get("kind")
+    rereview = values.get("rereview")
+
+    if kind is None or rereview is None:
+        return None
 
     return {
+        "kind": str(kind),
+        "round": int(values.get("round") or 1),
+        "rereview": str(rereview),
+        "reraised": bool(values.get("reraised", False)),
+        "spend_usd": values.get("spend_usd"),
+        "wall_s": values.get("wall_s"),
+    }
+
+
+# ....................... #
+
+
+def unit_record(
+    selection: Selection,
+    *,
+    task_id: str,
+    attempt: int,
+    width: int,
+    size: str,
+    at: str,
+    revision: Any = None,
+) -> dict[str, Any]:
+    """The `unit.closed` record (S-0122/D-16, S-0124/D-9): the unit's class
+    and width, every candidate with its tier, model, wall time, cost, gate
+    outcome, rank and the critic's verdict, the one selected, the outcome and
+    — when this was a revision — the round it spent."""
+
+    block = _revision_block(selection.revision if revision is None else revision)
+
+    record: dict[str, Any] = {
         "kind": "unit.closed",
         "schema_version": 2,
         "at": at,
@@ -356,17 +556,31 @@ def unit_record(
         "candidates": [
             {
                 "index": c.index,
+                "tier": c.tier,
+                "model": c.model,
                 "wall_time_s": round(c.wall_s, 3),
                 "cost_usd": getattr(c.result, "cost_usd", None),
+                # What this candidate cost the unit notionally, finished turns
+                # included when it was cut at the straggler deadline
+                # (S-0123/D-1, S-0124/D-7).
+                "spend_usd": c.spend,
                 "green": c.green,
                 "followed_up": c.followed_up,
+                "cut": c.cut,
                 "rank": c.rank or None,
                 "collapsed_into": c.collapsed_into or None,
                 "verdict": ("clean" if c.clean else "blocked") if c.reviewed else None,
             }
             for c in selection.candidates
         ],
-        "selected": selection.chosen.index,
+        # No candidate when the cap stopped the unit before its launch: the
+        # attempt still closes, and names no selection (S-0124/D-9).
+        "selected": selection.chosen.index if selection.candidates else None,
         "critic_calls": selection.critic_calls,
         "outcome": selection.outcome,
     }
+
+    if block is not None:
+        record["revision"] = block
+
+    return record

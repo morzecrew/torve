@@ -22,7 +22,7 @@ import shutil
 import subprocess
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -34,6 +34,7 @@ from torve.application.dispatch import (
     attempt_row,
     cache_volumes,
     emit,
+    review_gated,
 )
 from torve.application.equipment import EQUIPMENT_MOUNT, mount_root, regime_keys
 from torve.application.ports import (
@@ -278,6 +279,34 @@ def _restore_never_send(withheld: dict[Path, bytes]) -> None:
 # ....................... #
 
 
+def candidate_suffix(candidate: int) -> str:
+    """The name suffix a candidate after the first carries (S-0124/D-5): two
+    candidates of one task never share a container or a gitdir."""
+
+    return f"-c{candidate}" if candidate > 1 else ""
+
+
+def attempt_sandbox_name(infra_id: str, state: RunState, candidate: int) -> str:
+    """The attempt sandbox's name, the attempt number first and the candidate
+    after it (S-0124/D-5)."""
+
+    return (
+        naming.sandbox_name(infra_id, state.run_id)
+        + f"-a{state.attempts}"
+        + candidate_suffix(candidate)
+    )
+
+
+def sandbox_gitdir_name(infra_id: str, candidate: int) -> str:
+    """The standalone gitdir's name, `-c<k>` for a candidate after the first
+    (S-0124/D-5)."""
+
+    return infra_id + candidate_suffix(candidate)
+
+
+# ....................... #
+
+
 def _sandbox_auth(
     config: RunnerConfig, tier: TierConfig, worker_slot: int
 ) -> tuple[tuple[str, ...], dict[str, str]]:
@@ -331,7 +360,9 @@ def _record_broker_usage(
     agent_meta["broker"] = broker_block(broker.name, usage)
     refused = usage.refusals.get("budget")
 
-    if refused:
+    if refused and state.escalation is None:
+        # Candidates run side by side (S-0124/D-4): the first refusal ends the
+        # run, and a sibling's identical refusal transitions nothing.
         state.escalate(
             EscalationReason.COST_ANOMALY,
             f"broker refused {refused} request(s) past the run's token budget",
@@ -413,6 +444,107 @@ async def _stamp_turn(
 # ....................... #
 
 
+def _teardown(
+    run: Dispatch,
+    state: RunState,
+    handle: SandboxHandle,
+    spec: SandboxSpec,
+    withheld: dict[Path, bytes],
+    planted: Path,
+) -> None:
+    """Close one session's sandbox and everything the attempt staged for it.
+    Synchronous on purpose: a cancelled task cannot await its own cleanup, and
+    the sandbox must die regardless (S-0001/D-12)."""
+
+    run.deps.runtime.destroy(handle)
+    _restore_never_send(withheld)
+    # The planted record was for this attempt's eyes (S-0005/D-13, T-0076):
+    # it leaves the tree before the gates measure it — the feedback channel
+    # steers the attempt, never the candidate, and a planted file the scope
+    # gate can see would fail every revision against its own contract.
+    planted.unlink(missing_ok=True)
+
+    if spec.gitdir:
+        shutil.rmtree(spec.gitdir, ignore_errors=True)
+
+    # A sibling candidate's sandbox may still be live (S-0124/D-4): this
+    # session drops its own and leaves the others where a kill finds them.
+    state.sandboxes = [sandbox for sandbox in state.sandboxes if sandbox != handle.id]
+    state.sandbox_id = state.sandboxes[-1] if state.sandboxes else None
+    state.save()
+
+
+@dataclass
+class OpenSession:
+    """A candidate's sandbox kept alive past the critic pass (S-0124/D-8).
+
+    Under `review.revision: session` the selected candidate is continued in
+    the session it ran, so its sandbox, gitdir and staged surroundings outlive
+    `run_agent_session` until `select_attempt` knows whether a revision turn
+    is needed. `close` is the attempt's ordinary teardown, run once the turn
+    (or the decision not to take it) has settled."""
+
+    run: Dispatch
+    state: RunState
+    handle: SandboxHandle
+    spec: SandboxSpec
+    ctx: AgentContext
+    agent: Any
+    result: AgentResult
+    withheld: dict[Path, bytes]
+    planted: Path
+    started_at: str
+    clock: float
+
+    # ....................... #
+
+    async def follow_up(self, text: str, timeout_s: float) -> AgentResult | None:
+        """One more turn in this session with *text* as its task, finished and
+        synced the way the first turn was, and stamped whole (S-0124/D-8).
+
+        None when the seat keeps no session or the turn has no clock left: the
+        caller then falls back to `fresh`."""
+
+        follow = getattr(self.agent, "follow_up", None)
+
+        if follow is None or timeout_s <= 0:
+            return None
+
+        continued = await asyncio.to_thread(
+            follow, replace(self.ctx, timeout_s=timeout_s), self.result, text
+        )
+
+        if continued is None:
+            return None
+
+        self.result = cast(AgentResult, continued)
+
+        if self.run.tier.finish:
+            await _finish(self.run, self.handle, self.spec)
+
+        self.run.deps.runtime.sync_out(self.handle, self.run.worktree)
+        await _stamp_turn(self.run, self.state, continued, self.started_at, self.clock)
+
+        return cast(AgentResult, continued)
+
+    # ....................... #
+
+    def sandbox_left_s(self) -> float:
+        """What is left of the sandbox's life (S-0035/D-6): the container was
+        started for `spec.timeout_s` and has been up since `clock`. A turn in
+        this session must fit inside it; a turn with nothing left is no turn."""
+
+        return self.spec.timeout_s - (time.monotonic() - self.clock)
+
+    # ....................... #
+
+    def close(self) -> None:
+        _teardown(self.run, self.state, self.handle, self.spec, self.withheld, self.planted)
+
+
+# ....................... #
+
+
 async def run_agent_session(
     run: Dispatch,
     state: RunState,
@@ -430,7 +562,9 @@ async def run_agent_session(
     deps, config, task = run.deps, run.config, run.task
     root, worktree, shadow, resume = run.root, run.worktree, run.shadow, run.resume
 
-    run_agent = advance_tier(run, state)
+    # S-0124/D-6: the attempt resolved its tier once, before any candidate
+    # started; every candidate runs on that resolution.
+    run_agent = run.resolved_agent if run.resolved_agent is not None else advance_tier(run, state)
     run_kind = getattr(run_agent, "kind", run.tier.adapter)
     run_real = run_kind != "fake"
 
@@ -569,7 +703,7 @@ async def run_agent_session(
     from torve.application.runner import _nested_docker
 
     spec = SandboxSpec(
-        name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
+        name=attempt_sandbox_name(infra_id, state, run.candidate),
         image=run.image,
         labels=naming.labels(infra_id, state.run_id, root),
         # The resolved tier's clock when it names one (S-0035/the-tier-clock,
@@ -584,7 +718,7 @@ async def run_agent_session(
             {str(equipment_mount): EQUIPMENT_MOUNT} if equipment_mount is not None else {}
         ),
         nested=_nested_docker(run, task.role),
-        gitdir=_sandbox_gitdir(root, worktree, infra_id),
+        gitdir=_sandbox_gitdir(root, worktree, sandbox_gitdir_name(infra_id, run.candidate)),
     )
 
     withheld = _withhold_never_send(worktree, config.providers.never_send)
@@ -599,7 +733,21 @@ async def run_agent_session(
     write_tracked_files(worktree)
     handle = deps.runtime.create(spec, worktree)
     state.sandbox_id = handle.id
+    state.sandboxes.append(handle.id)
     state.save()
+
+    # S-0124/D-8: a candidate's session is kept open past the critic pass
+    # only inside selection, and only in the session revision arm. This
+    # session owns its teardown until a clean result is handed back open.
+    keep_open = (
+        run.resolved_agent is not None
+        # A seat that cannot follow up has no turn to keep the sandbox for,
+        # and its teardown restores the `never_send` files before the gates.
+        and getattr(run_agent, "follow_up", None) is not None
+        and config.review.revision == "session"
+        and review_gated(config, task, shadow)
+    )
+    teardown = True
 
     try:
         # What has to run before the agent (S-0062/D-7). Chained into the tier
@@ -737,25 +885,38 @@ async def run_agent_session(
             ),
         )
 
+        # S-0124/D-8: a clean candidate in the session arm hands its open
+        # sandbox and session back to selection, so the critic's blockers can
+        # be answered in the session that produced the tree. Every other
+        # ending tears down here, as it always did.
+        if (
+            keep_open
+            and result.refused is None
+            and not result.timed_out
+            and result.exit_code == 0
+            and state.escalation is None
+            and halted(run, state.attempts) is None
+        ):
+            run.open_session = OpenSession(
+                run=run,
+                state=state,
+                handle=handle,
+                spec=spec,
+                ctx=ctx,
+                agent=run_agent,
+                result=result,
+                withheld=withheld,
+                planted=planted,
+                started_at=attempt_started_at,
+                clock=attempt_clock,
+            )
+            teardown = False
+
         return result
 
     finally:
-        # Synchronous on purpose: a cancelled task cannot await its own
-        # cleanup, and the sandbox must die regardless (S-0001/D-12).
-        deps.runtime.destroy(handle)
-        _restore_never_send(withheld)
-        # The planted record was for this attempt's eyes (S-0005/D-13,
-        # T-0076): it leaves the tree before the gates measure it —
-        # the feedback channel steers the attempt, never the candidate,
-        # and a planted file the scope gate can see would fail every
-        # revision against its own contract.
-        planted.unlink(missing_ok=True)
-
-        if spec.gitdir:
-            shutil.rmtree(spec.gitdir, ignore_errors=True)
-
-        state.sandbox_id = None
-        state.save()
+        if teardown:
+            _teardown(run, state, handle, spec, withheld, planted)
 
 
 # ....................... #
@@ -932,10 +1093,14 @@ async def _prepare(
         return True
 
     run.meta["prepare_output"] = result.output
-    state.escalate(
-        EscalationReason.PREPARE_FAILED,
-        f"prepare exited {result.exit_code} after {seconds}s: {run.tier.prepare}",
-    )
+
+    if state.escalation is None:
+        # A sibling candidate may have failed its own prepare first; the run's
+        # ending is already the same one (S-0124/D-4).
+        state.escalate(
+            EscalationReason.PREPARE_FAILED,
+            f"prepare exited {result.exit_code} after {seconds}s: {run.tier.prepare}",
+        )
     emit(
         run,
         "attempt_finished",

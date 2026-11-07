@@ -1212,8 +1212,10 @@ class ReviewConfig(BaseModel):
     pull requests always skip. `blocker_revisions` (S-0043, S-0001/D-10's framing:
     configuration decides the consequence, never the model) bounds how many
     in-run attempts a surviving blocker earns before escalating
-    `blocker_finding`; 0 escalates on the first surviving blocker, today's
-    behavior exactly."""
+    `blocker_finding`; 0 escalates on the first surviving blocker. `None`
+    until `resolved_blocker_revisions` reads it: a configuration that names
+    no number gets two rounds under `critic` (S-0122/D-8) and one under
+    `classic`, and that resolution lives here alone."""
 
     model_config = STRICT
     on: list[str] = Field(default_factory=list)
@@ -1223,11 +1225,19 @@ class ReviewConfig(BaseModel):
     """§4's author skip rule: pull requests by these authors are not reviewed; draft and
     zero-changed-files pull requests always skip."""
 
-    blocker_revisions: int = 1
-    """The blocker revision budget (S-0043 S-0043/D-1/D-43.3): in-run attempts, same
-    worktree, a surviving blocker spends before escalating. Counted per run, spent only by
-    surviving blockers — a clean review costs nothing against it. 0 escalates on the first
-    surviving blocker, today's behavior exactly."""
+    blocker_revisions: int | None = None
+    """The blocker revision budget (S-0043 S-0043/D-1/D-43.3, S-0124/D-2): in-run
+    attempts, same worktree, a surviving blocker spends before escalating. Counted per
+    run, spent only by surviving blockers — a clean review costs nothing against it. 0
+    escalates on the first surviving blocker. `None` resolves through
+    `resolved_blocker_revisions`: two under `critic`, one under `classic`."""
+
+    revision: Literal["fresh", "session"] = "fresh"
+    """How a revision round after a critic block continues (S-0124/D-8):
+    `fresh` (the default) starts a new attempt on the seat's `revision_variant`;
+    `session` continues the selected candidate in its own still-open session,
+    on that candidate's tier, and falls back to `fresh` when its harness keeps
+    no session."""
 
     mode: Literal["classic", "critic"] = "classic"
     """Who judges a gate-green candidate (S-0122/D-6): `classic`, the reviewer
@@ -1236,6 +1246,16 @@ class ReviewConfig(BaseModel):
     its base, the base tree and the rows the unit owns, under a frozen prompt, whose
     findings the engine turns into block or pass (S-0122/D-1). `classic` stays for
     one release beside it."""
+
+    def resolved_blocker_revisions(self) -> int:
+        """The revision budget this configuration spends (S-0124/D-2): what it
+        names when it names a number, else two under `critic` and one under
+        `classic`. One resolution, so every reader of the budget agrees."""
+
+        if self.blocker_revisions is not None:
+            return self.blocker_revisions
+
+        return 2 if self.mode == "critic" else 1
 
     blocks_at: Literal["blocker", "major"] = "major"
     """The severity that stops a promotion. Three consecutive reviews of this engine's own

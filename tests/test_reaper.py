@@ -796,6 +796,40 @@ def test_clear_escalated_takes_the_state_worktree_and_sandbox(tmp_path):
     assert not state.path.exists()
 
 
+def test_clear_escalated_takes_a_nested_sandbox_s_side_container(tmp_path):
+    """T-0877 (S-0111/D-2): the run state names the nested sandbox's own id,
+    never the `-dockerd` side container, though the side carries the same
+    labels. Clearing only the recorded ids left the daemon running after the
+    state and worktree were deleted; the side is found by its run label."""
+    from torve.application.reaper import clear_escalated
+    from torve.domain.states import EscalationReason
+
+    state = state_at(tmp_path, "T-9807", TaskState.RUNNING)
+    state.sandboxes = ["sbx-main"]
+    state.sandbox_id = "sbx-main"
+    state.escalate(EscalationReason.POISON_CEILING, "3 attempts, ceiling 3")
+
+    labels = naming.labels("T-9807", state.run_id, tmp_path)
+    runtime = MockRuntime()
+    runtime.registry = [
+        SandboxInfo(id="sbx-main", name="torve-T-9807", labels=labels),
+        SandboxInfo(id="sbx-side", name="torve-T-9807-dockerd", labels=labels),
+        # Another engine's nested side container is not ours to judge.
+        SandboxInfo(
+            id="sbx-foreign",
+            name="torve-T-9807-dockerd",
+            labels=naming.labels("T-9807", state.run_id, tmp_path / "other"),
+        ),
+    ]
+    workspace = ListingWorkspace([("T-9807", tmp_path / ".wt" / "T-9807")])
+
+    assert clear_escalated(tmp_path, runtime, workspace, "T-9807") is True
+
+    assert runtime.destroyed == ["sbx-main", "sbx-side"]
+    assert workspace.removed == ["T-9807"]
+    assert not state.path.exists()
+
+
 def test_a_stopped_run_s_work_is_kept_on_its_branch_for_the_next_dispatch(tmp_path):
     # A night stopped mid-attempt left T-0811's gated tree only in its
     # worktree, and the requeue deleted it; the next dispatch started over.

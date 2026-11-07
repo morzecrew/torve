@@ -161,13 +161,50 @@ def test_retry_variants_change_the_regime_digest(tmp_path: Path):
 
 
 def test_blocker_revisions_defaults_to_one_and_parses_from_yaml(tmp_path: Path):
-    # S-0043 S-0043/D-1/D-43.3: the knob defaults to 1 in-run revision, and a
-    # YAML override rides the same `review:` mapping as `on`/`feedback_from`.
+    # S-0043 S-0043/D-1/D-43.3, S-0124/D-2: unset, classic still resolves to
+    # one in-run revision, and a YAML override rides the same `review:`
+    # mapping as `on`/`feedback_from`.
     config = load(
         tmp_path, "\n".join(["review:", '  "on": [task_gated]', "  blocker_revisions: 3"])
     )
     assert config.review.blocker_revisions == 3
-    assert RunnerConfig().review.blocker_revisions == 1
+    assert config.review.resolved_blocker_revisions() == 3
+    assert RunnerConfig().review.blocker_revisions is None
+    assert RunnerConfig().review.resolved_blocker_revisions() == 1
+
+
+def test_revision_rounds_default_by_mode_and_a_named_number_wins():
+    """S-0124/D-2: unset, a critic gets the two rounds S-0122/D-8 promises and
+    classic keeps one; a configuration that names a number gets that number
+    under either mode."""
+
+    from torve.config.runconfig import ReviewConfig
+
+    assert ReviewConfig().resolved_blocker_revisions() == 1
+    assert ReviewConfig(mode="critic").resolved_blocker_revisions() == 2
+
+    assert ReviewConfig(blocker_revisions=1).resolved_blocker_revisions() == 1
+    assert ReviewConfig(mode="critic", blocker_revisions=1).resolved_blocker_revisions() == 1
+    assert ReviewConfig(mode="critic", blocker_revisions=4).resolved_blocker_revisions() == 4
+    assert ReviewConfig(blocker_revisions=0).resolved_blocker_revisions() == 0
+
+
+def test_session_revision_is_a_mode_and_fresh_is_the_default(tmp_path: Path):
+    """S-0124/D-8: `review.revision` is `fresh` unless the configuration names
+    `session`; anything else is refused at load, and the YAML key rides the
+    same `review:` mapping every other knob does."""
+
+    from torve.config.runconfig import ReviewConfig
+
+    assert ReviewConfig().revision == "fresh"
+    assert ReviewConfig(revision="session").revision == "session"
+
+    config = load(tmp_path, "\n".join(["review:", '  "on": [task_gated]', "  revision: session"]))
+
+    assert config.review.revision == "session"
+
+    with pytest.raises(ValidationError):
+        ReviewConfig(revision="resume")  # type: ignore[arg-type]
 
 
 # ....................... #
