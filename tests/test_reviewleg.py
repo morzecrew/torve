@@ -155,7 +155,7 @@ def config(
     *,
     enabled: bool = True,
     rounds: int = 1,
-    findings: int = 15,
+    findings: int = 5,
     sources: list[str] | None = None,
     approve: str = "",
 ) -> RunnerConfig:
@@ -645,8 +645,11 @@ def test_nothing_is_resolved_before_the_record_says_the_round_landed(seeded):
 
     review_thread_leg(seeded.root, config(), forge, lambda _t: False)
 
-    assert forge.resolved == [] and forge.replied == []
-    assert len(events(seeded.root, "lane_review_task")) == 1
+    (minted,) = events(seeded.root, "lane_review_task")
+    # The round says which task carries the thread (S-0125/D-4), and leaves it
+    # unresolved until the landing is the record's (S-0084/D-12).
+    assert forge.resolved == []
+    assert forge.replied == [("t1", f"Fixing in {minted['task']}.")]
 
     # A second pass over a round still in flight mints nothing further and
     # still answers nothing.
@@ -654,6 +657,7 @@ def test_nothing_is_resolved_before_the_record_says_the_round_landed(seeded):
 
     assert len(events(seeded.root, "lane_review_task")) == 1
     assert forge.resolved == []
+    assert forge.replied == [("t1", f"Fixing in {minted['task']}.")]
 
 
 def test_a_landed_round_answers_every_thread_and_resolves_only_the_bots(seeded):
@@ -665,10 +669,28 @@ def test_a_landed_round_answers_every_thread_and_resolves_only_the_bots(seeded):
     (minted,) = events(seeded.root, "lane_review_task")
     task_id = minted["task"]
 
+    # The forge now carries the mint's reply: the landing answer still follows
+    # it, because `Fixing in ...` is not the answer a landed round posts.
+    forge.info = pr(
+        ReviewThread(
+            id="t1",
+            path="src/app.py",
+            line=12,
+            comments=(
+                ThreadComment(author=BOT, body="this dereference has no null check"),
+                ThreadComment(author="torve", body=f"Fixing in {task_id}."),
+            ),
+        ),
+        thread("t2", line=13, author=HUMAN),
+    )
+
     review_thread_leg(seeded.root, config(), forge, landing((task_id, "cafe123")))
 
-    assert [ident for ident, _body in forge.replied] == ["t1", "t2"]
-    assert all("cafe123" in body for _ident, body in forge.replied)
+    # The minted round named its task (S-0125/D-4); the landing answer follows
+    # it, and only the bot's thread is resolved (S-0084/D-11, S-0084/D-12).
+    assert forge.replied[0] == ("t1", f"Fixing in {task_id}.")
+    assert [ident for ident, _body in forge.replied[1:]] == ["t1", "t2"]
+    assert all("cafe123" in body for _ident, body in forge.replied[1:])
     assert forge.resolved == ["t1"]  # never the person's (S-0084/D-11)
 
     resolved = events(seeded.root, "lane_thread_resolved")
@@ -744,7 +766,8 @@ def test_a_rejected_finding_is_answered_from_its_divergence_entry(seeded):
 
     review_thread_leg(seeded.root, config(), forge, landing((task_id, "cafe123")))
 
-    ((_ident, body),) = forge.replied
+    ((_ident, fixing), (_answered, body)) = forge.replied
+    assert "Fixing in" in fixing
     assert "the value cannot be null here" in body
     assert "src/app.py:1" in body
     assert "Fixed in" not in body
@@ -2069,7 +2092,7 @@ def test_the_wave_is_minted_as_rounds_of_the_cap(seeded):
         pr(*(thread(f"t{index}", path=f"src/f{index}.py", line=index) for index in range(20)))
     )
 
-    review_thread_leg(seeded.root, config(rounds=5), forge, lambda _t: False)
+    review_thread_leg(seeded.root, config(rounds=5, findings=15), forge, lambda _t: False)
 
     rounds = events(seeded.root, "lane_review_task")
 
@@ -2304,11 +2327,15 @@ def test_triage_answers_what_it_dismisses_and_rounds_what_it_applies(seeded, unt
     )
 
     assert minted is True
-    ((ident, reply),) = forge.replied
-    assert ident == "t3" and "Evidence: src/app.py:1 — the check is already there" in reply
-    assert forge.resolved == ["t3"]
-    # One revision for every thread it would apply, whatever the per-round cap.
     (recorded,) = events(seeded.root, "lane_review_task")
+    replies = dict(forge.replied)
+    assert "Evidence: src/app.py:1 — the check is already there" in replies["t3"]
+    # The applied threads are the round's, and it names the task fixing each
+    # (S-0125/D-4); the dismissed thread is the one resolved.
+    assert replies["t1"] == replies["t2"] == f"Fixing in {recorded['task']}."
+    assert forge.resolved == ["t3"]
+    # One round for both applied threads: the cap never splits a file
+    # (S-0125/D-3).
     assert sorted(t for f in recorded["findings"] for t in f["threads"]) == ["t1", "t2"]
     contract = yaml.safe_load(
         layout.task_file(seeded.root, recorded["task"]).read_text(encoding="utf-8")
@@ -2371,11 +2398,14 @@ def test_a_triage_seat_that_gives_no_answer_leaves_the_leg_as_it_was(seeded, unt
         seeded.root, config(), forge, lambda _t: None, triage=Critic(None)
     )
 
-    assert minted is True and forge.replied == []
+    (recorded,) = events(seeded.root, "lane_review_task")
+    # No triage answer leaves the round's own terms as they were; it still
+    # names the task carrying the thread, and resolves nothing (S-0125/D-4).
+    assert minted is True
+    assert forge.replied == [("t1", f"Fixing in {recorded['task']}.")]
+    assert forge.resolved == []
     contract = yaml.safe_load(
-        layout.task_file(seeded.root, events(seeded.root, "lane_review_task")[0]["task"]).read_text(
-            encoding="utf-8"
-        )
+        layout.task_file(seeded.root, recorded["task"]).read_text(encoding="utf-8")
     )
     from torve.application import reviewleg
 
@@ -2461,9 +2491,13 @@ def test_a_thread_whose_dismissal_does_not_stand_is_applied(seeded, untriaged, a
 
     review_thread_leg(seeded.root, config(), forge, lambda _t: None, triage=critic)
 
-    assert "t1" not in [ident for ident, _ in forge.replied]
     (recorded,) = events(seeded.root, "lane_review_task")
     assert "t1" in [t for f in recorded["findings"] for t in f["threads"]]
+    # The applied thread is named by the task fixing it, not resolved
+    # (S-0125/D-4).
+    assert [body for ident, body in forge.replied if ident == "t1"] == [
+        f"Fixing in {recorded['task']}."
+    ]
 
 
 def test_a_head_whose_triage_gave_no_answer_is_not_asked_again(seeded, untriaged):
@@ -2476,3 +2510,113 @@ def test_a_head_whose_triage_gave_no_answer_is_not_asked_again(seeded, untriaged
     review_thread_leg(seeded.root, config(rounds=0), forge, lambda _t: None, triage=critic)
 
     assert len(critic.prompts) == 1
+
+
+# ----------------------- #
+# Rounds of five that say so (S-0125/D-3, S-0125/D-4).
+
+
+def test_findings_per_round_caps_a_triaged_head_without_splitting_a_file(seeded, untriaged):
+    """S-0125/D-3: a triaged head's findings are rounds of at most
+    `threads.findings_per_round`, as an untriaged head's are. Fifteen threads
+    over three files become three rounds of five, and no file is worked by two
+    rounds of the wave."""
+
+    open_document(seeded.root)
+    ready(seeded.root, "T-0900")
+    paths = ["src/a.py", "src/b.py", "src/c.py"]
+    threads = tuple(
+        thread(f"t{index}", path=paths[index // 5], line=(index % 5) * 20 + 1)
+        for index in range(15)
+    )
+    critic = Critic(
+        _triaged(
+            **{f"t{index}": ("apply", f"{paths[index // 5]}:1 — a finding") for index in range(15)}
+        )
+    )
+    forge = StubForge(pr(*threads))
+
+    _detail, minted = review_thread_leg(
+        seeded.root, config(rounds=3), forge, lambda _t: None, triage=critic
+    )
+
+    assert minted is True
+    rounds = events(seeded.root, "lane_review_task")
+    assert [len(row["findings"]) for row in rounds] == [5, 5, 5]
+    # Each file's findings are one round's, never two rounds' (S-0097/D-5).
+    assert [{finding["path"] for finding in row["findings"]} for row in rounds] == [
+        {path} for path in paths
+    ]
+    assert sum(len(row["threads"]) for row in rounds) == 15
+
+
+def test_fixing_reply_names_the_task_on_each_minted_round_s_bot_thread(seeded):
+    """S-0125/D-4: a minted round replies `Fixing in T-NNNN.` on each of its
+    bot threads and leaves them unresolved; a person's thread is none of its
+    own, and a later pass over the same head says nothing twice."""
+
+    open_document(seeded.root)
+    forge = StubForge(
+        pr(
+            thread("t1"),
+            thread("t2", line=13),
+            thread("t3", line=14, author=HUMAN),
+        )
+    )
+
+    detail, minted = review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    (recorded,) = events(seeded.root, "lane_review_task")
+    fixing = f"Fixing in {recorded['task']}."
+    assert minted is True and "minted 1" in detail
+    assert forge.replied == [("t1", fixing), ("t2", fixing)]
+    assert forge.resolved == []
+
+    # The round is on the board, so the next pass mints nothing and repeats
+    # nothing.
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    assert forge.replied == [("t1", fixing), ("t2", fixing)]
+
+
+def test_fixing_reply_says_the_escalation_s_reason_once(seeded):
+    """S-0125/D-4: when a round's task escalates, the next pass replies once on
+    each of its bot threads with the escalation's reason, leaves them
+    unresolved, and does not say it again on a later pass."""
+
+    open_document(seeded.root)
+    forge = StubForge(pr(thread("t1"), thread("t2", line=40)))
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+    (recorded,) = events(seeded.root, "lane_review_task")
+    task_id = recorded["task"]
+    fixing = f"Fixing in {task_id}."
+
+    path = naming.state_file(seeded.root, task_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    state = RunState(task_id=task_id, path=path)
+
+    for to in (
+        TaskState.CLAIMED,
+        TaskState.RUNNING,
+        TaskState.GATED,
+        TaskState.REVIEWED,
+        TaskState.READY,
+    ):
+        state.transition(to, "test")
+
+    state.escalate(EscalationReason.BLOCKER_FINDING, "the fix stayed red")
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    assert forge.replied == [
+        ("t1", fixing),
+        ("t2", fixing),
+        ("t1", "blocker_finding"),
+        ("t2", "blocker_finding"),
+    ]
+    assert forge.resolved == []
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    assert len(forge.replied) == 4

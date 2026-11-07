@@ -1342,10 +1342,11 @@ class ThreadsConfig(BaseModel):
     rounds_per_pass: int = 1
     """How many revision rounds one served pass may mint (S-0084/D-16). Bounds the leg per
     pass; the night's own budget bounds it across the night."""
-    findings_per_round: int = 15
-    """How many findings one round carries (S-0097/D-5). A head's findings are minted
-    together as rounds of at most this many, grouped by file so no two rounds of one
-    wave share a file; `rounds_per_pass` still bounds what a pass mints."""
+    findings_per_round: int = 5
+    """How many findings one round carries (S-0097/D-5, S-0125/D-3). A head's findings
+    are minted together as rounds of at most this many, grouped by file so no two
+    rounds of one wave share a file; `rounds_per_pass` still bounds what a pass mints.
+    The cap applies whether triage ran on the head or not."""
     review_wait: int = 45
     """Minutes a night waits for a document pull request's head to be reviewed before
     it would otherwise drain (S-0097/D-4). The wait ends early once every login in

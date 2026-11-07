@@ -964,7 +964,7 @@ def test_the_thread_section_defaults_off_and_loads_its_terms(tmp_path: Path) -> 
     assert defaults.enabled is False
     assert defaults.bots == [] and defaults.rounds_per_pass == 1
     # S-0097/D-4, S-0097/D-5: the wait and the wave's cap have defaults too.
-    assert defaults.review_wait == 45 and defaults.findings_per_round == 15
+    assert defaults.review_wait == 45 and defaults.findings_per_round == 5
 
     config = load(
         tmp_path,
@@ -979,6 +979,17 @@ def test_the_thread_section_defaults_off_and_loads_its_terms(tmp_path: Path) -> 
     assert config.threads.rounds_per_pass == 2
     assert config.threads.review_wait == 10
     assert config.threads.findings_per_round == 5
+
+
+def test_findings_per_round_defaults_to_five() -> None:
+    """S-0125/D-3: a round carries five findings unless the configuration says
+    otherwise — a wave of fifteen becomes three or more small rounds, so a
+    critic block in one leaves the others' fixes to land."""
+
+    from torve.config.runconfig import ThreadsConfig
+
+    assert ThreadsConfig().findings_per_round == 5
+    assert RunnerConfig().threads.findings_per_round == 5
 
 
 def test_the_thread_sources_default_to_the_forge_and_load_from_yaml(tmp_path: Path) -> None:

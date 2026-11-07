@@ -129,6 +129,18 @@ ENGINE_WRITTEN_REPLY = (
     "a fix belongs in that task or those rows, not in a comment on this pull request."
 )
 
+# What a minted round says on each of its bot threads (S-0125/D-4): the task
+# fixing it, posted before the round has landed. The thread is left unresolved
+# so a reader still sees it, and the landing answer follows as before.
+FIXING_PREFIX = "Fixing in "
+FIXING_REPLY = f"{FIXING_PREFIX}{{task}}."
+
+# Escalated rounds already answered with their reason, for the life of the
+# process — (repository, task id, reason). On a real forge the thread's own
+# comment is the durable carrier; this remembers the pass whose `PrInfo` was
+# read before the reply landed, so one process does not repeat itself.
+ESCALATION_REPLIED: set[tuple[str, str, str]] = set()
+
 # S-0102/D-6: (repository, branch, path, line) -> the head the leg last
 # recorded a re-raise at, for the life of the process. A served manager is one
 # process across a night's passes, so the dedupe needs no stream; a restarted
@@ -953,6 +965,82 @@ def _escalate(root: Path, branch: str, detail: str) -> None:
 # ....................... #
 
 
+def _reply_escalated_rounds(
+    root: Path,
+    config: RunnerConfig,
+    forge: ThreadForge,
+    branch: str,
+    info: PrInfo,
+    open_threads: dict[str, ReviewThread],
+) -> int:
+    """Say on each of an escalated round's bot threads why it stopped
+    (S-0125/D-4): the escalation's reason, once, and never resolved — the
+    thread is left for a person. A round still queued, running or landed has
+    nothing to say, and a reason already posted on the thread is not posted
+    again by a later pass or another host."""
+
+    answered = 0
+
+    for task_id, task in round_tasks(root, branch):
+        path = naming.state_file(root, task_id)
+
+        if not path.is_file():
+            continue
+
+        state = RunState.load(path)
+
+        if state.state is not TaskState.ESCALATED or state.escalation is None:
+            continue
+
+        reason = state.escalation.reason
+
+        if (str(root), task_id, reason) in ESCALATION_REPLIED:
+            continue
+
+        wrote = False
+
+        for finding in task.round.findings:
+            for ident in finding.threads:
+                if str(ident).startswith(RECORD):
+                    continue
+
+                thread = open_threads.get(str(ident))
+
+                if thread is None or thread.author not in config.threads.bots:
+                    continue
+
+                # The forge carries the answer: a reason already on the thread
+                # means an earlier pass said it, on this host or another.
+                if any(
+                    comment.author == info.author and comment.body.strip() == reason
+                    for comment in thread.comments
+                ):
+                    continue
+
+                forge.reply_thread(thread.id, reason)
+                wrote = True
+                answered += 1
+                engine_event(
+                    root,
+                    "lane_thread_escalated",
+                    {
+                        "branch": branch,
+                        "pr": info.number,
+                        "task": task_id,
+                        "thread": thread.id,
+                        "reason": reason,
+                    },
+                )
+
+        if wrote:
+            ESCALATION_REPLIED.add((str(root), task_id, reason))
+
+    return answered
+
+
+# ....................... #
+
+
 def _injection(finding: Finding) -> str:
     """The first thread of *finding* that asks for something a claim may not
     (S-0084/D-9), read off its visible text; "" when none does. The same scan
@@ -1255,13 +1343,39 @@ def _already_handled(thread: ReviewThread, engine: str) -> bool:
 
 
 def _engine_replied(thread: ReviewThread, engine: str) -> bool:
-    """Whether the engine has commented on this thread at all (S-0103/D-1) —
-    the round's answer, a refusal or the engine-written reply. A landed round
-    is answered once per thread, so one already carrying an engine comment is
-    not answered again: a comment after that reply is a re-raise, judged by the
-    leg, never the same reply posted a second time (S-0084/D-14)."""
+    """Whether the engine has answered this thread (S-0103/D-1) — the round's
+    answer, a refusal or the engine-written reply. A landed round is answered
+    once per thread, so one already carrying an engine comment is not answered
+    again: a comment after that reply is a re-raise, judged by the leg, never
+    the same reply posted a second time (S-0084/D-14).
 
-    return bool(engine and any(comment.author == engine for comment in thread.comments))
+    Neither a minted round's `Fixing in T-NNNN.` nor the reason an escalated
+    round left is the answer a landing posts (S-0125/D-4): each says where the
+    thread stands before it is done, and the landing answer still follows."""
+
+    return bool(
+        engine
+        and any(
+            comment.author == engine
+            and not _is_fixing_reply(comment.body)
+            and not _is_escalation_reply(comment.body)
+            for comment in thread.comments
+        )
+    )
+
+
+def _is_fixing_reply(body: str) -> bool:
+    """Whether *body* is the reply a minted round posts, never the answer a
+    landed one does (S-0125/D-4)."""
+
+    return body.lstrip().startswith(FIXING_PREFIX)
+
+
+def _is_escalation_reply(body: str) -> bool:
+    """Whether *body* is the reason an escalated round left on its thread,
+    never the answer a landed one posts (S-0125/D-4)."""
+
+    return body.strip() in {str(reason) for reason in EscalationReason}
 
 
 # ....................... #
@@ -2096,6 +2210,12 @@ def review_thread_leg(
         # own threads are dropped before the findings are judged (S-0084/D-14).
         raised = [thread for thread in raised if thread.id not in handled]
 
+        # A round that stopped says why on the threads it carried (S-0125/D-4):
+        # once per thread, and never resolved — a person reads it where the
+        # finding was raised. It is said before an `underspecified` round is
+        # requeued, so the escalation that caused the retry is not silent.
+        answered += _reply_escalated_rounds(root, config, forge, branch, info, open_threads)
+
         requeued += requeue_underspecified(root, branch)
 
         # S-0097/D-7: the wave is behind the head, so the operator no longer
@@ -2277,8 +2397,9 @@ def review_thread_leg(
 
         # The head's findings minted together as rounds of file-disjoint waves
         # (S-0097/D-5), `rounds_per_pass` still bounding what this pass mints.
-        # A triaged head's valid threads are one revision (S-0122/D-15).
-        cap = max(len(claims), 1) if triaged else config.threads.findings_per_round
+        # The same cap applies whether the head was triaged or not (S-0125/D-3):
+        # a triaged head no longer buys one oversize revision.
+        cap = config.threads.findings_per_round
 
         for wave in batch_claims(claims, cap):
             if len(minted) >= config.threads.rounds_per_pass:
@@ -2318,7 +2439,22 @@ def review_thread_leg(
 
                 # S-0056/D-9: the board's ids, not only the files, or a round
                 # takes the id of a task the record already holds.
-                minted.append(mint_round(root, config, round_, {one.subject_id for one in records}))
+                task_id = mint_round(root, config, round_, {one.subject_id for one in records})
+                minted.append(task_id)
+
+                # The round says which task is fixing its bot threads
+                # (S-0125/D-4), within the pass that triaged them. The threads
+                # stay unresolved: a person still sees what was raised, and
+                # the landed round answers them as before.
+                for finding in round_.findings:
+                    for thread in finding.threads:
+                        if (
+                            str(thread.id).startswith(RECORD)
+                            or thread.author not in config.threads.bots
+                        ):
+                            continue
+
+                        forge.reply_thread(thread.id, FIXING_REPLY.format(task=task_id))
 
     parts: list[str] = []
 
