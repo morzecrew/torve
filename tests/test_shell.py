@@ -162,7 +162,8 @@ def _still_running(pid: int) -> bool:
     try:
         stat = Path(f"/proc/{pid}/stat").read_text()
 
-    except FileNotFoundError:
+    # A process reaped between the open and the read leaves the read ESRCH.
+    except (FileNotFoundError, ProcessLookupError):
         return False
 
     # `pid (comm) state ...`: comm may hold spaces and parentheses, so the
