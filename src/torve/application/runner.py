@@ -73,6 +73,8 @@ from torve.application.runstate import Escalation, RunState
 from torve.application.session import (
     AXIS_SEVERITY,
     RevertConflict,
+    advance_tier,
+    candidate_suffix,
     halted,
     revert_leg,
     run_agent_session,
@@ -80,6 +82,7 @@ from torve.application.session import (
 from torve.application.sizing import has_children
 from torve.application.taskstore import TaskStore
 from torve.application.telemetry import (
+    TOKEN_FIELDS,
     append_record,
     build_record,
     config_hash,
@@ -673,7 +676,9 @@ def _gates_spec(run: Dispatch, state: RunState) -> SandboxSpec:
     nests the gates role — a daemon of its own in a side container."""
 
     return SandboxSpec(
-        name=naming.sandbox_name(run.task.id, state.run_id) + "-gates",
+        name=naming.sandbox_name(run.task.id, state.run_id)
+        + "-gates"
+        + candidate_suffix(run.candidate),
         # Shell gates run over the same image the agent ran under
         # (S-0003/D-8) — an image swap between attempt and gates would be
         # its own regime change.
@@ -1698,16 +1703,16 @@ def _width(run: Dispatch, state: RunState) -> tuple[int, str]:
 
 
 def _candidate_dispatch(run: Dispatch, start: Dispatch, index: int, base: str) -> Dispatch:
-    """Candidate *index*'s own dispatch over its own worktree: the regime and
-    the broker are the run's, and the terms are as *start* held them before
-    any candidate ran — an earlier candidate's red routes the next attempt,
-    never a sibling (S-0069/D-3). The facts a gate pass stamps are its own."""
+    """Candidate *index*'s own dispatch over its own worktree, copied from
+    *start* — the attempt as it stood before any candidate ran (S-0124/D-6), so
+    every candidate runs on the tier the attempt resolved, never on one an
+    earlier candidate's facts moved it to (S-0069/D-3). The facts a gate pass
+    stamps are its own."""
 
     return replace(
-        run,
+        start,
         worktree=run.deps.workspace.create_candidate(run.task.id, index, base),
         candidate=index,
-        task=start.task,
         meta=dict(start.meta),
         convictions=[],
         last_pass=GatePass(),
@@ -1719,54 +1724,102 @@ def _candidate_dispatch(run: Dispatch, start: Dispatch, index: int, base: str) -
 
 
 async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
-    """One attempt as the unit's candidates (S-0122/D-7, D-8): each runs in
-    turn and is judged, a red one whose conviction is mechanical first gets
-    its repair turn, and the critic reads the green ones in rank order. The
-    one chosen is left in the task's worktree with its gate pass and its
-    verdict stamped on the run, which the loop's gates and review then read
+    """One attempt as the unit's candidates (S-0122/D-7, D-8): they run side by
+    side (S-0124/D-4) and are judged, a red one whose conviction is mechanical
+    first gets its repair turn, and the critic reads the green ones in rank
+    order. The one chosen is left in the task's worktree with its gate pass and
+    its verdict stamped on the run, which the loop's gates and review then read
     instead of running again; the rest are removed, and the unit's record is
     written."""
 
     width, size = _width(run, state)
-    agent_clock = agent_timeout_for(run.config, run.tier)
     critic = run.config.review.mode == "critic" and review_gated(run.config, run.task, run.shadow)
     prices = _list_prices(run.config) if critic else {}
     budget_spent = _unit_spend(state) if critic else 0.0
     reviews: list[str] = []
     run.meta.pop("candidate", None)
+
+    # S-0124/D-6: the attempt resolves its tier once, before any candidate
+    # starts. Every candidate then runs on that resolution; a sibling's facts
+    # can no longer move it to another seat.
+    run.resolved_agent = advance_tier(run, state)
+    agent_clock = agent_timeout_for(run.config, run.tier)
     start = replace(run, meta=dict(run.meta), repaired_gates=set(run.repaired_gates))
     # The unit's one tree, taken before the first candidate changes it or its
     # red commits a convicted tree there (S-0069/D-4): a retry's candidates all
     # start from the work the attempt before them left.
     base = await asyncio.to_thread(run.deps.workspace.snapshot, run.task.id) if width > 1 else ""
 
+    # What each candidate's dispatch is, so a cancelled one's finished turns
+    # can still be priced and its worktree still removed (S-0124/D-7).
+    dispatches: dict[int, Dispatch | None] = {}
+    # Candidates whose spend this attempt already booked, so a cut that lands
+    # after the booking prices them once (S-0123/D-1).
+    booked: set[int] = set()
+
     async def launch(index: int, clock: float) -> selection.Candidate:
+        dispatches[index] = None
         crun = (
             run
             if index == 1
             else await asyncio.to_thread(_candidate_dispatch, run, start, index, base)
         )
+        dispatches[index] = crun
         crun.clock = clock if clock < agent_clock else None
 
         if width > 1:
             crun.meta["candidate"] = index
 
+        # An attempt's own spend starts at nothing: a preceding attempt's
+        # block must never price a candidate cut before its first turn
+        # finished (S-0123/D-1, S-0124/D-7).
+        if critic:
+            crun.meta.pop("cost_usd", None)
+
+            for stale in TOKEN_FIELDS:
+                crun.meta.pop(stale, None)
+
         started = time.monotonic()
         first: list[AgentResult] = []
         held: list[tuple[int, str, str]] = []
+        # S-0124/D-4: the straggler cut can land while a gate pass is running.
+        # The shield lets that pass finish and its verdict stand, but the
+        # candidate itself is cut: no repair turn, no second pass.
+        cut = [False]
 
         async def judged() -> tuple[int, str, str] | None:
             # The loop's own gates step, as it reads a pass that raised: the
             # escalation ends the unit, and a refusal to dispatch goes back.
+            async def pass_() -> tuple[int, str, str] | None:
+                try:
+                    return await judge(crun, state)
+
+                except (BlockedDispatch, asyncio.CancelledError):
+                    raise
+
+                except Exception as exc:
+                    # Two candidates can fail their passes together; the
+                    # first escalation is the run's, the second is the same
+                    # ending and must not transition again.
+                    if state.escalation is None:
+                        state.escalate(EscalationReason.GATE_INFRASTRUCTURE_FAILURE, repr(exc))
+
+                    return None
+
+            # S-0124/D-4: a gate pass already running is never cancelled. The
+            # cancel ends the candidate's agent turn; the pass it already
+            # started is shielded, finishes, and its verdict stands.
+            running = asyncio.ensure_future(pass_())
+
             try:
-                return await judge(crun, state)
+                return await asyncio.shield(running)
 
-            except (BlockedDispatch, asyncio.CancelledError):
-                raise
-
-            except Exception as exc:
-                state.escalate(EscalationReason.GATE_INFRASTRUCTURE_FAILURE, repr(exc))
-                return None
+            except asyncio.CancelledError:
+                # The candidate's clock ran out, not its pass: the pass
+                # finishes and its verdict stands, but the candidate is cut
+                # and takes no further turn (S-0124/D-4).
+                cut[0] = True
+                return await running
 
         async def repair(result: AgentResult) -> str | None:
             first.append(result)
@@ -1777,18 +1830,28 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
 
             verdict = await judged()
 
-            if verdict is None:
+            if verdict is not None:
+                held.append(verdict)
+
+            # A cut candidate buys no repair turn, whatever its verdict was —
+            # the shielded pass that produced it still stands (S-0124/D-4).
+            if verdict is None or cut[0]:
                 return None
 
-            held.append(verdict)
             mechanical = verdict[0] != 0 and selection.repairable(crun.convictions)
 
             return verdict[1] if mechanical else None
 
         result = await run_agent_session(crun, state, repair)
         crun.clock = None
+
         candidate = selection.Candidate(index=index, result=result, run=crun)
         candidate.followed_up = bool(first) and result is not first[0]
+        # The straggler deadline cut this candidate's turn, but a gate pass
+        # already running finished and its verdict stands (S-0124/D-4): the
+        # candidate is recorded with that real verdict, marked cut, and buys
+        # no further turn or pass.
+        candidate.cut = cut[0]
 
         if critic:
             # S-0123/D-1: what this candidate cost the unit. The block is the
@@ -1799,6 +1862,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
 
             if candidate.spend is not None:
                 _record_spend(state, candidate.spend, f"candidate {index}")
+                booked.add(index)
 
         if (
             state.escalation is None
@@ -1810,6 +1874,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             # The repair callback judged the tree the first turn left; a turn
             # after it changed the tree, so that one is judged again.
             verdict = held[0] if held and not candidate.followed_up else await judged()
+            candidate.cut = cut[0]
 
             if verdict is None:
                 candidate.wall_s = time.monotonic() - started
@@ -1868,17 +1933,30 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         return not verdict.blockers and not verdict.unparseable and verdict.refusal is None
 
     spent = sum(str(entry.get("fact", "")).startswith(CRITIC_MARKER) for entry in state.history)
-    candidates: list[selection.Candidate] = []
     chosen = 1
 
-    async def tracked(index: int, clock: float) -> selection.Candidate:
-        candidates.append(await launch(index, clock))
-        return candidates[-1]
+    def cancelled_spend(index: int) -> float | None:
+        """What a candidate cut at the straggler deadline still spent: the
+        turns it finished before its turn was cancelled (S-0124/D-7). Recorded
+        on the run's history too, so the next attempt's bound counts it."""
+
+        crun = dispatches.get(index)
+
+        if not critic or crun is None:
+            return None
+
+        spend = selection.notional_spend(priced(crun.meta), prices)
+
+        if spend is not None and index not in booked:
+            _record_spend(state, spend, f"candidate {index}")
+            booked.add(index)
+
+        return spend
 
     try:
         chosen_round = await selection.select(
             width,
-            tracked,
+            launch,
             review if critic else None,
             agent_clock=agent_clock,
             seed=run.task.id,
@@ -1886,6 +1964,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             stop=lambda: state.escalation is not None,
             spent=budget_spent,
             budget_usd=selection.UNIT_BUDGET_USD,
+            cancelled_spend=cancelled_spend,
         )
 
         # S-0123/D-1: the $3 cap stopped a candidate or critic call the unit
@@ -1932,11 +2011,11 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         return result
 
     finally:
-        for candidate in candidates:
-            if candidate.index > 1 and candidate.index != chosen:
-                await asyncio.to_thread(
-                    run.deps.workspace.remove, f"{run.task.id}~{candidate.index}"
-                )
+        # Every candidate that had a worktree, including one cut before its
+        # launch returned, is removed unless it is the one that landed.
+        for index in dispatches:
+            if index > 1 and index != chosen:
+                await asyncio.to_thread(run.deps.workspace.remove, f"{run.task.id}~{index}")
 
 
 def real_hooks(
