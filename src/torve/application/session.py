@@ -741,6 +741,9 @@ async def run_agent_session(
     # session owns its teardown until a clean result is handed back open.
     keep_open = (
         run.resolved_agent is not None
+        # A seat that cannot follow up has no turn to keep the sandbox for,
+        # and its teardown restores the `never_send` files before the gates.
+        and getattr(run_agent, "follow_up", None) is not None
         and config.review.revision == "session"
         and review_gated(config, task, shadow)
     )

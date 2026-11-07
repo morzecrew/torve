@@ -1893,6 +1893,9 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             and _blocker_revisions_spent(state) < run.config.review.resolved_blocker_revisions()
             and winner.reviewed
             and not winner.clean
+            # A cut candidate takes no further turn (S-0124/D-4): its blocker
+            # goes to the ordinary fresh revision.
+            and not winner.cut
             # A blocker the previous round already named stops the run in
             # `review_step` (S-0124/D-3); no turn is spent on it.
             and not revision_reraised(winner)
@@ -1943,6 +1946,10 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
 
             return AgentResult(exit_code=1, output="")
 
+        # A budget or clock stop inside the session rounds still leaves the
+        # selected candidate in the task's worktree for the checkpoint.
+        stopped = False
+
         # One turn per revision round, in the same open session, while the
         # rounds last and the critic names nothing the last round recorded.
         while continue_index is not None and winner is not None:
@@ -1966,9 +1973,8 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                     f"unit budget exhausted: ${unit_spend:.2f} spent of "
                     f"${selection.UNIT_BUDGET_USD:.2f}",
                 )
-                close_unit()
-
-                return AgentResult(exit_code=1, output="")
+                stopped = True
+                break
 
             if remaining <= 0:
                 close_session(continue_index)
@@ -1976,9 +1982,8 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                     EscalationReason.BUDGET_EXHAUSTED,
                     f"{_WALLCLOCK_MARKER}: {elapsed:.1f}m elapsed, budget {minutes}m",
                 )
-                close_unit()
-
-                return AgentResult(exit_code=1, output="")
+                stopped = True
+                break
 
             if opened is None or verdict is None or not verdict.blockers:
                 # The seat keeps no session, or there is nothing to revise:
@@ -2060,6 +2065,10 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
 
                     crun = member.run
                     crun.preselected = None
+                    # The turn left a new tree: the green and the verdict the
+                    # candidate carried were the previous tree's (S-0124/D-9).
+                    member.green = member.reviewed = member.clean = False
+                    member.verdict = None
 
                     # A turn that escalated, was refused, halted, timed out or
                     # failed is judged by nobody, as a first turn is: the
@@ -2071,7 +2080,6 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                         or continued.exit_code != 0
                         or halted(crun, state.attempts) is not None
                     ):
-                        member.green = False
                         session_revision = selection.Revision(
                             kind="session",
                             round=round_no,
@@ -2099,7 +2107,8 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                         if state.escalation is None:
                             state.escalate(EscalationReason.GATE_INFRASTRUCTURE_FAILURE, repr(exc))
 
-                    rereview = "blocked"
+                    # A tree whose gates are red is read by no critic.
+                    rereview = "failed"
                     rereviewed = False
 
                     if (
@@ -2124,9 +2133,9 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                                 spend_usd=turn_spend,
                                 wall_s=round(wall_s, 3),
                             )
-                            close_unit()
-
-                            return AgentResult(exit_code=1, output="")
+                            close_session(continue_index)
+                            stopped = True
+                            break
 
                         member.clean = await review(member)
                         chosen_round.critic_calls += 1
@@ -2176,13 +2185,25 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
 
         run.preselected_review = winner.verdict if winner.reviewed else None
 
+        if stopped:
+            close_unit()
+
+            return AgentResult(exit_code=1, output="")
+
         # S-0124/D-9: a fresh revision attempt records the round it was, so
         # the arm's records can be compared without joining attempts by hand.
         if session_revision is None and revision_attempt and critic:
             session_revision = selection.Revision(
                 kind="fresh",
                 round=_blocker_revisions_spent(state) or 1,
-                rereview="clean" if chosen_round.winner is not None else "blocked",
+                # A revision whose agent or gates failed was read by no critic.
+                rereview=(
+                    "clean"
+                    if chosen_round.winner is not None
+                    else "blocked"
+                    if winner.reviewed
+                    else "failed"
+                ),
                 reraised=(revision_reraised(winner) if chosen_round.winner is None else False),
                 spend_usd=round(max(0.0, chosen_round.spent_usd - budget_spent), 6),
                 wall_s=round(time.monotonic() - attempt_started, 3),

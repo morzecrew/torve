@@ -1027,3 +1027,52 @@ def test_no_repair_turn_unless_bought_after_a_clean_turn(repo, monkeypatch, exit
 
     assert asked == (["first"] if exit_code == 0 else [])
     assert all(call[0] == "run" for call in agent.calls)
+
+
+def test_a_seat_that_cannot_follow_up_is_judged_with_its_never_send_files(
+    review_rig,  # noqa: F811
+    monkeypatch,
+):
+    """S-0124/D-8, S-0004 §6b: under `review.revision: session` a seat with
+    no `follow_up` keeps no session, so its teardown restores the withheld
+    files before the gates judge the tree; the agent still never saw them."""
+
+    from test_critic import answer
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    import torve.application.runner as run_module
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ProvidersConfig, ReviewConfig
+    from torve.domain.task import Scope
+
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    worktree.mkdir(parents=True, exist_ok=True)
+    (worktree / "secret.env").write_text("token\n", encoding="utf-8")
+    seen: list[tuple[str, bool]] = []
+
+    def gate_pass(run, _state):
+        seen.append(("gates", (run.worktree / "secret.env").is_file()))
+        return 0, "scripted", "cafe", [], "diff --git a/x b/x"
+
+    class NoFollowUp(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            seen.append(("agent", (ctx.workspace / "secret.env").is_file()))
+            return AgentResult(exit_code=0, output="")
+
+    monkeypatch.setattr(run_module, "run_gate_pass", gate_pass)
+    config = RunnerConfig(
+        providers=ProvidersConfig(never_send=["secret.env"]),
+        review=ReviewConfig(on=["task_gated"], mode="critic", revision="session"),
+    )
+    deps = deps_for(SequencedReviewer([answer(findings=[])]))
+    deps.agent = NoFollowUp([])
+    task = Task(id="T-9001", decisions=[], scope=Scope(files=["README.md"]))
+
+    run_task(repo.root, task, config, deps)
+
+    assert seen[:2] == [("agent", False), ("gates", True)]

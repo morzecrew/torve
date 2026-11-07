@@ -3678,6 +3678,92 @@ def test_phasing_union_a_phasing_that_is_not_utf8_is_unreadable_at_the_ref(lane_
     assert not lane._completes(lane_repo, "T-7412", document)
 
 
+def test_phasing_union_a_phase_the_landing_removed_no_longer_counts_from_the_remote(
+    lane_repo, tmp_path
+):
+    """S-0124/D-10: the published branch names phase 3 and the landing tip
+    removes it, so completion reads the landing tip and the stale remote copy
+    no longer holds the document incomplete."""
+
+    import torve.application.lane as lane
+
+    _origin(lane_repo, tmp_path)
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    _append_phase(lane_repo, 3)
+    git(lane_repo, "commit", "-qam", "adds phase 3", "--no-gpg-sign")
+    git(lane_repo, "push", "-q", "origin", f"{document}:refs/heads/{document}")
+    git(lane_repo, "fetch", "-q", "origin")
+    git(lane_repo, "checkout", "-q", "main", "--", ".torve/specs/S-0930/phasing.yaml")
+    git(lane_repo, "commit", "-qam", "removes phase 3", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+
+    assert lane.document_phases(lane_repo, f"origin/{document}", "S-0930") == [1, 2, 3]
+    assert lane.document_phases(lane_repo, document, "S-0930") == [1, 2]
+    assert lane._completes(lane_repo, "T-7412", document)
+
+
+def test_phasing_union_an_archived_phasing_is_read_at_the_ref(lane_repo):
+    """S-0124/D-10, S-0057/D-3: a branch that retires its document into the
+    archive still names its phases there, as the root's copy is found in
+    the archive too, so a phase it adds is not read as absent."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    _append_phase(lane_repo, 3)
+    (lane_repo / ".torve" / "archive").mkdir()
+    git(lane_repo, "mv", ".torve/specs/S-0930", ".torve/archive/S-0930")
+    git(lane_repo, "commit", "-qam", "archives the document", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+
+    assert lane.document_phases(lane_repo, document, "S-0930") == [1, 2, 3]
+
+
+def test_phasing_union_a_phasing_blob_git_cannot_read_is_unreadable(lane_repo):
+    """S-0124/D-10: the branch's tree names a phasing whose blob git cannot
+    read — a missing object — which is a phasing that is there and unreadable,
+    never an absent one, so the document is not complete."""
+
+    import torve.application.lane as lane
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    _append_phase(lane_repo, 3)
+    git(lane_repo, "commit", "-qam", "adds phase 3", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+    blob = git(lane_repo, "rev-parse", f"{document}:.torve/specs/S-0930/phasing.yaml")
+    (lane_repo / ".git" / "objects" / blob[:2] / blob[2:]).unlink()
+
+    with pytest.raises(lane.PhasingUnreadable):
+        lane.document_phases(lane_repo, document, "S-0930")
+
+    assert not lane._completes(lane_repo, "T-7412", document)
+
+
+def test_phasing_union_the_body_counts_the_phases_the_draft_flag_counts(lane_repo):
+    """S-0124/D-10: every root phase is landed and the branch adds phase 3, so
+    the body names it still to come — untitled, as the root's phasing holds
+    no title for it — and never says every phase is on the branch."""
+
+    from torve.cli.merge import _document_pr_text
+
+    document = _fileless_document(lane_repo, {"T-7411": 1, "T-7412": 2})
+    git(lane_repo, "checkout", "-q", document)
+    _append_phase(lane_repo, 3)
+    git(lane_repo, "commit", "-qam", "adds phase 3", "--no-gpg-sign")
+    git(lane_repo, "checkout", "-q", "main")
+    tip = git(lane_repo, "rev-parse", document)
+
+    _, body, complete = _document_pr_text(lane_repo, "T-7412", document, tip=tip)
+
+    assert complete is False
+    assert "1 of this document's 3 phases are still to come" in body
+    assert "- phase 3" in body.splitlines()
+    assert "Every phase of this document" not in body
+
+
 @pytest.mark.parametrize("contract", [True, False])
 def test_a_phase_landed_without_a_lane_record_still_completes_the_document(
     lane_repo, tmp_path, monkeypatch, contract

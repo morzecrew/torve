@@ -740,8 +740,10 @@ def write_contract(root: Path, task: Task, title: str = "", *, minted_by: str = 
 
     path.parent.mkdir(parents=True, exist_ok=True)
     # S-0057/D-5: the first line names the schema `torve init` writes, two
-    # levels up from the task directory in the default layout.
-    header = f"{spec.SCHEMA_HEADER}../../schemas/contract.json\n"
+    # levels up from the task directory in the default layout. That schema
+    # keeps `round:` off on purpose (S-0099/D-5), so a round's contract names
+    # none, as the review leg's own round contracts never did.
+    header = "" if task.round else f"{spec.SCHEMA_HEADER}../../schemas/contract.json\n"
     header += (
         f"# Minted by `torve plan {minted_by}` — phase {task.phase}: {title}\n"
         if minted_by

@@ -48,7 +48,7 @@ from torve.application.threads import group_findings
 from torve.base import naming
 from torve.base.clock import stamp
 from torve.config import layout
-from torve.config.spec import write_tracked_files
+from torve.config.spec import archive_dir, write_tracked_files
 from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import Task
@@ -1363,25 +1363,34 @@ def document_phases(root: Path, ref: str, document: str) -> list[int] | None:
     or validated. The root's copy is read under the same rule by
     `forge.root_phases`; completion checks the union of the two.
 
-    A branch name is read at its remote tip beside the local one, as
-    `_branch_landings` reads the landings the same check counts: a host that
-    only fetched the branch reads the phases the landing host reads."""
+    A branch name is read at the landing tip, its local ref. Only a host
+    with no local branch reads the remote tip, as `_branch_landings` reads
+    the landings there: a stale remote copy must not keep a phase the landing
+    removed."""
 
     name = document.rsplit("/", 1)[-1]
-    refs = [ref] if ref.startswith(("origin/", "refs/")) else [f"origin/{ref}", ref]
-    found = [phases for at in refs if (phases := _phases_at(root, at, name)) is not None]
+    tip = ref if ref.startswith(("origin/", "refs/")) or _ref_sha(root, ref) else f"origin/{ref}"
 
-    return sorted({number for phases in found for number in phases}) if found else None
+    return _phases_at(root, tip, name)
 
 
 def _phases_at(root: Path, ref: str, name: str) -> list[int] | None:
-    """`document_phases` at one ref: None when the ref or the file is absent."""
+    """`document_phases` at one ref: None when the ref or the file is absent.
+    The corpus copy is read, else the archived one, as `document_dir` finds
+    the root's copy (S-0057/D-3)."""
 
     import yaml
 
     from torve.domain.spec import PHASING_FILE
 
-    spec = f"{ref}:{layout.SPECS_DIR}/{name}/{PHASING_FILE}"
+    corpus = Path(layout.SPECS_DIR)
+    specs = [f"{ref}:{at.as_posix()}/{name}/{PHASING_FILE}" for at in (corpus, archive_dir(corpus))]
+    # Presence is the tree entry, never the blob: a blob git cannot read is a
+    # phasing that is there and unreadable, not an absent one.
+    spec = next((spec for spec in specs if _ref_sha(root, spec) is not None), None)
+
+    if spec is None:
+        return None
 
     try:
         shown = subprocess.run(
@@ -1398,18 +1407,6 @@ def _phases_at(root: Path, ref: str, name: str) -> list[int] | None:
         raise PhasingUnreadable(f"{spec}: not UTF-8 — {exc}") from exc
 
     if shown.returncode != 0:
-        # The same failing `git show` covers a file that is not there and a
-        # file that is there but unreadable; `cat-file` says which.
-        present = subprocess.run(
-            ["git", *NO_HOOKS, "-C", str(root), "cat-file", "-e", spec],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-        if present.returncode != 0:
-            return None
-
         raise PhasingUnreadable(f"{spec}: git show failed — {shown.stderr.strip()}")
 
     try:

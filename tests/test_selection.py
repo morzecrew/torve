@@ -378,21 +378,41 @@ def test_candidates_run_side_by_side_and_the_straggler_is_cut() -> None:
 def test_side_by_side_cut_lands_at_the_straggler_clock(monkeypatch) -> None:
     """S-0124/D-4: the deadline is `straggler_clock` of the first green
     candidate's wall time, measured from that candidate's finish. A fixed
-    deadline, or one that ignores the clock, cuts somewhere else."""
+    deadline, or one that ignores the clock, cuts somewhere else. Selection
+    reads the test's own clock, so a worker scheduled late moves nothing."""
+
+    from types import SimpleNamespace
 
     calls: list[tuple[float, float]] = []
+    timeouts: list[float | None] = []
+    now = [100.0]
+    wait = asyncio.wait
 
     def clock(first_green_s: float, agent_clock: float) -> float:
         calls.append((first_green_s, agent_clock))
         return first_green_s + 0.3
 
+    async def waited(tasks, **kwargs):
+        # A wait with a deadline lets the test's clock reach it at once.
+        timeouts.append(kwargs["timeout"])
+
+        if kwargs["timeout"] is not None:
+            now[0] += kwargs["timeout"]
+            kwargs["timeout"] = 0
+
+        return await wait(tasks, **kwargs)
+
     monkeypatch.setattr(selection, "straggler_clock", clock)
+    monkeypatch.setattr(selection, "time", SimpleNamespace(monotonic=lambda: now[0]))
+    # `selection.asyncio` is the asyncio module: undone when the test ends.
+    monkeypatch.setattr(asyncio, "wait", waited)
 
     async def launch(index: int, _clock: float) -> selection.Candidate:
         if index == 2:
-            await asyncio.sleep(5)
+            await asyncio.Event().wait()
 
-        candidate = _candidate(index, green=index != 2)
+        now[0] += 0.05
+        candidate = _candidate(index, green=True)
         candidate.wall_s = 0.05
 
         return candidate
@@ -403,10 +423,87 @@ def test_side_by_side_cut_lands_at_the_straggler_clock(monkeypatch) -> None:
     chosen = asyncio.run(selection.select(2, launch, review, agent_clock=60, seed="T-0001"))
 
     assert calls == [(0.05, 60)]
+    assert timeouts[0] is None and round(timeouts[1], 6) == 0.3
     cut = chosen.candidates[1]
     assert cut.cut and cut.result is None
-    # Cut 0.3s after candidate 1 finished, which was at once.
-    assert 0.25 <= cut.wall_s < 0.6
+    # Cut 0.3s after candidate 1 finished, 0.05s into the round.
+    assert round(cut.wall_s, 6) == 0.35
+
+
+def test_side_by_side_cut_carries_its_siblings_seat() -> None:
+    """S-0124/D-6, D-9: every candidate of an attempt runs on one seat, so the
+    one cut at the straggler deadline, which returned no record of its own,
+    is recorded on that seat and not on none."""
+
+    async def launch(index: int, _clock: float) -> selection.Candidate:
+        if index == 2:
+            await asyncio.sleep(5)
+
+        candidate = _candidate(index, green=True)
+        candidate.wall_s = 0.01
+        candidate.tier, candidate.model = "builder", "model-a"
+
+        return candidate
+
+    chosen = asyncio.run(selection.select(2, launch, None, agent_clock=60, seed="T-0001"))
+    record = selection.unit_record(
+        chosen, task_id="T-0001", attempt=1, width=2, size="M", at="2026-11-07T00:00:00Z"
+    )
+
+    assert [c["cut"] for c in record["candidates"]] == [False, True]
+    assert [(c["tier"], c["model"]) for c in record["candidates"]] == [("builder", "model-a")] * 2
+
+
+def test_side_by_side_gate_passes_never_read_a_half_written_manifest(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Sibling candidates resolve the task's one cached base manifest from
+    gate passes that run together (S-0124/D-4), so the cache is replaced
+    whole: a sibling reading it while this write is under way reads the cache
+    as it was, never a truncated file."""
+
+    from types import SimpleNamespace
+
+    from torve.application.dispatch import Dispatch
+    from torve.base import naming
+
+    worktree = tmp_path / "wt"
+    (worktree / ".torve").mkdir(parents=True)
+    (worktree / ".torve" / "gates.yaml").write_text("gates: []\n", encoding="utf-8")
+
+    for args in (
+        ("init", "-q", "-b", "main"),
+        ("add", "-A"),
+        ("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "base"),
+    ):
+        subprocess.run(["git", "-C", str(worktree), *args], capture_output=True, check=True)
+
+    root = tmp_path / "root"
+    held = naming.base_manifest_file(root, "T-0001")
+    held.parent.mkdir(parents=True)
+    held.write_text("gates: []  # a sibling's\n", encoding="utf-8")
+    seen: list[str] = []
+    write_text = Path.write_text
+
+    def interleaved(path: Path, data: str, *args, **kwargs) -> int:
+        # A sibling's gate pass reads the cache once this write truncated its file.
+        write_text(path, "", *args, **kwargs)
+        seen.append(held.read_text(encoding="utf-8"))
+        return write_text(path, data, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", interleaved)
+    run = SimpleNamespace(
+        shadow=False,
+        worktree=worktree,
+        root=root,
+        gates_base="main",
+        config=SimpleNamespace(base=None),
+        task=SimpleNamespace(id="T-0001"),
+    )
+
+    assert Dispatch.manifest_file.fget(run) == held
+    assert seen == ["gates: []  # a sibling's\n"]
+    assert held.read_text(encoding="utf-8") == "gates: []\n"
 
 
 def test_stop_cancels_the_others_and_asks_no_critic() -> None:

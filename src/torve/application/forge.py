@@ -410,7 +410,8 @@ def root_phases(root: Path, document: str) -> list[int] | None:
 
     path = directory / PHASING_FILE
 
-    if not path.is_file():
+    # A dangling link is a phasing that is there and unreadable, not an absent one.
+    if not path.exists(follow_symlinks=False):
         return None
 
     try:
@@ -489,15 +490,25 @@ def compose_document_pr(
     document: str,
     landings: list[DocumentLanding],
     root: Path,
+    phases: list[int] | None = None,
 ) -> tuple[str, str]:
     """(title, body) for a document branch's one pull request, composed
     entirely from records: every task the branch carries, the rows each
     contract carried with their grades, the gates' verdicts and the
     divergence entries, and the phases the document has still to come
     (S-0083/D-8). The contract's intent is the author's paragraph and is in
-    the open; nothing an agent wrote as prose reaches it."""
+    the open; nothing an agent wrote as prose reaches it.
+
+    *phases* is the union the draft flag counts (S-0124/D-10): a phase only
+    the branch's phasing names is counted too, untitled, since the root's
+    phasing holds no title for it."""
 
     doc_title, phasing, change, fixes = _phasing(root, document)
+
+    if phases is not None:
+        known = {number for number, _ in phasing}
+        phasing += [(number, "") for number in sorted(set(phases) - known)]
+
     landed = {number for landing in landings for number in landing.task.covered}
     # A phase may hold several entries, so the count is over phase numbers —
     # what a reviewer counts merges of, not contracts.
@@ -571,7 +582,10 @@ def compose_document_pr(
     if remaining:
         lines += [
             "## Still to come",
-            *(f"- phase {number} — {title}" for number, title in remaining),
+            *(
+                f"- phase {number}" + (f" — {title}" if title else "")
+                for number, title in remaining
+            ),
             "",
         ]
 

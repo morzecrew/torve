@@ -20,6 +20,7 @@ it opened would leak one.
 from __future__ import annotations
 
 import contextlib
+import uuid
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -298,7 +299,17 @@ class Dispatch:
 
         held = naming.base_manifest_file(self.root, self.task.id)
         held.parent.mkdir(parents=True, exist_ok=True)
-        held.write_text(git(self.worktree, "show", f"{sha}:{rel}"), encoding="utf-8")
+        # Publish the cache whole: sibling candidates run gate passes
+        # together, and a reader must never observe a half-written manifest
+        # (S-0124/D-4). A unique temp file per write, then one rename.
+        tmp = held.with_name(f".{held.name}.{uuid.uuid4().hex}.tmp")
+
+        try:
+            tmp.write_text(git(self.worktree, "show", f"{sha}:{rel}"), encoding="utf-8")
+            tmp.replace(held)
+
+        finally:
+            tmp.unlink(missing_ok=True)
 
         return held
 

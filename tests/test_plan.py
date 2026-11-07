@@ -158,6 +158,26 @@ def test_a_written_round_contract_keeps_its_round(tmp_path):
     assert written == review
 
 
+def test_a_round_contract_names_no_schema_it_breaks(tmp_path):
+    """A contract file never names a schema that refuses it: the contract
+    schema keeps `round:` off (S-0099/D-5), so a round's file names none and
+    every other contract still names it."""
+
+    import yaml
+
+    from torve.config.spec import SCHEMA_HEADER
+
+    round_ = {"branch": "torve/S-0124", "pr": 7, "findings": [], "phases": [], "nonce": "n1"}
+    review = Task(id="T-0001", role="review", targets=["T-0000"], decisions=[], round=round_)
+    allowed = set(Task.model_json_schema()["properties"])
+
+    named = write_contract(tmp_path, Task(id="T-0002", decisions=[])).read_text(encoding="utf-8")
+    unnamed = write_contract(tmp_path, review).read_text(encoding="utf-8")
+
+    assert named.startswith(SCHEMA_HEADER) and set(yaml.safe_load(named)) <= allowed
+    assert "round" in yaml.safe_load(unnamed) and SCHEMA_HEADER not in unnamed
+
+
 def test_replanning_a_minted_phase_is_refused(plan_repo):
     root, _, _ = plan_repo
     write_contracts(root, plan_document(root, root / ".torve" / "specs", "0090"))

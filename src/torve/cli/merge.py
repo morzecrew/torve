@@ -219,19 +219,20 @@ def _document_pr_text(
             )
         )
 
-    title, body = compose_document_pr(document, landings, root)
-
     # S-0124/D-10: the draft flag counts the union of the root's phases and
     # the phasing at the ref being landed; a phasing either side cannot read
-    # leaves the document a draft.
+    # leaves the document a draft. The body counts the same union.
     try:
         at_ref = document_phases(root, branch, document)
         at_root = root_phases(root, document)
 
     except PhasingUnreadable:
+        title, body = compose_document_pr(document, landings, root)
+
         return title, body, False
 
     numbers = sorted(set(at_ref or []) | set(at_root or []))
+    title, body = compose_document_pr(document, landings, root, phases=numbers)
 
     return title, body, document_complete(document, landings, root, phases=numbers)
 

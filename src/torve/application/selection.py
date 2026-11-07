@@ -239,7 +239,8 @@ class Revision:
 
     `rereview` is `clean`, `blocked`, `stopped` when the unit's budget
     ended the round before its re-review, or `failed` when the turn itself
-    timed out, failed or was refused and nothing judged it; `reraised` says the critic named the
+    timed out, failed or was refused, or its gates were red, so no critic read
+    it; `reraised` says the critic named the
     same finding again; `spend_usd` and `wall_s` are the round's own — for a
     session turn, the cumulative session cost after the turn minus before it,
     so a gate-repair turn earlier in the same session is not counted."""
@@ -358,9 +359,12 @@ async def select(
 
     async def cut(index: int) -> Candidate:
         """The record of a candidate cancelled in its agent turn: red, with
-        its elapsed time and what its finished turns spent."""
+        its elapsed time, what its finished turns spent and its seat."""
 
         spend = cancelled_spend(index) if cancelled_spend is not None else None
+        # Every candidate of an attempt runs on one seat (S-0124/D-6), so the
+        # cut one, which returned no record of its own, carries a sibling's.
+        tier, model = next(((c.tier, c.model) for c in candidates if c.tier), ("", ""))
 
         return Candidate(
             index=index,
@@ -368,6 +372,8 @@ async def select(
             wall_s=time.monotonic() - started,
             spend=spend,
             cut=True,
+            tier=tier,
+            model=model,
         )
 
     async def collect(finished: list[asyncio.Task[Candidate]]) -> list[Candidate]:

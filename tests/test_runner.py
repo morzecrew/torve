@@ -5280,3 +5280,230 @@ def test_session_revision_falls_back_to_a_fresh_attempt_when_no_session_continue
     assert units[1]["revision"]["kind"] == "fresh"
     assert units[1]["revision"]["round"] == 1
     assert units[1]["revision"]["rereview"] == "blocked"
+
+
+def test_a_cut_candidate_takes_no_session_revision_turn(review_rig, monkeypatch):  # noqa: F811
+    """S-0124/D-4, D-8: a candidate cut while its green gate pass ran takes no
+    further turn, so the critic's blocker on it starts no session turn even
+    when it is the one selected."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent, task_for
+
+    from torve.application import selection
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    follow_ups: list[str] = []
+    first_done = threading.Event()
+    monkeypatch.setattr(
+        selection,
+        "straggler_clock",
+        lambda first, _clock: (first_done.set(), first + 0.25)[1],
+    )
+    real_prerank = selection.prerank
+    # The cut candidate is the one the critic reads first, and so the one chosen.
+    monkeypatch.setattr(
+        selection,
+        "prerank",
+        lambda pool, seed: sorted(real_prerank(pool, seed), key=lambda c: not c.cut),
+    )
+
+    def gate_pass(run, _state):
+        index = run.candidate or 1
+
+        if index == 2:
+            first_done.wait(30)
+            time.sleep(2.0)
+        else:
+            time.sleep(0.5)
+
+        return 0, "green", "cafe", [], f"diff --git a/{index} b/{index}"
+
+    class Harness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+            return AgentResult(exit_code=0, output="")
+
+        def follow_up(self, ctx, previous, text):
+            follow_ups.append(ctx.workspace.name)
+            return AgentResult(exit_code=0, output="")
+
+    monkeypatch.setattr(run_module, "run_gate_pass", gate_pass)
+    config = RunnerConfig(
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=1
+        )
+    )
+    deps = deps_for(SequencedReviewer([answer(findings=[finding()])] * 4))
+    deps.agent = Harness([AgentResult(exit_code=0, output="")])
+
+    run_task(repo.root, task_for(repo), config, deps)
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    unit = next(row for row in rows if row.get("kind") == "unit.closed")
+    assert unit["selected"] == 2 and unit["candidates"][1]["cut"] is True
+    assert follow_ups == []
+    assert "revision" not in unit
+
+
+def test_a_session_round_stopped_by_the_clock_keeps_the_selected_candidate(
+    review_rig,  # noqa: F811
+    monkeypatch,
+):
+    """S-0124/D-7, D-8: a clock stop before candidate 2's session turn still
+    promotes candidate 2, so the checkpoint keeps its work and not candidate
+    1's."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent, task_for
+
+    from torve.application import selection
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    critic = SequencedReviewer([answer(findings=[finding()])] * 2)
+
+    def gate_pass(run, _state):
+        red = (run.candidate or 1) == 1
+        return int(red), "scripted", "cafe", [], "diff --git a/x b/x"
+
+    class Harness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+            (ctx.workspace / "who.txt").write_text(ctx.workspace.name, encoding="utf-8")
+            return AgentResult(exit_code=0, output="")
+
+        def follow_up(self, ctx, previous, text):
+            return AgentResult(exit_code=0, output="")
+
+    monkeypatch.setattr(run_module, "run_gate_pass", gate_pass)
+    monkeypatch.setattr(selection, "repairable", lambda results: False)
+    # The unit's clock runs out once the critic has blocked candidate 2.
+    monkeypatch.setattr(run_module, "_elapsed_minutes", lambda _state: 1e6 if critic.calls else 0)
+    config = RunnerConfig(
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=1
+        )
+    )
+    deps = deps_for(critic)
+    deps.agent = Harness([])
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.escalation is not None and state.escalation.reason == "budget_exhausted"
+    assert (repo.root / ".wt" / "T-9001" / "who.txt").read_text(encoding="utf-8") == "T-9001~2"
+
+
+def test_a_session_turn_whose_gates_are_red_carries_no_earlier_verdict(
+    review_rig,  # noqa: F811
+    monkeypatch,
+):
+    """S-0124/D-9: the revised tree is a new tree. When its gates are red the
+    critic never reads it, so the unit record keeps neither the earlier green
+    and blocked verdict nor a re-raise read off the earlier findings."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    passes: list[int] = []
+
+    def gate_pass(_run, _state):
+        passes.append(1)
+        red = len(passes) == 2
+        return int(red), "scripted", "cafe", [], "diff --git a/x b/x"
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+            return AgentResult(exit_code=0, output="first")
+
+        def follow_up(self, ctx, previous, text):
+            return AgentResult(exit_code=0, output="second")
+
+    monkeypatch.setattr(run_module, "run_gate_pass", gate_pass)
+    config = RunnerConfig(
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=1
+        )
+    )
+    deps = deps_for(SequencedReviewer([answer(findings=[finding()]), answer(findings=[])]))
+    deps.agent = SessionHarness([])
+
+    run_task(repo.root, _unit_task(), config, deps)
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    unit = next(row for row in rows if row.get("kind") == "unit.closed")
+    assert unit["critic_calls"] == 1
+    assert unit["revision"]["rereview"] == "failed"
+    assert unit["revision"]["reraised"] is False
+    assert unit["candidates"][0]["green"] is False
+    assert unit["candidates"][0]["verdict"] is None
+
+
+def test_a_fresh_revision_whose_agent_failed_records_failed(review_rig):  # noqa: F811
+    """S-0124/D-9: a fresh revision attempt whose agent exited nonzero was read
+    by no critic, so its revision block says `failed`, not `blocked`."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+
+    class Writes(ScriptedAgent):
+        def run(self, ctx):
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+            return super().run(ctx)
+
+    config = RunnerConfig(
+        review=ReviewConfig(on=["task_gated"], mode="critic", blocker_revisions=1)
+    )
+    deps = deps_for(SequencedReviewer([answer(findings=[finding()])] * 2))
+    deps.agent = Writes(
+        [AgentResult(exit_code=0, output="ran"), AgentResult(exit_code=1, output="")]
+    )
+    task = _unit_task()
+    task.budget.iterations = 2
+
+    run_task(repo.root, task, config, deps)
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    units = [row for row in rows if row.get("kind") == "unit.closed"]
+    assert units[1]["revision"]["kind"] == "fresh"
+    assert units[1]["revision"]["rereview"] == "failed"
