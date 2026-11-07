@@ -278,6 +278,34 @@ def _restore_never_send(withheld: dict[Path, bytes]) -> None:
 # ....................... #
 
 
+def candidate_suffix(candidate: int) -> str:
+    """The name suffix a candidate after the first carries (S-0124/D-5): two
+    candidates of one task never share a container or a gitdir."""
+
+    return f"-c{candidate}" if candidate > 1 else ""
+
+
+def attempt_sandbox_name(infra_id: str, state: RunState, candidate: int) -> str:
+    """The attempt sandbox's name, the attempt number first and the candidate
+    after it (S-0124/D-5)."""
+
+    return (
+        naming.sandbox_name(infra_id, state.run_id)
+        + f"-a{state.attempts}"
+        + candidate_suffix(candidate)
+    )
+
+
+def sandbox_gitdir_name(infra_id: str, candidate: int) -> str:
+    """The standalone gitdir's name, `-c<k>` for a candidate after the first
+    (S-0124/D-5)."""
+
+    return infra_id + candidate_suffix(candidate)
+
+
+# ....................... #
+
+
 def _sandbox_auth(
     config: RunnerConfig, tier: TierConfig, worker_slot: int
 ) -> tuple[tuple[str, ...], dict[str, str]]:
@@ -331,7 +359,9 @@ def _record_broker_usage(
     agent_meta["broker"] = broker_block(broker.name, usage)
     refused = usage.refusals.get("budget")
 
-    if refused:
+    if refused and state.escalation is None:
+        # Candidates run side by side (S-0124/D-4): the first refusal ends the
+        # run, and a sibling's identical refusal transitions nothing.
         state.escalate(
             EscalationReason.COST_ANOMALY,
             f"broker refused {refused} request(s) past the run's token budget",
@@ -430,7 +460,9 @@ async def run_agent_session(
     deps, config, task = run.deps, run.config, run.task
     root, worktree, shadow, resume = run.root, run.worktree, run.shadow, run.resume
 
-    run_agent = advance_tier(run, state)
+    # S-0124/D-6: the attempt resolved its tier once, before any candidate
+    # started; every candidate runs on that resolution.
+    run_agent = run.resolved_agent if run.resolved_agent is not None else advance_tier(run, state)
     run_kind = getattr(run_agent, "kind", run.tier.adapter)
     run_real = run_kind != "fake"
 
@@ -569,7 +601,7 @@ async def run_agent_session(
     from torve.application.runner import _nested_docker
 
     spec = SandboxSpec(
-        name=naming.sandbox_name(infra_id, state.run_id) + f"-a{state.attempts}",
+        name=attempt_sandbox_name(infra_id, state, run.candidate),
         image=run.image,
         labels=naming.labels(infra_id, state.run_id, root),
         # The resolved tier's clock when it names one (S-0035/the-tier-clock,
@@ -584,7 +616,7 @@ async def run_agent_session(
             {str(equipment_mount): EQUIPMENT_MOUNT} if equipment_mount is not None else {}
         ),
         nested=_nested_docker(run, task.role),
-        gitdir=_sandbox_gitdir(root, worktree, infra_id),
+        gitdir=_sandbox_gitdir(root, worktree, sandbox_gitdir_name(infra_id, run.candidate)),
     )
 
     withheld = _withhold_never_send(worktree, config.providers.never_send)
@@ -599,6 +631,7 @@ async def run_agent_session(
     write_tracked_files(worktree)
     handle = deps.runtime.create(spec, worktree)
     state.sandbox_id = handle.id
+    state.sandboxes.append(handle.id)
     state.save()
 
     try:
@@ -754,7 +787,10 @@ async def run_agent_session(
         if spec.gitdir:
             shutil.rmtree(spec.gitdir, ignore_errors=True)
 
-        state.sandbox_id = None
+        # A sibling candidate's sandbox may still be live (S-0124/D-4): this
+        # session drops its own and leaves the others where a kill finds them.
+        state.sandboxes = [sandbox for sandbox in state.sandboxes if sandbox != handle.id]
+        state.sandbox_id = state.sandboxes[-1] if state.sandboxes else None
         state.save()
 
 
@@ -932,10 +968,14 @@ async def _prepare(
         return True
 
     run.meta["prepare_output"] = result.output
-    state.escalate(
-        EscalationReason.PREPARE_FAILED,
-        f"prepare exited {result.exit_code} after {seconds}s: {run.tier.prepare}",
-    )
+
+    if state.escalation is None:
+        # A sibling candidate may have failed its own prepare first; the run's
+        # ending is already the same one (S-0124/D-4).
+        state.escalate(
+            EscalationReason.PREPARE_FAILED,
+            f"prepare exited {result.exit_code} after {seconds}s: {run.tier.prepare}",
+        )
     emit(
         run,
         "attempt_finished",

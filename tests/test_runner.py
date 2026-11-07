@@ -4154,10 +4154,11 @@ def test_unit_budget_escalates_naming_the_spend_across_attempts(
     review_rig,  # noqa: F811
     monkeypatch,
 ) -> None:
-    """S-0123/D-1: each $1.20 candidate is added to the unit's notional spend,
-    and the next attempt starts from what the unit already spent — so the
-    second attempt stops after one candidate, at the $3 bound, and the run
-    escalates naming the spend rather than the red gates."""
+    """S-0123/D-1, S-0124/D-7: each $1.20 candidate is added to the unit's
+    notional spend, and the next attempt starts from what the unit already
+    spent — the second attempt launches its whole batch under the bound, and
+    the third finds the unit over it and escalates naming the spend rather
+    than the red gates."""
 
     from test_run_loop import ScriptedAgent, task_for
 
@@ -4182,7 +4183,191 @@ def test_unit_budget_escalates_naming_the_spend_across_attempts(
     assert state.state is TaskState.ESCALATED
     assert state.escalation is not None
     assert state.escalation.reason == "budget_exhausted"
-    assert state.escalation.detail == "unit budget exhausted: $3.60 spent of $3.00"
+    assert state.escalation.detail == "unit budget exhausted: $4.80 spent of $3.00"
+
+
+def test_a_candidate_cut_in_a_repairable_gate_pass_takes_no_further_turn(
+    review_rig,  # noqa: F811
+    monkeypatch,
+) -> None:
+    """S-0124/D-4: the straggler cancel that lands in a gate pass already
+    running is absorbed by the shield so that pass's verdict stands, but the
+    candidate is cut — it takes no repair agent turn and no second pass — and
+    the unit records it red with the spend its finished turn reported."""
+
+    import time
+
+    from test_critic import answer
+    from test_run_loop import ScriptedAgent, task_for
+
+    from torve.application import selection
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    events: list[tuple[str, int]] = []
+
+    def gate_pass(run, _state):
+        index = run.candidate or 1
+        events.append(("gate_start", index))
+
+        if index == 2:
+            # A repairable red still running when the first green candidate's
+            # straggler deadline arrives: candidate 1 finishes at ~0.5s, so
+            # the cut lands at ~0.75s while this pass is asleep.
+            time.sleep(2.0)
+            return 1, "red", "cafe", [], "diff --git a/y b/y"
+
+        time.sleep(0.5)
+        return 0, "green", "cafe", [], "diff --git a/x b/x"
+
+    class Harness(ScriptedAgent):
+        kind = "harness"
+
+        def follow_up(self, ctx, previous, text):
+            events.append(("follow_up", 0))
+            return AgentResult(exit_code=0, output="")
+
+    monkeypatch.setattr(run_module, "run_gate_pass", gate_pass)
+    # Mechanical, so before the cut was honoured this would buy a repair turn.
+    monkeypatch.setattr(selection, "repairable", lambda results: True)
+
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic"))
+    deps = deps_for(ScriptedAgent([AgentResult(exit_code=0, output=answer())]))
+    deps.agent = Harness([AgentResult(exit_code=0, output="")])
+
+    run_task(repo.root, task_for(repo), config, deps)
+
+    assert [event for event in events if event[0] == "follow_up"] == []
+    # Exactly one pass per candidate: the cut candidate's red is not judged again.
+    assert sorted(index for name, index in events if name == "gate_start") == [1, 2]
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    unit = [row for row in rows if row.get("kind") == "unit.closed"]
+    assert len(unit) == 1
+    cut = unit[0]["candidates"][1]
+    assert cut["cut"] is True and not cut["green"] and not cut["followed_up"]
+    assert cut["cost_usd"] is None
+
+
+def test_a_candidate_cut_in_a_green_gate_pass_keeps_its_green(
+    review_rig,  # noqa: F811
+    monkeypatch,
+) -> None:
+    """S-0124/D-4: a candidate whose agent turn finished in time but whose
+    gate pass is still running at the straggler deadline keeps that pass's
+    green verdict, is recorded cut, and takes no further repair turn."""
+
+    import time
+
+    from test_critic import answer
+    from test_run_loop import ScriptedAgent, task_for
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    events: list[tuple[str, int]] = []
+
+    def gate_pass(run, _state):
+        index = run.candidate or 1
+        events.append(("gate_start", index))
+        # Candidate 1 finishes at ~0.5s; the deadline then lands while
+        # candidate 2's green pass is still asleep.
+        time.sleep(2.0 if index == 2 else 0.5)
+        return 0, "green", "cafe", [], f"diff --git a/{index} b/{index}"
+
+    class Harness(ScriptedAgent):
+        kind = "harness"
+
+        def follow_up(self, ctx, previous, text):
+            events.append(("follow_up", 0))
+            return AgentResult(exit_code=0, output="")
+
+    monkeypatch.setattr(run_module, "run_gate_pass", gate_pass)
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic"))
+    deps = deps_for(ScriptedAgent([AgentResult(exit_code=0, output=answer())]))
+    deps.agent = Harness([AgentResult(exit_code=0, output="")])
+
+    run_task(repo.root, task_for(repo), config, deps)
+
+    # The on-time green pass is never cancelled and never re-judged; the cut
+    # candidate buys no follow-up turn.
+    assert [event for event in events if event[0] == "follow_up"] == []
+    assert sorted(index for name, index in events if name == "gate_start") == [1, 2]
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    unit = [row for row in rows if row.get("kind") == "unit.closed"]
+    assert len(unit) == 1
+    cut = unit[0]["candidates"][1]
+    assert cut["green"] is True and cut["cut"] is True and not cut["followed_up"]
+
+
+def test_a_candidate_cut_in_its_repair_turn_books_the_turn_it_finished(
+    review_rig,  # noqa: F811
+    monkeypatch,
+) -> None:
+    """S-0124/D-7: a candidate cancelled in its repair turn still counts the
+    turn it finished. `cancelled_spend` prices that turn's reported cost, books
+    it on the run's history once, and the unit's record carries it."""
+
+    import time
+
+    from test_critic import answer
+    from test_run_loop import ScriptedAgent, task_for
+
+    from torve.application import selection
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+
+    def gate_pass(run, _state):
+        if (run.candidate or 1) == 2:
+            return 1, "red", "cafe", [], "diff --git a/y b/y"
+
+        # Candidate 1 is green at ~0.5s; the cut lands at ~0.75s, while
+        # candidate 2's repair turn is still asleep.
+        time.sleep(0.5)
+        return 0, "green", "cafe", [], "diff --git a/x b/x"
+
+    class Harness(ScriptedAgent):
+        kind = "harness"
+
+        def follow_up(self, ctx, previous, text):
+            time.sleep(3.0)
+            return AgentResult(exit_code=0, output="", cost_usd=0.25)
+
+    monkeypatch.setattr(run_module, "run_gate_pass", gate_pass)
+    monkeypatch.setattr(selection, "repairable", lambda results: True)
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic"))
+    deps = deps_for(ScriptedAgent([AgentResult(exit_code=0, output=answer())]))
+    deps.agent = Harness([AgentResult(exit_code=0, output="", cost_usd=0.4)])
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    booked = [entry["fact"] for entry in state.history if entry["fact"].endswith("candidate 2")]
+    assert booked == ["unit spend 0.400000 candidate 2"]
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    unit = [row for row in rows if row.get("kind") == "unit.closed"]
+    assert len(unit) == 1
+    cut = unit[0]["candidates"][1]
+    assert cut["cut"] is True and not cut["green"]
+    # The cut turn reports no result of its own; its finished turn is the spend.
+    assert cut["cost_usd"] is None and cut["spend_usd"] == 0.4
 
 
 # ....................... #
@@ -4333,3 +4518,81 @@ def test_revision_width_is_one_candidate_on_the_revision_tier(
     assert built == ["strong"]
     assert state.attempts == 2
     assert state.escalation is not None and state.escalation.reason == "blocker_finding"
+
+
+# ....................... #
+# Every candidate runs on the tier the attempt resolved (S-0124/D-6).
+
+
+def test_one_tier_resolved_before_any_candidate_starts(
+    review_rig,  # noqa: F811
+    monkeypatch,
+) -> None:
+    """S-0124/D-6: the attempt resolves its tier once, before any candidate
+    starts, and every candidate's session runs on that resolution; no sibling
+    resolves its own from the facts it starts with."""
+
+    from test_critic import answer
+    from test_run_loop import ScriptedAgent, task_for
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    resolved = object()
+    advanced: list[int | None] = []
+    sessions: list[tuple[int, object]] = []
+
+    def advance(run, _state):
+        advanced.append(run.candidate)
+        return resolved
+
+    async def session(run, _state, _repair=None):
+        sessions.append((run.candidate or 1, run.resolved_agent))
+        return AgentResult(exit_code=0, output="")
+
+    monkeypatch.setattr(run_module, "advance_tier", advance)
+    monkeypatch.setattr(run_module, "run_agent_session", session)
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic"))
+    deps = deps_for(ScriptedAgent([AgentResult(exit_code=0, output=answer())]))
+
+    run_task(repo.root, task_for(repo), config, deps)
+
+    # One resolution, made before any candidate was set on the run.
+    assert len(advanced) == 1 and not advanced[0]
+    assert sorted(index for index, _agent in sessions) == [1, 2]
+    assert all(agent is resolved for _index, agent in sessions)
+
+
+def test_one_tier_for_every_candidate(tmp_path: Path) -> None:
+    """S-0124/D-6: `_candidate_dispatch` copies the attempt's starting dispatch, so a
+    sibling takes the tier resolved before any candidate started — never the
+    one candidate 1's facts moved the run to."""
+
+    from dataclasses import replace
+
+    from test_run_loop import MockWorkspace
+
+    from torve.application.runner import _candidate_dispatch
+
+    run = _gate_dispatch(
+        root=tmp_path,
+        worktree=tmp_path,
+        workspace=MockWorkspace(tmp_path),
+    )
+    start = replace(run, meta=dict(run.meta))
+    # Candidate 1's own advance moves the run to another seat; the attempt's
+    # starting dispatch still holds the tier every candidate resolved on.
+    run.tier_name = "executor.strong"
+    run.tier = TierConfig(adapter="fake", model="strong")
+    run.meta["tier"] = "executor.strong"
+
+    sibling = _candidate_dispatch(run, start, 2, "")
+
+    assert (sibling.tier_name, sibling.tier.model) == (start.tier_name, start.tier.model)
+    assert sibling.tier.model == ""
+    assert sibling.meta == start.meta
+    assert sibling.candidate == 2
+    # The worktree is the candidate's own, not the one candidate 1 ran in.
+    assert sibling.worktree == tmp_path / ".wt" / f"{TASK_ID}~2"

@@ -1489,6 +1489,7 @@ def run_from_view(view: TaskView) -> dict[str, Any]:
         "escalation": ({"reason": view.escalation, "detail": ""} if view.escalation else None),
         "history": [],
         "approvals": [],
+        "sandboxes": [],
         "landed_sha": view.landed_sha,
         "reviewed_by": None,
         **dict.fromkeys(_HOST_ONLY_KEYS, None),

@@ -218,6 +218,11 @@ class Dispatch:
     # replay hands its own.
     judge: JudgePort | None = None
 
+    # S-0124/D-6: the Agent the attempt resolved before any of its candidates
+    # started. Left None, the session resolves the tier itself as it always
+    # did; a unit's candidates all share this one resolution.
+    resolved_agent: Agent | None = None
+
     # S-0122/D-7: which of a unit's candidates this dispatch runs — the second
     # and later ones work in `<task>~<k>` worktrees, 0 and 1 in the task's own —
     # the clock selection hands it, and what selection already judged of the

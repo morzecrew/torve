@@ -186,8 +186,10 @@ def test_the_critic_reads_in_rank_order_until_one_is_clean() -> None:
     assert read == [3, 2]
     assert chosen.winner is not None and chosen.winner.index == 2
     assert chosen.critic_calls == 2 and chosen.outcome == "selected"
-    # Candidate 2 was the first green, so the third ran on the straggler clock.
-    assert clocks == [1200, 1200, 150]
+    # The candidates start together (S-0124/D-4), so each is handed the seat's
+    # own clock; the straggler cut is the deadline selection sets, not a
+    # shorter clock on a later launch.
+    assert clocks == [1200, 1200, 1200]
 
     record = selection.unit_record(
         chosen, task_id="T-0001", attempt=1, width=3, size="L", at="2026-11-05T00:00:00Z"
@@ -226,10 +228,10 @@ def test_with_no_green_candidate_the_first_is_handed_on() -> None:
 # The unit's budget (S-0123/D-1).
 
 
-def test_unit_budget_stops_before_the_next_candidate() -> None:
-    """A unit that already spent most of its bound runs no further candidate:
-    the one call that crosses the bound is counted, and the round says the
-    bound stopped it."""
+def test_unit_budget_stops_before_the_batch() -> None:
+    """S-0124/D-7: the bound is checked once before the candidates launch, so
+    a batch launched under it may finish above it by the spend it launched
+    with — and a unit already at the bound launches nothing."""
 
     launched: list[int] = []
 
@@ -247,9 +249,24 @@ def test_unit_budget_stops_before_the_next_candidate() -> None:
         selection.select(3, launch, review, agent_clock=60, seed="T-0001", spent=2.75)
     )
 
-    assert launched == [1]
-    assert chosen.spent_usd == 3.25 and chosen.exhausted
+    # All three launched under the bound; the batch finished above it, and
+    # with no green candidate there is no critic call to stop.
+    assert launched == [1, 2, 3]
+    assert chosen.spent_usd == 4.25 and not chosen.exhausted
     assert chosen.winner is None
+
+    started: list[int] = []
+
+    async def never(index: int, _clock: float) -> selection.Candidate:
+        started.append(index)
+        return _candidate(index)
+
+    at_bound = asyncio.run(
+        selection.select(3, never, review, agent_clock=60, seed="T-0001", spent=3.0)
+    )
+
+    assert started == []
+    assert at_bound.candidates == [] and at_bound.exhausted
 
 
 def test_unit_budget_stops_before_the_next_critic_call() -> None:
@@ -306,6 +323,216 @@ def test_unit_budget_prices_a_call_from_its_cost_else_its_list_price() -> None:
 
 
 # ....................... #
+# The candidates run side by side (S-0124/D-4).
+
+
+def test_candidates_run_side_by_side_and_the_straggler_is_cut() -> None:
+    """Every launch starts before any finishes; the first green one's finish
+    sets the straggler deadline, the candidate still in its agent turn is
+    cancelled and recorded red with its elapsed time, and the candidates are
+    ordered by index however they completed."""
+
+    started: set[int] = set()
+    all_started = asyncio.Event()
+    clocks: list[float] = []
+    cancelled: list[int] = []
+
+    async def launch(index: int, clock: float) -> selection.Candidate:
+        clocks.append(clock)
+        started.add(index)
+
+        if len(started) == 3:
+            all_started.set()
+
+        await all_started.wait()
+
+        if index == 2:
+            try:
+                await asyncio.sleep(5)
+
+            except asyncio.CancelledError:
+                cancelled.append(index)
+                raise
+
+        candidate = _candidate(index, green=index != 2)
+        candidate.wall_s = 0.05
+
+        return candidate
+
+    async def review(candidate: selection.Candidate) -> bool:
+        return candidate.index == 3
+
+    chosen = asyncio.run(selection.select(3, launch, review, agent_clock=60, seed="T-0001"))
+
+    # Side by side: no launch could leave the barrier before the third started.
+    assert started == {1, 2, 3}
+    assert clocks == [60, 60, 60]
+    assert cancelled == [2]
+    # Sorted by index, never by completion.
+    assert [c.index for c in chosen.candidates] == [1, 2, 3]
+    cut = chosen.candidates[1]
+    assert cut.result is None and not cut.green and cut.wall_s >= 0.02
+    assert chosen.winner is not None and chosen.winner.index == 3
+
+
+def test_side_by_side_cut_lands_at_the_straggler_clock(monkeypatch) -> None:
+    """S-0124/D-4: the deadline is `straggler_clock` of the first green
+    candidate's wall time, measured from that candidate's finish. A fixed
+    deadline, or one that ignores the clock, cuts somewhere else."""
+
+    calls: list[tuple[float, float]] = []
+
+    def clock(first_green_s: float, agent_clock: float) -> float:
+        calls.append((first_green_s, agent_clock))
+        return first_green_s + 0.3
+
+    monkeypatch.setattr(selection, "straggler_clock", clock)
+
+    async def launch(index: int, _clock: float) -> selection.Candidate:
+        if index == 2:
+            await asyncio.sleep(5)
+
+        candidate = _candidate(index, green=index != 2)
+        candidate.wall_s = 0.05
+
+        return candidate
+
+    async def review(candidate: selection.Candidate) -> bool:
+        return True
+
+    chosen = asyncio.run(selection.select(2, launch, review, agent_clock=60, seed="T-0001"))
+
+    assert calls == [(0.05, 60)]
+    cut = chosen.candidates[1]
+    assert cut.cut and cut.result is None
+    # Cut 0.3s after candidate 1 finished, which was at once.
+    assert 0.25 <= cut.wall_s < 0.6
+
+
+def test_stop_cancels_the_others_and_asks_no_critic() -> None:
+    """S-0124/D-4: when the run escalates under one candidate, the others'
+    turns are cancelled and the critic is never asked — stop ends the round,
+    so a green sibling is not read for a run that will not land it."""
+
+    started: set[int] = set()
+    all_started = asyncio.Event()
+    cancelled: list[int] = []
+    read: list[int] = []
+    escalated = False
+
+    async def launch(index: int, _clock: float) -> selection.Candidate:
+        nonlocal escalated
+
+        started.add(index)
+
+        if len(started) == 3:
+            all_started.set()
+
+        await all_started.wait()
+
+        if index == 1:
+            escalated = True
+            candidate = _candidate(index, green=True)
+            candidate.wall_s = 0.05
+
+            return candidate
+
+        try:
+            await asyncio.sleep(5)
+
+        except asyncio.CancelledError:
+            cancelled.append(index)
+            raise
+
+        return _candidate(index, green=True)
+
+    async def review(candidate: selection.Candidate) -> bool:
+        read.append(candidate.index)
+        return True
+
+    chosen = asyncio.run(
+        selection.select(
+            3,
+            launch,
+            review,
+            agent_clock=60,
+            seed="T-0001",
+            stop=lambda: escalated,
+        )
+    )
+
+    assert sorted(cancelled) == [2, 3]
+    assert read == []
+    assert chosen.winner is None and chosen.outcome == "red"
+    # Every candidate is on the record, in index order, however it ended.
+    assert [candidate.index for candidate in chosen.candidates] == [1, 2, 3]
+
+
+def test_unit_budget_counts_a_cancelled_candidate_s_finished_spend() -> None:
+    """S-0124/D-7: a candidate cut at the straggler deadline keeps what its
+    finished turns spent — in the bound before the next critic call, and in
+    the unit's record."""
+
+    started: set[int] = set()
+    all_started = asyncio.Event()
+    cancelled: list[int] = []
+    read: list[int] = []
+
+    async def launch(index: int, _clock: float) -> selection.Candidate:
+        started.add(index)
+
+        if len(started) == 2:
+            all_started.set()
+
+        await all_started.wait()
+
+        if index == 2:
+            try:
+                await asyncio.sleep(5)
+
+            except asyncio.CancelledError:
+                cancelled.append(index)
+                raise
+
+        candidate = _candidate(index, green=True)
+        candidate.wall_s = 0.05
+        candidate.spend = 0.5
+
+        return candidate
+
+    async def review(candidate: selection.Candidate) -> bool:
+        read.append(candidate.index)
+        return True
+
+    chosen = asyncio.run(
+        selection.select(
+            2,
+            launch,
+            review,
+            agent_clock=60,
+            seed="T-0001",
+            spent=2.3,
+            cancelled_spend=lambda index: 0.4,
+        )
+    )
+
+    assert cancelled == [2]
+    # 2.30 already spent, 0.50 for the green candidate, 0.40 for the turns the
+    # cut one finished: over the bound, so no critic call is spent.
+    assert round(chosen.spent_usd, 6) == 3.2
+    assert chosen.exhausted and chosen.winner is None
+    assert read == []
+
+    record = selection.unit_record(
+        chosen, task_id="T-0001", attempt=1, width=2, size="M", at="2026-11-05T00:00:00Z"
+    )
+
+    assert [c["spend_usd"] for c in record["candidates"]] == [0.5, 0.4]
+    assert [c["green"] for c in record["candidates"]] == [True, False]
+    assert record["outcome"] == "blocked"
+
+
+# ....................... #
 
 
 def test_the_runner_leaves_the_chosen_candidate_in_the_task_s_worktree(
@@ -337,7 +564,9 @@ def test_the_runner_leaves_the_chosen_candidate_in_the_task_s_worktree(
     state = run_task(repo.root, task_for(repo), config, deps)
 
     assert state.state is TaskState.READY
-    assert passes == [1, 2]
+    # The candidates run together (S-0124/D-4), so the two passes may finish
+    # in either order; both were judged, and the green one won.
+    assert sorted(passes) == [1, 2]
     assert sum("critic reviewed candidate 2" in h["fact"] for h in state.history) == 1
     assert not (repo.root / ".wt" / "T-9001~2").exists()
     assert not (repo.root / ".wt" / "T-9001" / "own.txt").exists()
@@ -457,4 +686,7 @@ def test_a_gate_pass_that_raises_inside_selection_escalates_the_run(
     assert state.state is TaskState.ESCALATED
     assert state.escalation is not None
     assert state.escalation.reason == "gate_infrastructure_failure"
-    assert passes == [1]
+    # Both candidates launched before the first pass raised (S-0124/D-4); the
+    # first escalation is the run's, and a sibling's pass that raises too does
+    # not transition the state again.
+    assert 1 in passes and set(passes) <= {1, 2}

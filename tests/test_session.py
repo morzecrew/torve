@@ -10,6 +10,7 @@ of which it touches.
 
 import pytest
 import yaml
+from test_review_run import review_rig  # noqa: F401 — the fixture, by name
 
 from torve.application.dispatch import Dispatch, RunDeps
 from torve.application.runstate import RunState
@@ -615,6 +616,76 @@ def test_the_attempt_sandbox_is_not_nested_when_only_gates_is(tmp_path):
 
 
 # ....................... #
+# Two candidates of one task never share a container or a gitdir (S-0124/D-5).
+
+
+def test_candidate_names_carry_the_candidate_and_keep_task_labels():
+    """S-0124/D-5: a candidate after the first gets `-c<k>` on its attempt sandbox, gates
+    sandbox and sandbox gitdir names; the labels stay keyed by task, so
+    `torve reap` still finds every candidate's sandbox."""
+
+    from pathlib import Path
+
+    from test_runner import _gate_dispatch
+
+    from torve.application import session
+    from torve.application.runner import _gates_spec
+    from torve.base import naming
+
+    state = RunState(task_id=TASK_ID, path=Path("state.json"), run_id="run-1234")
+    run = _gate_dispatch(root=Path("/repo"), worker_slot=2)
+
+    assert session.candidate_suffix(1) == ""
+    assert session.candidate_suffix(2) == "-c2"
+
+    assert session.attempt_sandbox_name(TASK_ID, state, 1) == "torve-t-0001-run-1234-a0"
+    assert session.attempt_sandbox_name(TASK_ID, state, 2) == "torve-t-0001-run-1234-a0-c2"
+
+    assert session.sandbox_gitdir_name(TASK_ID, 1) == TASK_ID
+    assert session.sandbox_gitdir_name(TASK_ID, 3) == f"{TASK_ID}-c3"
+
+    run.candidate = 1
+    first = _gates_spec(run, state)
+    run.candidate = 2
+    second = _gates_spec(run, state)
+
+    assert first.name.endswith("-gates") and not first.name.endswith("-c1")
+    assert second.name.endswith("-gates-c2")
+    assert second.labels == first.labels == naming.labels(run.task.id, state.run_id, run.root)
+
+
+def test_candidate_names_reach_the_sandboxes_a_unit_creates(
+    review_rig,  # noqa: F811
+) -> None:
+    """S-0124/D-5: the session builds candidate 2's attempt sandbox under the
+    `-c2` name, so two candidates of one attempt never share a sandbox name,
+    and both carry the task's labels."""
+
+    from test_critic import answer
+    from test_run_loop import ScriptedAgent, task_for
+
+    import torve.application.runner as run_module
+    from torve.application.ports import AgentResult
+    from torve.config.runconfig import ReviewConfig
+
+    repo, runtime, deps_for = review_rig
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic"))
+    deps = deps_for(ScriptedAgent([AgentResult(exit_code=0, output=answer())]))
+
+    run_module.run_task(repo.root, task_for(repo), config, deps)
+
+    # The target's own attempt sandboxes; the critic's review runs under its own task.
+    attempts = [
+        spec for spec in runtime.specs if "-t-9001-" in spec.name and "-gates" not in spec.name
+    ]
+    names = sorted(spec.name for spec in attempts)
+
+    assert len(names) == 2
+    assert names[0].endswith("-a1") and names[1] == names[0] + "-c2"
+    assert attempts[0].labels == attempts[1].labels
+
+
+# ....................... #
 # The attempt's sandbox runs no git (S-0113/D-2): the host leaves the
 # worktree's tracked files where the citation scan reads them, before the
 # sandbox starts.
@@ -805,6 +876,45 @@ def test_the_sandbox_git_is_a_standalone_copy_of_the_attempt_s_head(repo, tmp_pa
 # ....................... #
 # S-0122/D-8: a red candidate's one repair turn runs in its own session, in
 # the sandbox it ran in, before that sandbox dies.
+
+
+def test_a_session_ending_leaves_its_sibling_candidates_sandboxes(repo, monkeypatch):
+    # S-0124/D-4, T-0848: side by side, the first candidate to finish cleared
+    # the one `sandbox_id` while its siblings' sandboxes were live, so a kill
+    # or a reap left them running.
+    from test_run_loop import MockRuntime, MockScm, MockVcs, MockWorkspace, task_for
+
+    import torve.application.runner as run_module
+    from torve.adapters.store.durable import open_store
+    from torve.application.runner import run_task
+
+    repo.seed()
+    deps = RunDeps(
+        workspace=MockWorkspace(repo.root),
+        runtime=MockRuntime(),  # type: ignore[arg-type]
+        agent=_SessionAgent(),
+        vcs=MockVcs(),  # type: ignore[arg-type]
+        scm=MockScm(),  # type: ignore[arg-type]
+        store=open_store,
+    )
+    held: list[tuple[list[str], str | None]] = []
+    session = run_module.run_agent_session
+
+    async def beside_a_sibling(run, state, own=None):
+        state.sandboxes.append("sbx-sibling")
+        result = await session(run, state, own)
+        held.append((list(state.sandboxes), state.sandbox_id))
+        state.sandboxes.remove("sbx-sibling")
+
+        return result
+
+    monkeypatch.setattr(
+        run_module, "run_gate_pass", lambda run, _state: (0, "scripted", "cafecafe1234", [], "")
+    )
+    monkeypatch.setattr(run_module, "run_agent_session", beside_a_sibling)
+    run_task(repo.root, task_for(repo), RunnerConfig(), deps)
+
+    assert held == [(["sbx-sibling"], "sbx-sibling")]
 
 
 def _repair_loop(repo, monkeypatch, agent, repair, config=None):

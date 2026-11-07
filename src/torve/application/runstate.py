@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -26,6 +27,11 @@ from torve.domain.states import EscalationReason, TaskState, check_transition
 
 # The run state's own shape version (T-0321).
 SCHEMA_VERSION = 1
+
+# One writer at a time (S-0124/D-5): a unit's candidates may save together,
+# and the temporary file they stage through is one name. The lock spans the
+# dump and the replace, so a reader never sees a half-written file.
+_SAVE_LOCK = threading.Lock()
 
 
 def _now() -> str:
@@ -58,6 +64,10 @@ class RunState:
     attempts: int = 0
     heartbeat: str = field(default_factory=_now)
     sandbox_id: str | None = None
+    # Every sandbox the run's sessions hold at once (S-0124/D-4): a unit's
+    # candidates run side by side, each adds its own and drops only its own,
+    # so a kill or a reap destroys all of them, not only the last one started.
+    sandboxes: list[str] = field(default_factory=list)
     durable_run_id: str | None = None  # the store's run this engine run executes under
     worktree: str | None = None
     escalation: Escalation | None = None
@@ -165,6 +175,14 @@ class RunState:
 
     # ....................... #
 
+    def live_sandboxes(self) -> list[str]:
+        """Every sandbox this run may still hold, each once: its candidates'
+        and the single session's `sandbox_id`."""
+
+        return list(dict.fromkeys([*self.sandboxes, *filter(None, [self.sandbox_id])]))
+
+    # ....................... #
+
     def touch(self) -> None:
         self.heartbeat = _now()
 
@@ -190,9 +208,11 @@ class RunState:
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.to_record(), indent=2) + "\n", encoding="utf-8")
-        os.replace(tmp, self.path)
+
+        with _SAVE_LOCK:
+            tmp = self.path.with_suffix(".tmp")
+            tmp.write_text(json.dumps(self.to_record(), indent=2) + "\n", encoding="utf-8")
+            os.replace(tmp, self.path)
 
     # ....................... #
 
@@ -210,6 +230,7 @@ class RunState:
             attempts=data["attempts"],
             heartbeat=data["heartbeat"],
             sandbox_id=data.get("sandbox_id"),
+            sandboxes=data.get("sandboxes", []),
             durable_run_id=data.get("durable_run_id"),
             worktree=data.get("worktree"),
             escalation=Escalation(**escalation) if escalation else None,

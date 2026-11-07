@@ -319,17 +319,20 @@ def kill(
         )
 
     config = load_config(root, config_path)
-    destroyed = ""
+    outcomes: list[str] = []
 
-    if state.sandbox_id:
+    # Every candidate's sandbox, not only the last one started (S-0124/D-4).
+    for sandbox in state.live_sandboxes():
         try:
-            runtime_for(config, runtime_name).destroy_by_id(state.sandbox_id)
-            destroyed = state.sandbox_id
+            runtime_for(config, runtime_name).destroy_by_id(sandbox)
+            outcomes.append(sandbox)
 
         except Exception as exc:  # the kill proceeds; the sandbox is reported
-            destroyed = f"destroy failed: {exc}"
+            outcomes.append(f"destroy failed: {exc}")
 
+    destroyed = ", ".join(outcomes)
     state.sandbox_id = None
+    state.sandboxes = []
     state.escalate(EscalationReason.KILLED, "operator kill")
     engine_event(root, "killed", {"task": task_id, "sandbox": destroyed or None})
 
