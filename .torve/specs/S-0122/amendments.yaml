@@ -66,3 +66,36 @@ amendments:
       phase 6 drives dsh through the SDK. The research's persona finding was
       half right: the shipped 0.1.2-rc.1 still read `persona`, so only the door
       was broken in production, and the bump would have broken the persona.
+  - id: A-3
+    at: '2026-11-07T19:30:56Z'
+    title: >-
+      A revision's finding must locate to what the revision changed or failed to fix
+      (S-0125)
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          The engine, not a model, turns a critic's findings into block or pass: a
+          candidate is blocked when a finding that survives the location filter is
+          at or above `review.blocks_at`, or when an owned row is `violated` with
+          located evidence, and an `unknown` row never blocks
+        after: >-
+          The engine, not a model, turns a critic's findings into block or pass: a
+          candidate is blocked when a finding that survives the location filter is
+          at or above `review.blocks_at`, or when an owned row is `violated` with
+          located evidence, and an `unknown` row never blocks; on a revision attempt
+          such a finding counts only when it also locates within `threads.WINDOW`
+          lines of a line the revision changed or of an earlier round's blocker, and
+          every other is recorded non-blocking
+      - subject: D-1
+        field: fingerprint
+        after: ab5ee4a9a6da81c9/03a530a15ac3f0d0
+    md: |
+      The owner amended this LOCKED row in session on 2026-11-07, for S-0125/D-1.
+      Each revision of S-0124's phases was reviewed as a first attempt, and the
+      critic named a new blocker on code the revision never touched: T-0810's
+      three escalations named three different findings. The engine still decides,
+      and on a first attempt it decides exactly as before. On a revision, a
+      finding counts only where the revision acted or failed to act. Every other
+      finding stays in the review record, and the document's pull request still
+      receives it as a recorded thread.

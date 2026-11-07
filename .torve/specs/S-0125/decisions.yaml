@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      On a revision attempt, a kept finding blocks only when its anchor lies within
+      `threads.WINDOW` lines of a line the revision's own diff changed; a finding
+      anchored near an earlier blocker is re-raised and escalates as S-0124/D-3 says,
+      and every other kept finding, anchorless ones included, is recorded non-blocking
+      as `carried`
+    paths: [src/torve/application/critic.py]
+    consequence: >-
+      a revision is never blocked by code it did not touch, so a unit converges within
+      its revision rounds or escalates naming what it failed to fix; a carried finding
+      lands unfixed and reaches the PR as a recorded thread
+    rationale: >-
+      T-0810's three escalations each named a different new blocker, and T-0880's
+      critic blocked both green candidates of a fix round on findings outside the
+      fixes
+    cites: [S-0122/D-1, S-0122/D-8, S-0124/D-3]
+    check: >-
+      uv run pytest -q tests/test_critic.py -k carried_finding
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A revision's critic call stages `revision.diff`, the diff from the head the
+      previous review judged to the revision's head, and `blockers.yaml`, every earlier
+      round's blocker anchors and claims read from the run's history; the revision
+      history fact records the judged head beside its anchors, and `build_critic_prompt`
+      names both files
+    paths: [src/torve/application/critic.py, src/torve/application/review.py]
+    consequence: >-
+      the critic of a revision reads what the revision changed and what it was asked
+      to fix, while the cumulative diff and the base tree stay staged as today
+    rationale: >-
+      `scrub_copy` removes the feedback record and the frozen prompt never mentions
+      an earlier review, so each revision was reviewed as a first attempt
+    cites: [S-0122/D-6, S-0124/D-3]
+    check: >-
+      uv run pytest -q tests/test_critic.py tests/test_review_run.py -k revision_inputs
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      Every review round carries at most `threads.findings_per_round` findings, whether
+      its head was triaged or not, and the default is 5; `batch_claims` still never
+      splits a file across rounds
+    paths: [src/torve/application/reviewleg.py, src/torve/config/runconfig.py]
+    consequence: >-
+      fifteen bot findings become three or more small rounds; a critic block in one
+      leaves the others' fixes to land
+    rationale: >-
+      T-0880 put 15 triaged findings across seven files into one round, and one block
+      escalated all of them after 98 minutes
+    cites: [S-0122/D-15, S-0097/D-5]
+    check: >-
+      uv run pytest -q tests/test_reviewleg.py tests/test_runconfig.py -k findings_per_round
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      When a round is minted the leg replies `Fixing in T-NNNN.` on each of its bot
+      threads and leaves them unresolved, and when the round escalates it replies
+      once with the escalation's reason
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      a reader of the PR sees which task is fixing a thread within one pass of triage,
+      and a thread whose round escalated says why instead of going quiet
+    rationale: >-
+      no thread of T-0880's 15 was answered in its 98 minutes, and the round's escalation
+      said nothing on the PR
+    cites: [S-0084/D-7]
+    check: >-
+      uv run pytest -q tests/test_reviewleg.py -k fixing_reply
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `clear_escalated` clears a state file that says claimed, running, gated or reviewed
+      when no live engine run holds it, after committing the tree as a stopped run's
+      (#292)
+    paths: [src/torve/application/reaper.py]
+    consequence: >-
+      a requeue after a serve died mid-run dispatches instead of refusing on the dead
+      run's state file
+    rationale: >-
+      a requeue left a running or gated file in place, so every next dispatch refused
+      and escalated `gate_infrastructure_failure` again (six times in the week to
+      2026-11-07)
+    cites: [S-0094/D-5]
+    check: >-
+      uv run pytest -q tests/test_reaper.py -k requeue_clears
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      `Worker.once` catches the durable run's timeout (`durable.run_timed_out`), escalates
+      the task `budget_exhausted` naming the duration, releases its claim and returns,
+      so the serve continues
+    paths: [src/torve/application/worker.py]
+    consequence: >-
+      a run past `store.max_run_duration` costs its task, not the night
+    rationale: >-
+      on 2026-11-07 02:49Z that timeout's `CoreException` passed every handler and
+      ended the serve process, leaving the night unclosed
+    check: >-
+      uv run pytest -q tests/test_worker.py -k durable_timeout
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      A round's intent carries, under each finding, the base tree's numbered lines
+      from 10 above to 10 below its anchor, and triage's verdict and evidence for
+      its thread when triage ran, inside the round's fence
+    paths: [src/torve/application/reviewleg.py]
+    consequence: >-
+      a round's executor starts at the code each finding names
+    rationale: >-
+      70% of T-0880's first candidate's tool calls were orientation, and a round's
+      intent gave each finding only a path and a line
+    check: >-
+      uv run pytest -q tests/test_reviewleg.py -k round_excerpt
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      A tier's `context_window` keeps the value its seat states and is merged off
+      the roster only when the seat states none
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      a seat can hand its harness a smaller window than the model's, which a harness
+      that compacts against its window compacts sooner
+    rationale: >-
+      the roster's 1,000,000 always overwrote the tier, and a dsh session grew to
+      289k tokens per call with no compaction
+    check: >-
+      uv run pytest -q tests/test_runconfig.py tests/test_providers.py -k context_window
+  - id: D-9
+    grade: OPEN
+    text: >-
+      Whether dsh compacts against the context window torve passes and at what fraction
+      of it, read from the image's `dsh-compaction-basic`, and which window the night's
+      dsh seats state; the phase records the answer in its log
+    paths: [src/torve/config/runconfig.py]
+    consequence: >-
+      if dsh does not compact against the passed window, D-8 bounds nothing for dsh
+      and a per-attempt token budget comes back into scope
+    rationale: >-
+      nothing in the repository configures dsh's compaction, and the package's default
+      could not be read outside the image
