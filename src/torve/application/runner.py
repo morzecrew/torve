@@ -1896,6 +1896,9 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             # A blocker the previous round already named stops the run in
             # `review_step` (S-0124/D-3); no turn is spent on it.
             and not revision_reraised(winner)
+            # The turn's own re-review is a critic call too (S-0122/D-8): a
+            # unit whose calls are spent starts no turn it cannot judge.
+            and spent + chosen_round.critic_calls < selection.CRITIC_CALLS
             else None
         )
 
@@ -1907,9 +1910,10 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
 
         def close_unit() -> None:
             # S-0124/D-9: every critic-mode attempt writes it, whatever its
-            # width, and an attempt a budget or clock stop ended too. A unit the
-            # cap stopped before any candidate launched has nothing to record.
-            if not critic or not chosen_round.candidates:
+            # width, and an attempt a budget or clock stop ended too — one the
+            # cap stopped before any candidate launched included, with no
+            # candidates and no selection.
+            if not critic:
                 return
 
             chosen_round.revision = session_revision
@@ -1994,7 +1998,14 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                 feedback_text = render_feedback(
                     run.task.id, member.patch, threads, verdict.measured
                 )
-                turn_clock = min(remaining, agent_timeout_for(run.config, member.run.tier))
+                # The sandbox is the outer bound (S-0035/D-6): the session
+                # turn gets what is left of the sandbox that kept it, as the
+                # repair turn does, never a clock that outlives the container.
+                turn_clock = min(
+                    remaining,
+                    agent_timeout_for(run.config, member.run.tier),
+                    opened.sandbox_left_s(),
+                )
                 turn_started = time.monotonic()
                 continued = await opened.follow_up(feedback_text, turn_clock)
                 wall_s = time.monotonic() - turn_started

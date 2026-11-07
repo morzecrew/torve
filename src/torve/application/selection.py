@@ -252,11 +252,6 @@ class Revision:
     wall_s: float | None = None
 
 
-# The record's own name for the block, for a reader that does not also know
-# the selection type.
-RevisionRecord = Revision
-
-
 # ....................... #
 
 
@@ -572,7 +567,9 @@ def unit_record(
             }
             for c in selection.candidates
         ],
-        "selected": selection.chosen.index,
+        # No candidate when the cap stopped the unit before its launch: the
+        # attempt still closes, and names no selection (S-0124/D-9).
+        "selected": selection.chosen.index if selection.candidates else None,
         "critic_calls": selection.critic_calls,
         "outcome": selection.outcome,
     }

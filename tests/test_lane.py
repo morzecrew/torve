@@ -922,6 +922,23 @@ def test_landing_approver_records_the_actor_of_an_approved_tip(lane_repo):
     assert landed and landed[-1]["approver"] == "operator"
 
 
+def test_landing_approver_joins_every_actor_of_an_approved_tip(lane_repo):
+    """S-0124/D-13: every actor whose approval is bound to the landed tip is
+    named, joined — not only the first one."""
+    from torve.application.lane import record_approval
+
+    candidate(lane_repo, "T-7027", "twentyseven.py", "t = 27\n")
+    tip = git(lane_repo, "rev-parse", naming.branch("T-7027"))
+    record_approval(lane_repo, "T-7027", "alice", tip)
+    record_approval(lane_repo, "T-7027", "bob", tip)
+
+    results = process_lane(lane_repo, GitLane())
+
+    assert results[0].action == "landed"
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed and landed[-1]["approver"] == "alice, bob"
+
+
 def test_landing_approver_ignores_an_approval_of_a_superseded_tip(lane_repo):
     """S-0124/D-13: an approval binds to its sha; one of an earlier tip names
     nobody on the landing of the tip that replaced it."""
@@ -1371,6 +1388,30 @@ def test_a_merged_task_pull_request_is_read_with_an_empty_stream(lane_repo, tmp_
     assert gone[0].action == "already landed"
     # No task branch on the remote, so the forge is asked nothing (S-0102/D-1).
     assert asked == [naming.branch("T-7110")] * 2
+
+
+def test_a_forge_merged_landing_records_no_approver(lane_repo, tmp_path):
+    """S-0124/D-13: a landing the forge merged records the empty string, even
+    when this checkout holds an approval of the tip — the approval that
+    counted was given on the forge, not here."""
+    from torve.application.lane import record_approval
+
+    _remote_candidate(lane_repo, tmp_path, "T-7112", "twelve.py", "twelve = 12\n")
+    tip = git(lane_repo, "rev-parse", naming.branch("T-7112"))
+    record_approval(lane_repo, "T-7112", "operator", tip)
+    asked: list[str] = []
+
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher([]),
+        forge=_forge(_pr(number=13, state="merged", merge_commit="b" * 40), asked),
+    )
+
+    assert results[0].action == "landed"
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed and landed[-1]["mode"] == "pull-request"
+    assert landed[-1]["approver"] == ""
 
 
 def test_a_closed_task_pull_request_is_an_abandonment_and_is_never_re_opened(lane_repo, tmp_path):

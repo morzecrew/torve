@@ -4134,6 +4134,49 @@ def test_unit_budget_escalates_naming_the_spend_across_attempts(
     assert state.escalation.detail == "unit budget exhausted: $4.80 spent of $3.00"
 
 
+def test_a_unit_the_cap_stopped_before_launch_still_closes_its_record(
+    review_rig,  # noqa: F811
+    monkeypatch,
+) -> None:
+    """S-0124/D-9: an attempt the $3 cap stopped before any candidate launched
+    still writes `unit.closed`, naming no candidates and no selection, so the
+    record holds every critic-mode attempt."""
+
+    from test_run_loop import ScriptedAgent, task_for
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    monkeypatch.setattr(
+        run_module,
+        "run_gate_pass",
+        lambda run, _state: (1, "scripted red", "cafecafe1234", [], "diff --git a/x b/x"),
+    )
+    candidate = AgentResult(exit_code=0, output="", cost_usd=1.2)
+    config = RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic"))
+    deps = deps_for(ScriptedAgent([candidate]))
+    deps.agent = ScriptedAgent([candidate])
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.escalation is not None
+    assert state.escalation.reason == "budget_exhausted"
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    stopped = [row for row in rows if row.get("kind") == "unit.closed"][-1]
+
+    # The cap stopped this attempt before its first candidate: no candidates
+    # ran, nothing was selected, and the record still closes the attempt.
+    assert stopped["attempt"] == state.attempts
+    assert stopped["candidates"] == []
+    assert stopped["selected"] is None
+    assert stopped["outcome"] == "red"
+
+
 def test_a_candidate_cut_in_a_repairable_gate_pass_takes_no_further_turn(
     review_rig,  # noqa: F811
     monkeypatch,
@@ -4769,6 +4812,108 @@ def test_session_revision_timed_out_turn_is_not_judged(review_rig, monkeypatch):
     assert unit["critic_calls"] == 1
     assert unit["revision"]["rereview"] == "failed"
     assert any("hard timeout" in str(h["fact"]) for h in state.history)
+
+
+def test_a_session_turn_is_not_started_with_no_critic_call_left(
+    review_rig,  # noqa: F811
+    monkeypatch,
+) -> None:
+    """S-0122/D-8, S-0124/D-8: a unit's last critic call is its last — a
+    selection that spent it starts no session turn, because the turn's own
+    re-review would be a call past the cap."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    from torve.application import selection
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    # One call is the unit's whole budget: the first turn's critic call spends it.
+    monkeypatch.setattr(selection, "CRITIC_CALLS", 1)
+    turns: list[str] = []
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+            return AgentResult(exit_code=0, output="first", cost_usd=0.1)
+
+        def follow_up(self, ctx, previous, text):
+            turns.append(text)
+            return AgentResult(exit_code=0, output="second", cost_usd=0.3)
+
+    config = RunnerConfig(
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=1
+        )
+    )
+    deps = deps_for(SequencedReviewer([answer(findings=[finding()])] * 3))
+    deps.agent = SessionHarness([])
+
+    state = run_task(repo.root, _unit_task(), config, deps)
+
+    critic_calls = [
+        entry
+        for entry in state.history
+        if str(entry.get("fact", "")).startswith(run_module.CRITIC_MARKER)
+    ]
+    assert turns == []
+    assert state.attempts == 1
+    assert len(critic_calls) == 1
+
+
+def test_a_session_turn_fits_inside_the_sandbox_that_kept_it(
+    review_rig,  # noqa: F811
+    monkeypatch,
+) -> None:
+    """S-0124/D-8, S-0035/D-6: the session turn's clock is what is left of the
+    sandbox that kept it, not only the unit's time and the seat's agent clock,
+    so a turn cannot outlive the container and lose its work."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.application.session import OpenSession
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    monkeypatch.setattr(OpenSession, "sandbox_left_s", lambda _self: 7.0)
+    clocks: list[float] = []
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+            return AgentResult(exit_code=0, output="first", cost_usd=0.1)
+
+        def follow_up(self, ctx, previous, text):
+            clocks.append(ctx.timeout_s)
+            return AgentResult(exit_code=0, output="second", cost_usd=0.1)
+
+    config = RunnerConfig(
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=1
+        )
+    )
+    deps = deps_for(SequencedReviewer([answer(findings=[finding()]), answer(findings=[])]))
+    deps.agent = SessionHarness([])
+
+    run_task(repo.root, _unit_task(), config, deps)
+
+    assert clocks == [7.0]
 
 
 def test_session_revision_prices_the_turn_the_way_the_candidate_was(

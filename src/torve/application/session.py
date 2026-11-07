@@ -529,13 +529,17 @@ class OpenSession:
 
     # ....................... #
 
+    def sandbox_left_s(self) -> float:
+        """What is left of the sandbox's life (S-0035/D-6): the container was
+        started for `spec.timeout_s` and has been up since `clock`. A turn in
+        this session must fit inside it; a turn with nothing left is no turn."""
+
+        return self.spec.timeout_s - (time.monotonic() - self.clock)
+
+    # ....................... #
+
     def close(self) -> None:
         _teardown(self.run, self.state, self.handle, self.spec, self.withheld, self.planted)
-
-
-# The session's own name for the kept object, for a reader that does not also
-# know it as the open-session wrapper.
-Session = OpenSession
 
 
 # ....................... #
