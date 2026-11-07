@@ -3,7 +3,7 @@ task: T-0810
 phase: 3
 attempt: 6
 base: b4eb441d3df20b1e271dcc03c1a8be5a16381fbd
-commit: cf8e875286d675df25b1c2fdafdb6b1f71922b65
+commit: 36e8120ffd43979fbca3b16043e8c85156540f44
 at: '2026-11-07T14:39:32Z'
 agent: Lev Litvinov
 decisions:
