@@ -1295,6 +1295,27 @@ def test_ignored_writes(repo):
     assert [r["name"] for r in records[0]["results"]] == []
 
 
+def test_ignored_writes_absent_from_an_empty_diff_refusal(repo):
+    """S-0124/D-11: the refusal builds its own record before the battery runs,
+    so an ignored file beside a no-op attempt records no ignored-writes result
+    there either — not just on the full-battery path."""
+
+    worktree = _ignored_repo(repo)
+    (worktree / "agent.log").write_text("steering the verdict\n", encoding="utf-8")
+
+    exit_code, summary, _digest, results, _patch = _gate_pass(repo, worktree)
+
+    assert exit_code == 1
+    assert summary == "empty diff against base — no changes produced"
+    assert [r.name for r in results] == ["empty-diff"]
+
+    records = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    assert [r["name"] for r in records[0]["results"]] == ["empty-diff"]
+
+
 # ....................... #
 # S-0038 — the attempt verdict (T-0247). Every attempt ends in exactly
 # one row (S-0038/D-1) carrying an engine-derived verdict from the closed
