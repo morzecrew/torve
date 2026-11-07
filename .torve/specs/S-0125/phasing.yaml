@@ -106,3 +106,25 @@ phasing:
     depends_on:
       - 2
     delivers: [D-8, D-9]
+  - phase: 6
+    title: A ceiling on a revision keeps the revision
+    intent: >-
+      When `_attempt_loop` escalates `poison_ceiling` and the run's history holds
+      a `review blocker (revision k of n)` fact, the run commits the worktree's tree
+      on the task's branch with the subject `torve(T-NNNN): attempt N escalated at
+      the ceiling on a revision` and the `Torve-Checkpoint` trailer, as `_commit_reviewed_tree`
+      does for a blocker. `_continuable` and `_checkpointed_for_resume` accept that
+      escalation and that subject, so a requeue resumes from the tree. A `poison_ceiling`
+      run with no such fact commits nothing new and still restarts from base. Tests
+      named `ceiling_on_a_revision` in `tests/test_run_loop.py` and `tests/test_runner.py`.
+    scope:
+      - src/torve/application/runner.py
+      - tests/test_run_loop.py
+      - tests/test_runner.py
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_run_loop.py tests/test_runner.py tests/test_reaper.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    delivers: [D-10]

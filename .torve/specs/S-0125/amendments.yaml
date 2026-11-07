@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-11-07T22:38:34Z'
+    title: >-
+      A unit that reaches its ceiling on a revision keeps its work
+    changes:
+      - subject: D-10
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-10
+        field: paths
+        before: []
+        after: [src/torve/application/runner.py]
+      - subject: D-10
+        field: text
+        before: <decision>
+        after: >-
+          A run that escalates `poison_ceiling` after a revision attempt, one following
+          a `review blocker (revision k of n)` fact in the run's history, commits
+          its last attempt's tree on the task's branch as a checkpoint marked `escalated
+          at the ceiling on a revision`, and the dispatch after a requeue resumes
+          from it as from a review blocker; a run whose attempts saw no critic block
+          still restarts from base
+      - subject: D-10
+        field: fingerprint
+        after: 4e93a18f98333147/14bd8ed0a79735ba
+    md: |
+      T-0883, phase 1, ran three attempts on 2026-11-07. The critic's blockers went from four
+      to one to none, and the third attempt went red only on one `RUF005` lint finding. That
+      was the poison ceiling. `_continuable` (runner.py) excludes `poison_ceiling`, so a
+      requeue would have restarted the task from base and thrown the three attempts away.
+      The owner agreed in session to add D-10 and phase 6, which delivers it. Phase 6 waits
+      on phase 1, whose landing also edits `runner.py`. No other row changes.
