@@ -22,7 +22,7 @@ import shutil
 import subprocess
 import time
 from collections.abc import Awaitable, Callable, Iterable, Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -34,6 +34,7 @@ from torve.application.dispatch import (
     attempt_row,
     cache_volumes,
     emit,
+    review_gated,
 )
 from torve.application.equipment import EQUIPMENT_MOUNT, mount_root, regime_keys
 from torve.application.ports import (
@@ -443,6 +444,103 @@ async def _stamp_turn(
 # ....................... #
 
 
+def _teardown(
+    run: Dispatch,
+    state: RunState,
+    handle: SandboxHandle,
+    spec: SandboxSpec,
+    withheld: dict[Path, bytes],
+    planted: Path,
+) -> None:
+    """Close one session's sandbox and everything the attempt staged for it.
+    Synchronous on purpose: a cancelled task cannot await its own cleanup, and
+    the sandbox must die regardless (S-0001/D-12)."""
+
+    run.deps.runtime.destroy(handle)
+    _restore_never_send(withheld)
+    # The planted record was for this attempt's eyes (S-0005/D-13, T-0076):
+    # it leaves the tree before the gates measure it — the feedback channel
+    # steers the attempt, never the candidate, and a planted file the scope
+    # gate can see would fail every revision against its own contract.
+    planted.unlink(missing_ok=True)
+
+    if spec.gitdir:
+        shutil.rmtree(spec.gitdir, ignore_errors=True)
+
+    # A sibling candidate's sandbox may still be live (S-0124/D-4): this
+    # session drops its own and leaves the others where a kill finds them.
+    state.sandboxes = [sandbox for sandbox in state.sandboxes if sandbox != handle.id]
+    state.sandbox_id = state.sandboxes[-1] if state.sandboxes else None
+    state.save()
+
+
+@dataclass
+class OpenSession:
+    """A candidate's sandbox kept alive past the critic pass (S-0124/D-8).
+
+    Under `review.revision: session` the selected candidate is continued in
+    the session it ran, so its sandbox, gitdir and staged surroundings outlive
+    `run_agent_session` until `select_attempt` knows whether a revision turn
+    is needed. `close` is the attempt's ordinary teardown, run once the turn
+    (or the decision not to take it) has settled."""
+
+    run: Dispatch
+    state: RunState
+    handle: SandboxHandle
+    spec: SandboxSpec
+    ctx: AgentContext
+    agent: Any
+    result: AgentResult
+    withheld: dict[Path, bytes]
+    planted: Path
+    started_at: str
+    clock: float
+
+    # ....................... #
+
+    async def follow_up(self, text: str, timeout_s: float) -> AgentResult | None:
+        """One more turn in this session with *text* as its task, finished and
+        synced the way the first turn was, and stamped whole (S-0124/D-8).
+
+        None when the seat keeps no session or the turn has no clock left: the
+        caller then falls back to `fresh`."""
+
+        follow = getattr(self.agent, "follow_up", None)
+
+        if follow is None or timeout_s <= 0:
+            return None
+
+        continued = await asyncio.to_thread(
+            follow, replace(self.ctx, timeout_s=timeout_s), self.result, text
+        )
+
+        if continued is None:
+            return None
+
+        self.result = cast(AgentResult, continued)
+
+        if self.run.tier.finish:
+            await _finish(self.run, self.handle, self.spec)
+
+        self.run.deps.runtime.sync_out(self.handle, self.run.worktree)
+        await _stamp_turn(self.run, self.state, continued, self.started_at, self.clock)
+
+        return cast(AgentResult, continued)
+
+    # ....................... #
+
+    def close(self) -> None:
+        _teardown(self.run, self.state, self.handle, self.spec, self.withheld, self.planted)
+
+
+# The session's own name for the kept object, for a reader that does not also
+# know it as the open-session wrapper.
+Session = OpenSession
+
+
+# ....................... #
+
+
 async def run_agent_session(
     run: Dispatch,
     state: RunState,
@@ -634,6 +732,16 @@ async def run_agent_session(
     state.sandboxes.append(handle.id)
     state.save()
 
+    # S-0124/D-8: a candidate's session is kept open past the critic pass
+    # only inside selection, and only in the session revision arm. This
+    # session owns its teardown until a clean result is handed back open.
+    keep_open = (
+        run.resolved_agent is not None
+        and config.review.revision == "session"
+        and review_gated(config, task, shadow)
+    )
+    teardown = True
+
     try:
         # What has to run before the agent (S-0062/D-7). Chained into the tier
         # command it was untimed, unrecorded, and its failure was the command's
@@ -770,28 +878,38 @@ async def run_agent_session(
             ),
         )
 
+        # S-0124/D-8: a clean candidate in the session arm hands its open
+        # sandbox and session back to selection, so the critic's blockers can
+        # be answered in the session that produced the tree. Every other
+        # ending tears down here, as it always did.
+        if (
+            keep_open
+            and result.refused is None
+            and not result.timed_out
+            and result.exit_code == 0
+            and state.escalation is None
+            and halted(run, state.attempts) is None
+        ):
+            run.open_session = OpenSession(
+                run=run,
+                state=state,
+                handle=handle,
+                spec=spec,
+                ctx=ctx,
+                agent=run_agent,
+                result=result,
+                withheld=withheld,
+                planted=planted,
+                started_at=attempt_started_at,
+                clock=attempt_clock,
+            )
+            teardown = False
+
         return result
 
     finally:
-        # Synchronous on purpose: a cancelled task cannot await its own
-        # cleanup, and the sandbox must die regardless (S-0001/D-12).
-        deps.runtime.destroy(handle)
-        _restore_never_send(withheld)
-        # The planted record was for this attempt's eyes (S-0005/D-13,
-        # T-0076): it leaves the tree before the gates measure it —
-        # the feedback channel steers the attempt, never the candidate,
-        # and a planted file the scope gate can see would fail every
-        # revision against its own contract.
-        planted.unlink(missing_ok=True)
-
-        if spec.gitdir:
-            shutil.rmtree(spec.gitdir, ignore_errors=True)
-
-        # A sibling candidate's sandbox may still be live (S-0124/D-4): this
-        # session drops its own and leaves the others where a kill finds them.
-        state.sandboxes = [sandbox for sandbox in state.sandboxes if sandbox != handle.id]
-        state.sandbox_id = state.sandboxes[-1] if state.sandboxes else None
-        state.save()
+        if teardown:
+            _teardown(run, state, handle, spec, withheld, planted)
 
 
 # ....................... #

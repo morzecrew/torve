@@ -180,6 +180,10 @@ class Candidate:
     # Whether the straggler deadline cut this candidate's turn (S-0124/D-4):
     # it is recorded red with the spend its finished turns reported.
     cut: bool = False
+    # The seat the candidate ran on (S-0124/D-9), recorded by whoever launched
+    # it — selection only carries the names to the unit record.
+    tier: str = ""
+    model: str = ""
     # What this candidate and the critic call that read it cost the unit
     # notionally (S-0123/D-1); None when nothing priced them.
     spend: float | None = None
@@ -229,6 +233,34 @@ def prerank(candidates: list[Candidate], seed: str) -> list[Candidate]:
 
 
 @dataclass
+class Revision:
+    """What one revision round was (S-0124/D-9): a `fresh` attempt on the
+    revision seat, or a `session` turn continuing the selected candidate.
+
+    `rereview` is `clean`, `blocked`, `stopped` when the unit's budget
+    ended the round before its re-review, or `failed` when the turn itself
+    timed out, failed or was refused and nothing judged it; `reraised` says the critic named the
+    same finding again; `spend_usd` and `wall_s` are the round's own — for a
+    session turn, the cumulative session cost after the turn minus before it,
+    so a gate-repair turn earlier in the same session is not counted."""
+
+    kind: str
+    round: int
+    rereview: str
+    reraised: bool = False
+    spend_usd: float | None = None
+    wall_s: float | None = None
+
+
+# The record's own name for the block, for a reader that does not also know
+# the selection type.
+RevisionRecord = Revision
+
+
+# ....................... #
+
+
+@dataclass
 class Selection:
     """What one round of candidates came to: every candidate, the ones the
     critic read in order, and the one the unit goes on with — the first clean
@@ -242,6 +274,8 @@ class Selection:
     # bound stopped a candidate or critic call the unit still needed.
     spent_usd: float = 0.0
     exhausted: bool = False
+    # The revision round this selection was, when it was one (S-0124/D-9).
+    revision: Revision | None = None
 
     @property
     def chosen(self) -> Candidate:
@@ -458,14 +492,59 @@ async def select(
 # ....................... #
 
 
-def unit_record(
-    selection: Selection, *, task_id: str, attempt: int, width: int, size: str, at: str
-) -> dict[str, Any]:
-    """The `unit.closed` record (S-0122/D-16): the unit's class and width,
-    every candidate with its wall time, cost, gate outcome, rank and the
-    critic's verdict, the one selected and the outcome."""
+def _revision_block(revision: Any) -> dict[str, Any] | None:
+    """The revision block a `unit.closed` record carries (S-0124/D-9). A
+    `Revision`, a mapping and None all read the same, so a caller building
+    the record from a plain dict and one carrying the dataclass agree."""
+
+    if revision is None:
+        return None
+
+    if isinstance(revision, Mapping):
+        values: Mapping[str, Any] = revision
+    else:
+        values = {
+            name: getattr(revision, name, None)
+            for name in ("kind", "round", "rereview", "reraised", "spend_usd", "wall_s")
+        }
+
+    kind = values.get("kind")
+    rereview = values.get("rereview")
+
+    if kind is None or rereview is None:
+        return None
 
     return {
+        "kind": str(kind),
+        "round": int(values.get("round") or 1),
+        "rereview": str(rereview),
+        "reraised": bool(values.get("reraised", False)),
+        "spend_usd": values.get("spend_usd"),
+        "wall_s": values.get("wall_s"),
+    }
+
+
+# ....................... #
+
+
+def unit_record(
+    selection: Selection,
+    *,
+    task_id: str,
+    attempt: int,
+    width: int,
+    size: str,
+    at: str,
+    revision: Any = None,
+) -> dict[str, Any]:
+    """The `unit.closed` record (S-0122/D-16, S-0124/D-9): the unit's class
+    and width, every candidate with its tier, model, wall time, cost, gate
+    outcome, rank and the critic's verdict, the one selected, the outcome and
+    — when this was a revision — the round it spent."""
+
+    block = _revision_block(selection.revision if revision is None else revision)
+
+    record: dict[str, Any] = {
         "kind": "unit.closed",
         "schema_version": 2,
         "at": at,
@@ -476,6 +555,8 @@ def unit_record(
         "candidates": [
             {
                 "index": c.index,
+                "tier": c.tier,
+                "model": c.model,
                 "wall_time_s": round(c.wall_s, 3),
                 "cost_usd": getattr(c.result, "cost_usd", None),
                 # What this candidate cost the unit notionally, finished turns
@@ -495,3 +576,8 @@ def unit_record(
         "critic_calls": selection.critic_calls,
         "outcome": selection.outcome,
     }
+
+    if block is not None:
+        record["revision"] = block
+
+    return record

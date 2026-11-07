@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -4207,6 +4209,14 @@ def test_a_candidate_cut_in_a_repairable_gate_pass_takes_no_further_turn(
 
     repo, _runtime, deps_for = review_rig
     events: list[tuple[str, int]] = []
+    # The cut lands 0.25s after its deadline is set, however long a loaded
+    # machine took candidate 1 to get there; candidate 2 waits for it.
+    first_done = threading.Event()
+    monkeypatch.setattr(
+        selection,
+        "straggler_clock",
+        lambda first, _clock: (first_done.set(), first + 0.25)[1],
+    )
 
     def gate_pass(run, _state):
         index = run.candidate or 1
@@ -4214,8 +4224,8 @@ def test_a_candidate_cut_in_a_repairable_gate_pass_takes_no_further_turn(
 
         if index == 2:
             # A repairable red still running when the first green candidate's
-            # straggler deadline arrives: candidate 1 finishes at ~0.5s, so
-            # the cut lands at ~0.75s while this pass is asleep.
+            # straggler deadline arrives.
+            first_done.wait(30)
             time.sleep(2.0)
             return 1, "red", "cafe", [], "diff --git a/y b/y"
 
@@ -4267,19 +4277,34 @@ def test_a_candidate_cut_in_a_green_gate_pass_keeps_its_green(
     from test_critic import answer
     from test_run_loop import ScriptedAgent, task_for
 
+    from torve.application import selection
     from torve.application.ports import AgentResult
     from torve.application.runner import run_task
     from torve.config.runconfig import ReviewConfig
 
     repo, _runtime, deps_for = review_rig
     events: list[tuple[str, int]] = []
+    # The cut lands 0.25s after its deadline is set, however long a loaded
+    # machine took candidate 1 to get there; candidate 2 waits for it.
+    first_done = threading.Event()
+    monkeypatch.setattr(
+        selection,
+        "straggler_clock",
+        lambda first, _clock: (first_done.set(), first + 0.25)[1],
+    )
 
     def gate_pass(run, _state):
         index = run.candidate or 1
         events.append(("gate_start", index))
-        # Candidate 1 finishes at ~0.5s; the deadline then lands while
+
+        # Candidate 1 finishes first; the deadline then lands while
         # candidate 2's green pass is still asleep.
-        time.sleep(2.0 if index == 2 else 0.5)
+        if index == 2:
+            first_done.wait(30)
+            time.sleep(2.0)
+        else:
+            time.sleep(0.5)
+
         return 0, "green", "cafe", [], f"diff --git a/{index} b/{index}"
 
     class Harness(ScriptedAgent):
@@ -4331,12 +4356,16 @@ def test_a_candidate_cut_in_its_repair_turn_books_the_turn_it_finished(
 
     repo, _runtime, deps_for = review_rig
 
+    repairing = threading.Event()
+    monkeypatch.setattr(selection, "straggler_clock", lambda first, _clock: first + 0.25)
+
     def gate_pass(run, _state):
         if (run.candidate or 1) == 2:
             return 1, "red", "cafe", [], "diff --git a/y b/y"
 
-        # Candidate 1 is green at ~0.5s; the cut lands at ~0.75s, while
-        # candidate 2's repair turn is still asleep.
+        # Candidate 1 goes green once candidate 2's repair turn has started;
+        # the cut lands 0.25s later, while that turn is still asleep.
+        repairing.wait(30)
         time.sleep(0.5)
         return 0, "green", "cafe", [], "diff --git a/x b/x"
 
@@ -4344,6 +4373,7 @@ def test_a_candidate_cut_in_its_repair_turn_books_the_turn_it_finished(
         kind = "harness"
 
         def follow_up(self, ctx, previous, text):
+            repairing.set()
             time.sleep(3.0)
             return AgentResult(exit_code=0, output="", cost_usd=0.25)
 
@@ -4483,6 +4513,16 @@ def test_revision_width_is_one_candidate_on_the_revision_tier(
             calls[ctx.attempt] = calls.get(ctx.attempt, 0) + 1
             (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
             (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+            # Neither candidate of the first unit goes green before both
+            # started, so no straggler cut lands before a sibling's turn.
+            if ctx.attempt == 1:
+                for _ in range(3000):
+                    if calls[1] >= 2:
+                        break
+
+                    time.sleep(0.01)
+
             return super().run(ctx)
 
     built: list[str] = []
@@ -4550,6 +4590,15 @@ def test_one_tier_resolved_before_any_candidate_starts(
 
     async def session(run, _state, _repair=None):
         sessions.append((run.candidate or 1, run.resolved_agent))
+
+        # Candidate 1 is not green before candidate 2 has started, so no
+        # straggler cut lands before its session does.
+        for _ in range(3000):
+            if len(sessions) >= 2:
+                break
+
+            await asyncio.sleep(0.01)
+
         return AgentResult(exit_code=0, output="")
 
     monkeypatch.setattr(run_module, "advance_tier", advance)
@@ -4596,3 +4645,526 @@ def test_one_tier_for_every_candidate(tmp_path: Path) -> None:
     assert sibling.candidate == 2
     # The worktree is the candidate's own, not the one candidate 1 ran in.
     assert sibling.worktree == tmp_path / ".wt" / f"{TASK_ID}~2"
+
+
+# ....................... #
+# The in-session revision arm (S-0124/D-8, D-9).
+
+
+def test_session_revision_continues_the_blocked_candidate_in_its_own_session(
+    review_rig,  # noqa: F811
+):
+    """S-0124/D-8: under `review.revision: session` a blocked unit's selected
+    candidate gets one more turn in the sandbox and session it ran, on its own
+    tier, with the blocking findings rendered as feedback; its gates are
+    judged again and the critic asked again, and the unit lands without a fresh
+    attempt. The record names the session round (D-9)."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+    from torve.domain.states import TaskState
+
+    repo, runtime, deps_for = review_rig
+    events: list[tuple] = []
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            events.append(("run", ctx.handle.id, ctx.timeout_s))
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+            return AgentResult(exit_code=0, output="first", cost_usd=0.1)
+
+        def follow_up(self, ctx, previous, text):
+            events.append(("follow_up", ctx.handle.id, previous.output, text, ctx.timeout_s))
+
+            return AgentResult(exit_code=0, output="second", cost_usd=0.3)
+
+    critic = SequencedReviewer(
+        [
+            answer(findings=[finding()]),
+            answer(findings=[]),
+        ]
+    )
+    config = RunnerConfig(
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=1
+        )
+    )
+    deps = deps_for(critic)
+    deps.agent = SessionHarness([AgentResult(exit_code=0, output="first")])
+
+    state = run_task(repo.root, _unit_task(), config, deps)
+
+    assert state.state is TaskState.READY
+    assert state.escalation is None
+    # The round was spent in the session, not on a fresh attempt.
+    assert state.attempts == 1
+    assert [event[0] for event in events] == ["run", "follow_up"]
+    assert events[1][1] == events[0][1]
+    assert events[1][2] == "first"
+    assert "the bound is off by one" in events[1][3]
+    # The unit's 90 minutes left are capped at the seat's agent clock.
+    assert events[1][4] == config.runtime.agent_timeout
+    assert not (repo.root / ".torve" / "tasks" / "T-9001" / "feedback.md").exists()
+    # The kept sandbox was closed once the turn settled.
+    assert events[0][1] in runtime.destroyed
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    [unit] = [row for row in rows if row.get("kind") == "unit.closed"]
+
+    assert unit["revision"] == {
+        "kind": "session",
+        "round": 1,
+        "rereview": "clean",
+        "reraised": False,
+        "spend_usd": 0.2,
+        "wall_s": unit["revision"]["wall_s"],
+    }
+    assert unit["revision"]["wall_s"] >= 0.0
+    assert unit["critic_calls"] == 2
+    candidate = unit["candidates"][0]
+    assert (candidate["tier"], candidate["spend_usd"]) == ("executor", 0.3)
+
+
+def _session_revision_rig(review_rig, monkeypatch, turn):  # noqa: F811
+    """A one-candidate critic unit whose first turn is green and blocked once,
+    whose session turn returns *turn*, with every real gate pass counted."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    import torve.application.runner as run_module
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    passes: list[int] = []
+    real = run_module.run_gate_pass
+
+    def counting(run, state):
+        passes.append(state.attempts)
+        return real(run, state)
+
+    monkeypatch.setattr(run_module, "run_gate_pass", counting)
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+            return AgentResult(exit_code=0, output="first", cost_usd=0.1)
+
+        def follow_up(self, ctx, previous, text):
+            return turn
+
+    config = RunnerConfig(
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=1
+        )
+    )
+    deps = deps_for(SequencedReviewer([answer(findings=[finding()]), answer(findings=[])]))
+    deps.agent = SessionHarness([])
+    state = run_task(repo.root, _unit_task(), config, deps)
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    [unit] = [row for row in rows if row.get("kind") == "unit.closed"][:1]
+
+    return state, passes, unit
+
+
+def test_session_revision_judges_the_turn_once(review_rig, monkeypatch):  # noqa: F811
+    """S-0124/D-8: the session turn's gate verdict is the one the loop's gates
+    step reads, so the tree the critic was asked about is judged once, not
+    again by the loop."""
+
+    from torve.application.ports import AgentResult
+    from torve.domain.states import TaskState
+
+    state, passes, unit = _session_revision_rig(
+        review_rig, monkeypatch, AgentResult(exit_code=0, output="second", cost_usd=0.3)
+    )
+
+    assert state.state is TaskState.READY
+    assert passes == [1, 1]
+    assert unit["critic_calls"] == 2
+
+
+def test_session_revision_timed_out_turn_is_not_judged(review_rig, monkeypatch):  # noqa: F811
+    """S-0124/D-8: a session turn that timed out is judged by nobody, as a
+    first turn is: no gate pass and no critic call read its tree, the record
+    says the turn failed, and the loop reads the timeout off the result."""
+
+    from torve.application.ports import AgentResult
+
+    state, passes, unit = _session_revision_rig(
+        review_rig,
+        monkeypatch,
+        AgentResult(exit_code=None, output="second", cost_usd=0.3),
+    )
+
+    assert passes[:1] == [1] and passes.count(1) == 1
+    assert unit["critic_calls"] == 1
+    assert unit["revision"]["rereview"] == "failed"
+    assert any("hard timeout" in str(h["fact"]) for h in state.history)
+
+
+def test_session_revision_prices_the_turn_the_way_the_candidate_was(
+    review_rig,  # noqa: F811
+):
+    """S-0123/D-1, S-0124/D-9: a roster-priced seat's session turn is booked
+    at torve's price for the session's cumulative tokens, minus what the
+    candidate was booked before it, never at the adapter's own claim."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    from torve.adapters.agent.harness import HarnessResult
+    from torve.application.runner import run_task
+    from torve.config.providers import Price
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+            return HarnessResult(exit_code=0, output="first", cost_usd=7.0, input_tokens=1_000_000)
+
+        def follow_up(self, ctx, previous, text):
+            return HarnessResult(exit_code=0, output="second", cost_usd=9.0, input_tokens=1_500_000)
+
+    config = _unit_config(price=Price(input=1.0, output=5.0)).model_copy(
+        update={
+            "review": ReviewConfig(
+                on=["task_gated"], mode="critic", revision="session", blocker_revisions=1
+            )
+        }
+    )
+    deps = deps_for(SequencedReviewer([answer(findings=[finding()]), answer(findings=[])]))
+    deps.agent = SessionHarness([])
+
+    state = run_task(repo.root, _unit_task(), config, deps)
+
+    assert state.escalation is None
+    assert [f for f in _spend_facts(state) if "critic" not in f] == [
+        "unit spend 1.000000 candidate 1",
+        "unit spend 0.500000 revision 1",
+    ]
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    [unit] = [row for row in rows if row.get("kind") == "unit.closed"]
+
+    assert unit["revision"]["spend_usd"] == 0.5
+    assert unit["candidates"][0]["spend_usd"] == 1.5
+
+
+def test_session_revision_blocked_again_spends_the_round_and_escalates(
+    review_rig,  # noqa: F811
+):
+    """S-0124/D-8, S-0124/D-3: the session turn is the round `review_step`
+    would spend on a fresh attempt, not one added before it. Blocked again
+    under a one-round budget, the unit escalates `blocker_finding` with no
+    second attempt; the turn's clock is the unit's remaining time when that
+    is under the seat's agent clock, and the repeated finding reads re-raised."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    events: list[tuple] = []
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            events.append(("run", ctx.attempt))
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+            return AgentResult(exit_code=0, output="first", cost_usd=0.1)
+
+        def follow_up(self, ctx, previous, text):
+            events.append(("follow_up", ctx.attempt, ctx.timeout_s))
+
+            return AgentResult(exit_code=0, output="second", cost_usd=0.3)
+
+    critic = SequencedReviewer([answer(findings=[finding()])] * 6)
+    config = RunnerConfig(
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=1
+        )
+    )
+    deps = deps_for(critic)
+    deps.agent = SessionHarness([AgentResult(exit_code=0, output="first")])
+    task = _unit_task(minutes=1)
+    task.budget.iterations = 5
+
+    state = run_task(repo.root, task, config, deps)
+
+    assert [event[:2] for event in events] == [("run", 1), ("follow_up", 1)]
+    assert 0 < events[1][2] <= 60
+    assert state.attempts == 1
+    assert state.escalation is not None and state.escalation.reason == "blocker_finding"
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    [unit] = [row for row in rows if row.get("kind") == "unit.closed"]
+
+    assert unit["critic_calls"] == 2
+    assert unit["revision"]["kind"] == "session"
+    assert unit["revision"]["round"] == 1
+    assert unit["revision"]["rereview"] == "blocked"
+    assert unit["revision"]["reraised"] is True
+
+
+def test_session_revision_stopped_by_the_budget_still_writes_the_unit_record(
+    review_rig,  # noqa: F811
+):
+    """S-0124/D-9, D-7: a session turn that takes the unit past $3 ends the
+    attempt before its re-review, and `unit.closed` is still written, naming
+    the stopped round and what the turn spent."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+            return AgentResult(exit_code=0, output="first", cost_usd=2.5)
+
+        def follow_up(self, ctx, previous, text):
+            return AgentResult(exit_code=0, output="second", cost_usd=3.5)
+
+    config = RunnerConfig(
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=2
+        )
+    )
+    critic = SequencedReviewer([answer(findings=[finding()])] * 3)
+    deps = deps_for(critic)
+    deps.agent = SessionHarness([])
+
+    state = run_task(repo.root, _unit_task(), config, deps)
+
+    assert state.escalation is not None
+    assert state.escalation.reason == "budget_exhausted"
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    [unit] = [row for row in rows if row.get("kind") == "unit.closed"]
+
+    assert unit["critic_calls"] == 1
+    assert unit["revision"] == {
+        "kind": "session",
+        "round": 1,
+        "rereview": "stopped",
+        "reraised": False,
+        "spend_usd": 1.0,
+        "wall_s": unit["revision"]["wall_s"],
+    }
+
+
+def test_session_revision_spends_every_round_in_the_same_session(
+    review_rig,  # noqa: F811
+):
+    """S-0124/D-8, S-0124/D-2: under two rounds a session turn blocked anew
+    by a finding the last round did not record takes the second round in the
+    same session too, never a fresh attempt on `revision_variant`."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig, TierConfig
+    from torve.domain.states import TaskState
+
+    repo, _runtime, deps_for = review_rig
+    events: list[tuple] = []
+    built: list[str] = []
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            events.append(("run", ctx.handle.id))
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+            return AgentResult(exit_code=0, output="first", cost_usd=0.1)
+
+        def follow_up(self, ctx, previous, text):
+            events.append(("follow_up", ctx.handle.id))
+            (ctx.workspace / "src" / "other.py").write_text(f"{len(events)}\n", encoding="utf-8")
+
+            return AgentResult(exit_code=0, output="again", cost_usd=0.1 * len(events))
+
+    critic = SequencedReviewer(
+        [
+            answer(findings=[finding()]),
+            answer(findings=[finding(evidence="src/other.py:1 — other", claim="other one")]),
+            answer(findings=[]),
+        ]
+    )
+
+    def retry_agent(tier):
+        built.append(tier.model)
+        return SessionHarness([AgentResult(exit_code=0, output="first")])
+
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(adapter="fake", revision_variant="executor.strong"),
+            "executor.strong": TierConfig(adapter="fake", model="strong"),
+        },
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=2
+        ),
+    )
+    deps = deps_for(critic)
+    deps.agent = SessionHarness([AgentResult(exit_code=0, output="first")])
+    deps.retry_agent = retry_agent
+    task = _unit_task()
+    task.budget.iterations = 5
+
+    state = run_task(repo.root, task, config, deps)
+
+    assert state.state is TaskState.READY
+    assert state.escalation is None
+    assert state.attempts == 1
+    assert built == []
+    assert [event[0] for event in events] == ["run", "follow_up", "follow_up"]
+    assert len({handle for _kind, handle in events}) == 1
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    [unit] = [row for row in rows if row.get("kind") == "unit.closed"]
+
+    assert unit["critic_calls"] == 3
+    assert unit["revision"]["kind"] == "session"
+    assert unit["revision"]["round"] == 2
+    assert unit["revision"]["rereview"] == "clean"
+    assert unit["revision"]["reraised"] is False
+
+
+def test_session_revision_falls_back_to_a_fresh_attempt_when_no_session_continues(
+    review_rig,  # noqa: F811
+):
+    """S-0124/D-8: a harness whose `follow_up` returns None keeps no session,
+    so the round falls back to `fresh` — the next attempt is the revision on
+    the seat's `revision_variant`, not a turn in the closed sandbox."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent, task_for
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig, TierConfig
+
+    repo, _runtime, deps_for = review_rig
+    runs: list[tuple[int, str]] = []
+    built: list[str] = []
+
+    class NoSession(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            runs.append((ctx.attempt, ctx.handle.id))
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+            return AgentResult(exit_code=0, output="ran", cost_usd=0.1)
+
+        def follow_up(self, ctx, previous, text):
+            return None
+
+    critic = SequencedReviewer([answer(findings=[finding()]), answer(findings=[finding()])])
+
+    def retry_agent(tier):
+        built.append(tier.model)
+        return NoSession([AgentResult(exit_code=0, output="ran")])
+
+    config = RunnerConfig(
+        tiers={
+            "planner": TierConfig(),
+            "reviewer": TierConfig(),
+            "executor": TierConfig(adapter="fake", revision_variant="executor.strong"),
+            "executor.strong": TierConfig(adapter="fake", model="strong"),
+        },
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=1
+        ),
+    )
+    deps = deps_for(critic)
+    deps.agent = NoSession([AgentResult(exit_code=0, output="ran")])
+    deps.retry_agent = retry_agent
+
+    task = task_for(repo)
+    task.scope.files = ["README.md"]
+    state = run_task(repo.root, task, config, deps)
+
+    # The session turn was offered, returned nothing, and the revision attempt
+    # ran fresh on `revision_variant`.
+    assert [attempt for attempt, _handle in runs] == [1, 2]
+    assert built == ["strong"]
+    assert state.attempts == 2
+    assert state.escalation is not None and state.escalation.reason == "blocker_finding"
+
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    units = [row for row in rows if row.get("kind") == "unit.closed"]
+    # The first attempt was no revision; the fresh one the fallback started is.
+    assert "revision" not in units[0]
+    assert units[1]["revision"]["kind"] == "fresh"
+    assert units[1]["revision"]["round"] == 1
+    assert units[1]["revision"]["rereview"] == "blocked"

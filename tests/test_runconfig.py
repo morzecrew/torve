@@ -189,6 +189,24 @@ def test_revision_rounds_default_by_mode_and_a_named_number_wins():
     assert ReviewConfig(blocker_revisions=0).resolved_blocker_revisions() == 0
 
 
+def test_session_revision_is_a_mode_and_fresh_is_the_default(tmp_path: Path):
+    """S-0124/D-8: `review.revision` is `fresh` unless the configuration names
+    `session`; anything else is refused at load, and the YAML key rides the
+    same `review:` mapping every other knob does."""
+
+    from torve.config.runconfig import ReviewConfig
+
+    assert ReviewConfig().revision == "fresh"
+    assert ReviewConfig(revision="session").revision == "session"
+
+    config = load(tmp_path, "\n".join(["review:", '  "on": [task_gated]', "  revision: session"]))
+
+    assert config.review.revision == "session"
+
+    with pytest.raises(ValidationError):
+        ReviewConfig(revision="resume")  # type: ignore[arg-type]
+
+
 # ....................... #
 # The tier clock (S-0035/D-6): a named override wins, absence falls to the global
 

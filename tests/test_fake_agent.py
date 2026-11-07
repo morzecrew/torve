@@ -103,3 +103,20 @@ def test_attempts_index_into_the_scenario(tmp_path):
     assert agent.run(ctx2).exit_code == 0
     ctx9, _ = ctx_for(tmp_path, steps, attempt=9)  # last step repeats
     assert agent.run(ctx9).exit_code == 0
+
+
+def test_a_fake_keeps_a_session_only_when_its_test_scripts_one(tmp_path):
+    """S-0124/D-8: `runner.selects` reads a `follow_up` as a seat that keeps
+    a session, so the default fake has none and runs as it always did."""
+
+    steps = [{"exit": 1}, {"writes": {"src/new.py": "x = 2\n"}, "exit": 0}]
+    ctx, plain = ctx_for(tmp_path, steps)
+
+    assert getattr(plain, "follow_up", None) is None
+
+    scripted = FakeAgent(steps, follow_ups=[])
+    first = scripted.run(ctx)
+
+    assert scripted.follow_up is not None
+    assert scripted.follow_up(ctx, first, "feedback").exit_code == 0
+    assert (ctx.workspace / "src" / "new.py").read_text() == "x = 2\n"

@@ -21,6 +21,7 @@ Step fields (all optional):
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -93,16 +94,57 @@ DEFAULT_SCENARIO: list[dict[str, Any]] = [
 
 class FakeAgent:
     kind: str = "fake"
+    # S-0124/D-8: a fake keeps a session only when its test scripts one, since
+    # `runner.selects` sends every seat with a `follow_up` through selection.
+    follow_up: Callable[[AgentContext, AgentResult, str], AgentResult] | None = None
 
     # ....................... #
 
-    def __init__(self, steps: list[dict[str, Any]] | None = None) -> None:
+    def __init__(
+        self,
+        steps: list[dict[str, Any]] | None = None,
+        follow_ups: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.steps = steps or DEFAULT_SCENARIO
+        # The turns a session continuation replays. Empty, a follow-up takes
+        # the next scenario step, so a two-step script drives both the
+        # attempt and the revision it earns.
+        self.follow_ups = follow_ups or []
+        self.followed_up = 0
+
+        if follow_ups is not None:
+            self.follow_up = self._follow_up
 
     # ....................... #
 
     def run(self, ctx: AgentContext) -> AgentResult:
-        step = dict(self.steps[min(ctx.attempt - 1, len(self.steps) - 1)])
+        return self._execute(ctx, self.steps[min(ctx.attempt - 1, len(self.steps) - 1)])
+
+    # ....................... #
+
+    def _follow_up(self, ctx: AgentContext, previous: AgentResult, text: str) -> AgentResult:
+        """One more turn in the session `previous` ran (S-0122/D-8,
+        S-0124/D-8): the next scripted step, or the follow-up list's own.
+
+        *text* is the rendered feedback the engine hands the turn; the fake
+        replays a step rather than reading it, because what the runner does
+        with the record is the runner's to test."""
+
+        index = self.followed_up
+        self.followed_up += 1
+
+        if self.follow_ups:
+            step = self.follow_ups[min(index, len(self.follow_ups) - 1)]
+
+        else:
+            step = self.steps[min(ctx.attempt + index, len(self.steps) - 1)]
+
+        return self._execute(ctx, step)
+
+    # ....................... #
+
+    def _execute(self, ctx: AgentContext, scenario: dict[str, Any]) -> AgentResult:
+        step = dict(scenario)
         step["task_id"] = ctx.task.id
         stage = ctx.workspace / ".torve" / "tmp"
         stage.mkdir(parents=True, exist_ok=True)

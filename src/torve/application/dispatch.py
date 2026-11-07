@@ -233,6 +233,12 @@ class Dispatch:
     preselected: tuple[int, str, str] | None = None
     preselected_review: Any = None
 
+    # S-0124/D-8: the sandbox and session a clean candidate left open for a
+    # possible in-session revision turn. typed loosely here because the
+    # session module imports this one; `OpenSession` is resolved where it is
+    # read, and None is a session that was torn down as usual.
+    open_session: Any = None
+
     # ....................... #
 
     @property

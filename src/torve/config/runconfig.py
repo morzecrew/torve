@@ -1232,6 +1232,13 @@ class ReviewConfig(BaseModel):
     escalates on the first surviving blocker. `None` resolves through
     `resolved_blocker_revisions`: two under `critic`, one under `classic`."""
 
+    revision: Literal["fresh", "session"] = "fresh"
+    """How a revision round after a critic block continues (S-0124/D-8):
+    `fresh` (the default) starts a new attempt on the seat's `revision_variant`;
+    `session` continues the selected candidate in its own still-open session,
+    on that candidate's tier, and falls back to `fresh` when its harness keeps
+    no session."""
+
     mode: Literal["classic", "critic"] = "classic"
     """Who judges a gate-green candidate (S-0122/D-6): `classic`, the reviewer
     handed the diff, the contract and the gate results; or `critic`, the reviewer

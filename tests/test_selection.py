@@ -532,6 +532,68 @@ def test_unit_budget_counts_a_cancelled_candidate_s_finished_spend() -> None:
     assert record["outcome"] == "blocked"
 
 
+def test_unit_record_carries_tier_model_spend_and_the_revision_round():
+    """S-0124/D-9: every candidate names the seat it ran on and what it spent,
+    and a revision adds the round's own block — `kind`, `round`, `rereview`,
+    `reraised`, `spend_usd` and `wall_s` — whether it is carried on the
+    selection or handed in."""
+
+    one = _candidate(1, green=True, patch="+a")
+    one.tier, one.model, one.spend = "executor", "deepseek-v4.1-flash", 0.4
+    one.reviewed, one.clean = True, False
+    round_ = selection.Revision(
+        kind="session",
+        round=1,
+        rereview="blocked",
+        reraised=True,
+        spend_usd=0.2,
+        wall_s=12.5,
+    )
+    chosen = selection.Selection([one], [one], spent_usd=0.9, revision=round_)
+
+    record = selection.unit_record(
+        chosen, task_id="T-0001", attempt=1, width=1, size="S", at="2026-11-05T00:00:00Z"
+    )
+
+    assert record["revision"] == {
+        "kind": "session",
+        "round": 1,
+        "rereview": "blocked",
+        "reraised": True,
+        "spend_usd": 0.2,
+        "wall_s": 12.5,
+    }
+    assert (
+        record["candidates"][0]["tier"],
+        record["candidates"][0]["model"],
+        record["candidates"][0]["spend_usd"],
+    ) == ("executor", "deepseek-v4.1-flash", 0.4)
+
+    # A mapping reads the same, and a selection with no revision carries none.
+    plain = selection.unit_record(
+        chosen,
+        task_id="T-0001",
+        attempt=2,
+        width=1,
+        size="S",
+        at="2026-11-05T00:01:00Z",
+        revision={"kind": "fresh", "round": 2, "rereview": "clean"},
+    )
+    assert plain["revision"] == {
+        "kind": "fresh",
+        "round": 2,
+        "rereview": "clean",
+        "reraised": False,
+        "spend_usd": None,
+        "wall_s": None,
+    }
+
+    none = selection.unit_record(
+        selection.Selection([one], [one]), task_id="T-0001", attempt=3, width=1, size="S", at="x"
+    )
+    assert "revision" not in none
+
+
 # ....................... #
 
 
