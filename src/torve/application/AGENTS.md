@@ -413,4 +413,60 @@ The attempt record carries no ignored-writes result
 - Consequence: a landing nobody approved no longer reads as the operator's
 - Check: `uv run pytest -q tests/test_lane.py -k landing_approver` (shadow; runs as `decision:S-0124/D-13`)
 
+### S-0125/D-1 — `ASSUMED` (A unit that converges) — implementation: none
+
+On a revision attempt, a kept finding blocks only when its anchor lies within `threads.WINDOW` lines of a line the revision's own diff changed; a finding anchored near an earlier blocker is re-raised and escalates as S-0124/D-3 says, and every other kept finding, anchorless ones included, is recorded non-blocking as `carried`
+
+- Paths: `src/torve/application/critic.py`
+- Consequence: a revision is never blocked by code it did not touch, so a unit converges within its revision rounds or escalates naming what it failed to fix; a carried finding lands unfixed and reaches the PR as a recorded thread
+- Check: `uv run pytest -q tests/test_critic.py -k carried_finding` (shadow; runs as `decision:S-0125/D-1`)
+
+### S-0125/D-2 — `ASSUMED` (A unit that converges) — implementation: none
+
+A revision's critic call stages `revision.diff`, the diff from the head the previous review judged to the revision's head, and `blockers.yaml`, every earlier round's blocker anchors and claims read from the run's history; the revision history fact records the judged head beside its anchors, and `build_critic_prompt` names both files
+
+- Paths: `src/torve/application/critic.py` `src/torve/application/review.py`
+- Consequence: the critic of a revision reads what the revision changed and what it was asked to fix, while the cumulative diff and the base tree stay staged as today
+- Check: `uv run pytest -q tests/test_critic.py tests/test_review_run.py -k revision_inputs` (shadow; runs as `decision:S-0125/D-2`)
+
+### S-0125/D-3 — `ASSUMED` (A unit that converges) — implementation: none
+
+Every review round carries at most `threads.findings_per_round` findings, whether its head was triaged or not, and the default is 5; `batch_claims` still never splits a file across rounds
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/config/runconfig.py`
+- Consequence: fifteen bot findings become three or more small rounds; a critic block in one leaves the others' fixes to land
+- Check: `uv run pytest -q tests/test_reviewleg.py tests/test_runconfig.py -k findings_per_round` (shadow; runs as `decision:S-0125/D-3`)
+
+### S-0125/D-4 — `ASSUMED` (A unit that converges) — implementation: none
+
+When a round is minted the leg replies `Fixing in T-NNNN.` on each of its bot threads and leaves them unresolved, and when the round escalates it replies once with the escalation's reason
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: a reader of the PR sees which task is fixing a thread within one pass of triage, and a thread whose round escalated says why instead of going quiet
+- Check: `uv run pytest -q tests/test_reviewleg.py -k fixing_reply` (shadow; runs as `decision:S-0125/D-4`)
+
+### S-0125/D-5 — `ASSUMED` (A unit that converges) — implementation: none
+
+`clear_escalated` clears a state file that says claimed, running, gated or reviewed when no live engine run holds it, after committing the tree as a stopped run's (#292)
+
+- Paths: `src/torve/application/reaper.py`
+- Consequence: a requeue after a serve died mid-run dispatches instead of refusing on the dead run's state file
+- Check: `uv run pytest -q tests/test_reaper.py -k requeue_clears` (shadow; runs as `decision:S-0125/D-5`)
+
+### S-0125/D-6 — `ASSUMED` (A unit that converges) — implementation: none
+
+`Worker.once` catches the durable run's timeout (`durable.run_timed_out`), escalates the task `budget_exhausted` naming the duration, releases its claim and returns, so the serve continues
+
+- Paths: `src/torve/application/worker.py`
+- Consequence: a run past `store.max_run_duration` costs its task, not the night
+- Check: `uv run pytest -q tests/test_worker.py -k durable_timeout` (shadow; runs as `decision:S-0125/D-6`)
+
+### S-0125/D-7 — `ASSUMED` (A unit that converges) — implementation: none
+
+A round's intent carries, under each finding, the base tree's numbered lines from 10 above to 10 below its anchor, and triage's verdict and evidence for its thread when triage ran, inside the round's fence
+
+- Paths: `src/torve/application/reviewleg.py`
+- Consequence: a round's executor starts at the code each finding names
+- Check: `uv run pytest -q tests/test_reviewleg.py -k round_excerpt` (shadow; runs as `decision:S-0125/D-7`)
+
 <!-- /torve:managed -->

@@ -122,4 +122,27 @@ Under `review.revision: session` a revision round continues the selected candida
 - Consequence: the night can run the in-session arm S-0122/D-9 asks about, one configuration key away
 - Check: `uv run pytest -q tests/test_runner.py tests/test_runconfig.py -k session_revision` (shadow; runs as `decision:S-0124/D-8`)
 
+### S-0125/D-3 — `ASSUMED` (A unit that converges) — implementation: none
+
+Every review round carries at most `threads.findings_per_round` findings, whether its head was triaged or not, and the default is 5; `batch_claims` still never splits a file across rounds
+
+- Paths: `src/torve/application/reviewleg.py` `src/torve/config/runconfig.py`
+- Consequence: fifteen bot findings become three or more small rounds; a critic block in one leaves the others' fixes to land
+- Check: `uv run pytest -q tests/test_reviewleg.py tests/test_runconfig.py -k findings_per_round` (shadow; runs as `decision:S-0125/D-3`)
+
+### S-0125/D-8 — `ASSUMED` (A unit that converges) — implementation: none
+
+A tier's `context_window` keeps the value its seat states and is merged off the roster only when the seat states none
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: a seat can hand its harness a smaller window than the model's, which a harness that compacts against its window compacts sooner
+- Check: `uv run pytest -q tests/test_runconfig.py tests/test_providers.py -k context_window` (shadow; runs as `decision:S-0125/D-8`)
+
+### S-0125/D-9 — `OPEN` (A unit that converges) — implementation: none
+
+Whether dsh compacts against the context window torve passes and at what fraction of it, read from the image's `dsh-compaction-basic`, and which window the night's dsh seats state; the phase records the answer in its log
+
+- Paths: `src/torve/config/runconfig.py`
+- Consequence: if dsh does not compact against the passed window, D-8 bounds nothing for dsh and a per-attempt token budget comes back into scope
+
 <!-- /torve:managed -->
