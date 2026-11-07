@@ -31,7 +31,7 @@ from torve.application.critic import (
 )
 from torve.application.feedback import feedback_file
 from torve.application.ports import AgentResult, ExecResult, SandboxHandle
-from torve.application.review import SchemaRefusal, mint_review_task
+from torve.application.review import Revision, SchemaRefusal, mint_review_task, tree_snapshot
 from torve.application.runner import run_task
 from torve.config.manifest import load_manifest
 from torve.config.runconfig import ReviewConfig, RunnerConfig
@@ -141,6 +141,86 @@ def test_a_violated_row_without_located_evidence_is_counted_as_discarded(tmp_pat
 
     assert decision.discarded == [f"row {OWNED}: violated without evidence that locates"]
     assert decision.rows[0]["blocks"] is False
+
+
+# ....................... #
+# A revision is judged by its own change and the blockers it was asked to fix
+# (S-0125/D-1): only a finding near a changed line blocks, one near an earlier
+# blocker re-raises, and everything else is carried.
+
+REVISION_DIFF = (
+    "diff --git a/src/app.py b/src/app.py\n"
+    "--- a/src/app.py\n"
+    "+++ b/src/app.py\n"
+    "@@ -10,4 +10,4 @@\n"
+    "-old\n"
+    "+new\n"
+)
+
+
+def test_carried_finding_blocks_only_near_the_revisions_own_change(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text(
+        "\n".join(f"line {number}" for number in range(1, 61)) + "\n", encoding="utf-8"
+    )
+    document = CriticDocument.model_validate(
+        {
+            "rows": [],
+            "findings": [
+                finding("major", "src/app.py:12 — the changed line", id="F1"),
+                finding("major", "src/app.py:32 — the earlier blocker", id="F2"),
+                finding("major", "src/app.py:55 — code the revision never touched", id="F3"),
+                finding("major", COMMAND, id="F4"),
+            ],
+        }
+    )
+
+    decision = decide(
+        document,
+        {},
+        tmp_path,
+        "major",
+        revision=Revision(
+            diff=REVISION_DIFF,
+            blockers=[{"round": 1, "claim": "the earlier bound", "path": "src/app.py", "line": 30}],
+        ),
+    )
+
+    # Near the revision's change it blocks; near an earlier blocker it is
+    # re-raised; the untouched code and the anchorless finding are carried.
+    assert decision.blocked is True
+    assert [one.id for one in decision.blockers] == ["F1", "F2"]
+    assert [one.id for one in decision.reraised] == ["F2"]
+    assert [one.id for one in decision.carried] == ["F3", "F4"]
+
+
+def test_carried_finding_alone_leaves_the_revision_unblocked(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text(
+        "\n".join(f"line {number}" for number in range(1, 61)) + "\n", encoding="utf-8"
+    )
+    document = CriticDocument.model_validate(
+        {
+            "rows": [],
+            "findings": [
+                finding("blocker", "src/app.py:55 — code the revision never touched", id="F1"),
+                finding("blocker", COMMAND, id="F2"),
+            ],
+        }
+    )
+
+    decision = decide(
+        document,
+        {},
+        tmp_path,
+        "major",
+        revision=Revision(diff=REVISION_DIFF, blockers=[]),
+    )
+
+    assert decision.blocked is False
+    assert decision.blockers == []
+    assert [one.id for one in decision.carried] == ["F1", "F2"]
+    assert decision.kept == decision.carried
 
 
 # ....................... #
@@ -278,6 +358,13 @@ class ProbingCritic:
             ),
             "evidence": yaml.safe_load((review / "evidence.yaml").read_text(encoding="utf-8")),
         }
+
+        for name in ("revision.diff", "blockers.yaml"):
+            path = review / name
+
+            if path.is_file():
+                self.seen[name] = path.read_text(encoding="utf-8")
+
         probes = ctx.workspace / "probes"
         probes.mkdir()
         (probes / "p.py").write_text("assert bound(4) == 4\n", encoding="utf-8")
@@ -384,6 +471,77 @@ def test_one_call_stages_the_evidence_scrubs_the_author_and_keeps_named_probes(r
     # Nothing the critic wrote survived.
     assert not (worktree / "probes").exists()
     assert not (repo.root / ".wt" / review.id).exists()
+
+
+def test_revision_inputs_stage_the_diff_and_blockers_and_a_carried_finding_is_recorded(repo):
+    """S-0125/D-2: a revision's call stages the diff since the last judged
+    head and every earlier round's blockers, and names both; S-0125/D-1: a
+    finding on a line the revision did not touch is carried, not blocked."""
+
+    worktree, target = _candidate(repo)
+    ctx = build_context(worktree, load_manifest(worktree / ".torve" / "gates.yaml"), base="main")
+    ctx.task = target
+    evidence = build_evidence(ctx, [], candidate=TASK_ID)
+    review = mint_review_task(repo.root, target)
+    revision = Revision(
+        diff=(
+            "diff --git a/src/other.py b/src/other.py\n"
+            "--- a/src/other.py\n"
+            "+++ b/src/other.py\n"
+            "@@ -1 +1 @@\n"
+            "-old\n"
+            "+new\n"
+        ),
+        blockers=[
+            {
+                "round": 1,
+                "claim": "an earlier round asked for this",
+                "path": "src/elsewhere.py",
+                "line": 1,
+            }
+        ],
+    )
+    critic = ProbingCritic(answer(findings=[finding()]))
+
+    verdict = run_critic(
+        repo.root,
+        worktree,
+        target,
+        review,
+        critic_config(),
+        MockRuntime(),
+        critic,
+        ctx.patch,
+        evidence,
+        "digest",
+        revision=revision,
+    )
+
+    # The head recorded is the tree the critic judged, uncommitted files and
+    # all, never the worktree's HEAD commit.
+    assert verdict.head == tree_snapshot(worktree)
+
+    # Both files are staged in the copy and named in the per-call prompt.
+    assert ".torve/review/revision.diff" in critic.seen["staged"]
+    assert ".torve/review/blockers.yaml" in critic.seen["staged"]
+    prompt = str(critic.seen["prompt"])
+    assert ".torve/review/revision.diff" in prompt
+    assert ".torve/review/blockers.yaml" in prompt
+    assert "+new" in str(critic.seen["revision.diff"])
+    assert yaml.safe_load(str(critic.seen["blockers.yaml"])) == revision.blockers
+
+    # The finding is on a file the revision did not change: recorded carried,
+    # in the record as well as in the decision.
+    assert verdict.decision is not None and verdict.decision.blocked is False
+    assert [one.id for one in verdict.decision.carried] == ["F1"]
+    records = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    record = next(row for row in records if row.get("kind") == "review")
+    assert record["blocked"] is False
+    assert record["findings"][0]["carried"] is True
+    assert record["findings"][0]["claim"] == "the bound is off by one"
 
 
 def test_the_probes_are_read_only_once_the_critics_sandbox_is_gone(repo, monkeypatch):

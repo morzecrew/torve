@@ -36,11 +36,13 @@ from typing import TYPE_CHECKING, Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from torve.application import threads
 from torve.application.dispatch import Dispatch
 from torve.application.ports import Agent, Broker, BrokerHandle, Runtime, SandboxSpec
 from torve.application.review import (
     STOPS_AT,
     ReviewOutcome,
+    Revision,
     SchemaRefusal,
     _changed_lines,
     close_review,
@@ -50,9 +52,11 @@ from torve.application.review import (
     mint_review_task,
     review_record,
     reviewer_for,
+    revision_for,
     run_seat,
     schema_refusal,
     seat_api_error,
+    tree_snapshot,
 )
 from torve.base import naming
 from torve.config import layout
@@ -72,6 +76,7 @@ from torve.gates.evidence_package import (
 from torve.gates.suite import archive_tree
 
 if TYPE_CHECKING:
+    from torve.application.runstate import RunState
     from torve.application.threads import TriageDocument
 
 # ----------------------- #
@@ -251,7 +256,11 @@ def read_critic(output: str) -> tuple[CriticDocument | None, str | None]:
 class Decision:
     """What the engine made of a critic document: the findings that survived
     the location filter, the ones that block, the rows that block, and every
-    row's verdict as recorded — a row the critic did not answer is `unknown`."""
+    row's verdict as recorded — a row the critic did not answer is `unknown`.
+
+    On a revision attempt (S-0125/D-1) `carried` is the kept findings outside
+    the revision's own changed lines and its earlier blockers, and `reraised`
+    the ones that name an earlier blocker's anchor again."""
 
     blocked: bool
     blockers: list[CriticFinding]
@@ -259,6 +268,56 @@ class Decision:
     kept: list[CriticFinding]
     discarded: list[str]
     rows: list[dict[str, Any]]
+    carried: list[CriticFinding] = field(default_factory=list)
+    reraised: list[CriticFinding] = field(default_factory=list)
+
+
+def _finding_anchor(finding: CriticFinding) -> tuple[str, int] | None:
+    """The `path` and line a finding's leading citation names, or None for
+    evidence that is a backticked command with no filesystem coordinate."""
+
+    citation = CITATION.match(finding.evidence.split(" — ")[0].split(" - ")[0].strip())
+
+    if citation is None:
+        return None
+
+    return citation.group("path"), int(citation.group("start"))
+
+
+def _anchor_changed(anchor: tuple[str, int], changed: Mapping[str, set[int]]) -> bool:
+    """Whether *anchor* sits within `threads.WINDOW` lines of a line the
+    revision changed in its file."""
+
+    path, line = anchor
+    lines = changed.get(path)
+
+    return lines is not None and any(abs(number - line) <= threads.WINDOW for number in lines)
+
+
+def _anchor_near(anchor: tuple[str, int], previous: list[dict[str, Any]]) -> bool:
+    """Whether *anchor* names an earlier blocker's anchor again (S-0124/D-3):
+    the same file within `threads.WINDOW` lines, or the same file when the
+    recorded anchor carries no line."""
+
+    path, line = anchor
+
+    for one in previous:
+        if one.get("path") != path:
+            continue
+
+        recorded = one.get("line")
+
+        if recorded is not None:
+            try:
+                recorded = int(recorded)
+
+            except (TypeError, ValueError):
+                continue
+
+        if recorded is None or abs(recorded - line) <= threads.WINDOW:
+            return True
+
+    return False
 
 
 def decide(
@@ -266,6 +325,7 @@ def decide(
     rows: Mapping[str, bool],
     root: Path,
     blocks_at: Literal["blocker", "major"],
+    revision: Revision | None = None,
 ) -> Decision:
     """Block or pass, from the findings and never from the critic's words
     (S-0122/D-1, LOCKED).
@@ -275,11 +335,37 @@ def decide(
     and binds as one. A finding blocks when its evidence locates under
     *root* and its severity is at or above *blocks_at*. A row blocks when
     the critic calls it `violated` with evidence that locates. `unknown`
-    never blocks, and neither does a verdict on a row nobody gave it."""
+    never blocks, and neither does a verdict on a row nobody gave it.
+
+    A first attempt (*revision* None) is decided exactly so. On a revision
+    attempt (S-0125/D-1) a kept finding blocks only when it re-raises an
+    earlier blocker or sits near a line the revision changed; every other
+    kept finding, anchorless ones included, is carried non-blocking."""
 
     kept, discarded = filter_findings(document.findings, root)
     stopping = STOPS_AT[blocks_at]
-    blockers = [finding for finding in kept if finding.severity in stopping]
+    carried: list[CriticFinding] = []
+    reraised: list[CriticFinding] = []
+
+    if revision is None:
+        blockers = [finding for finding in kept if finding.severity in stopping]
+
+    else:
+        changed = revision.changed
+        blockers = []
+
+        for finding in kept:
+            anchor = _finding_anchor(finding)
+
+            if finding.severity not in stopping or anchor is None:
+                carried.append(finding)
+            elif _anchor_near(anchor, revision.blockers):
+                blockers.append(finding)
+                reraised.append(finding)
+            elif _anchor_changed(anchor, changed):
+                blockers.append(finding)
+            else:
+                carried.append(finding)
 
     def weight(verdict: RowVerdict) -> tuple[bool, bool]:
         located = bool(verdict.evidence) and locate(verdict.evidence, root) is None
@@ -324,6 +410,8 @@ def decide(
         kept=kept,
         discarded=discarded,
         rows=recorded,
+        carried=carried,
+        reraised=reraised,
     )
 
 
@@ -354,6 +442,24 @@ class CriticVerdict(ReviewOutcome):
 
 def _as_finding(finding: CriticFinding) -> Finding:
     return Finding(severity=finding.severity, claim=finding.claim, evidence=finding.evidence)
+
+
+def _recorded_findings(decision: Decision) -> list[dict[str, Any]]:
+    """The kept findings as the review record carries them, each one a
+    revision carried (S-0125/D-1) marked non-blocking."""
+
+    carried = {id(finding) for finding in decision.carried}
+    recorded: list[dict[str, Any]] = []
+
+    for finding in decision.kept:
+        one = finding.model_dump(exclude_none=True)
+
+        if id(finding) in carried:
+            one["carried"] = True
+
+        recorded.append(one)
+
+    return recorded
 
 
 def _row_finding(verdict: RowVerdict, grades: Mapping[str, str]) -> Finding:
@@ -454,11 +560,17 @@ def _rows_document(rows: list[tuple[InheritedDecision, bool]]) -> list[dict[str,
 
 
 def build_critic_prompt(
-    target: Task, candidate: str, rows: list[tuple[InheritedDecision, bool]], based: bool
+    target: Task,
+    candidate: str,
+    rows: list[tuple[InheritedDecision, bool]],
+    based: bool,
+    revision: bool = False,
 ) -> str:
     """The message beside the frozen prompt: the candidate's intent, its rows
     and where its inputs are. The rows ride inline because they are short and
-    the critic must answer each; everything else is a file it reads."""
+    the critic must answer each; everything else is a file it reads. A
+    revision's prompt also names what it changed and what it was asked to fix
+    (S-0125/D-2)."""
 
     listed = (
         "\n".join(
@@ -471,6 +583,12 @@ def build_critic_prompt(
         "- `.torve/review/base/` — the tree the candidate started from"
         if based
         else "- no base tree could be built for this candidate; the evidence says why"
+    )
+    revised = (
+        "- `.torve/review/revision.diff` — what this revision changed since the last review\n"
+        "- `.torve/review/blockers.yaml` — the findings earlier rounds asked it to fix"
+        if revision
+        else ""
     )
 
     return f"""# Candidate {candidate}
@@ -490,6 +608,7 @@ def build_critic_prompt(
 - `.torve/review/evidence.yaml` and `.torve/review/logs/` — the engine's measurements
 - `.torve/review/rows.yaml` — the rows above, with their paths and checks
 - `.torve/review/critic.schema.json` — the shape of your answer
+{revised}
 """
 
 
@@ -542,10 +661,15 @@ def run_critic(
     broker: Broker | None = None,
     broker_handle: BrokerHandle | None = None,
     trigger: str = "task_gated",
+    revision: Revision | None = None,
 ) -> CriticVerdict:
     """One critic call over one candidate (S-0122/D-6). Everything the critic
     reads is composed here, before the copy exists; the copy is then scrubbed
-    of the author's channels and given the inputs; the engine decides."""
+    of the author's channels and given the inputs; the engine decides.
+
+    A revision attempt also stages its own `revision.diff` and the earlier
+    rounds' `blockers.yaml`, and its findings are read against them
+    (S-0125/D-1, S-0125/D-2)."""
 
     manifest_path = layout.gates_file(root)
     manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
@@ -559,6 +683,8 @@ def run_critic(
     )
     rows = package_rows(target, list(_changed_lines(diff_text)))
     sha = prompt_sha()
+    # The tree under judgment, which the next round's `revision.diff` starts from.
+    judged = tree_snapshot(worktree)
 
     # The whole input, as text, before any copy exists (S-0121/D-28).
     staged: dict[str, str] = {
@@ -568,8 +694,17 @@ def run_critic(
         "critic.schema.json": SCHEMA_FILE.read_text(encoding="utf-8"),
         **{f"logs/{name}": text for name, text in package.logs.items()},
     }
+
+    if revision is not None:
+        staged["revision.diff"] = elide_diff_bulk(revision.diff, elided)
+        staged["blockers.yaml"] = yaml.safe_dump(
+            revision.blockers, sort_keys=False, allow_unicode=True
+        )
+
     system = critic_prompt()
-    prompt = build_critic_prompt(target, package.candidate, rows, package.base is not None)
+    prompt = build_critic_prompt(
+        target, package.candidate, rows, package.base is not None, revision is not None
+    )
 
     def stage(copy: Path) -> None:
         scrub_copy(copy)
@@ -608,7 +743,13 @@ def run_critic(
     seat_error = seat_api_error(session.result.output) if unparseable else None
     grades = {row.id: row.grade for row, _ in rows}
     decision = (
-        decide(document, {row.id: owned for row, owned in rows}, worktree, config.review.blocks_at)
+        decide(
+            document,
+            {row.id: owned for row, owned in rows},
+            worktree,
+            config.review.blocks_at,
+            revision=revision,
+        )
         if document is not None
         else None
     )
@@ -654,10 +795,7 @@ def run_critic(
             "blocks_at": config.review.blocks_at,
             "prompt": PROMPT_VERSION,
             "prompt_sha": sha,
-            "findings": [
-                finding.model_dump(exclude_none=True)
-                for finding in (decision.kept if decision else [])
-            ],
+            "findings": _recorded_findings(decision) if decision else [],
             "discarded": decision.discarded if decision else [],
             "rows": decision.rows if decision else [],
             "blocked": bool(decision and decision.blocked),
@@ -695,6 +833,7 @@ def run_critic(
         prompt_sha=sha,
         probes=probes,
         measured=package.failing_items() or None,
+        head=judged,
         cost_usd=session.result.cost_usd,
         token_counts=session.token_counts,
         provider=session.tier.provider or None,
@@ -815,9 +954,11 @@ def triage_threads(
     return document
 
 
-def judge(run: Dispatch, review: Task) -> CriticVerdict:
+def judge(run: Dispatch, review: Task, state: RunState | None = None) -> CriticVerdict:
     """The critic over the run's gate-green candidate: the patch, the
-    evidence package and the digest the last gate pass produced."""
+    evidence package and the digest the last gate pass produced. *state* is
+    the run's history, from which a revision attempt reads the head it last
+    judged and the blockers it was asked to fix (S-0125/D-2)."""
 
     return run_critic(
         run.root,
@@ -832,6 +973,7 @@ def judge(run: Dispatch, review: Task) -> CriticVerdict:
         run.last_pass.digest,
         broker=run.deps.broker,
         broker_handle=run.broker_handle,
+        revision=revision_for(run, state) if state is not None else None,
     )
 
 

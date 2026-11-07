@@ -18,8 +18,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import shutil
+import subprocess
+import tempfile
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -62,6 +65,7 @@ from torve.config.runconfig import (
 from torve.domain.attempt import Finding, GateResult
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import CONTRACT_SCHEMA_VERSION, Budget, InheritedDecision, Task
+from torve.gates.context import NO_HOOKS, GitError, git
 from torve.gates.evidence import CITATION, filter_findings
 
 # ----------------------- #
@@ -486,6 +490,23 @@ def _changed_lines(diff_text: str) -> dict[str, set[int]]:
     return changed
 
 
+@dataclass(frozen=True)
+class Revision:
+    """A revision attempt's own inputs (S-0125/D-2): what changed since the
+    head the previous review judged, and every earlier round's blocker
+    anchors and claims, read from the run's history."""
+
+    diff: str
+    blockers: list[dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def changed(self) -> dict[str, set[int]]:
+        """The new-side lines *diff* adds or changes, by path — the lines a
+        kept finding must sit near to block the revision (S-0125/D-1)."""
+
+        return _changed_lines(self.diff)
+
+
 def promoted_paths(target: Task, diff_text: str) -> list[str]:
     """The contract's contingent literals *diff_text* wrote beyond the task's
     declared globs (S-0104/D-7), sorted. Read from the diff, so the reviewer is
@@ -663,6 +684,10 @@ class ReviewOutcome:
     # leaves the classic shape, `blocker_threads` over the blockers.
     threads: list[dict[str, Any]] | None = None
     measured: dict[str, Any] | None = None
+    # The tree this review judged, as a git tree object (S-0125/D-2), written
+    # into the revision fact so the next round's `revision.diff` starts where
+    # this review ended. Empty for a reviewer that recorded none.
+    head: str = ""
 
 
 # ....................... #
@@ -1504,10 +1529,207 @@ def _anchors_suffix(anchors: list[dict[str, Any]]) -> str:
     return f"{BLOCKER_ANCHORS_MARKER}{json.dumps(anchors, separators=(',', ':'))}"
 
 
-def _recorded_blocker_anchors(state: RunState) -> list[dict[str, Any]]:
+# The judged head and every blocker's claim, beside the anchors (S-0125/D-2).
+# They sit before `anchors=` so a reader that only wants anchors can take the
+# tail of the fact unchanged. Claims are per blocker, because the anchorless
+# ones have no `path` to pair a `detail` sentence with.
+BLOCKER_HEAD_MARKER = " head="
+BLOCKER_CLAIMS_MARKER = " blockers="
+
+
+def _head_suffix(head: str) -> str:
+    judged = head.strip()
+
+    return f"{BLOCKER_HEAD_MARKER}{judged}" if judged else ""
+
+
+def _claims_suffix(blockers: list[Finding]) -> str:
+    if not blockers:
+        return ""
+
+    payload: list[dict[str, Any]] = []
+
+    for finding in blockers:
+        one: dict[str, Any] = {"claim": finding.claim}
+        anchor = _finding_anchor(finding)
+
+        if anchor is not None:
+            one.update(anchor)
+
+        payload.append(one)
+
+    return f"{BLOCKER_CLAIMS_MARKER}{json.dumps(payload, separators=(',', ':'))}"
+
+
+def blocker_fact(
+    review_id: str,
+    round_no: int,
+    budget: int,
+    blockers: list[Finding],
+    head: str = "",
+) -> str:
+    """The `review blocker (revision k of n)` fact: its claims, the head this
+    review judged and its anchors, from which the next round reads both its
+    `revision.diff` base and `blockers.yaml` (S-0125/D-2)."""
+
+    detail = "; ".join(f.claim for f in blockers)
+
+    return (
+        f"{BLOCKER_REVISION_MARKER}{round_no} of {budget}): "
+        f"{review_id}: {detail[:300]}"
+        f"{_head_suffix(head)}"
+        f"{_claims_suffix(blockers)}"
+        f"{_anchors_suffix(_blocker_anchors(blockers))}"
+    )
+
+
+def _json_list(payload: str) -> list[Any] | None:
+    try:
+        recorded = json.loads(payload)
+
+    except ValueError:
+        return None
+
+    return recorded if isinstance(recorded, list) else None
+
+
+def _blocker_rounds(state: RunState) -> list[dict[str, Any]]:
+    """Every revision round the run recorded, oldest first, each with its
+    number, the head it judged and the blockers it asked to fix (S-0125/D-2).
+    A fact written before the head or per-blocker claims existed still reads:
+    it has no head, and its anchors stand in for the claims."""
+
+    rounds: list[dict[str, Any]] = []
+
+    for entry in state.history:
+        fact = str(entry.get("fact", ""))
+
+        if not is_blocker_revision_fact(fact):
+            continue
+
+        body, found, anchors_text = fact.rpartition(BLOCKER_ANCHORS_MARKER)
+        anchors = _json_list(anchors_text) if found else None
+        body, found, blockers_text = body.rpartition(BLOCKER_CLAIMS_MARKER)
+        blockers = _json_list(blockers_text) if found else None
+        body, found, head_text = body.rpartition(BLOCKER_HEAD_MARKER)
+
+        if blockers is None:
+            blockers = [
+                one
+                for one in (anchors or [])
+                if isinstance(one, dict) and isinstance(one.get("path"), str)
+            ]
+
+        match = re.match(r"review blocker \(revision (\d+) of \d+\)", fact)
+        number = int(match.group(1)) if match is not None else len(rounds) + 1
+
+        rounds.append(
+            {
+                "round": number,
+                "head": head_text.strip() if found else "",
+                "blockers": [dict(one) for one in blockers if isinstance(one, dict)],
+            }
+        )
+
+    return rounds
+
+
+def tree_snapshot(worktree: Path) -> str:
+    """The tree *worktree* holds, tracked and untracked files alike, as a git
+    tree object written through a throwaway index — the engine commits an
+    attempt only when it lands, so `HEAD` is never what a review judged
+    (S-0125/D-2). Empty when *worktree* is not the top of a repository git
+    can read, where the tree's paths would not be the worktree's."""
+
+    try:
+        if git(worktree, "rev-parse", "--show-prefix").strip():
+            return ""
+
+    except GitError:
+        return ""
+
+    with tempfile.TemporaryDirectory() as scratch:
+        env = {**os.environ, "GIT_INDEX_FILE": str(Path(scratch) / "index")}
+
+        for args in (("read-tree", "HEAD"), ("add", "-A"), ("write-tree",)):
+            proc = subprocess.run(
+                ["git", *NO_HOOKS, "-C", str(worktree), *args],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+
+            if proc.returncode != 0:
+                return ""
+
+        return proc.stdout.strip()
+
+
+def revision_for(run: Dispatch, state: RunState) -> Revision | None:
+    """The revision attempt's inputs (S-0125/D-2), from the tree the most
+    recent revision fact judged to the tree the worktree holds now, and every earlier round's
+    blockers. None for a first attempt — no round recorded yet — and for a
+    round whose head was never recorded, where no revision diff can be built
+    and the attempt is decided as a first one."""
+
+    rounds = _blocker_rounds(state)
+
+    if not rounds:
+        return None
+
+    head = str(rounds[-1].get("head") or "")
+
+    if not head:
+        return None
+
+    current = tree_snapshot(run.worktree)
+
+    if not current:
+        return None
+
+    # The engine's own files under `.torve/` (the feedback, the staged prompt)
+    # change between rounds and are no part of what the revision wrote.
+    try:
+        diff = git(
+            run.worktree,
+            "diff-tree",
+            "-p",
+            "-M",
+            "--no-color",
+            head,
+            current,
+            "--",
+            ".",
+            ":(exclude).torve",
+        )
+
+    except GitError:
+        return None
+
+    return Revision(
+        diff=diff,
+        blockers=[
+            {**blocker, "round": one["round"]} for one in rounds for blocker in one["blockers"]
+        ],
+    )
+
+
+def _recorded_blocker_anchors(state: RunState, every: bool = False) -> list[dict[str, Any]]:
     """The anchors the previous revision round recorded (S-0124/D-3), from the
     most recent `review blocker (revision k of n)` fact. A fact written before
-    anchors existed reads as none, so the round is spent exactly as before."""
+    anchors existed reads as none, so the round is spent exactly as before.
+
+    *every* reads every earlier round instead, which is what a revision
+    attempt re-raises against (S-0125/D-1)."""
+
+    if every:
+        return [
+            blocker
+            for one in _blocker_rounds(state)
+            for blocker in one["blockers"]
+            if isinstance(blocker.get("path"), str)
+        ]
 
     for entry in reversed(state.history):
         fact = str(entry.get("fact", ""))
@@ -1613,7 +1835,7 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
         from torve.application.critic import judge
 
         review_task = mint_review_task(run.root, run.task, taken=taken)
-        outcome = await asyncio.to_thread(judge, run, review_task)
+        outcome = await asyncio.to_thread(judge, run, review_task, state)
 
     else:
         review_task = mint_review_task(run.root, run.task, taken=taken)
@@ -1700,7 +1922,9 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
         budget = run.config.review.resolved_blocker_revisions()
 
         if spent < budget:
-            reraised = _anchor_reraised(outcome.blockers, _recorded_blocker_anchors(state))
+            reraised = _anchor_reraised(
+                outcome.blockers, _recorded_blocker_anchors(state, every=True)
+            )
 
             if reraised is not None:
                 path, line = reraised
@@ -1733,10 +1957,12 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
                     "at": state.heartbeat,
                     "from": str(state.state),
                     "to": str(state.state),
-                    "fact": (
-                        f"{BLOCKER_REVISION_MARKER}{spent + 1} of {budget}): "
-                        f"{outcome.review_id}: {detail[:300]}"
-                        f"{_anchors_suffix(_blocker_anchors(outcome.blockers))}"
+                    "fact": blocker_fact(
+                        outcome.review_id,
+                        spent + 1,
+                        budget,
+                        outcome.blockers,
+                        outcome.head,
                     ),
                 }
             )

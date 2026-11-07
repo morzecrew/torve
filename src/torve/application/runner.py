@@ -1785,7 +1785,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         taken = [*(run.deps.taken() if run.deps.taken is not None else ()), *reviews]
         review_task = mint_review_task(run.root, run.task, taken=taken)
         reviews.append(review_task.id)
-        verdict = await asyncio.to_thread(critic_judge, candidate.run, review_task)
+        verdict = await asyncio.to_thread(critic_judge, candidate.run, review_task, state)
         candidate.verdict = verdict
 
         if critic:
@@ -1860,7 +1860,10 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
 
         from torve.application.review import _anchor_reraised, _recorded_blocker_anchors
 
-        return _anchor_reraised(verdict.blockers, _recorded_blocker_anchors(state)) is not None
+        return (
+            _anchor_reraised(verdict.blockers, _recorded_blocker_anchors(state, every=True))
+            is not None
+        )
 
     try:
         chosen_round = await selection.select(
@@ -2027,23 +2030,19 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                     # spend on a fresh attempt (S-0124/D-3, D-8): it records
                     # the same revision fact with the anchors it revised, so
                     # the next verdict is judged as the round after it.
-                    from torve.application.review import (
-                        BLOCKER_REVISION_MARKER,
-                        _anchors_suffix,
-                        _blocker_anchors,
-                    )
+                    from torve.application.review import blocker_fact
 
-                    detail = "; ".join(f.claim for f in verdict.blockers)
                     state.history.append(
                         {
                             "at": state.heartbeat,
                             "from": str(state.state),
                             "to": str(state.state),
-                            "fact": (
-                                f"{BLOCKER_REVISION_MARKER}{round_no} of "
-                                f"{run.config.review.resolved_blocker_revisions()}): "
-                                f"{verdict.review_id}: {detail[:300]}"
-                                f"{_anchors_suffix(_blocker_anchors(verdict.blockers))}"
+                            "fact": blocker_fact(
+                                verdict.review_id,
+                                round_no,
+                                run.config.review.resolved_blocker_revisions(),
+                                verdict.blockers,
+                                verdict.head,
                             ),
                         }
                     )
