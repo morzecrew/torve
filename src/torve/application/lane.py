@@ -650,6 +650,19 @@ def _engine_record(root: Path, rel: str) -> bool:
 # ....................... #
 
 
+def _landing_approver(state: RunState, sha: str) -> str:
+    """The actors whose approvals are bound to *sha*, joined (S-0124/D-13).
+
+    A landing nobody approved records the empty string, not the lane host's
+    git user: the approver a landing names is who approved that tip, and an
+    approval of a superseded tip says nothing about this one."""
+
+    return ", ".join(a["actor"] for a in state.approvals if a.get("sha") == sha)
+
+
+# ....................... #
+
+
 def record_approval(root: Path, task_id: str, actor: str, sha: str) -> bool:
     """One sha-bound approval (S-0006/promotion, T-0060): recorded on the run
     state, deduped by (actor, sha) — approving the same tip twice is one
@@ -3711,7 +3724,6 @@ def process_lane(
                 "fast-forwards the checkout, commit or stash first: " + ", ".join(sorted(dirt)[:5])
             )
 
-    approver = vcs.approver(root)
     results: list[LaneResult] = []
 
     carried: dict[str, tuple[str, str]] = {}
@@ -3789,6 +3801,10 @@ def process_lane(
 
         target = document or base
 
+        # S-0124/D-13: the approver a landing records is who approved the tip
+        # this candidate lands, not the lane host's git user.
+        approver = _landing_approver(state, branch_tip)
+
         if vcs.is_ancestor(root, branch_tip, target):
             results.append(LaneResult(task_id, branch, "already landed", sha=branch_tip))
             continue
@@ -3816,7 +3832,9 @@ def process_lane(
                 target,
                 branch,
                 branch_tip,
-                approver,
+                # A landing the forge merged was approved on the forge, not in
+                # this checkout's approvals, so it records no approver here.
+                "",
                 results,
                 recorded,
             ):

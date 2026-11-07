@@ -88,7 +88,7 @@ def test_two_candidates_land_serially_first_ff_then_rebased(lane_repo):
     ]
     landed = [r for r in records if r.get("event") == "lane_landed"]
     assert {r["mode"] for r in landed} == {"fast-forward", "rebased"}
-    assert all(r["approver"] == "Lane Operator" for r in landed)
+    assert all(r["approver"] == "" for r in landed)
 
 
 def _landing_commit(root: Path, task_id: str) -> str:
@@ -890,6 +890,59 @@ def test_an_approval_of_the_current_tip_lands(lane_repo):
     assert json.loads(result.stdout)["results"][0]["action"] == "landed"
 
 
+def test_landing_approver_is_empty_for_an_unapproved_landing(lane_repo):
+    """S-0124/D-13: a landing nobody approved records the empty string, not
+    the lane host's git user."""
+    candidate(lane_repo, "T-7024", "twentyfour.py", "t = 24\n")
+
+    results = process_lane(lane_repo, GitLane())
+
+    assert results[0].action == "landed"
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed and landed[-1]["approver"] == ""
+
+
+def test_landing_approver_records_the_actor_of_an_approved_tip(lane_repo):
+    """S-0124/D-13: the approval bound to the landed tip names the approver."""
+    from torve.application.lane import record_approval
+
+    candidate(lane_repo, "T-7025", "twentyfive.py", "t = 25\n")
+    (lane_repo / ".torve" / "config.yaml").write_text(
+        "schema_version: 1\npromotion:\n  approvals: 1\n", encoding="utf-8"
+    )
+    git(lane_repo, "add", ".torve/config.yaml")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "config: approvals")
+    tip = git(lane_repo, "rev-parse", naming.branch("T-7025"))
+    record_approval(lane_repo, "T-7025", "operator", tip)
+
+    result = invoke_merge(lane_repo)
+
+    assert result.exit_code == 0, result.output
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed and landed[-1]["approver"] == "operator"
+
+
+def test_landing_approver_ignores_an_approval_of_a_superseded_tip(lane_repo):
+    """S-0124/D-13: an approval binds to its sha; one of an earlier tip names
+    nobody on the landing of the tip that replaced it."""
+    from torve.application.lane import record_approval
+
+    candidate(lane_repo, "T-7026", "twentysix.py", "t = 26\n")
+    old_tip = git(lane_repo, "rev-parse", naming.branch("T-7026"))
+    record_approval(lane_repo, "T-7026", "operator", old_tip)
+    git(lane_repo, "checkout", "-q", naming.branch("T-7026"))
+    (lane_repo / "twentysix.py").write_text("t = 27\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "pushed after approval")
+    git(lane_repo, "checkout", "-q", "main")
+
+    results = process_lane(lane_repo, GitLane())
+
+    assert results[0].action == "landed"
+    landed = [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
+    assert landed and landed[-1]["approver"] == ""
+
+
 def test_an_approval_of_a_superseded_tip_counts_for_nothing(lane_repo):
     from torve.application.lane import record_approval
 
@@ -1130,6 +1183,22 @@ def test_pull_request_mode_publishes_the_candidate_and_never_moves_the_base(lane
     assert not [e for e in _events(lane_repo) if e.get("event") == "lane_landed"]
     # A standing candidate: nothing landed, so the run stays READY.
     assert RunState.load(naming.state_file(lane_repo, "T-7101")).state is TaskState.READY
+
+
+def test_landing_approver_on_a_published_pull_request_names_the_tip_approval(lane_repo):
+    """S-0124/D-13: `lane_pr_opened` records the actor approving the tip it
+    publishes."""
+    from torve.application.lane import record_approval
+
+    candidate(lane_repo, "T-7102", "two.py", "two = 2\n")
+    tip = git(lane_repo, "rev-parse", naming.branch("T-7102"))
+    record_approval(lane_repo, "T-7102", "operator", tip)
+
+    results = process_lane(lane_repo, GitLane(), publish=_recording_publisher([]))
+
+    assert [r.action for r in results] == ["pull request"]
+    opened = [e for e in _events(lane_repo) if e.get("event") == "lane_pr_opened"]
+    assert opened and opened[0]["approver"] == "operator"
 
 
 def test_pull_request_mode_rebases_and_regates_before_it_publishes(lane_repo):
