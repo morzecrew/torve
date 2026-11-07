@@ -1687,14 +1687,17 @@ def selects(run: Dispatch) -> bool:
 def _width(run: Dispatch, state: RunState) -> tuple[int, str]:
     """The unit's width and class (S-0122/D-7, S-0124/D-1). Several candidates
     only when a critic chooses between them; a revision attempt — one whose
-    task has a feedback record at the root — is class S and runs one."""
+    task has a feedback record at the root — is class S and runs one. A review
+    round runs one, and `review.max_width` caps the rest."""
 
     revision = feedback.feedback_file(run.root, run.task.id).is_file()
     escalated = any(entry.get("to") == str(TaskState.ESCALATED) for entry in state.history)
     size = selection.unit_class(run.task, run.worktree, revision=revision, escalated=escalated)
     critic = run.config.review.mode == "critic" and review_gated(run.config, run.task, run.shadow)
+    width = selection.WIDTHS[size] if critic and run.task.round is None else 1
+    cap = run.config.review.max_width
 
-    return (selection.WIDTHS[size] if critic else 1), size
+    return (width if cap is None else min(width, cap)), size
 
 
 def _candidate_dispatch(run: Dispatch, start: Dispatch, index: int, base: str) -> Dispatch:

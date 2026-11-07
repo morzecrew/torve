@@ -1247,6 +1247,13 @@ class ReviewConfig(BaseModel):
     stays what it recorded; what stops a promotion is configuration's to decide
     (S-0001/D-10), which is what this is."""
 
+    max_width: int | None = Field(default=None, ge=1)
+    """The most candidates a critic chooses between (S-0122/D-7's width, capped).
+    `None` keeps the class's width: S one, M two, L three. The candidates run one after
+    another, so the width multiplies a unit's wall time and tokens: T-0880, a 15-finding
+    round, ran three for 88.6M tokens in 85 minutes. A review round runs one whatever
+    this says."""
+
     # ....................... #
 
     @model_validator(mode="before")

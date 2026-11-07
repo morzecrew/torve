@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer blocked for the later phase's work. `torve spec check` refuses a `delivers` entry
   that names no row of the document.
 
+- `review.max_width` caps how many candidates the critic chooses between, and unset keeps
+  today's widths. Candidates run one after another, so each extra one adds a full session's
+  time and tokens. A review round now always runs one candidate.
+
 ### Changed
 
 - A run stopped mid-attempt, by killing the night or by a lapsed lease, now keeps its work.

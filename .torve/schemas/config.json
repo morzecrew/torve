@@ -609,6 +609,20 @@
           "title": "Blocks At",
           "type": "string"
         },
+        "max_width": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The most candidates a critic chooses between (S-0122/D-7's width, capped).\n`None` keeps the class's width: S one, M two, L three. The candidates run one after\nanother, so the width multiplies a unit's wall time and tokens: T-0880, a 15-finding\nround, ran three for 88.6M tokens in 85 minutes. A review round runs one whatever\nthis says.",
+          "title": "Max Width"
+        },
         "mode": {
           "default": "classic",
           "description": "Who judges a gate-green candidate (S-0122/D-6): `classic`, the reviewer\nhanded the diff, the contract and the gate results; or `critic`, the reviewer\nhanded the diff, the evidence package the engine measured on the candidate and\nits base, the base tree and the rows the unit owns, under a frozen prompt, whose\nfindings the engine turns into block or pass (S-0122/D-1). `classic` stays for\none release beside it.",
