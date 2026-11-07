@@ -3,7 +3,7 @@ task: T-0814
 phase: 7
 attempt: 2
 base: 5d99b397babd7faa02a0adf8238310dc40606f28
-commit: 5ad791cbc250c50b8d620027b3d09d3475bd5b09
+commit: ebb812e96c1685481cee2c922070355da92f24da
 at: '2026-11-07T11:47:19Z'
 agent: subscription/claude-opus-5-5@claude-opus-5-5
 decisions:
