@@ -542,12 +542,15 @@ def round_acceptance(root: Path) -> list[str]:
 # ....................... #
 
 
-def _phasing(root: Path, branch: str) -> list[dict[str, Any]]:
+def _phasing(root: Path, branch: str, *, checkout: bool = False) -> list[dict[str, Any]]:
     """The document's phasing as the remote's copy of its branch holds it after
     the pass's fetch (S-0092/D-2, S-0094/D-2): a phase widened there by
     amendment, from any checkout, reaches the leg before it reaches this one.
     A branch the remote lacks, or with no phasing at its tip, is read from the
-    checkout. Empty when neither holds one."""
+    checkout. Empty when neither holds one.
+
+    `checkout` reads the root's copy alone: an amendment merged to the base
+    after the branch was cut is there and not on the branch."""
 
     from torve.config.spec import document_dir
 
@@ -557,26 +560,29 @@ def _phasing(root: Path, branch: str) -> list[dict[str, Any]]:
         return []
 
     path = directory / "phasing.yaml"
-    proc = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "show",
-            f"refs/remotes/origin/{branch}:{path.relative_to(root).as_posix()}",
-        ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    text: str | None = None
 
-    if proc.returncode == 0:
-        text = proc.stdout
-    elif path.is_file():
+    if not checkout:
+        proc = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "show",
+                f"refs/remotes/origin/{branch}:{path.relative_to(root).as_posix()}",
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        text = proc.stdout if proc.returncode == 0 else None
+
+    if text is None:
+        if not path.is_file():
+            return []
+
         text = path.read_text(encoding="utf-8")
-    else:
-        return []
 
     try:
         data = yaml.safe_load(text)
@@ -1781,16 +1787,61 @@ def record_threads(
 # ....................... #
 
 
-def phased(root: Path, branch: str, path: str) -> bool:
-    """Whether the document's phasing scope reaches *path* (S-0086/D-4), as
-    the branch tip holds it (S-0092/D-2). A document with no readable phasing
-    judges nothing: everything is inside a scope nobody declared."""
+def phased(root: Path, branch: str, path: str, base: str | None = None) -> bool:
+    """Whether the document's scope reaches *path* (S-0086/D-4): a phase's
+    scope as the branch tip holds it (S-0092/D-2) or as the root's copy holds
+    it — the union completion reads (S-0124/D-10), so a phase an amendment
+    added on the base only still counts — or a file the branch itself changed
+    against *base*. What the document wrote is the document's, a contingent
+    path its landing promoted among them: refusing a finding there left the
+    pull request unable to converge (S-0125, runner.py and agents.py). A
+    document with no readable phasing judges nothing: everything is inside a
+    scope nobody declared."""
 
     from torve.application.decisions import _governs
 
-    globs = [str(glob) for phase in _phasing(root, branch) for glob in phase.get("scope") or []]
+    phasing = [*_phasing(root, branch), *_phasing(root, branch, checkout=True)]
+    globs = [str(glob) for phase in phasing for glob in phase.get("scope") or []]
 
-    return _governs(globs, path) if globs else True
+    if not globs:
+        return True
+
+    return _governs(globs, path) or path in _branch_changed(root, branch, base)
+
+
+def _branch_changed(root: Path, branch: str, base: str | None) -> set[str]:
+    """The files the document branch changed against *base*: the pull
+    request's own diff, from the remote's copy as `_phasing` reads it, else
+    the checkout's branch. Empty when neither diff reads."""
+
+    from torve.gates.context import GitError, resolve_base
+
+    try:
+        ref = resolve_base(root, base)
+
+    except GitError:
+        return set()
+
+    if ref is None:
+        return set()
+
+    for tip in (f"refs/remotes/origin/{branch}", f"refs/heads/{branch}"):
+        proc = subprocess.run(
+            ["git", "-C", str(root), "diff", "--name-only", "--no-renames", f"{ref}...{tip}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+        if proc.returncode == 0:
+            return {
+                line
+                for line in proc.stdout.splitlines()
+                if line.strip() and not line.startswith(FORBIDDEN_ANCHORS)
+            }
+
+    return set()
 
 
 # ....................... #
@@ -2506,7 +2557,7 @@ def review_thread_leg(
             # A recorded finding pointing outside the document's phasing scope
             # mints nothing and reaches a person by name, as an injecting
             # thread does (S-0086/D-4).
-            if from_record and not phased(root, branch, finding.path):
+            if from_record and not phased(root, branch, finding.path, config.base):
                 reason = f"{finding.path} lies outside the document's phasing scope"
                 _refuse(
                     root,

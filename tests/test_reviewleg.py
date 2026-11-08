@@ -2034,6 +2034,70 @@ def test_a_phase_widened_on_the_branch_admits_what_the_checkout_refused(seeded):
     assert row["path"] == "pages/docs/operating.md"
 
 
+def test_a_phase_an_amendment_added_on_the_base_only_admits_its_scope(seeded):
+    """The union completion reads (S-0124/D-10): S-0125/A-1 added phase 6 on
+    main after the branch was cut, and every finding on its file was refused."""
+
+    phased_document(seeded.root, ["src/**"])
+    seeded.commit("the document")
+    open_document(seeded.root)
+    phased_document(seeded.root, ["src/**"], ["pages/**"])
+    seeded.commit("the amendment, merged to main only")
+    records = [recorded(("the guide is stale", "pages/docs/operating.md:3 — it says otherwise"))]
+
+    review_thread_leg(
+        seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False, records=records
+    )
+
+    assert events(seeded.root, "lane_thread_refused") == []
+    (row,) = events(seeded.root, "lane_review_task")
+    assert row["path"] == "pages/docs/operating.md"
+
+
+def branch_wrote(repo: Any, path: str) -> None:
+    """A document whose phasing scopes `src/**` and whose branch also wrote
+    *path*, as a contingent promotion does."""
+
+    phased_document(repo.root, ["src/**"])
+    repo.commit("the document")
+    open_document(repo.root)
+    repo.git("checkout", "-q", BRANCH)
+    repo.write(path, "x = 1\n")
+    repo.commit("the work, with a promoted path")
+    open_document(repo.root)
+
+
+def test_a_file_the_branch_changed_is_the_document_s_whatever_its_phasing(seeded):
+    """A contingent path a landing promoted is the document's own: refusing a
+    finding there left S-0125's pull request unable to converge (agents.py)."""
+
+    branch_wrote(seeded, "lib/promoted.py")
+    records = [recorded(("unvalidated", "lib/promoted.py:1 — a negative value is kept"))]
+
+    review_thread_leg(
+        seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False, records=records
+    )
+
+    assert events(seeded.root, "lane_thread_refused") == []
+    (row,) = events(seeded.root, "lane_review_task")
+    assert row["path"] == "lib/promoted.py"
+
+
+def test_a_file_neither_scoped_nor_changed_is_still_refused(seeded):
+    branch_wrote(seeded, "lib/promoted.py")
+    records = [recorded(("the guide is stale", "pages/docs/operating.md:3 — it says otherwise"))]
+
+    detail, minted = review_thread_leg(
+        seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False, records=records
+    )
+
+    assert minted is False
+    assert "phasing scope" in detail
+    assert events(seeded.root, "lane_review_task") == []
+    (refusal,) = events(seeded.root, "lane_thread_refused")
+    assert refusal["path"] == "pages/docs/operating.md"
+
+
 # ----------------------- #
 # A round halted on a spec gap is retried once with the whole phasing
 # (S-0092/D-1), and a bot's collapsed analysis never reaches the attempt
