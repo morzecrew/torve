@@ -45,7 +45,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `torve manager resolve --resolution requeued` commits what the run left in its worktree on
   the task's branch, and the next attempt continues from it instead of starting over.
 
+- A revision's critic now judges what the revision changed. It is given the revision's own
+  diff and the blockers it was asked to fix, and a finding blocks only near a line the
+  revision changed or near an earlier blocker. Other findings are recorded and do not block.
+
+- A review round now carries at most `threads.findings_per_round` findings, 5 by default,
+  whether triage ran or not. A file with more findings than that is still one round of its
+  own.
+
+- A review round now replies `Fixing in T-NNNN.` on its bot threads when it is minted, and
+  once with the escalation's reason if it escalates. Its contract shows the base tree's lines
+  around each finding and triage's verdict on its thread.
+
+- A tier's `context_window` now keeps the value its seat states. The provider roster fills it
+  only when the seat states none.
+
 ### Fixed
+
+- `torve manager resolve --resolution requeued` now clears a run state the night left at
+  `running` or `gated` when no engine run holds it. The next dispatch used to be refused and
+  escalate the task again.
+
+- A durable run past `store.max_run_duration` now escalates its task `budget_exhausted` and
+  the night serves on. The timeout used to end the whole serve process.
+
+- A task that reaches its poison ceiling during a revision now keeps that revision's work and
+  continues from it when it is requeued. It used to start over from the base.
 
 - A note given with `torve manager resolve --resolution requeued` or `torve manager return`
   now stays in the task's feedback record. A revision round used to replace the record and

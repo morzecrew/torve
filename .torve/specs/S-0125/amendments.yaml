@@ -33,3 +33,28 @@ amendments:
       requeue would have restarted the task from base and thrown the three attempts away.
       The owner agreed in session to add D-10 and phase 6, which delivers it. Phase 6 waits
       on phase 1, whose landing also edits `runner.py`. No other row changes.
+  - id: A-2
+    at: '2026-11-08T11:33:22Z'
+    title: One file's findings stay one round above the cap
+    changes:
+      - subject: D-3
+        field: text
+        before: >-
+          Every review round carries at most `threads.findings_per_round` findings,
+          whether its head was triaged or not, and the default is 5; `batch_claims`
+          still never splits a file across rounds
+        after: >-
+          Every review round carries at most `threads.findings_per_round` findings,
+          whether its head was triaged or not, and the default is 5; a file with more
+          findings than the cap is one round of its own, because `batch_claims` never
+          splits a file across rounds
+      - subject: D-3
+        field: fingerprint
+        after: f2b4ea0d32532368/fe62264787a2595d
+    md: |
+      The row's two clauses disagreed for a file carrying more findings than the cap: the cap
+      said a round holds at most five, and `batch_claims` keeps a file whole. The code and
+      `tests/test_reviewleg.py` already resolve it for the file, since two rounds of one wave on
+      the same file would race on it. T-0913's critic convicted that case as a violation of the
+      row twice, and the round escalated at its ceiling (2026-11-08); the attempt's divergence
+      entry proposed this wording. The text now says what the code does. No behaviour changes.
