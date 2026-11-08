@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      On a review round's attempt, first or revision, `decide` records as non-blocking every
+      kept finding and every `violated` row whose evidence cites at least one `path:line`
+      that locates and all of whose located citations lie within `threads.WINDOW` lines of
+      a rejected spot in the same file; this is checked before the S-0125/D-1 rules, and
+      the review record marks each one `rejected: true`
+    paths: [src/torve/application/critic.py]
+    consequence: >-
+      a round that rejects a claim with a recorded reason converges; the critic's objection
+      to the rejection stays in the review record, and the bot's re-raise is what brings
+      it to a person
+    rationale: >-
+      T-0913's critic blocked all three attempts on the claim the attempt had rejected, and
+      the round escalated `poison_ceiling`; the critic cannot see the rejection (S-0121/D-28,
+      S-0122/D-2), so only the engine can tell that the finding disputes it
+    cites: [S-0122/D-1, S-0125/D-1, S-0121/D-29, S-0084/D-13]
+    check: >-
+      uv run pytest -q tests/test_critic.py -k rejected_claim
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      The rejected spots are read by the engine and never staged for the critic: for a task
+      whose contract carries `round`, each `unlisted` entry with `kind: contradicted` in the
+      worktree's task log gives the span of every round finding its claim names by
+      `path:line` or by the file's name and the line (`threads.names_spot`, the match
+      `reply_body` uses), and every `path:line` or `path:start-end` its evidence cites that
+      locates in the worktree; a task with no round has none
+    paths: [src/torve/application/critic.py, src/torve/application/threads.py]
+    consequence: >-
+      the reply and the carry match a rejection to a thread by the same rule, and the
+      critic's staged input is byte-for-byte what it was
+    rationale: >-
+      the round's findings are the forge's anchors, not the author's; the entry's evidence
+      is where the author says the claim is decided, and it counts only where it locates
+    cites: [S-0121/D-28, S-0122/D-2, S-0084/D-13]
+    check: >-
+      uv run pytest -q tests/test_critic.py tests/test_review_run.py -k rejected_spots

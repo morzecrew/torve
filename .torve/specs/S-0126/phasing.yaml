@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+after: [S-0125]
+phasing:
+  - phase: 1
+    title: The engine carries what the round rejected
+    intent: >-
+      `reviewleg._names` moves to `threads.names_spot(claim, spot)`, and `reply_body` calls
+      it there. `critic.rejected_spots(task, worktree)` returns `(path, start, end)` spans:
+      none unless `task.round` is set; otherwise, for each `unlisted` entry with
+      `kind: contradicted` in the worktree's task log, the span of every round finding
+      `names_spot` matches in its claim, and every `path:line` or `path:start-end` its
+      evidence cites that `locate` accepts. `run_critic` computes the spans after staging
+      and passes them to `decide(..., rejected=...)`; nothing is staged for them. Before
+      the other rules, `decide` carries a kept finding or a `violated` row when its evidence
+      has at least one located citation and every located citation lies within
+      `threads.WINDOW` lines of a span in the same file. A carried finding goes into
+      `carried`, its record marked `rejected: true`; a carried row is recorded
+      `blocks: false, rejected: true` and kept out of `violated`. The review guide gains a
+      paragraph on rejected claims. Tests named `rejected_claim` in `tests/test_critic.py`
+      (a Hypothesis property over citation lines and spans, and T-0913's attempt-3
+      findings as examples), and tests named `rejected_spots` in `tests/test_critic.py`
+      and `tests/test_review_run.py` (the log read, the round-less task, the unchanged
+      staged input).
+    scope:
+      - src/torve/application/critic.py
+      - src/torve/application/threads.py
+      - tests/test_critic.py
+      - tests/test_review_run.py
+      - tests/test_threads.py
+      - /skills/torve/references/review.md
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_critic.py tests/test_review_run.py tests/test_threads.py
+        tests/test_reviewleg.py
+      - uv run mypy src
+    delivers: [D-1, D-2]
