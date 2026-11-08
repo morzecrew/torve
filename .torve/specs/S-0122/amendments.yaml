@@ -99,3 +99,41 @@ amendments:
       finding counts only where the revision acted or failed to act. Every other
       finding stays in the review record, and the document's pull request still
       receives it as a recorded thread.
+  - id: A-4
+    at: '2026-11-08T18:44:58Z'
+    title: >-
+      A finding on a claim a review round rejected does not block (S-0126)
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          The engine, not a model, turns a critic's findings into block or pass: a
+          candidate is blocked when a finding that survives the location filter is
+          at or above `review.blocks_at`, or when an owned row is `violated` with
+          located evidence, and an `unknown` row never blocks; on a revision attempt
+          such a finding counts only when it also locates within `threads.WINDOW`
+          lines of a line the revision changed or of an earlier round's blocker, and
+          every other is recorded non-blocking
+        after: >-
+          The engine, not a model, turns a critic's findings into block or pass: a
+          candidate is blocked when a finding that survives the location filter is
+          at or above `review.blocks_at`, or when an owned row is `violated` with
+          located evidence, and an `unknown` row never blocks; on a revision attempt
+          such a finding counts only when it also locates within `threads.WINDOW`
+          lines of a line the revision changed or of an earlier round's blocker, and
+          every other is recorded non-blocking; on a review round's attempt, a finding
+          or `violated` row whose every cited `path:line` locates within `threads.WINDOW`
+          lines of a claim that attempt rejected (S-0126/D-2) is recorded non-blocking,
+          and a re-raise of the claim escalates (S-0121/D-29)
+      - subject: D-1
+        field: fingerprint
+        before: ab5ee4a9a6da81c9/03a530a15ac3f0d0
+        after: 6d4a467c5b2ab2fc/03a530a15ac3f0d0
+    md: |
+      The owner amended this LOCKED row in session on 2026-11-08, for S-0126/D-1. T-0913,
+      a review round on #302, rejected one bot claim with a recorded reason. The critic never
+      sees that reason (S-0121/D-28, S-0122/D-2), so it blocked all three attempts on the
+      same claim, and the round escalated `poison_ceiling`. The engine still decides, from
+      locations alone: a finding counts as one on the rejected claim only when every
+      `path:line` it cites locates near that claim. The reply puts the rejection on the
+      bot's thread, and a re-raise escalates to a person.

@@ -5,7 +5,7 @@ kind: design
 change:
   type: fix
   scope: critic
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0122, S-0125]
 informed_by: [S-0124]
@@ -32,8 +32,8 @@ motivation: |
 
   The critic looked for the entry and found none, because `scrub_copy` removes `.torve/tasks`
   from its copy. The round escalated `poison_ceiling` at 09:32Z on 2026-11-08 and was finished
-  by hand (a8907138). The rejection was right: S-0125/A-2 later amended S-0125/D-3 to say what the
-  code does.
+  by hand (a8907138). The rejection was right: S-0125/A-2 later amended S-0125/D-3 to say what
+  the code does.
 
   The critic is right not to see the entry: S-0121/D-28 and S-0122/D-2, both LOCKED, keep the
   author's words from the judge. So the change belongs to the engine's decision, not to the
@@ -46,36 +46,63 @@ current_state: |
     revision attempt, S-0125/D-1 carries a finding that is neither near a changed line nor
     near an earlier blocker. Nothing in `decide` knows the task is a review round.
   - **The rejection.** A round's attempt writes its entries to `.torve/tasks/<task>/log.yaml`
-    in its worktree. `reviewleg._rejections` (`reviewleg.py:1997`) reads the `unlisted` and
-    `contradicted` ones to compose the reply. Since #305, `reviewleg._names`
-    (`reviewleg.py:2025`) matches a rejection to the round finding whose `path:line` its claim
-    names.
+    in its worktree. `journal_sync` rebuilds that file from the store before the gates, so it
+    holds every attempt's entries, each stamped with the `attempt` the engine pinned
+    (`divergence.seed`). T-0913's log held attempt 1's rejection beside attempt 3's.
+  - **The reply.** `reviewleg._rejections` (`reviewleg.py:1997`) reads the `unlisted` and
+    `contradicted` entries of every attempt, from the root log and, when the root holds none,
+    from the landing's execution record. It posts one reason per entry, so an attempt that
+    records the same rejection three times, as T-0913's attempt 3 did, would post it three times.
+    Since #305, `reviewleg._names` (`reviewleg.py:2025`) matches a rejection to the round
+    finding whose `path:line` its claim names, by the full path or by the file's name alone.
   - **The round.** `Task.round` carries `RoundRecord.findings`, each with the forge's `path`,
     `line` and `end_line`.
   - **What a person sees.** A round's own review never opens a recorded thread (S-0090/D-1,
     `reviewleg.py:1734`). The reply "Not applied — <claim>" goes on the bot's thread. A bot
-    that raises the claim again is escalated to a person (S-0121/D-29).
+    that raises the claim again is escalated to a person (S-0121/D-29). The store's
+    `review.recorded` keeps each kept finding's claim and evidence in `items`, and its
+    `blockers` count leaves out what did not block; `torve why` prints the two counts.
   - **The guide.** `skills/torve/references/review.md` says nothing about a round that rejects
     a claim.
 goals: |
   - A review round that rejects a claim with a recorded reason converges, instead of being
     blocked by the critic until the poison ceiling.
   - The critic's input does not change. The author's entries still never reach it.
-  - The review record marks each finding the engine carries for a rejection.
+  - The reply and the carry read the same rejections, of one attempt, matched by one rule.
 non_goals: |
   - Judging whether a rejection is right. The bot's re-raise and the person who merges do that.
   - Changing what reaches the critic (S-0121/D-28, S-0122/D-2).
   - Changing rejections outside review rounds. A phase's attempt has no forge claim to reject.
 design:
+  - key: one-rule
+    md: |
+      `threads.rejections(entries, attempt)` keeps the entries with `decision: unlisted` and
+      `kind: contradicted` that one attempt recorded. An entry with no `attempt` counts for
+      every attempt, because logs written before the pin carried none. Identical entries
+      count once.
+
+      `threads.names_spot(claim, spot, spots)` is `reviewleg._names` moved and tightened. A
+      claim names a spot by its full `path:line`. It names a spot by the file's name and the
+      line only when no other spot in *spots* shares that name and line. So a round holding
+      `a/runconfig.py:1350` and `b/runconfig.py:1350` matches neither by `runconfig.py:1350`.
+
+      `reply_body` reads the landing's execution record first and the root log only when no
+      landing record exists. It keeps the rejections of the landed attempt, named by the
+      record's file (`<task>-<attempt>-<instant>.yaml`), or of the root log's latest attempt.
+
+      A rejection stands only for the attempt that recorded it. The round's instructions
+      therefore ask each attempt to record again every claim it still rejects.
   - key: rejected-spots
     md: |
-      `rejected_spots(task, worktree)` returns nothing unless `task.round` is set. Otherwise it
-      reads the worktree's task log and keeps each entry with `decision: unlisted` and
-      `kind: contradicted`. Each such entry contributes:
+      `rejected_spots(task, worktree, attempt)` returns nothing unless `task.round` is set.
+      Otherwise it reads the worktree's task log through `threads.rejections` for the attempt
+      under review. Each rejection contributes:
 
-      - the span (`line` to `end_line`) of every round finding its `claim` names, matched as
-        `reply_body` matches it, through `threads.names_spot`;
-      - every `path:line` or `path:start-end` its `evidence` cites that locates in the worktree.
+      - the span (`line` to `end_line`) of every round finding `names_spot` matches in its
+        claim;
+      - when the round carries one finding and the claim names no spot, that finding's span,
+        as the reply already answers that finding's thread;
+      - every `path:line` or `path:start-end` its evidence cites that locates in the worktree.
 
       The engine reads these spots. The critic never sees them.
   - key: the-carry
@@ -83,52 +110,69 @@ design:
       `decide` takes the spots as `rejected`. Before the other rules, it carries a kept finding
       or a `violated` row when:
 
-      - its evidence cites at least one `path:line` that locates, and
-      - every cited `path:line` that locates is within `threads.WINDOW` lines of a rejected spot
-        in the same file.
+      - its evidence cites at least one `path:line`;
+      - every cited `path:line` locates in the worktree; and
+      - every one lies within `threads.WINDOW` lines of a rejected spot in the same file.
+
+      A citation that does not locate keeps the finding under the ordinary rules, because it
+      may name a separate defect. A finding with no citation is not carried this way either,
+      because nothing ties it to the claim.
 
       This applies on a first attempt and on a revision alike. It takes precedence over
       S-0125/D-1's re-raise, because that re-raise is the same disputed claim again.
 
       A carried finding is recorded with `carried: true` and `rejected: true`. A carried row is
       recorded with `blocks: false` and `rejected: true`. Neither enters `blockers` or
-      `violated`.
-
-      A finding with no located citation is not carried this way, because nothing ties it to
-      the claim.
+      `violated`, so `review.recorded` counts neither as a blocker.
   - key: the-amendment
     md: |
-      S-0122/D-1 (LOCKED) says a located finding at or above `review.blocks_at` blocks. D-1
-      contradicts it for review rounds, so the owner must amend that row before accepting this
-      document (Q-1). The proposed text appends:
-
-      > ; on a review round's attempt, a finding or `violated` row whose every located
-      > citation lies within `threads.WINDOW` lines of a claim the attempt rejected
-      > (S-0126/D-2) is recorded non-blocking, and a re-raise of that claim escalates
-      > (S-0121/D-29)
+      S-0122/D-1 (LOCKED) said a located finding at or above `review.blocks_at` blocks. D-1
+      contradicts that for review rounds. The owner approved amending it in session on
+      2026-11-08, and S-0122/A-4 does so.
 tests: |
-  - A Hypothesis property in `tests/test_critic.py` over citation lines and rejected spots: a
-    finding is carried exactly when it has at least one located citation and all of them are
-    within the window.
-  - Examples in `tests/test_critic.py`: T-0913's attempt-3 findings are carried; a finding with
-    one citation outside every rejected spot blocks; a task with no round carries nothing.
+  - `tests/test_threads.py`: `rejections` keeps one attempt's entries, counts an entry with no
+    `attempt` for every attempt, and drops duplicates; `names_spot` matches a full path, a
+    unique file name, and neither of two spots sharing a file name and line.
+  - `tests/test_reviewleg.py`: the reply reads the landed attempt's rejections from the
+    landing record even when the root log holds other entries.
+  - A Hypothesis property in `tests/test_critic.py` over citation lines and spans: a finding is
+    carried exactly when it cites at least one `path:line`, all of them locate, and all lie
+    within the window of a span.
+  - Examples in `tests/test_critic.py`, through `rejected_spots` rather than prepared spans:
+    - an evidence range citation (`path:start-end`) carries a finding inside it;
+    - a named finding with no `end_line` carries a finding near its line;
+    - a one-finding round's unnamed rejection carries a finding near that finding;
+    - T-0913's attempt-3 findings are carried;
+    - a finding with one citation outside every span blocks;
+    - a finding with one citation that does not locate blocks;
+    - an earlier attempt's rejection carries nothing on a retry;
+    - a task with no round carries nothing.
   - `tests/test_review_run.py`: `run_critic` reads the spots from the worktree log, and the
     staged critic input is unchanged.
 docs: |
   `skills/torve/references/review.md` gains a paragraph: a round may reject a claim with a
-  recorded reason; the critic's findings on it are recorded, not blocking; and a person sees
-  the claim again only if the bot raises it again.
+  recorded reason; the critic's findings on it are recorded, not blocking; each attempt records
+  again what it still rejects; and a person sees the claim again only if the bot raises it
+  again.
 out_of_scope: |
   - Posting the critic's carried finding on the forge thread. Replies are composed from records
     (S-0121/D-34), and a critic's words on a public thread would be a new channel.
+  - Printing the `rejected` marker in `torve why`. The store's `items` already keep the claim
+    and evidence of each finding that did not block; a marker in `ReviewItem` is a change to the
+    event model, for a document about reports.
 risks: |
   - **A rejection widens what the author can wave through.** An author can reject a valid claim
-    and cite a range. Only findings whose every located citation lies in that range are carried,
+    and cite a range. Only findings whose every citation locates inside that range are carried,
     and the reply puts the rejection on the bot's thread. The bot may raise it again, which
     escalates. If it does not, the person who merges reads "Not applied" on the thread.
-  - **The critic's objection is quieter.** A carried finding is only in the review record
-    (`torve why`). A round's review opens no recorded thread (S-0090/D-1), so it does not reach
-    the PR.
+  - **A different defect on the same lines is carried too.** The engine cannot tell two claims
+    about one line apart without reading the critic's words, which S-0122/D-1 forbids. The
+    window is the one S-0124/D-3 and S-0125/D-1 already use.
+  - **A revision that does not record its rejection again is blocked as before.** It then
+    escalates on the re-raise, as today.
+  - **The critic's objection is quieter.** The `rejected` marker is only in the review record on
+    the host that ran the critic. The store keeps the finding's claim and evidence, and
+    `torve why` shows it as a finding that did not block.
 alternatives:
   - option: Amend S-0121/D-28 so the critic sees the round's rejection entries
     rejected_because: >-
@@ -143,9 +187,14 @@ alternatives:
     rejected_because: >-
       T-0913's row verdict led with a command and cited `reviewleg.py:852` later, so it would
       have blocked every attempt
+  - option: Let a rejection from any earlier attempt stand until a later attempt applies the claim
+    rejected_because: >-
+      nothing records that a later attempt applied it, so a stale rejection would carry the
+      findings on a fix the revision made; `torve abort` already counts a halt against its own
+      attempt only
 questions:
   - id: Q-1
     text: >-
-      The owner amends S-0122/D-1 (LOCKED) with the text in the design section `the-amendment` before
-      accepting this document
-    status: open
+      The owner amends S-0122/D-1 (LOCKED) to admit D-1 before accepting this document
+    status: settled
+    settled_by: S-0122/A-4

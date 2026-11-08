@@ -39,7 +39,7 @@ The critic is independent of the author: it judges a diff composed before its di
 
 ### S-0122/D-1 — `LOCKED` (Judge-and-select rebuild) — implementation: partial
 
-The engine, not a model, turns a critic's findings into block or pass: a candidate is blocked when a finding that survives the location filter is at or above `review.blocks_at`, or when an owned row is `violated` with located evidence, and an `unknown` row never blocks; on a revision attempt such a finding counts only when it also locates within `threads.WINDOW` lines of a line the revision changed or of an earlier round's blocker, and every other is recorded non-blocking
+The engine, not a model, turns a critic's findings into block or pass: a candidate is blocked when a finding that survives the location filter is at or above `review.blocks_at`, or when an owned row is `violated` with located evidence, and an `unknown` row never blocks; on a revision attempt such a finding counts only when it also locates within `threads.WINDOW` lines of a line the revision changed or of an earlier round's blocker, and every other is recorded non-blocking; on a review round's attempt, a finding or `violated` row whose every cited `path:line` locates within `threads.WINDOW` lines of a claim that attempt rejected (S-0126/D-2) is recorded non-blocking, and a re-raise of the claim escalates (S-0121/D-29)
 
 - Paths: `src/torve/application/review.py` `src/torve/application/critic.py` `src/torve/gates/evidence.py`
 

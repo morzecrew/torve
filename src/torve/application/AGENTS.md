@@ -185,7 +185,7 @@ Session traces live under `.torve/traces/`, are never committed, uploaded or put
 
 ### S-0122/D-1 — `LOCKED` (Judge-and-select rebuild) — implementation: partial
 
-The engine, not a model, turns a critic's findings into block or pass: a candidate is blocked when a finding that survives the location filter is at or above `review.blocks_at`, or when an owned row is `violated` with located evidence, and an `unknown` row never blocks; on a revision attempt such a finding counts only when it also locates within `threads.WINDOW` lines of a line the revision changed or of an earlier round's blocker, and every other is recorded non-blocking
+The engine, not a model, turns a critic's findings into block or pass: a candidate is blocked when a finding that survives the location filter is at or above `review.blocks_at`, or when an owned row is `violated` with located evidence, and an `unknown` row never blocks; on a revision attempt such a finding counts only when it also locates within `threads.WINDOW` lines of a line the revision changed or of an earlier round's blocker, and every other is recorded non-blocking; on a review round's attempt, a finding or `violated` row whose every cited `path:line` locates within `threads.WINDOW` lines of a claim that attempt rejected (S-0126/D-2) is recorded non-blocking, and a re-raise of the claim escalates (S-0121/D-29)
 
 - Paths: `src/torve/application/review.py` `src/torve/application/critic.py` `src/torve/gates/evidence.py`
 
@@ -476,5 +476,29 @@ A run that escalates `poison_ceiling` after a revision attempt, one following a 
 - Paths: `src/torve/application/runner.py`
 - Consequence: a unit whose critic blocks converged but whose last revision went red on a gate is requeued from that revision's tree, not from base
 - Check: `uv run pytest -q tests/test_run_loop.py tests/test_runner.py -k ceiling_on_a_revision` (shadow; runs as `decision:S-0125/D-10`)
+
+### S-0126/D-1 — `ASSUMED` (A rejected claim is not a blocker) — implementation: none
+
+On a review round's attempt, first or revision, `decide` records as non-blocking every kept finding and every `violated` row whose evidence cites at least one `path:line`, every one of which locates in the worktree and lies within `threads.WINDOW` lines of a rejected spot in the same file; this is checked before the S-0125/D-1 rules, and the review record marks each one `rejected: true`
+
+- Paths: `src/torve/application/critic.py`
+- Consequence: a round that rejects a claim with a recorded reason converges; the critic's objection to the rejection stays in the review record, and the bot's re-raise is what brings it to a person
+- Check: `uv run pytest -q tests/test_critic.py -k rejected_claim` (shadow; runs as `decision:S-0126/D-1`)
+
+### S-0126/D-2 — `ASSUMED` (A rejected claim is not a blocker) — implementation: none
+
+The rejected spots are computed by the engine and never staged for the critic: for a task whose contract carries `round`, each rejection `threads.rejections` returns for the attempt under review from the worktree's task log gives the span of every round finding `threads.names_spot` matches in its claim, or of the round's one finding when the round carries one and the claim names none, and every `path:line` or `path:start-end` its evidence cites that locates in the worktree; a task with no round has none
+
+- Paths: `src/torve/application/critic.py`
+- Consequence: the critic's staged input is byte-for-byte what it was, and a rejection an earlier attempt recorded carries nothing on a retry
+- Check: `uv run pytest -q tests/test_critic.py tests/test_review_run.py -k rejected_spots` (shadow; runs as `decision:S-0126/D-2`)
+
+### S-0126/D-3 — `ASSUMED` (A rejected claim is not a blocker) — implementation: none
+
+The reply and the carry read rejections by one rule: `threads.rejections(entries, attempt)` keeps the `unlisted` entries with `kind: contradicted` that one attempt recorded, counting an entry with no `attempt` for every attempt and identical entries once, and `threads.names_spot` matches a claim to a round finding by its full `path:line`, or by the file's name and line only when no other finding of the round shares both; `reply_body` reads the landing's execution record before the root log and keeps the landed attempt's rejections, and the round's instructions ask each attempt to record again every claim it still rejects
+
+- Paths: `src/torve/application/threads.py` `src/torve/application/reviewleg.py`
+- Consequence: a thread reads "Not applied" exactly when the carry treated its claim as rejected, a rejection is posted once, and a basename shared by two files in one round matches neither
+- Check: `uv run pytest -q tests/test_threads.py tests/test_reviewleg.py -k "rejections or names_spot"` (shadow; runs as `decision:S-0126/D-3`)
 
 <!-- /torve:managed -->
