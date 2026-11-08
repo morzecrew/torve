@@ -29,6 +29,7 @@ from torve.application.reviewleg import (
     fence,
     mint_round,
     record_threads,
+    reply_body,
     review_thread_leg,
     review_wait_owing,
     review_wait_running,
@@ -1822,6 +1823,51 @@ def test_a_contradiction_is_read_from_the_landing_when_the_root_holds_no_log(see
     assert "Not applied — the claim does not hold, the caller checks it" in answer["body"]
     assert "Fixed in" not in answer["body"]
     assert forge.commented[0][1] == answer["body"]
+
+
+def test_rejections_read_the_landing_record_before_a_root_log_holding_other_entries(seeded):
+    """S-0126/D-3: the landing's execution record names the attempt whose
+    rejections the reply carries; a root log holding entries from another
+    attempt is not read beside it, so the landed rejection is what is posted."""
+
+    task_id = "T-0901"
+    log = layout.log_file(seeded.root, task_id)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: 2\n"
+        "    claim: the root log's latest rejection\n"
+        "    evidence: src/app.py:2 — the root log's copy\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: 1\n"
+        "    claim: an older root entry\n"
+        "    evidence: src/app.py:1 — an older copy\n",
+        encoding="utf-8",
+    )
+    seeded.write(
+        f".torve/specs/S-0084/execution/{task_id}-1-20260919T000000Z.yaml",
+        "task: " + task_id + "\n"
+        "at: '2026-09-19T00:00:00Z'\n"
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    grade: UNLISTED\n"
+        "    kind: contradicted\n"
+        "    at: '2026-09-19T00:00:00Z'\n"
+        "    attempt: 1\n"
+        "    claim: the landed attempt's rejection\n"
+        "    evidence: src/app.py:12 — the landed evidence\n"
+        "    action: decided\n",
+    )
+    seeded.commit(f"torve({task_id}): landing of attempt 1")
+
+    body = reply_body(seeded.root, landing((task_id, head(seeded.root))), task_id)
+
+    assert "Not applied — the landed attempt's rejection" in body
+    assert "the root log's latest rejection" not in body
+    assert "an older root entry" not in body
 
 
 def test_a_round_of_several_recorded_findings_is_answered_with_one_comment(seeded):

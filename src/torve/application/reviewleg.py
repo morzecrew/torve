@@ -53,6 +53,8 @@ from torve.application.threads import (
     ThreadVerdict,
     TriageDocument,
     group_findings,
+    names_spot,
+    rejections,
 )
 from torve.base import naming
 from torve.config import layout
@@ -83,7 +85,9 @@ INSTRUCTIONS = (
     "with `--kind contradicted`, whose claim and evidence are what the reviewer\n"
     "will be shown. Begin the claim with the rejected claim's `path:line` as it\n"
     "is written below, so the reply reaches that claim's thread alone. A\n"
-    "rejection with no entry behind it is an unanswered thread."
+    "rejection stands only for the attempt that recorded it: on every attempt,\n"
+    "record again every claim it still rejects. A rejection with no entry behind\n"
+    "it is an unanswered thread."
 )
 
 # How many fresh nonces a composition tries before it gives up. A collision is
@@ -1948,18 +1952,21 @@ def _landing_sha(landed: Callable[[str], str | None], task_id: str) -> str:
 # ....................... #
 
 
-def _landed_entries(root: Path, landed: Callable[[str], str | None], task_id: str) -> list[Any]:
-    """The round's log entries as its landing carried them: the execution
-    record the landing commit wrote under the document's `execution/`. A
-    repository that keeps its contracts on the record has no root log for a
-    round at all (bloomery ignores `.torve/tasks/`), and the worktree is gone
-    by the time the answer is composed — the landing is where the entries
-    survive."""
+def _landing_record(
+    root: Path, landed: Callable[[str], str | None], task_id: str
+) -> tuple[list[Any], int] | None:
+    """The round's execution record as its landing carried it, with the
+    attempt its file name holds (S-0126/D-3): the record the landing commit
+    wrote under the document's `execution/`, named
+    `<task>-<attempt>-<instant>.yaml`. A repository that keeps its contracts
+    on the record has no root log for a round at all (bloomery ignores
+    `.torve/tasks/`), and the worktree is gone by the time the answer is
+    composed — the landing is where the entries survive."""
 
     sha = _landing_sha(landed, task_id)
 
     if not sha:
-        return []
+        return None
 
     listing = subprocess.run(
         ["git", "-C", str(root), "show", "--pretty=format:", "--name-only", sha],
@@ -1968,10 +1975,20 @@ def _landed_entries(root: Path, landed: Callable[[str], str | None], task_id: st
         errors="replace",
         check=False,
     )
-    marker = f"/execution/{task_id}-"
+    prefix = f"{task_id}-"
 
     for line in listing.stdout.splitlines():
-        if marker not in line:
+        if "/execution/" not in line:
+            continue
+
+        name = Path(line.strip()).name
+
+        if not name.startswith(prefix):
+            continue
+
+        named = re.match(r"^(\d+)-.+\.yaml$", name[len(prefix) :])
+
+        if named is None:
             continue
 
         shown = subprocess.run(
@@ -1985,56 +2002,56 @@ def _landed_entries(root: Path, landed: Callable[[str], str | None], task_id: st
         try:
             record = yaml.safe_load(shown.stdout)
         except yaml.YAMLError:
-            return []
+            return None
 
         entries = record.get("entries") if isinstance(record, dict) else None
 
-        return list(entries) if isinstance(entries, list) else []
+        return (list(entries) if isinstance(entries, list) else []), int(named.group(1))
 
-    return []
+    return None
+
+
+def _latest_attempt(entries: Sequence[Any]) -> int:
+    """The attempt the root log's last entry recorded; 1 when none did."""
+
+    attempts = [
+        int(entry["attempt"])
+        for entry in entries
+        if isinstance(entry, dict) and entry.get("attempt") is not None
+    ]
+
+    return max(attempts) if attempts else 1
 
 
 def _rejections(
     root: Path, landed: Callable[[str], str | None], task_id: str
 ) -> list[tuple[str, str]]:
-    """What the round's attempt said about the claims it did not apply
-    (S-0084/D-13): the divergence entries under `unlisted` it recorded as
-    contradicted, as their own checked `claim` and `evidence`, each beside the
-    claim it answers. Prose an agent wrote for a reviewer never appears here,
-    because no such field exists. Read from the root log, and from the
-    landing's execution record when the root holds none."""
+    """What the round's landed attempt said about the claims it did not apply
+    (S-0084/D-13, S-0126/D-3): the divergence entries under `unlisted` it
+    recorded as contradicted, as their own checked `claim` and `evidence`,
+    each beside the claim it answers. Prose an agent wrote for a reviewer never
+    appears here, because no such field exists. The landing's execution record
+    is read before the root log, and the attempt it names keeps its own
+    rejections; only when no landing record exists does the root log's latest
+    attempt answer."""
 
     from torve.application.divergence import open_log
 
+    landed_record = _landing_record(root, landed, task_id)
+
+    if landed_record is not None:
+        entries, attempt = landed_record
+    else:
+        entries = open_log(root, task_id).get("entries") or []
+        attempt = _latest_attempt(entries)
+
     reasons: list[tuple[str, str]] = []
-    entries = open_log(root, task_id).get("entries", []) or _landed_entries(root, landed, task_id)
 
-    for entry in entries:
-        if not isinstance(entry, dict):
-            continue
-
-        if entry.get("decision") != "unlisted" or entry.get("kind") != "contradicted":
-            continue
-
+    for entry in rejections(entries, attempt):
         claim = str(entry.get("claim", ""))
         reasons.append((claim, f"Not applied — {claim}\n\nEvidence: {entry.get('evidence', '')}"))
 
     return reasons
-
-
-def _names(claim: str, spot: tuple[Any, Any]) -> bool:
-    """Whether *claim* names the finding at *spot* as the round's fence wrote
-    it, `path:line`, or by the file's own name and the line."""
-
-    path, line = spot
-
-    if not path or line is None:
-        return False
-
-    return any(
-        re.search(rf"(?<![\w/.-]){re.escape(name)}:{line}(?!\d)", claim)
-        for name in {str(path), Path(str(path)).name}
-    )
 
 
 # ....................... #
@@ -2062,7 +2079,7 @@ def reply_body(
     reasons = []
 
     for claim, reason in _rejections(root, landed, task_id):
-        named = [one for one in spots if _names(claim, one)]
+        named = [one for one in spots if names_spot(claim, one, spots)]
 
         if spot is None or not named or spot in named:
             reasons.append(reason)

@@ -15,9 +15,11 @@ span it covers beside the threads it carries says which way it went.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import re
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from typing import Literal
+from pathlib import Path
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -108,6 +110,73 @@ def group_findings(threads: Sequence[ReviewThread]) -> list[Finding]:
         ]
 
     return findings
+
+
+# ....................... #
+# S-0126/D-3: one rule for what an attempt rejected, read by both the reply
+# and the carry.
+
+
+def rejections(entries: Sequence[Any], attempt: int) -> list[dict[str, Any]]:
+    """The rejections one attempt recorded (S-0084/D-13, S-0126/D-3): the
+    entries under `unlisted` with `kind: contradicted` whose `attempt` is
+    *attempt*. An entry carrying no `attempt` counts for every attempt,
+    because logs written before the pin carried none; identical rejections
+    count once, so a claim recorded again on a retry is posted once."""
+
+    kept: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+
+        if entry.get("decision") != "unlisted" or entry.get("kind") != "contradicted":
+            continue
+
+        recorded = entry.get("attempt")
+
+        if recorded is not None and int(recorded) != attempt:
+            continue
+
+        claim = str(entry.get("claim", ""))
+        key = (claim, str(entry.get("evidence", "")))
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        kept.append(entry)
+
+    return kept
+
+
+def names_spot(claim: str, spot: tuple[Any, Any], spots: Collection[tuple[Any, Any]]) -> bool:
+    """Whether *claim* names the finding at *spot* (S-0126/D-3): by its full
+    `path:line`, or by the file's own name and the line only when no other
+    spot in *spots* shares both. A basename two files of one round share
+    names neither, because no reply can tell which thread it answers."""
+
+    path, line = spot
+
+    if not path or line is None:
+        return False
+
+    if re.search(rf"(?<![\w/.-]){re.escape(str(path))}:{line}(?!\d)", claim):
+        return True
+
+    name = Path(str(path)).name
+    shared = any(
+        (other_path, other_line) != (path, line)
+        and Path(str(other_path)).name == name
+        and other_line == line
+        for other_path, other_line in spots
+    )
+
+    if shared:
+        return False
+
+    return bool(re.search(rf"(?<![\w/.-]){re.escape(name)}:{line}(?!\d)", claim))
 
 
 # ....................... #
