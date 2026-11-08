@@ -81,6 +81,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   launcher installs it.
   `night.closed` records `engine_moved`. A paused chain reads the move too.
 
+- A bot finding on a file the document's branch changed now gets a review round. The thread
+  leg used to refuse it as outside the document's phasing scope and leave it unanswered.
+
+- `torve reap --escalated` no longer sweeps a ready task the lane has still to land when its
+  contract is kept in its worktree rather than in the checkout. That task's landing used to
+  be lost.
+
+- A chained night now plans a phase that an amendment adds to an accepted document whose
+  other phases were already planned. Only documents never planned used to be planned.
+
+- A task that spends its unit cost cap now keeps the attempt's work and continues from it
+  when it is requeued. The work used to be left uncommitted and the task started over.
+
+- A review round that fixes some findings and rejects another now answers each thread on its
+  own: "Fixed in" on the fixed ones and the rejection on the rejected one. Every thread of the
+  round used to receive the rejection.
+
 ## [0.9.1] - 2026-11-06
 
 ### Changed
