@@ -927,6 +927,38 @@ def test_requeue_clears_an_active_state_with_no_live_run(tmp_path, active_state)
     assert _checkpointed_for_resume(tmp_path, SimpleNamespace(id=task_id))
 
 
+def test_the_live_runs_a_requeue_reads_span_every_page(monkeypatch):
+    """S-0121/D-19: the listing is keyset-paged, and a live run past its
+    first page is still live; a requeue that read one page would clear the
+    worktree of a run it could not see."""
+    import asyncio
+    from types import SimpleNamespace
+
+    import torve.application.taskstore as taskstore
+    from torve.adapters.store.durable import open_mock_store
+    from torve.config.runconfig import StoreConfig
+
+    runs = [SimpleNamespace(run_id=f"run-{number}") for number in range(450)]
+    cursors: list[str | None] = []
+
+    class Admin:
+        async def list_runs(self, *, status, limit, cursor=None):
+            cursors.append(cursor)
+            start = int(cursor or 0)
+            end = start + limit
+            return SimpleNamespace(
+                records=runs[start:end], next_cursor=str(end) if end < len(runs) else None
+            )
+
+    monkeypatch.setattr(taskstore, "resolve_durable_run_admin", lambda _ctx: Admin())
+    store = taskstore.TaskStore(open_mock_store(), StoreConfig())
+
+    live = asyncio.run(store.live_records())
+
+    assert [record.run_id for record in live] == [run.run_id for run in runs]
+    assert cursors == [None, "200", "400"]
+
+
 def test_requeue_clears_leaves_a_live_active_run_alone(tmp_path):
     """S-0125/D-5: a fresh heartbeat is a live engine run holding the task —
     the requeue is not the one that clears it."""
@@ -989,6 +1021,48 @@ def test_requeue_refuses_a_detached_worktree_it_cannot_checkpoint(tmp_path):
     state = state_at(tmp_path, "T-9824", TaskState.RUNNING, age_s=3600)
 
     assert clear_escalated(tmp_path, MockRuntime(), GitWorkspace(tmp_path), "T-9824") is False
+    assert (worktree / "work.py").read_text(encoding="utf-8") == "keep\n"
+    assert state.path.exists()
+
+
+def test_requeue_refuses_a_detached_worktree_holding_an_unreferenced_commit(tmp_path):
+    """S-0125/D-5: a detached worktree can be clean and still hold the only
+    copy of a commit `checkpoint` cannot put on its branch; the cleanup
+    refuses rather than leave that work nameless."""
+
+    from torve.application.reaper import clear_escalated
+
+    git = _seeded(tmp_path)
+    git("branch", "torve/T-9826")
+    worktree = naming.worktree(tmp_path, "T-9826")
+    git("worktree", "add", "--detach", str(worktree), "main")
+    (worktree / "work.py").write_text("keep\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(worktree), "add", "-A"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(worktree),
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-q",
+            "--no-gpg-sign",
+            "-m",
+            "the work",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    state = state_at(tmp_path, "T-9826", TaskState.RUNNING, age_s=3600)
+
+    assert clear_escalated(tmp_path, MockRuntime(), GitWorkspace(tmp_path), "T-9826") is False
     assert (worktree / "work.py").read_text(encoding="utf-8") == "keep\n"
     assert state.path.exists()
 

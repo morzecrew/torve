@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import re
 import warnings
+from contextlib import suppress
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlsplit
@@ -1347,7 +1348,8 @@ class ThreadsConfig(BaseModel):
     findings_per_round: int = 5
     """How many findings one round carries (S-0097/D-5, S-0125/D-3). A head's findings
     are minted together as rounds of at most this many, grouped by file so no two
-    rounds of one wave share a file; `rounds_per_pass` still bounds what a pass mints.
+    rounds of one wave share a file; a file carrying more findings than this is one
+    round of its own rather than split. `rounds_per_pass` still bounds what a pass mints.
     The cap applies whether triage ran on the head or not. The default is 5 (S-0125/D-3);
     an operator who wants a larger round sets it explicitly."""
     review_wait: int = 45
@@ -1617,7 +1619,18 @@ def merge_records(tiers: dict[str, Any], records: dict[str, Provider]) -> None:
 
             # S-0125/D-8: a seat may hand its harness a smaller window than the
             # model's, so the roster supplies one only where the seat states none.
-            if not entry.get("context_window"):
+            # A quoted number states the same window as an unquoted one; read it
+            # as a number before the falsy test, so `"0"` is the unstated zero it
+            # is rather than a truthy string that bypasses the roster.
+            window = entry.get("context_window")
+
+            if isinstance(window, str):
+                # Not a number stays a truthy string: the model's validation
+                # refuses it by name, so the roster never hides the mistake.
+                with suppress(ValueError):
+                    window = int(window)
+
+            if not window:
                 entry["context_window"] = model.context_window
 
             entry["max_tokens"] = model.max_tokens

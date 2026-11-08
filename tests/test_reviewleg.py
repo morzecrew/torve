@@ -510,6 +510,48 @@ def test_round_excerpt_is_absent_for_a_file_the_document_branch_does_not_hold(se
     assert "main 20" not in round_.intent
 
 
+def test_a_wave_reads_every_excerpt_from_one_commit(seeded, monkeypatch):
+    """S-0125/D-7: a fetch that moves the document branch between two of a
+    wave's excerpts must not make one round carry lines from two commits; the
+    commit is resolved once for the whole wave."""
+
+    import torve.application.reviewleg as reviewleg
+    from torve.application.reviewleg import compose_wave
+
+    seeded.git("checkout", "-q", "-B", BRANCH)
+
+    for word in ("first", "second"):
+        for name in ("app", "lib"):
+            text = "\n".join(f"{word} {number}" for number in range(1, 41)) + "\n"
+            seeded.write(f"src/{name}.py", text)
+
+        seeded.commit(word)
+
+        if word == "first":
+            seeded.git("update-ref", f"refs/remotes/origin/{BRANCH}", BRANCH)
+
+    seeded.git("checkout", "-q", "main")
+    excerpt = reviewleg._excerpt
+
+    def fetched_between(*args: Any) -> str:
+        text = excerpt(*args)
+        # The fetch lands after the first excerpt is read.
+        seeded.git("update-ref", f"refs/remotes/origin/{BRANCH}", BRANCH)
+        return text
+
+    monkeypatch.setattr(reviewleg, "_excerpt", fetched_between)
+    findings = group_findings(
+        [thread("t1", path="src/app.py", line=20), thread("t2", path="src/lib.py", line=20)]
+    )
+
+    round_ = compose_wave(
+        seeded.root, BRANCH, pr(), [Claim(finding) for finding in findings], acceptance=["true"]
+    )
+
+    assert round_.intent.count(f"{20:>4} | first 20") == 2
+    assert "second 20" not in round_.intent
+
+
 def test_round_excerpt_withholds_base_lines_carrying_the_fence_marker(seeded):
     """S-0125/D-7: base code that names the fence marker is the tree's, not a
     thread's — the round still composes, with the excerpt withheld."""

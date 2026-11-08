@@ -449,7 +449,13 @@ def _uncommitted(root: Path, task_id: str) -> bool:
     branch; `checkpoint` refuses it because it cannot update the branch from
     a checkout it does not hold. The cleanup must not delete what it could
     not keep (S-0125/D-5). A `git status` that cannot run reads as work to
-    keep: the safe answer is to leave the tree for a person."""
+    keep: the safe answer is to leave the tree for a person.
+
+    A clean `git status` is not enough on its own: an agent in a detached
+    worktree can commit locally, leaving HEAD clean but on a commit no ref
+    reaches. `checkpoint` cannot put that commit on the branch either, so
+    removing the worktree would leave the work nameless — the same keep as
+    for an uncommitted change."""
 
     path = naming.worktree(root, task_id)
 
@@ -463,7 +469,20 @@ def _uncommitted(root: Path, task_id: str) -> bool:
         check=False,
     )
 
-    return proc.returncode != 0 or bool(proc.stdout.strip())
+    if proc.returncode != 0 or bool(proc.stdout.strip()):
+        return True
+
+    # `--contains` with no object reads the worktree's own HEAD: a detached
+    # commit no branch or remote ref holds is exactly the work status cannot
+    # see. A ref listing that cannot run is work to keep, as above.
+    held = subprocess.run(
+        ["git", *NO_HOOKS, "-C", str(path), "for-each-ref", "--count=1", "--contains"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    return held.returncode != 0 or not held.stdout.strip()
 
 
 def _live_run_ids(store: StoreFactory, config: RunnerConfig) -> set[str]:

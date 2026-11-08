@@ -742,6 +742,32 @@ def test_an_absent_or_zero_context_window_takes_the_rosters(tmp_path: Path):
     assert loaded("") == 1_000_000
 
 
+def test_a_quoted_zero_context_window_takes_the_rosters(tmp_path: Path):
+    """S-0125/D-8: a seat states no window as `0`, quoted or not; a quoted
+    zero must not pass the roster merge as a truthy string and reach the
+    harness as nothing."""
+
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(
+        root,
+        "acme",
+        "key_env: ACME_KEY\n"
+        "routes: {openai: {base_url: https://acme.test/v1}}\n"
+        "models: {fast: {context_window: 1000000}}\n",
+    )
+    harness(root, "dialled", "adapter: api\nimage: probe-sandbox\napi: [openai]\n")
+
+    config = load(
+        tmp_path,
+        "schema_version: 1\ntiers:\n"
+        "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+        '  executor: {harness: dialled, provider: acme, model: fast, context_window: "0"}\n',
+    )
+
+    assert config.tiers["executor"].context_window == 1_000_000
+
+
 def test_a_negative_context_window_is_refused_at_load(tmp_path: Path):
     """S-0125/D-8: the window is the seat's to narrow, never to invert — a
     negative value would reach the harness as TORVE_CONTEXT_WINDOW."""

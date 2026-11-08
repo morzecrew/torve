@@ -274,24 +274,37 @@ def thread_text(thread: ReviewThread) -> str:
 # ....................... #
 
 
-def _base_text(root: Path, branch: str, path: str) -> str | None:
-    """*path* as the tree the round is cut from holds it: the remote's copy of
-    the document branch, as `runner` cuts a document task from it, else the
-    local branch; the checkout only when neither ref exists. None when that
-    tree does not hold the file."""
+def _base_commit(root: Path, branch: str) -> str | None:
+    """The commit the round is cut from: the remote's copy of the document
+    branch, as `runner` cuts a document task from it, else the local branch;
+    None when neither ref exists and the checkout is the only tree.
+
+    Resolved once per wave, not once per finding: the refs are mutable, and a
+    fetch that lands between two excerpts must not make one round carry lines
+    from two different commits."""
 
     for ref in (f"refs/remotes/origin/{branch}", f"refs/heads/{branch}"):
         probe = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
             capture_output=True,
+            text=True,
             check=False,
         )
 
-        if probe.returncode != 0:
-            continue
+        if probe.returncode == 0:
+            return probe.stdout.strip()
 
+    return None
+
+
+def _base_text(root: Path, commit: str | None, path: str) -> str | None:
+    """*path* as the tree at *commit* holds it; the checkout only when the
+    branch has no ref at all (None). None when that tree does not hold the
+    file."""
+
+    if commit is not None:
         proc = subprocess.run(
-            ["git", "-C", str(root), "show", f"{ref}:{path}"],
+            ["git", "-C", str(root), "show", f"{commit}:{path}"],
             capture_output=True,
             encoding="utf-8",
             errors="replace",
@@ -313,21 +326,21 @@ def _base_text(root: Path, branch: str, path: str) -> str | None:
         return None
 
 
-def _excerpt(root: Path, branch: str, finding: Finding) -> str:
+def _excerpt(root: Path, commit: str | None, finding: Finding) -> str:
     """The base tree's numbered lines from `WINDOW` above to `WINDOW` below the
     finding's anchor (S-0125/D-7), or "" when the finding has no anchor or its
     file is absent from the base tree.
 
-    The base tree is the one the round is cut from (`_base_text`) — never the
-    pull request's head, where a line the reviewer saw may no longer be the
-    line the base tree holds. Lines that carry the fence marker are the
+    The base tree is the one the round is cut from (`_base_commit`) — never
+    the pull request's head, where a line the reviewer saw may no longer be
+    the line the base tree holds. Lines that carry the fence marker are the
     tree's own code, not a thread's: the excerpt is withheld rather than the
     round refused in the thread's name."""
 
     if finding.line is None:
         return ""
 
-    text = _base_text(root, branch, finding.path)
+    text = _base_text(root, commit, finding.path)
 
     if text is None:
         return ""
@@ -706,11 +719,12 @@ def _wave_body(
     evidence for each of those threads when the head was triaged."""
 
     parts: list[str] = []
+    commit = _base_commit(root, branch)
 
     for claim in claims:
         finding = claim.finding
         parts += [thread_text(collapsed(thread)) for thread in finding.threads]
-        excerpt = _excerpt(root, branch, finding)
+        excerpt = _excerpt(root, commit, finding)
 
         if excerpt:
             parts.append(excerpt)
