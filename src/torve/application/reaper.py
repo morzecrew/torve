@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING
 
 from torve.application.ports import JUDGE_SUFFIX, Runtime, StoreFactory, WorkspacePort
 from torve.application.runstate import RunState
+from torve.application.selection import UNIT_BUDGET_MARKER
 from torve.base import naming
 from torve.config.runconfig import RunnerConfig
 from torve.gates.context import NO_HOOKS
@@ -426,8 +427,8 @@ STOPPED = (str(EscalationReason.KILLED), str(EscalationReason.LEASE_EXPIRED))
 
 def _stopped_run(state: RunState) -> bool:
     """Whether this run's tree is unfinished work a requeue must keep: an
-    active state, a stop reason, or a stop recorded before a durable timeout
-    restated it `budget_exhausted` (S-0125/D-6)."""
+    active state, a stop reason, a spent unit cap, or a stop recorded before
+    a durable timeout restated it `budget_exhausted` (S-0125/D-6)."""
 
     if state.state in ACTIVE:
         return True
@@ -440,6 +441,13 @@ def _stopped_run(state: RunState) -> bool:
         # `killed` or escaped before one: the body was cancelled mid-attempt,
         # so its tree never reached a checkpoint.
         if state.escalation.detail.startswith("durable run timed out"):
+            return True
+
+        # A spent unit cap, which an engine before the cap's own checkpoint
+        # left uncommitted (T-0904, 2026-11-08).
+        if state.escalation.reason == str(
+            EscalationReason.BUDGET_EXHAUSTED
+        ) and state.escalation.detail.startswith(UNIT_BUDGET_MARKER):
             return True
 
     # A restatement keeps the transition into ESCALATED, which is where a
@@ -547,7 +555,8 @@ def clear_escalated(
     A run that stopped mid-attempt (KILLED, LEASE_EXPIRED, a durable
     timeout, or an active file with no live run behind it) never reached the
     checkpoint a blocker or a clock commits, so its work is committed on the
-    branch first, under STOPPED_MARKER, and the next dispatch resumes it. A
+    branch first, under STOPPED_MARKER, and the next dispatch resumes it. So is a spent unit cap's
+    uncommitted tree; one the runner already checkpointed leaves nothing. A
     detached worktree cannot be committed on its branch; when it still holds
     uncommitted work the cleanup refuses instead of deleting it."""
 
