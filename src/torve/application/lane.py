@@ -2586,6 +2586,8 @@ def _publish_held(
     )
 
     if _status_at(status, remote, REBASE_CONTEXT) == ("failure", held):
+        # Reported already; a carried task back at READY is escalated again.
+        _escalate_document(root, branch, tasks, detail)
         results.append(LaneResult(document, branch, "conflict", detail, held))
         return
 
