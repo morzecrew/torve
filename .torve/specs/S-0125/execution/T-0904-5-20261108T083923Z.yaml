@@ -1,0 +1,187 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0904
+attempt: 5
+base: da937c12a31ebaa5b2561c6ed2b8d5a81f190a73
+commit: 77a3254802a5ccdbc7428cff9e6e7fb4ea19fdb5
+at: '2026-11-08T08:39:23Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: OPEN
+  - id: D-10
+    grade: ASSUMED
+  - id: S-0121/D-1
+    grade: LOCKED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-19
+    grade: LOCKED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-28
+    grade: LOCKED
+  - id: S-0121/D-40
+    grade: ASSUMED
+  - id: S-0122/D-1
+    grade: LOCKED
+  - id: S-0122/D-2
+    grade: LOCKED
+  - id: S-0122/D-6
+    grade: ASSUMED
+  - id: S-0122/D-15
+    grade: ASSUMED
+  - id: S-0122/D-18
+    grade: ASSUMED
+  - id: S-0122/D-19
+    grade: ASSUMED
+  - id: S-0122/D-20
+    grade: ASSUMED
+  - id: S-0123/D-4
+    grade: ASSUMED
+  - id: S-0124/D-2
+    grade: ASSUMED
+  - id: S-0124/D-3
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-08T08:16:14Z'
+    attempt: 4
+    claim: >-
+      Map historical blocker anchors before matching them: a revision that inserts
+      more than threads.WINDOW lines above an unresolved blocker can be carried instead
+      of re-raised.
+    evidence: >-
+      src/torve/application/review.py:1895 — revision_for hands decide every earlier
+      round anchored to the current tree through _mapped_rounds, so a blocker moved
+      by an insertion still matches at src/torve/application/critic.py:371.
+    action: departed
+    proposal: >-
+      No change: the anchors are already mapped from each round judged head before
+      decide matches them.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-08T08:16:14Z'
+    attempt: 4
+    claim: >-
+      Protect live durable runs before cleanup: a requeue can destroy a live attempt
+      sandbox, worktree and state file while its durable lease remains live.
+    evidence: >-
+      src/torve/application/reaper.py:547 — clear_escalated returns before any teardown
+      when the state durable run is in the live set, and src/torve/cli/manager.py:2192
+      passes the store live runs on an operator requeue.
+    action: departed
+    proposal: >-
+      No change: cleanup already consults durable ownership before touching a run
+      footprint.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-08T08:16:14Z'
+    attempt: 4
+    claim: >-
+      Preserve detached worktrees before removing them: a stale active run detached
+      worktree with uncommitted changes is removed even though checkpoint returns
+      False.
+    evidence: >-
+      src/torve/application/reaper.py:565 — a stopped run whose checkpoint was not
+      written and whose worktree still holds uncommitted work returns False before
+      removal; _uncommitted reads git status at reaper.py:445.
+    action: departed
+    proposal: >-
+      No change: cleanup already refuses to delete a tree it could not checkpoint.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-08T08:16:14Z'
+    attempt: 4
+    claim: >-
+      Exclude hunk context from revision changed lines: three context lines let a
+      finding outside threads.WINDOW of the edit block.
+    evidence: >-
+      src/torve/application/review.py:519 — _changed_lines records only the hunk added
+      lines and the positions deletions leave, so context lines are not changed and
+      a finding away from the edit is carried.
+    action: departed
+    proposal: >-
+      No change: revision changed lines already exclude hunk context.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-08T08:16:14Z'
+    attempt: 4
+    claim: >-
+      Parse blocker claims without splitting inside JSON strings: a claim containing
+      a blockers marker can lose the claims and put JSON in the judged head.
+    evidence: >-
+      src/torve/application/review.py:1718 — _marker_json decodes each marker payload
+      as one complete JSON value and requires the engine follower, so a claim carrying
+      the marker text no longer splits the parse.
+    action: departed
+    proposal: >-
+      No change: blocker claims are already parsed as complete JSON values.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-08T08:16:14Z'
+    attempt: 4
+    claim: >-
+      Keep reviewable .torve changes in the revision diff: a revision change to .torve/gates.yaml
+      can be carried as unrelated and pass.
+    evidence: >-
+      src/torve/application/review.py:1919 — _revision_diff excludes only REVISION_BOOKKEEPING
+      engine files, leaving .torve/gates.yaml and other reviewable .torve paths in
+      revision.diff.
+    action: departed
+    proposal: >-
+      No change: revision.diff already excludes only engine bookkeeping.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-08T08:16:14Z'
+    attempt: 4
+    claim: >-
+      Normalize paths before checking for repeated blockers: src/app.py:12 versus
+      ./src/app.py:12 makes the critic re-raise while the escalation check and the
+      session continuation guard miss.
+    evidence: >-
+      src/torve/application/review.py:1649 — _finding_anchor normalises the cited
+      path, _anchor_reraised at review.py:1995 normalises the recorded path, and runner.py:1908
+      maps the session continuation guard anchors.
+    action: departed
+    proposal: >-
+      No change: both checks already normalise the cited and recorded paths.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-08T08:16:14Z'
+    attempt: 4
+    claim: >-
+      Preserve interrupted work before requeue cleanup: the timeout restatement removes
+      KILLED, so requeue force-removes the worktree without checkpointing.
+    evidence: >-
+      src/torve/application/reaper.py:428 — _stopped_run recognises the worker restated
+      durable run timed out escalation at worker.py:246, so cleanup checkpoints the
+      tree before removal.
+    action: departed
+    proposal: >-
+      No change: the durable timeout restatement is already read as stopped work before
+      cleanup.
