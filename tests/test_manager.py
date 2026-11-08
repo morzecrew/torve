@@ -2040,6 +2040,82 @@ def test_the_sweep_mints_a_document_whose_after_target_has_a_higher_number(tmp_p
     run(scenario)
 
 
+_TWO_PHASES = [
+    {"phase": 1, "title": "work", "intent": "Do it.", "scope": ["src/0100/**"]},
+    {
+        "phase": 2,
+        "title": "more",
+        "intent": "Do more.",
+        "scope": ["src/0100b/**"],
+        "depends_on": [1],
+    },
+]
+
+
+def test_the_sweep_mints_a_phase_an_amendment_added_to_a_planned_document(tmp_path):
+    """A planned document that gains a phase on the base has that phase, and
+    only that phase, minted by the next sweep, as `torve plan --phase` mints it:
+    T-0895's phase waited for a hand mint. A sweep after it, every phase
+    covered, mints nothing."""
+
+    from torve.application.manager import project
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    specs = repo.root / ".torve" / "specs"
+    _chain_document(specs, "0100", "Amended")
+    _publish(repo)
+
+    async def sweep(log):
+        await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+        )
+        return project(await log.since(partition=PARTITION))
+
+    async def scenario(log):
+        assert sorted((await sweep(log)).tasks) == ["T-0001"]
+
+        _chain_document(specs, "0100", "Amended", phasing=_TWO_PHASES)
+        _publish(repo)
+        board = await sweep(log)
+
+        assert sorted(board.tasks) == ["T-0001", "T-0002"]
+        assert board.tasks["T-0002"].contract.phase == 2
+        assert board.tasks["T-0002"].contract.depends_on == ["T-0001"]
+        assert sorted((await sweep(log)).tasks) == ["T-0001", "T-0002"]
+
+    run(scenario)
+
+
+def test_the_sweep_mints_no_added_phase_of_a_complete_document(tmp_path):
+    """A document marked complete has landed: a phase its phasing names
+    without a task is not work the sweep offers."""
+
+    from torve.application.manager import project
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    specs = repo.root / ".torve" / "specs"
+    _chain_document(specs, "0100", "Landed")
+    _publish(repo)
+
+    async def scenario(log):
+        await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+        )
+        _chain_document(specs, "0100", "Landed", phasing=_TWO_PHASES, implementation="complete")
+        _publish(repo)
+        await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=RunnerConfig(), worker="w-1"
+        )
+
+        assert sorted(project(await log.since(partition=PARTITION)).tasks) == ["T-0001"]
+
+    run(scenario)
+
+
 def test_the_sweep_records_a_refusal_once_per_base_commit(tmp_path):
     """S-0117/D-7: a document the sweep cannot plan is named on the engine
     stream once for the base it was refused on, not once per idle pass."""
