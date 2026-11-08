@@ -81,7 +81,9 @@ INSTRUCTIONS = (
     "scope this contract allows. Where a claim does not hold, change nothing and\n"
     "record why: one divergence entry per rejected claim, `--decision unlisted`\n"
     "with `--kind contradicted`, whose claim and evidence are what the reviewer\n"
-    "will be shown. A rejection with no entry behind it is an unanswered thread."
+    "will be shown. Begin the claim with the rejected claim's `path:line` as it\n"
+    "is written below, so the reply reaches that claim's thread alone. A\n"
+    "rejection with no entry behind it is an unanswered thread."
 )
 
 # How many fresh nonces a composition tries before it gives up. A collision is
@@ -1992,17 +1994,19 @@ def _landed_entries(root: Path, landed: Callable[[str], str | None], task_id: st
     return []
 
 
-def _rejections(root: Path, landed: Callable[[str], str | None], task_id: str) -> list[str]:
+def _rejections(
+    root: Path, landed: Callable[[str], str | None], task_id: str
+) -> list[tuple[str, str]]:
     """What the round's attempt said about the claims it did not apply
     (S-0084/D-13): the divergence entries under `unlisted` it recorded as
-    contradicted, as their own checked `claim` and `evidence`. Prose an agent
-    wrote for a reviewer never appears here, because no such field exists.
-    Read from the root log, and from the landing's execution record when the
-    root holds none."""
+    contradicted, as their own checked `claim` and `evidence`, each beside the
+    claim it answers. Prose an agent wrote for a reviewer never appears here,
+    because no such field exists. Read from the root log, and from the
+    landing's execution record when the root holds none."""
 
     from torve.application.divergence import open_log
 
-    reasons: list[str] = []
+    reasons: list[tuple[str, str]] = []
     entries = open_log(root, task_id).get("entries", []) or _landed_entries(root, landed, task_id)
 
     for entry in entries:
@@ -2012,24 +2016,56 @@ def _rejections(root: Path, landed: Callable[[str], str | None], task_id: str) -
         if entry.get("decision") != "unlisted" or entry.get("kind") != "contradicted":
             continue
 
-        reasons.append(
-            f"Not applied — {entry.get('claim', '')}\n\nEvidence: {entry.get('evidence', '')}"
-        )
+        claim = str(entry.get("claim", ""))
+        reasons.append((claim, f"Not applied — {claim}\n\nEvidence: {entry.get('evidence', '')}"))
 
     return reasons
+
+
+def _names(claim: str, spot: tuple[Any, Any]) -> bool:
+    """Whether *claim* names the finding at *spot* as the round's fence wrote
+    it, `path:line`, or by the file's own name and the line."""
+
+    path, line = spot
+
+    if not path or line is None:
+        return False
+
+    return any(
+        re.search(rf"(?<![\w/.-]){re.escape(name)}:{line}(?!\d)", claim)
+        for name in {str(path), Path(str(path)).name}
+    )
 
 
 # ....................... #
 
 
-def reply_body(root: Path, landed: Callable[[str], str | None], task_id: str) -> str:
+def reply_body(
+    root: Path,
+    landed: Callable[[str], str | None],
+    task_id: str,
+    spot: tuple[Any, Any] | None = None,
+    spots: Collection[tuple[Any, Any]] = (),
+) -> str:
     """The reply a landed round earns, or "" when the record supports neither
     half of what a reply may say (S-0084/D-12): the commit the fix landed in,
-    or the reason the finding was not applied."""
+    or the reason the finding was not applied.
+
+    With *spot* it is one thread's reply in a round of the findings at *spots*
+    (S-0097/D-5): a rejection whose claim names some of them answers those
+    alone, so a fixed finding's thread reads "fixed in" beside a rejected one,
+    and a rejection that names none of them answers every thread, as nothing
+    says which finding it rejects."""
 
     parts: list[str] = []
     sha = _landing_sha(landed, task_id)
-    reasons = _rejections(root, landed, task_id)
+    reasons = []
+
+    for claim, reason in _rejections(root, landed, task_id):
+        named = [one for one in spots if _names(claim, one)]
+
+        if spot is None or not named or spot in named:
+            reasons.append(reason)
 
     if sha and not reasons:
         parts.append(f"Fixed in {sha}.")
@@ -2122,7 +2158,10 @@ def answer_round(
         if thread is None or _engine_replied(thread, engine):
             continue
 
-        forge.reply_thread(thread.id, body)
+        spots = {(one, at) for one, at, _end in anchors.values()}
+        forge.reply_thread(
+            thread.id, reply_body(root, landed, task_id, (path, line), spots) or body
+        )
         # A person's thread is replied to and left: it is closed by the person
         # who opened it, and an engine that tidied one away would remove the
         # only record that somebody was mid-conversation (S-0084/D-11).
