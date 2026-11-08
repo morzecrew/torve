@@ -175,24 +175,29 @@ risks: |
     the host that ran the critic. The store keeps the finding's claim and evidence, and
     `torve why` shows it as a finding that did not block.
 alternatives:
-  - option: Amend S-0121/D-28 so the critic sees the round's rejection entries
+  - option: >-
+      Amend S-0121/D-28 so the critic sees the round's rejection entries
     rejected_because: >-
-      it gives the judge the author's words, which S-0121/D-28 and S-0122/D-2 (both LOCKED)
-      exist to prevent; the owner chose the engine-side carry on 2026-11-08
+      it gives the judge the author's words, which S-0121/D-28 and S-0122/D-2 (both
+      LOCKED) exist to prevent; the owner chose the engine-side carry on 2026-11-08
     cites: [S-0121/D-28, S-0122/D-2]
-  - option: Carry every finding of a round that recorded any rejection
+  - option: >-
+      Carry every finding of a round that recorded any rejection
     rejected_because: >-
-      in a mixed round it would also carry the critic's findings on the claims the attempt says
-      it fixed
-  - option: Carry by the finding's leading citation alone, as S-0125/D-1 anchors
+      in a mixed round it would also carry the critic's findings on the claims the
+      attempt says it fixed
+  - option: >-
+      Carry by the finding's leading citation alone, as S-0125/D-1 anchors
     rejected_because: >-
-      T-0913's row verdict led with a command and cited `reviewleg.py:852` later, so it would
-      have blocked every attempt
-  - option: Let a rejection from any earlier attempt stand until a later attempt applies the claim
+      T-0913's row verdict led with a command and cited `reviewleg.py:852` later,
+      so it would have blocked every attempt
+  - option: >-
+      Let a rejection from any earlier attempt stand until a later attempt applies
+      the claim
     rejected_because: >-
-      nothing records that a later attempt applied it, so a stale rejection would carry the
-      findings on a fix the revision made; `torve abort` already counts a halt against its own
-      attempt only
+      nothing records that a later attempt applied it, so a stale rejection would
+      carry the findings on a fix the revision made; `torve abort` already counts
+      a halt against its own attempt only
 questions:
   - id: Q-1
     text: >-

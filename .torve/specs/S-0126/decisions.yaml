@@ -3,40 +3,42 @@ decisions:
   - id: D-1
     grade: ASSUMED
     text: >-
-      On a review round's attempt, first or revision, `decide` records as non-blocking every
-      kept finding and every `violated` row whose evidence cites at least one `path:line`,
-      every one of which locates in the worktree and lies within `threads.WINDOW` lines of a
-      rejected spot in the same file; this is checked before the S-0125/D-1 rules, and the
-      review record marks each one `rejected: true`
+      On a review round's attempt, first or revision, `decide` records as non-blocking
+      every kept finding and every `violated` row whose evidence cites at least one
+      `path:line`, every one of which locates in the worktree and lies within `threads.WINDOW`
+      lines of a rejected spot in the same file; this is checked before the S-0125/D-1
+      rules, and the review record marks each one `rejected: true`
     paths: [src/torve/application/critic.py]
     consequence: >-
-      a round that rejects a claim with a recorded reason converges; the critic's objection
-      to the rejection stays in the review record, and the bot's re-raise is what brings
-      it to a person
+      a round that rejects a claim with a recorded reason converges; the critic's
+      objection to the rejection stays in the review record, and the bot's re-raise
+      is what brings it to a person
     rationale: >-
-      T-0913's critic blocked all three attempts on the claim the attempt had rejected, and
-      the round escalated `poison_ceiling`; the critic cannot see the rejection (S-0121/D-28,
-      S-0122/D-2), so only the engine can tell that the finding disputes it
+      T-0913's critic blocked all three attempts on the claim the attempt had rejected,
+      and the round escalated `poison_ceiling`; the critic cannot see the rejection
+      (S-0121/D-28, S-0122/D-2), so only the engine can tell that the finding disputes
+      it
     cites: [S-0122/D-1, S-0125/D-1, S-0121/D-29, S-0084/D-13]
     check: >-
       uv run pytest -q tests/test_critic.py -k rejected_claim
   - id: D-2
     grade: ASSUMED
     text: >-
-      The rejected spots are computed by the engine and never staged for the critic: for a
-      task whose contract carries `round`, each rejection `threads.rejections` returns for
-      the attempt under review from the worktree's task log gives the span of every round
-      finding `threads.names_spot` matches in its claim, or of the round's one finding when
-      the round carries one and the claim names none, and every `path:line` or
-      `path:start-end` its evidence cites that locates in the worktree; a task with no round
-      has none
+      The rejected spots are computed by the engine and never staged for the critic:
+      for a task whose contract carries `round`, each rejection `threads.rejections`
+      returns for the attempt under review from the worktree's task log gives the
+      span of every round finding `threads.names_spot` matches in its claim, or of
+      the round's one finding when the round carries one and the claim names none,
+      and every `path:line` or `path:start-end` its evidence cites that locates in
+      the worktree; a task with no round has none
     paths: [src/torve/application/critic.py]
     consequence: >-
       the critic's staged input is byte-for-byte what it was, and a rejection an earlier
       attempt recorded carries nothing on a retry
     rationale: >-
-      the round's findings are the forge's anchors, not the author's; the entry's evidence
-      is where the author says the claim is decided, and it counts only where it locates
+      the round's findings are the forge's anchors, not the author's; the entry's
+      evidence is where the author says the claim is decided, and it counts only where
+      it locates
     cites: [S-0121/D-28, S-0122/D-2, S-0084/D-13]
     check: >-
       uv run pytest -q tests/test_critic.py tests/test_review_run.py -k rejected_spots
@@ -45,21 +47,22 @@ decisions:
     text: >-
       The reply and the carry read rejections by one rule: `threads.rejections(entries,
       attempt)` keeps the `unlisted` entries with `kind: contradicted` that one attempt
-      recorded, counting an entry with no `attempt` for every attempt and identical entries
-      once, and `threads.names_spot` matches a claim to a round finding by its full
-      `path:line`, or by the file's name and line only when no other finding of the round
-      shares both; `reply_body` reads the landing's execution record before the root log and
-      keeps the landed attempt's rejections, and the round's instructions ask each attempt
-      to record again every claim it still rejects
+      recorded, counting an entry with no `attempt` for every attempt and identical
+      entries once, and `threads.names_spot` matches a claim to a round finding by
+      its full `path:line`, or by the file's name and line only when no other finding
+      of the round shares both; `reply_body` reads the landing's execution record
+      before the root log and keeps the landed attempt's rejections, and the round's
+      instructions ask each attempt to record again every claim it still rejects
     paths: [src/torve/application/threads.py, src/torve/application/reviewleg.py]
     consequence: >-
-      a thread reads "Not applied" exactly when the carry treated its claim as rejected, a
-      rejection is posted once, and a basename shared by two files in one round matches
-      neither
+      a thread reads "Not applied" exactly when the carry treated its claim as rejected,
+      a rejection is posted once, and a basename shared by two files in one round
+      matches neither
     rationale: >-
-      the reply read every attempt's entries from the root log first, while the carry reads
-      the attempt under review from the worktree, so the two could disagree; T-0913's
-      attempt 3 recorded one rejection three times
+      the reply read every attempt's entries from the root log first, while the carry
+      reads the attempt under review from the worktree, so the two could disagree;
+      T-0913's attempt 3 recorded one rejection three times
     cites: [S-0084/D-13]
     check: >-
-      uv run pytest -q tests/test_threads.py tests/test_reviewleg.py -k "rejections or names_spot"
+      uv run pytest -q tests/test_threads.py tests/test_reviewleg.py -k "rejections
+      or names_spot"
