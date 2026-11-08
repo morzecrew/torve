@@ -56,6 +56,11 @@ CRITIC_CALLS = 5
 UNIT_BUDGET_USD = 3.0
 UNIT_MINUTES = 90
 
+# Every escalation detail the unit's cap writes starts with this, and
+# `runner._exhausted` and `reaper.clear_escalated` read it back: a spent cap
+# is budget exhaustion, so its tree is checkpointed and resumed (S-0026/D-8).
+UNIT_BUDGET_MARKER = "unit budget exhausted"
+
 # What an S unit's files may be: documentation and configuration.
 _LIGHT = ("*.md", "*.rst", "*.txt", "*.yaml", "*.yml", "*.toml", "*.json", "docs/**")
 

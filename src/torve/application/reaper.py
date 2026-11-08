@@ -40,6 +40,7 @@ from typing import TYPE_CHECKING
 
 from torve.application.ports import JUDGE_SUFFIX, Runtime, StoreFactory, WorkspacePort
 from torve.application.runstate import RunState
+from torve.application.selection import UNIT_BUDGET_MARKER
 from torve.base import naming
 from torve.config.runconfig import RunnerConfig
 
@@ -422,6 +423,22 @@ STOPPED_MARKER = "escalated when its run stopped"
 STOPPED = (str(EscalationReason.KILLED), str(EscalationReason.LEASE_EXPIRED))
 
 
+def _cut_off(state: RunState) -> bool:
+    """Whether the escalation stopped the run rather than judged it: a kill, a
+    lapsed lease, or the unit's spent cap, which an engine before the cap's
+    own checkpoint left uncommitted (T-0904, 2026-11-08)."""
+
+    escalation = state.escalation
+
+    if escalation is None:
+        return False
+
+    return escalation.reason in STOPPED or (
+        escalation.reason == str(EscalationReason.BUDGET_EXHAUSTED)
+        and escalation.detail.startswith(UNIT_BUDGET_MARKER)
+    )
+
+
 def clear_escalated(
     root: Path,
     runtime: Runtime,
@@ -449,7 +466,9 @@ def clear_escalated(
     A run that stopped mid-attempt (KILLED, LEASE_EXPIRED, or an active file
     with no live run behind it) never reached the checkpoint a blocker or a
     clock commits, so its work is committed on the branch first, under
-    STOPPED_MARKER, and the next dispatch resumes it."""
+    STOPPED_MARKER, and the next dispatch resumes it. So is a spent unit cap's
+    uncommitted tree; a cap the runner already checkpointed leaves nothing to
+    commit."""
 
     from contextlib import suppress
 
@@ -492,7 +511,7 @@ def clear_escalated(
         with suppress(Exception):  # best-effort, as the operator kill is (cli/run.py)
             runtime.destroy_by_id(sandbox)
 
-    if stopped or (state.escalation is not None and state.escalation.reason in STOPPED):
+    if stopped or _cut_off(state):
         workspace.checkpoint(
             task_id,
             f"torve({task_id}): attempt {state.attempts} {STOPPED_MARKER}\n\n"

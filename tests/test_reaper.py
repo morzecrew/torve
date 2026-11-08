@@ -880,23 +880,34 @@ def test_a_stopped_run_s_work_is_kept_on_its_branch_for_the_next_dispatch(tmp_pa
     git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--no-gpg-sign", "-m", "seed")
     workspace = GitWorkspace(tmp_path)
 
-    for task_id, reason in (
-        ("T-9810", EscalationReason.KILLED),
-        ("T-9811", EscalationReason.POISON_CEILING),
+    for task_id, reason, detail in (
+        ("T-9810", EscalationReason.KILLED, "stopped"),
+        ("T-9811", EscalationReason.POISON_CEILING, "stopped"),
+        # T-0904: an engine before the cap's own checkpoint left the spent
+        # unit's green tree uncommitted.
+        (
+            "T-9813",
+            EscalationReason.BUDGET_EXHAUSTED,
+            "unit budget exhausted: $3.57 spent of $3.00",
+        ),
+        ("T-9814", EscalationReason.BUDGET_EXHAUSTED, "3 attempts, budget 3"),
     ):
         worktree = workspace.create(task_id, "main")
         (worktree / "work.py").write_text("done = True\n", encoding="utf-8")
         state = state_at(tmp_path, task_id, TaskState.RUNNING)
-        state.escalate(reason, "stopped")
+        state.escalate(reason, detail)
 
         assert clear_escalated(tmp_path, MockRuntime(), workspace, task_id) is True
         assert not worktree.exists()
 
-    assert git("show", "torve/T-9810:work.py") == "done = True\n"
-    assert _checkpointed_for_resume(tmp_path, SimpleNamespace(id="T-9810"))
+    for kept in ("T-9810", "T-9813"):
+        assert git("show", f"torve/{kept}:work.py") == "done = True\n"
+        assert _checkpointed_for_resume(tmp_path, SimpleNamespace(id=kept))
+
     # A judged escalation keeps its old rule: its tree is not continued.
-    assert git("rev-parse", "torve/T-9811") == git("rev-parse", "main")
-    assert not _checkpointed_for_resume(tmp_path, SimpleNamespace(id="T-9811"))
+    for judged in ("T-9811", "T-9814"):
+        assert git("rev-parse", f"torve/{judged}") == git("rev-parse", "main")
+        assert not _checkpointed_for_resume(tmp_path, SimpleNamespace(id=judged))
 
 
 def test_a_stopped_run_with_nothing_new_adds_no_checkpoint(tmp_path):
