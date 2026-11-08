@@ -99,10 +99,10 @@ class TierConfig(BaseModel):
     model_id: str = ""
     """S-0064/D-3: what actually reaches the provider. The seat writes a roster key, which
     may be a local shorthand for a slug that is awkward to type; this is what travels."""
-    context_window: int = 0
+    context_window: int = Field(default=0, ge=0)
     """S-0064/D-1, S-0125/D-8: the window this seat's harness compacts against, kept when
     the seat states one and merged off the roster only when the seat states none; 0 is
-    unstated."""
+    unstated, and a negative window is refused at load rather than handed to a harness."""
     max_tokens: int = 0
     """S-0064/D-1: the cap on one response, merged off the roster; 0 is unstated."""
     request_timeout_s: float | None = None

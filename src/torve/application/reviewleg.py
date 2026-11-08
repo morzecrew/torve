@@ -348,9 +348,16 @@ def _excerpt(root: Path, branch: str, finding: Finding) -> str:
 
 def _verdict(thread: ReviewThread, verdict: ThreadVerdict) -> str:
     """Triage's verdict and evidence for one thread (S-0125/D-7), as the round
-    reads it under the finding that thread raised."""
+    reads it under the finding that thread raised.
+
+    Evidence that carries the fence marker is the critic quoting it, not a
+    thread closing the fence: it is withheld rather than the round refused in
+    the thread's name, exactly as a base excerpt's marker lines are."""
 
     evidence = verdict.evidence.strip()
+
+    if MARKER in evidence:
+        evidence = "withheld: the evidence carries the fence marker"
 
     return f"triage {thread.id}: {verdict.verdict}" + (f" — {evidence}" if evidence else "")
 
