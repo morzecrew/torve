@@ -2569,24 +2569,33 @@ def _publish_held(
     tasks: list[str],
     number: int,
     results: list[LaneResult],
+    status: StatusScm | None = None,
 ) -> None:
     """The push a finished wave still owes its open pull request: the
     landings held on *branch* (S-0097/D-6), replayed onto *remote* when a hand
     commit moved it, as `_document_branch` replays them before a landing. A
-    replay that conflicts is a person's, the branch left exactly as it was."""
+    replay that conflicts is a person's, the branch left exactly as it was,
+    and is reported once per pair of tips: a `torve/rebase` failure on the
+    pull request's head naming the held tip (S-0101/D-3), since the forge
+    holds no status on a commit it was never sent."""
+
+    held = vcs.tip(root, branch) or ""
+    detail = (
+        f"the landings held on {branch!r} no longer replay onto the remote's copy, "
+        "which a hand commit moved; a person resolves it — nothing was pushed"
+    )
+
+    if _status_at(status, remote, REBASE_CONTEXT) == ("failure", held):
+        results.append(LaneResult(document, branch, "conflict", detail, held))
+        return
 
     if not _replayed_onto(root, vcs, document, branch, remote):
-        detail = (
-            f"the landings held on {branch!r} no longer replay onto the remote's copy, "
-            "which a hand commit moved; a person resolves it — nothing was pushed"
-        )
+        _write_status(root, status, remote, REBASE_CONTEXT, "failure", held)
         engine_event(
             root, "lane_document_conflict", {"branch": branch, "base_tip": remote, "tasks": tasks}
         )
         _escalate_document(root, branch, tasks, detail)
-        results.append(
-            LaneResult(document, branch, "conflict", detail, vcs.tip(root, branch) or "")
-        )
+        results.append(LaneResult(document, branch, "conflict", detail, held))
 
         return
 
@@ -2656,7 +2665,7 @@ def _rebase_document(
         # request, 2026-11-08). This pass publishes them, replayed onto a hand
         # commit the remote gained meanwhile as a landing replays them, and a
         # later pass judges and rebases what it published as it always has.
-        _publish_held(root, vcs, publish, document, branch, remote, tasks, number, results)
+        _publish_held(root, vcs, publish, document, branch, remote, tasks, number, results, status)
 
         return
 

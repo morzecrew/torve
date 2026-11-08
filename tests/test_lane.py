@@ -4800,6 +4800,34 @@ def test_held_landings_that_conflict_with_a_hand_commit_ask_a_person(lane_repo, 
     assert state.state is TaskState.ESCALATED
 
 
+def test_a_finished_wave_that_conflicts_with_a_hand_commit_is_reported_once(lane_repo, tmp_path):
+    """A wave whose last round escalated, held behind a hand commit it does not
+    replay onto, is reported once per pair of tips: a `torve/rebase` failure
+    on the pull request's head naming the held tip, read back by the next pass."""
+    spec = "S-0937"
+    document, published, publish = _held_wave_and_hand_commit(
+        lane_repo, tmp_path, spec, ("two.py", "# a person's two\n")
+    )
+    state = RunState.load(naming.state_file(lane_repo, "T-7543"))
+    state.state = TaskState.ESCALATED
+    state.save()
+    remote = git(lane_repo, "rev-parse", f"origin/{document}")
+    held = git(lane_repo, "rev-parse", document)
+    status = _Status()
+    open_pr = _forge(_pr(number=33, state="open"), [])
+
+    for _ in range(2):
+        results = process_lane(
+            lane_repo, GitLane(), publish=publish, forge=open_pr, unit="document", status=status
+        )
+        assert [r.action for r in results if r.task == spec] == ["conflict"]
+
+    assert status.status(remote, "torve/rebase") == ("failure", held)
+    assert len([e for e in _events(lane_repo) if e.get("event") == "lane_document_conflict"]) == 1
+    assert published == [("T-7541", document)]
+    assert git(lane_repo, "rev-parse", document) == held
+
+
 def test_a_copy_left_behind_a_rebased_remote_is_adopted_and_the_next_phase_lands(
     lane_repo, tmp_path, reaching_base
 ):
