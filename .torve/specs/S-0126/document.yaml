@@ -150,8 +150,9 @@ tests: |
   - `tests/test_review_run.py`: `run_critic` reads the spots from the worktree log, and the
     staged critic input is unchanged.
 docs: |
-  `skills/torve/references/review.md` gains a paragraph: a round may reject a claim with a
-  recorded reason; the critic's findings on it are recorded, not blocking; each attempt records
+  The pull request that marks this document complete adds a paragraph to
+  `skills/torve/references/review.md`, outside both phases so neither spans a second module: a
+  round may reject a claim with a recorded reason; the critic's findings on it are recorded, not blocking; each attempt records
   again what it still rejects; and a person sees the claim again only if the bot raises it
   again.
 out_of_scope: |

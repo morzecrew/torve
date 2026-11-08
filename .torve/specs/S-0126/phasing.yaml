@@ -41,7 +41,7 @@ phasing:
       one `path:line`, every cited one locates, and every one lies within `threads.WINDOW`
       lines of a span in the same file. A carried finding goes into `carried`, its record
       marked `rejected: true`; a carried row is recorded `blocks: false, rejected: true` and
-      kept out of `violated`. The review guide gains a paragraph on rejected claims. Tests
+      kept out of `violated`. Tests
       named `rejected_claim` in `tests/test_critic.py` (a Hypothesis property over
       citation lines and spans, and examples built through `rejected_spots`: a range
       citation, a named finding with no `end_line`, a one-finding round's unnamed
@@ -53,7 +53,6 @@ phasing:
       - src/torve/application/critic.py
       - tests/test_critic.py
       - tests/test_review_run.py
-      - /skills/torve/references/review.md
     acceptance:
       - uv run pytest -q tests/test_critic.py tests/test_review_run.py tests/test_threads.py
       - uv run mypy src

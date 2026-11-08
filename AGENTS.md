@@ -55,7 +55,6 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `skills/flag-dont-flip/` — 0 decision(s)
 - `skills/hooks/implement/` — 1 decision(s)
 - `skills/torve/` — 1 decision(s)
-- `skills/torve/references/` — 0 decision(s)
 - `skills/working-rules/` — 0 decision(s)
 - `src/torve/` — 1 decision(s)
 - `src/torve/adapters/agent/` — 5 decision(s)
