@@ -42,7 +42,6 @@ from typing import TYPE_CHECKING
 from torve.application.ports import JUDGE_SUFFIX, Runtime, StoreFactory, WorkspacePort
 from torve.application.runstate import RunState
 from torve.base import naming
-from torve.config import layout
 from torve.config.runconfig import RunnerConfig
 from torve.gates.context import NO_HOOKS
 
@@ -104,6 +103,7 @@ def _sweep_worktrees(
     report: ReapReport,
     dry_run: bool,
     escalated: bool = False,
+    owed: Collection[str] = (),
 ) -> None:
     for name, _path in workspace.list_worktrees():
         # The lane's own checkouts (`lane-<task>`, `lane-<document>`) have no
@@ -129,6 +129,13 @@ def _sweep_worktrees(
 
             continue
 
+        # A READY task the lane still owes keeps its worktree as it keeps its
+        # state file: with a store the root has no contract, and the copy
+        # dispatch projected here is the one the landing reads
+        # (`lane.contract_file`, S-0056/D-9). T-0885 was swept here and stranded.
+        if name in owed:
+            continue
+
         # An intake/decompose drafting run's worktree carries a distinct
         # suffix (naming.INTAKE_SUFFIX) from the state file it is named
         # after — unstripped, every live drafting run reads as convention
@@ -151,7 +158,9 @@ def _lane_input(root: Path, state: RunState, landed: LandedOracle | None) -> boo
     whose task has not landed on the base is the lane's input, not debris —
     its state file survives the sweep. Without a landed oracle the answer is conservative: keep. Review-role READY states
     never land and stay sweepable; so does a READY state with no contract to
-    land. A READY draft run is kept unconditionally (S-0020, S-0020/D-10): its
+    land, read where the lane reads it: the root's file, else the projection
+    in the run's worktree, which is the only copy when the store holds the
+    task (S-0056/D-9). A READY draft run is kept unconditionally (S-0020, S-0020/D-10): its
     landing is adoption, which disposes of the state itself — the lab's first
     live drafting run was swept one tick after going green, orphaning the
     adoption it awaited."""
@@ -159,7 +168,9 @@ def _lane_input(root: Path, state: RunState, landed: LandedOracle | None) -> boo
     if state.state is not TaskState.READY:
         return False
 
-    contract = layout.task_file(root, state.task_id)
+    from torve.application.lane import contract_file
+
+    contract = contract_file(root, state.task_id)
 
     if not contract.is_file():
         return False
@@ -319,7 +330,10 @@ def _heartbeat_reap(
 
             report.sandboxes_destroyed.append(sandbox.name)
 
-    _sweep_worktrees(workspace, {s.task_id: s for s in states}, report, dry_run, escalated)
+    owed = {s.task_id for s in states if _lane_input(root, s, landed)}
+    _sweep_worktrees(
+        workspace, {s.task_id: s for s in states}, report, dry_run, escalated, owed=owed
+    )
     _sweep_states(root, states, report, dry_run, landed, escalated=escalated)
     _retain_traces(root, config, report, dry_run)
 
@@ -689,7 +703,8 @@ async def _durable_reap(
 
             report.sandboxes_destroyed.append(sandbox.name)
 
-    _sweep_worktrees(workspace, by_task, report, dry_run, escalated)
+    owed = {s.task_id for s in states if _lane_input(root, s, landed)}
+    _sweep_worktrees(workspace, by_task, report, dry_run, escalated, owed=owed)
     _sweep_states(root, states, report, dry_run, landed, escalated=escalated)
     _retain_traces(root, config, report, dry_run)
 

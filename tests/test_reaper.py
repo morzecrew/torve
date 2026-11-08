@@ -477,6 +477,35 @@ def test_a_ready_draft_state_survives_unconditionally(tmp_path):
     assert (tmp_path / ".wt" / "T-9114.state.json").exists()
 
 
+def test_a_ready_state_whose_contract_lives_in_its_worktree_survives_the_escalated_sweep(
+    tmp_path,
+):
+    # S-0056/D-9: with a store the root has no contract file and the lane reads
+    # the projection in the run's worktree. `reap --escalated` swept T-0885's
+    # READY state and worktree on 2026-11-07, stranding a landing the lane owed.
+    (tmp_path / ".torve").mkdir()
+    implement_contract(naming.worktree(tmp_path, "T-9115"), "T-9115")
+    state_at(tmp_path, "T-9115", TaskState.READY)
+    state_at(tmp_path, "T-9116", TaskState.ESCALATED)
+    workspace = ListingWorkspace(
+        [
+            ("T-9115", naming.worktree(tmp_path, "T-9115")),
+            ("T-9116", naming.worktree(tmp_path, "T-9116")),
+        ]
+    )
+    report = reap(
+        tmp_path,
+        RunnerConfig(),
+        MockRuntime(),
+        workspace,
+        landed=lambda _t: False,
+        escalated=True,
+    )
+    assert report.states_removed == ["T-9116"]
+    assert workspace.removed == ["T-9116"]
+    assert (tmp_path / ".wt" / "T-9115.state.json").exists()
+
+
 def test_durable_reap_keeps_a_fresh_shadow_sandbox(tmp_path, monkeypatch):
     """S-0004/D-18 (A-57): a shadow run registers no durable record by design, so
     its liveness is the host state file — the durable-regime sweep must not
