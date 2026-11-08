@@ -302,7 +302,9 @@ def _anchor_changed(anchor: tuple[str, int], changed: Mapping[str, set[int]]) ->
 def _anchor_near(anchor: tuple[str, int], previous: list[dict[str, Any]]) -> bool:
     """Whether *anchor* names an earlier blocker's anchor again (S-0124/D-3):
     the same file within `threads.WINDOW` lines, or the same file when the
-    recorded anchor carries no line."""
+    recorded anchor carries no line. *previous* is already in the current
+    tree's coordinates: `revision_for` maps each round's anchors from the
+    head that round judged (S-0125/D-1)."""
 
     path, line = anchor
 

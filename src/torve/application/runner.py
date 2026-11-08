@@ -1903,12 +1903,11 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         if verdict is None or not verdict.blockers:
             return False
 
-        from torve.application.review import _anchor_reraised, _recorded_blocker_anchors
+        from torve.application.review import _anchor_reraised, mapped_blocker_anchors
 
-        return (
-            _anchor_reraised(verdict.blockers, _recorded_blocker_anchors(state, every=True))
-            is not None
-        )
+        anchors = mapped_blocker_anchors(member.run.worktree, state)
+
+        return _anchor_reraised(verdict.blockers, anchors) is not None
 
     try:
         chosen_round = await selection.select(

@@ -1878,3 +1878,91 @@ def test_revision_inputs_reach_the_revisions_critic_through_the_run_loop(review_
     ]
     assert ".torve/review/revision.diff" in second["prompt"]
     assert ".torve/review/blockers.yaml" in second["prompt"]
+
+
+def test_a_deletion_marks_where_it_stood_and_maps_a_removed_anchor_there():
+    """S-0125/D-1: a revision that only deletes code is judged on the deletion,
+    and an earlier blocker whose line the revision removed or replaced is still
+    found at the position the deletion left."""
+
+    from torve.application.review import _changed_lines, _mapped_line
+
+    deleted = (
+        "diff --git a/src/app.py b/src/app.py\n--- a/src/app.py\n+++ b/src/app.py\n"
+        "@@ -19,3 +19,2 @@\n a\n-bad = 1\n c\n"
+    )
+    replaced = deleted.replace("+19,2", "+19,3").replace("-bad = 1\n", "-bad = 1\n+bad = 2\n")
+
+    assert _changed_lines(deleted) == {"src/app.py": {20}}
+    assert _mapped_line(deleted, "src/app.py", 20) == 20
+    assert _mapped_line(replaced, "src/app.py", 20) == 20
+    assert _mapped_line(deleted, "src/app.py", 30) == 29
+
+
+def test_each_rounds_blockers_are_mapped_from_the_head_that_round_judged(repo):
+    """S-0125/D-1: a revision that inserts more than `threads.WINDOW` lines
+    above an unresolved blocker still meets it, in the round right after and
+    two rounds later when a later revision touched another file only; the
+    critic's decide and the escalation check read the same mapped anchors."""
+
+    from types import SimpleNamespace
+
+    from test_critic import _candidate
+
+    from torve.application.critic import CriticDocument, decide
+    from torve.application.review import (
+        _anchor_reraised,
+        blocker_fact,
+        mapped_blocker_anchors,
+        revision_for,
+        tree_snapshot,
+    )
+
+    worktree, target = _candidate(repo)
+    app = worktree / "src" / "app.py"
+    app.write_text("".join(f"line{number}\n" for number in range(1, 61)), encoding="utf-8")
+    state = RunState(task_id=target.id, path=repo.root / "state.json", run_id="run-1")
+
+    def record(round_no: int, evidence: str) -> None:
+        blocker = Finding(severity="major", claim=f"round {round_no}", evidence=evidence)
+        state.history.append(
+            {
+                "at": state.heartbeat,
+                "from": str(state.state),
+                "to": str(state.state),
+                "fact": blocker_fact("T-0900", round_no, 3, [blocker], tree_snapshot(worktree)),
+            }
+        )
+
+    def reraises(evidence: str) -> bool:
+        revision = revision_for(SimpleNamespace(worktree=worktree), state)
+        assert revision is not None
+        finding = {
+            "id": "F1",
+            "severity": "blocker",
+            "kind": "bug",
+            "claim": "still bad",
+            "evidence": evidence,
+            "verified": "read",
+            "confidence": "high",
+        }
+        document = CriticDocument.model_validate({"rows": [], "findings": [finding]})
+        decision = decide(document, {}, worktree, "major", revision=revision)
+        blocker = Finding(severity="blocker", claim="still bad", evidence=evidence)
+        escalates = _anchor_reraised([blocker], mapped_blocker_anchors(worktree, state))
+        assert (escalates is not None) == bool(decision.reraised)
+        return bool(decision.reraised)
+
+    record(1, "src/app.py:50 — bad")
+    # Revision 1 inserts twenty lines at the top: the blocker now sits at 70.
+    app.write_text(
+        "".join(f"new{number}\n" for number in range(20)) + app.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    assert reraises("src/app.py:70 — bad")
+    assert not reraises("src/app.py:50 — bad")
+
+    record(2, "src/__init__.py:1 — other")
+    # Revision 2 touches another file only; round 1's anchor is still at 70.
+    (worktree / "src" / "__init__.py").write_text("x = 1\n", encoding="utf-8")
+    assert reraises("src/app.py:70 — bad")
