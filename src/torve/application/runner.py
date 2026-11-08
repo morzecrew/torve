@@ -174,7 +174,8 @@ _EXHAUSTED_MARKER = "exhausted its budget"
 
 
 def _exhausted(escalation: Escalation) -> bool:
-    """S-0026/D-8: budget exhaustion — wallclock or tokens. `iterations`
+    """S-0026/D-8: budget exhaustion — wallclock or tokens, the unit's dollar
+    cap (S-0123/D-1) among them, since its spend is tokens priced. `iterations`
     exhaustion (like `poison_ceiling`) is excluded on purpose: repeated red
     gates is a judgement on the work, not a clock running out. These are the
     escalations the budget checkpoint commits for (S-0026/D-9)."""
@@ -184,7 +185,7 @@ def _exhausted(escalation: Escalation) -> bool:
 
     return escalation.reason == str(
         EscalationReason.BUDGET_EXHAUSTED
-    ) and escalation.detail.startswith(_WALLCLOCK_MARKER)
+    ) and escalation.detail.startswith((_WALLCLOCK_MARKER, selection.UNIT_BUDGET_MARKER))
 
 
 def _on_a_revision(state: RunState) -> bool:
@@ -1986,7 +1987,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         if chosen_round.exhausted and chosen_round.winner is None:
             state.escalate(
                 EscalationReason.BUDGET_EXHAUSTED,
-                f"unit budget exhausted: ${chosen_round.spent_usd:.2f} spent of "
+                f"{selection.UNIT_BUDGET_MARKER}: ${chosen_round.spent_usd:.2f} spent of "
                 f"${selection.UNIT_BUDGET_USD:.2f}",
             )
             close_unit()
@@ -2017,7 +2018,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                 close_session(continue_index)
                 state.escalate(
                     EscalationReason.BUDGET_EXHAUSTED,
-                    f"unit budget exhausted: ${unit_spend:.2f} spent of "
+                    f"{selection.UNIT_BUDGET_MARKER}: ${unit_spend:.2f} spent of "
                     f"${selection.UNIT_BUDGET_USD:.2f}",
                 )
                 stopped = True
@@ -2165,7 +2166,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                         if _unit_spend(state) >= selection.UNIT_BUDGET_USD:
                             state.escalate(
                                 EscalationReason.BUDGET_EXHAUSTED,
-                                f"unit budget exhausted: ${_unit_spend(state):.2f} spent of "
+                                f"{selection.UNIT_BUDGET_MARKER}: ${_unit_spend(state):.2f} spent of "
                                 f"${selection.UNIT_BUDGET_USD:.2f}",
                             )
                             # The turn ran and spent; only its re-review did not.

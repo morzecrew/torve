@@ -81,7 +81,9 @@ INSTRUCTIONS = (
     "scope this contract allows. Where a claim does not hold, change nothing and\n"
     "record why: one divergence entry per rejected claim, `--decision unlisted`\n"
     "with `--kind contradicted`, whose claim and evidence are what the reviewer\n"
-    "will be shown. A rejection with no entry behind it is an unanswered thread."
+    "will be shown. Begin the claim with the rejected claim's `path:line` as it\n"
+    "is written below, so the reply reaches that claim's thread alone. A\n"
+    "rejection with no entry behind it is an unanswered thread."
 )
 
 # How many fresh nonces a composition tries before it gives up. A collision is
@@ -542,12 +544,15 @@ def round_acceptance(root: Path) -> list[str]:
 # ....................... #
 
 
-def _phasing(root: Path, branch: str) -> list[dict[str, Any]]:
+def _phasing(root: Path, branch: str, *, checkout: bool = False) -> list[dict[str, Any]]:
     """The document's phasing as the remote's copy of its branch holds it after
     the pass's fetch (S-0092/D-2, S-0094/D-2): a phase widened there by
     amendment, from any checkout, reaches the leg before it reaches this one.
     A branch the remote lacks, or with no phasing at its tip, is read from the
-    checkout. Empty when neither holds one."""
+    checkout. Empty when neither holds one.
+
+    `checkout` reads the root's copy alone: an amendment merged to the base
+    after the branch was cut is there and not on the branch."""
 
     from torve.config.spec import document_dir
 
@@ -557,26 +562,29 @@ def _phasing(root: Path, branch: str) -> list[dict[str, Any]]:
         return []
 
     path = directory / "phasing.yaml"
-    proc = subprocess.run(
-        [
-            "git",
-            "-C",
-            str(root),
-            "show",
-            f"refs/remotes/origin/{branch}:{path.relative_to(root).as_posix()}",
-        ],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
-    )
+    text: str | None = None
 
-    if proc.returncode == 0:
-        text = proc.stdout
-    elif path.is_file():
+    if not checkout:
+        proc = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "show",
+                f"refs/remotes/origin/{branch}:{path.relative_to(root).as_posix()}",
+            ],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        text = proc.stdout if proc.returncode == 0 else None
+
+    if text is None:
+        if not path.is_file():
+            return []
+
         text = path.read_text(encoding="utf-8")
-    else:
-        return []
 
     try:
         data = yaml.safe_load(text)
@@ -1781,16 +1789,61 @@ def record_threads(
 # ....................... #
 
 
-def phased(root: Path, branch: str, path: str) -> bool:
-    """Whether the document's phasing scope reaches *path* (S-0086/D-4), as
-    the branch tip holds it (S-0092/D-2). A document with no readable phasing
-    judges nothing: everything is inside a scope nobody declared."""
+def phased(root: Path, branch: str, path: str, base: str | None = None) -> bool:
+    """Whether the document's scope reaches *path* (S-0086/D-4): a phase's
+    scope as the branch tip holds it (S-0092/D-2) or as the root's copy holds
+    it — the union completion reads (S-0124/D-10), so a phase an amendment
+    added on the base only still counts — or a file the branch itself changed
+    against *base*. What the document wrote is the document's, a contingent
+    path its landing promoted among them: refusing a finding there left the
+    pull request unable to converge (S-0125, runner.py and agents.py). A
+    document with no readable phasing judges nothing: everything is inside a
+    scope nobody declared."""
 
     from torve.application.decisions import _governs
 
-    globs = [str(glob) for phase in _phasing(root, branch) for glob in phase.get("scope") or []]
+    phasing = [*_phasing(root, branch), *_phasing(root, branch, checkout=True)]
+    globs = [str(glob) for phase in phasing for glob in phase.get("scope") or []]
 
-    return _governs(globs, path) if globs else True
+    if not globs:
+        return True
+
+    return _governs(globs, path) or path in _branch_changed(root, branch, base)
+
+
+def _branch_changed(root: Path, branch: str, base: str | None) -> set[str]:
+    """The files the document branch changed against *base*: the pull
+    request's own diff, from the remote's copy as `_phasing` reads it, else
+    the checkout's branch. Empty when neither diff reads."""
+
+    from torve.gates.context import GitError, resolve_base
+
+    try:
+        ref = resolve_base(root, base)
+
+    except GitError:
+        return set()
+
+    if ref is None:
+        return set()
+
+    for tip in (f"refs/remotes/origin/{branch}", f"refs/heads/{branch}"):
+        proc = subprocess.run(
+            ["git", "-C", str(root), "diff", "--name-only", "--no-renames", f"{ref}...{tip}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+        if proc.returncode == 0:
+            return {
+                line
+                for line in proc.stdout.splitlines()
+                if line.strip() and not line.startswith(FORBIDDEN_ANCHORS)
+            }
+
+    return set()
 
 
 # ....................... #
@@ -1941,17 +1994,19 @@ def _landed_entries(root: Path, landed: Callable[[str], str | None], task_id: st
     return []
 
 
-def _rejections(root: Path, landed: Callable[[str], str | None], task_id: str) -> list[str]:
+def _rejections(
+    root: Path, landed: Callable[[str], str | None], task_id: str
+) -> list[tuple[str, str]]:
     """What the round's attempt said about the claims it did not apply
     (S-0084/D-13): the divergence entries under `unlisted` it recorded as
-    contradicted, as their own checked `claim` and `evidence`. Prose an agent
-    wrote for a reviewer never appears here, because no such field exists.
-    Read from the root log, and from the landing's execution record when the
-    root holds none."""
+    contradicted, as their own checked `claim` and `evidence`, each beside the
+    claim it answers. Prose an agent wrote for a reviewer never appears here,
+    because no such field exists. Read from the root log, and from the
+    landing's execution record when the root holds none."""
 
     from torve.application.divergence import open_log
 
-    reasons: list[str] = []
+    reasons: list[tuple[str, str]] = []
     entries = open_log(root, task_id).get("entries", []) or _landed_entries(root, landed, task_id)
 
     for entry in entries:
@@ -1961,24 +2016,56 @@ def _rejections(root: Path, landed: Callable[[str], str | None], task_id: str) -
         if entry.get("decision") != "unlisted" or entry.get("kind") != "contradicted":
             continue
 
-        reasons.append(
-            f"Not applied — {entry.get('claim', '')}\n\nEvidence: {entry.get('evidence', '')}"
-        )
+        claim = str(entry.get("claim", ""))
+        reasons.append((claim, f"Not applied — {claim}\n\nEvidence: {entry.get('evidence', '')}"))
 
     return reasons
+
+
+def _names(claim: str, spot: tuple[Any, Any]) -> bool:
+    """Whether *claim* names the finding at *spot* as the round's fence wrote
+    it, `path:line`, or by the file's own name and the line."""
+
+    path, line = spot
+
+    if not path or line is None:
+        return False
+
+    return any(
+        re.search(rf"(?<![\w/.-]){re.escape(name)}:{line}(?!\d)", claim)
+        for name in {str(path), Path(str(path)).name}
+    )
 
 
 # ....................... #
 
 
-def reply_body(root: Path, landed: Callable[[str], str | None], task_id: str) -> str:
+def reply_body(
+    root: Path,
+    landed: Callable[[str], str | None],
+    task_id: str,
+    spot: tuple[Any, Any] | None = None,
+    spots: Collection[tuple[Any, Any]] = (),
+) -> str:
     """The reply a landed round earns, or "" when the record supports neither
     half of what a reply may say (S-0084/D-12): the commit the fix landed in,
-    or the reason the finding was not applied."""
+    or the reason the finding was not applied.
+
+    With *spot* it is one thread's reply in a round of the findings at *spots*
+    (S-0097/D-5): a rejection whose claim names some of them answers those
+    alone, so a fixed finding's thread reads "fixed in" beside a rejected one,
+    and a rejection that names none of them answers every thread, as nothing
+    says which finding it rejects."""
 
     parts: list[str] = []
     sha = _landing_sha(landed, task_id)
-    reasons = _rejections(root, landed, task_id)
+    reasons = []
+
+    for claim, reason in _rejections(root, landed, task_id):
+        named = [one for one in spots if _names(claim, one)]
+
+        if spot is None or not named or spot in named:
+            reasons.append(reason)
 
     if sha and not reasons:
         parts.append(f"Fixed in {sha}.")
@@ -2071,7 +2158,10 @@ def answer_round(
         if thread is None or _engine_replied(thread, engine):
             continue
 
-        forge.reply_thread(thread.id, body)
+        spots = {(one, at) for one, at, _end in anchors.values()}
+        forge.reply_thread(
+            thread.id, reply_body(root, landed, task_id, (path, line), spots) or body
+        )
         # A person's thread is replied to and left: it is closed by the person
         # who opened it, and an engine that tidied one away would remove the
         # only record that somebody was mid-conversation (S-0084/D-11).
@@ -2506,7 +2596,7 @@ def review_thread_leg(
             # A recorded finding pointing outside the document's phasing scope
             # mints nothing and reaches a person by name, as an injecting
             # thread does (S-0086/D-4).
-            if from_record and not phased(root, branch, finding.path):
+            if from_record and not phased(root, branch, finding.path, config.base):
                 reason = f"{finding.path} lies outside the document's phasing scope"
                 _refuse(
                     root,

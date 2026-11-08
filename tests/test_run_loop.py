@@ -372,6 +372,10 @@ def test_cost_anomaly_is_continuable_iterations_budget_is_not():
     assert run_module._continuable(
         Escalation(reason="budget_exhausted", detail="wallclock budget exhausted: 5.0m elapsed")
     )
+    # The unit's dollar cap is token spend priced (S-0123/D-1).
+    assert run_module._continuable(
+        Escalation(reason="budget_exhausted", detail="unit budget exhausted: $3.57 spent of $3.00")
+    )
 
 
 def test_should_resume_ignores_a_stale_escalation_after_a_non_escalation_requeue():

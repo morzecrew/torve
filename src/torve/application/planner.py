@@ -928,12 +928,54 @@ def unplanned_documents(
     between-night sweep may mint into the record. *rfc_dir* is the corpus the
     caller's configuration names; omitted, the default configuration's."""
 
+    minted = minted_documents(root, board)
+
+    return [doc for doc in _open_documents(root, rfc_dir) if document_of(doc.id) not in minted]
+
+
+def unminted_phases(
+    root: Path, board: Board | None = None, *, rfc_dir: Path | None = None
+) -> dict[str, set[int]]:
+    """The phases an amendment added to a document already planned, by
+    document id: the same accepted, unimplemented documents as
+    `unplanned_documents`, minted, with phasing entries no minted contract
+    covers. These are what a person mints with `torve plan --phase`
+    (bloomery S-0002/A-4), so the chain's sweep mints them the same way,
+    departing S-0117/D-5's minted-documents-are-a-person's: an amendment
+    merged to the base is an accepted change, and the phase one added to an
+    open document waited for a hand mint (T-0895). A phase any task covers — landed, escalated, abandoned or
+    in flight — is minted already, and a round's phase 0 is no entry."""
+
+    minted = minted_documents(root, board)
+    found: dict[str, set[int]] = {}
+
+    for doc in _open_documents(root, rfc_dir):
+        if document_of(doc.id) not in minted:
+            continue
+
+        covered = {
+            phase
+            for task in minted_contracts(root, doc.id, board).values()
+            if task.role in DISPATCHABLE_ROLES
+            for phase in task.covered
+        }
+        missing = {entry.phase for entry in doc.phasing} - covered
+
+        if missing:
+            found[doc.id] = missing
+
+    return found
+
+
+def _open_documents(root: Path, rfc_dir: Path | None) -> list[Document]:
+    """The corpus documents the chain's sweep may plan from, in number order:
+    accepted, not implemented, neither archived nor superseded."""
+
     from torve.config.runconfig import load_runner_config
 
     corpus_dir = (
         rfc_dir if rfc_dir is not None else root / load_runner_config(root, None).specs.path
     )
-    minted = minted_documents(root, board)
 
     return [
         doc
@@ -942,7 +984,6 @@ def unplanned_documents(
         and doc.status == "accepted"
         and not doc.superseded_by
         and doc.implementation == "none"
-        and document_of(doc.id) not in minted
     ]
 
 

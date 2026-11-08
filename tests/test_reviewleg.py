@@ -998,6 +998,43 @@ def test_a_rejected_finding_is_answered_from_its_divergence_entry(seeded):
     assert "Fixed in" not in body
 
 
+def test_a_rejection_in_a_round_of_several_findings_answers_its_own_thread(seeded):
+    """S-0097/D-5, S-0084/D-13: a round carries a wave, so a rejection that
+    names its finding's `path:line` answers that thread alone, and the fixed
+    finding's thread reads "fixed in" (T-0913 told every thread "not applied")."""
+
+    open_document(seeded.root)
+    forge = StubForge(pr(thread("t1", path="src/app.py"), thread("t2", path="src/other.py")))
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+    (minted,) = events(seeded.root, "lane_review_task")
+    task_id = minted["task"]
+
+    from torve.application.divergence import append
+
+    append(
+        seeded.root,
+        task_id,
+        {
+            "decision": "unlisted",
+            "grade": "UNLISTED",
+            "kind": "contradicted",
+            "class": "discovery",
+            "at": "2026-09-19T10:00:00Z",
+            "attempt": 1,
+            "claim": "src/other.py:12 does not dereference anything",
+            "evidence": "src/other.py:12 — the value is a literal",
+            "action": "decided",
+            "proposal": "no row needed",
+        },
+    )
+
+    review_thread_leg(seeded.root, config(), forge, landing((task_id, "cafe123")))
+
+    answers = dict(forge.replied[2:])
+    assert answers["t1"] == "Fixed in cafe123."
+    assert answers["t2"].startswith("Not applied — src/other.py:12 does not dereference")
+
+
 def test_the_leg_mints_no_more_rounds_than_the_pass_allows(seeded):
     # One finding per round, so the three files are three waves and the pass's
     # own bound (S-0084/D-16) mints the first two.
@@ -2032,6 +2069,70 @@ def test_a_phase_widened_on_the_branch_admits_what_the_checkout_refused(seeded):
     assert events(seeded.root, "lane_thread_refused") == []
     (row,) = events(seeded.root, "lane_review_task")
     assert row["path"] == "pages/docs/operating.md"
+
+
+def test_a_phase_an_amendment_added_on_the_base_only_admits_its_scope(seeded):
+    """The union completion reads (S-0124/D-10): S-0125/A-1 added phase 6 on
+    main after the branch was cut, and every finding on its file was refused."""
+
+    phased_document(seeded.root, ["src/**"])
+    seeded.commit("the document")
+    open_document(seeded.root)
+    phased_document(seeded.root, ["src/**"], ["pages/**"])
+    seeded.commit("the amendment, merged to main only")
+    records = [recorded(("the guide is stale", "pages/docs/operating.md:3 — it says otherwise"))]
+
+    review_thread_leg(
+        seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False, records=records
+    )
+
+    assert events(seeded.root, "lane_thread_refused") == []
+    (row,) = events(seeded.root, "lane_review_task")
+    assert row["path"] == "pages/docs/operating.md"
+
+
+def branch_wrote(repo: Any, path: str) -> None:
+    """A document whose phasing scopes `src/**` and whose branch also wrote
+    *path*, as a contingent promotion does."""
+
+    phased_document(repo.root, ["src/**"])
+    repo.commit("the document")
+    open_document(repo.root)
+    repo.git("checkout", "-q", BRANCH)
+    repo.write(path, "x = 1\n")
+    repo.commit("the work, with a promoted path")
+    open_document(repo.root)
+
+
+def test_a_file_the_branch_changed_is_the_document_s_whatever_its_phasing(seeded):
+    """A contingent path a landing promoted is the document's own: refusing a
+    finding there left S-0125's pull request unable to converge (agents.py)."""
+
+    branch_wrote(seeded, "lib/promoted.py")
+    records = [recorded(("unvalidated", "lib/promoted.py:1 — a negative value is kept"))]
+
+    review_thread_leg(
+        seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False, records=records
+    )
+
+    assert events(seeded.root, "lane_thread_refused") == []
+    (row,) = events(seeded.root, "lane_review_task")
+    assert row["path"] == "lib/promoted.py"
+
+
+def test_a_file_neither_scoped_nor_changed_is_still_refused(seeded):
+    branch_wrote(seeded, "lib/promoted.py")
+    records = [recorded(("the guide is stale", "pages/docs/operating.md:3 — it says otherwise"))]
+
+    detail, minted = review_thread_leg(
+        seeded.root, config(sources=["record"]), StubForge(pr()), lambda _t: False, records=records
+    )
+
+    assert minted is False
+    assert "phasing scope" in detail
+    assert events(seeded.root, "lane_review_task") == []
+    (refusal,) = events(seeded.root, "lane_thread_refused")
+    assert refusal["path"] == "pages/docs/operating.md"
 
 
 # ----------------------- #
