@@ -4507,6 +4507,38 @@ def test_a_round_that_escalated_does_not_hold_the_wave(lane_repo, tmp_path):
     assert git(lane_repo, "show", f"origin/{document}:two.py") == "# T-7512"
 
 
+def test_a_wave_whose_last_round_escalates_is_published_by_the_next_pass(lane_repo, tmp_path):
+    """The round a held landing waits for can escalate instead of landing, and
+    then no landing comes to publish the wave (#302, 2026-11-08): the next
+    pass over the open pull request pushes what the branch holds."""
+    published: list[tuple[str, str]] = []
+    spec = "S-0936"
+    document = _landed_document(lane_repo, tmp_path, spec, {"T-7561": "one.py"}, published)
+    _round(lane_repo, "T-7562", document, spec, "two.py", "# T-7562\n")
+    _round(lane_repo, "T-7563", document, spec, "three.py", "# T-7563\n", state=TaskState.QUEUED)
+    publish = _recording_publisher(published, root=lane_repo)
+    open_pr = _forge(_pr(number=31, state="open"), [])
+
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    assert published == [("T-7561", document)]
+
+    # Still outstanding, the queued round keeps the wave held.
+    process_lane(lane_repo, GitLane(), publish=publish, forge=open_pr, unit="document")
+    assert published == [("T-7561", document)]
+
+    state = RunState.load(naming.state_file(lane_repo, "T-7563"))
+    state.state = TaskState.ESCALATED
+    state.save()
+
+    results = process_lane(lane_repo, GitLane(), publish=publish, forge=open_pr, unit="document")
+
+    assert published == [("T-7561", document), ("T-7562", document)]
+    assert git(lane_repo, "show", f"origin/{document}:two.py") == "# T-7562"
+    assert [r.detail for r in results if r.task == spec and r.action == "pull request"] == [
+        "published the held wave"
+    ]
+
+
 def test_a_round_no_worker_has_claimed_holds_the_wave(lane_repo, tmp_path):
     """A minted round has no run state until a worker claims it, and it is
     outstanding all the same: the wave is not over while it waits."""

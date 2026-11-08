@@ -71,6 +71,8 @@ manager_app = typer.Typer(no_args_is_help=True, help="Run and read the engine's 
 #: The reason a chained `serve` returns when its between-night fast-forward moved
 #: the engine (S-0120/D-2); `serve_cmd` maps it to the launcher's own exit code.
 ENGINE_MOVED = "engine moved"
+#: The same move seen at the top of a night's pass: the reason `night.closed` records.
+NIGHT_ENGINE_MOVED = "engine_moved"
 
 
 # ....................... #
@@ -828,10 +830,13 @@ async def _sync_and_plan(
     *,
     config: RunnerConfig,
     worker: str,
+    plan: bool = True,
 ) -> list[str]:
     """S-0117/D-5: between nights, bring the checkout to the remote's base and
     mint every accepted, unimplemented document the record has not planned
-    yet, into the record and no file.
+    yet, into the record and no file. With *plan* false it only brings the
+    checkout there and reads the engine move: a paused queue mints nothing,
+    and a night's own passes plan nothing.
 
     Nothing happens while a task is in flight, on a checkout that is not the
     base branch, or one with a dirty tree. Planning happens only at the
@@ -942,6 +947,9 @@ async def _sync_and_plan(
 
     if lane.tip(root, "HEAD") != remote:
         left_alone(f"the checkout is not at origin/{branch} after the fast-forward")
+        return []
+
+    if not plan:
         return []
 
     rfc_dir = root / config.specs.path
@@ -1248,12 +1256,33 @@ async def _serve(
         # S-0117/D-3: a `--passes` bound is the command's, not each night's.
         # A chained night takes what is left of it and reports what it used.
         passes_left = passes or None
+        # S-0117/D-6: a chain whose engine imports from this checkout neither
+        # fast-forwards nor plans from it.
+        planning = chain and not _engine_imports_under(root)
 
         async def run_night(terms: Night) -> tuple[int, str]:
             nonlocal passes_left
+            moved: list[str] = []
 
             async def stop() -> str | None:
-                return await reached(log, partition, terms, owed=owed)
+                reason = await reached(log, partition, terms, owed=owed)
+
+                # The top of a pass is a gap: nothing this worker claimed is
+                # running and the last pass's lane leg has run. A base that
+                # moved the engine closes the night here, so the launcher
+                # installs it (S-0120/D-2) rather than a stale engine serving
+                # to the night's end or a person catching a gap to stop it.
+                if (
+                    reason is None
+                    and planning
+                    and not moved
+                    and await _sync_and_plan(
+                        root, log, partition, config=config, worker=worker, plan=False
+                    )
+                ):
+                    moved.append(NIGHT_ENGINE_MOVED)
+
+                return moved[0] if moved else reason
 
             used = [0]
             handled = await serve(
@@ -1281,12 +1310,15 @@ async def _serve(
 
             # The reason is asked once more rather than remembered from the
             # loop: `serve` also returns when its pass count runs out, and a
-            # night that ended that way has no term to name.
+            # night that ended that way has no term to name. An engine move is
+            # remembered: the sweep that saw it already moved the checkout.
             return handled, await close_night(
                 log,
                 partition,
                 terms,
-                reason=await reached(log, partition, terms, owed=owed) or "passes",
+                reason=(moved[0] if moved else None)
+                or await reached(log, partition, terms, owed=owed)
+                or "passes",
                 handled=handled,
                 actor_id=worker,
             )
@@ -1358,8 +1390,6 @@ async def _serve(
         # S-0117/D-3: nights back to back in one process. Each opens with the
         # day's remainder (S-0117/D-4), and one closed on a class the terms
         # name ends the chain rather than opening the next.
-        planning = not _engine_imports_under(root)
-
         if not planning:
             # S-0117/D-6: moving this checkout would move the code the process
             # is running, so the chain neither fast-forwards nor plans from it.
@@ -1375,9 +1405,12 @@ async def _serve(
                 return handled, ""
 
             # The escalation pause forbids growing the queue (S-0048/D-4), and
-            # minting is growing it.
-            if planning and not await paused():
-                moved = await _sync_and_plan(root, log, partition, config=config, worker=worker)
+            # minting is growing it; an engine move is read all the same, since
+            # the fix a paused queue waits on is often that move.
+            if planning:
+                moved = await _sync_and_plan(
+                    root, log, partition, config=config, worker=worker, plan=not await paused()
+                )
 
                 if moved:
                     # S-0120/D-2: the fast-forward moved the engine, so this
@@ -1412,6 +1445,10 @@ async def _serve(
 
             done, reason = await run_night(terms)
             handled += done
+
+            if reason == NIGHT_ENGINE_MOVED:
+                return handled, ENGINE_MOVED
+
             bound, _, detail = reason.partition(":")
 
             if bound == "escalation" and detail in terms.stop_on:
