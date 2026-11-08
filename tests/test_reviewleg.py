@@ -1828,7 +1828,8 @@ def test_a_contradiction_is_read_from_the_landing_when_the_root_holds_no_log(see
 def test_rejections_read_the_landing_record_before_a_root_log_holding_other_entries(seeded):
     """S-0126/D-3: the landing's execution record names the attempt whose
     rejections the reply carries; a root log holding entries from another
-    attempt is not read beside it, so the landed rejection is what is posted."""
+    attempt is not read beside it, and neither is another attempt's entry the
+    landing record itself carries, so the landed rejection alone is posted."""
 
     task_id = "T-0901"
     log = layout.log_file(seeded.root, task_id)
@@ -1859,6 +1860,14 @@ def test_rejections_read_the_landing_record_before_a_root_log_holding_other_entr
         "    attempt: 1\n"
         "    claim: the landed attempt's rejection\n"
         "    evidence: src/app.py:12 — the landed evidence\n"
+        "    action: decided\n"
+        "  - decision: unlisted\n"
+        "    grade: UNLISTED\n"
+        "    kind: contradicted\n"
+        "    at: '2026-09-19T00:00:00Z'\n"
+        "    attempt: 2\n"
+        "    claim: a later attempt's rejection\n"
+        "    evidence: src/app.py:13 — not this landing's evidence\n"
         "    action: decided\n",
     )
     seeded.commit(f"torve({task_id}): landing of attempt 1")
@@ -1868,6 +1877,7 @@ def test_rejections_read_the_landing_record_before_a_root_log_holding_other_entr
     assert "Not applied — the landed attempt's rejection" in body
     assert "the root log's latest rejection" not in body
     assert "an older root entry" not in body
+    assert "a later attempt's rejection" not in body
 
 
 def test_a_round_of_several_recorded_findings_is_answered_with_one_comment(seeded):
