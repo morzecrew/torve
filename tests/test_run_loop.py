@@ -273,6 +273,66 @@ def test_poison_ceiling_never_retries_past_the_ceiling(rig):
     assert escalations[0]["task"] == "T-9001"
 
 
+def test_ceiling_on_a_revision(rig):
+    """S-0125/D-10: a ceiling reached after a revision round keeps the
+    revision's tree on the task's branch, under a checkpoint subject the next
+    dispatch resumes from — the same way a review blocker's tree is kept."""
+    from torve.config.runconfig import ReviewConfig
+
+    repo, deps, _runtime, vcs, gate_outcomes = rig
+    worktree = repo.root / ".wt" / "T-9001"
+    worktree.mkdir(parents=True, exist_ok=True)
+    (worktree / "app.py").write_text("broken = True\n", encoding="utf-8")
+
+    # The first attempt gates green and the review asks for a revision; the
+    # revision's own gates go red, and the ceiling stops the run there.
+    gate_outcomes += [0, 1]
+    deps.review_agent = ScriptedAgent(
+        [
+            AgentResult(
+                exit_code=0,
+                output=json.dumps(
+                    {
+                        "findings": [
+                            {
+                                "severity": "blocker",
+                                "claim": "the change is wrong",
+                                "evidence": "app.py:1 — flag",
+                            }
+                        ]
+                    }
+                ),
+            )
+        ]
+    )
+    config = RunnerConfig(
+        poison_ceiling=2,
+        review=ReviewConfig(on=["task_gated"], blocker_revisions=2),
+    )
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None
+    assert state.escalation.reason == "poison_ceiling"
+    facts = [event["fact"] for event in state.history]
+    assert any(f.startswith("review blocker (revision 1 of 2):") for f in facts)
+
+    checkpoints = [
+        message for message in vcs.commits if "escalated at the ceiling on a revision" in message
+    ]
+    assert len(checkpoints) == 1
+    assert "Torve-Checkpoint: T-9001 attempt 2" in checkpoints[0]
+    assert not [message for message in vcs.commits if "landing of attempt" in message]
+    # S-0125/D-10: the escalation itself is what a requeue continues from.
+    assert run_module._continuable(state.escalation, state)
+
+    requeued = RunState.load(naming.state_file(repo.root, "T-9001"))
+    requeued.transition(TaskState.QUEUED, "requeued by an operator")
+    requeued.save()
+    assert run_module._should_resume(requeued)
+
+
 def test_iteration_budget_escalates_as_budget_exhausted(rig):
     repo, deps, _, vcs, _ = rig
     deps.agent = ScriptedAgent([CRASH])

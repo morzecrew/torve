@@ -3097,6 +3097,43 @@ def test_a_budget_checkpoint_resumes_once_its_requeue_removed_the_state_file(rep
     assert _checkpointed_for_resume(repo.root, SimpleNamespace(id="T-0001"))
 
 
+def test_ceiling_on_a_revision(repo):
+    """S-0125/D-10: a ceiling reached after a revision round leaves the same
+    checkpoint a review blocker's escalation does — the subject resumes, and
+    the escalation is continuable — while a plain ceiling keeps restarting
+    from base."""
+    from types import SimpleNamespace
+
+    from torve.application.runstate import Escalation
+
+    repo.seed()
+    branch = naming.branch("T-0001")
+    repo.git("checkout", "-q", "-b", branch)
+    repo.write("wip.txt", "the revision's tree\n")
+    repo.commit(
+        "torve(T-0001): attempt 2 escalated at the ceiling on a revision\n\n"
+        "Torve-Checkpoint: T-0001 attempt 2"
+    )
+
+    assert run_module._checkpointed_for_resume(repo.root, SimpleNamespace(id="T-0001"))
+    assert run_module._continuable(
+        Escalation(
+            reason="poison_ceiling",
+            detail="2 attempts, ceiling 2; escalated at the ceiling on a revision",
+        )
+    )
+
+    # A ceiling with no revision fact keeps today's rule: base again.
+    repo.write("plain.txt", "a tree with no revision fact\n")
+    repo.commit(
+        "torve(T-0001): attempt 2 escalated at the ceiling\n\nTorve-Checkpoint: T-0001 attempt 2"
+    )
+    assert not run_module._checkpointed_for_resume(repo.root, SimpleNamespace(id="T-0001"))
+    assert not run_module._continuable(
+        Escalation(reason="poison_ceiling", detail="2 attempts, ceiling 2")
+    )
+
+
 def _rebased_document(repo, *, checkpoint: tuple[str, str], main: tuple[str, str]) -> str:
     """A document branch with one landing, a task checkpoint cut from it, and
     then main moving and the lane rebasing the document branch onto it."""
