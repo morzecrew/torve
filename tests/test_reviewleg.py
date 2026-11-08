@@ -2861,6 +2861,79 @@ def test_fixing_reply_says_the_escalation_s_reason_once(seeded):
     assert len(forge.replied) == 4
 
 
+def test_a_thread_resolved_when_the_reason_was_posted_hears_it_when_it_reopens(seeded):
+    """S-0125/D-4: escalation replies are tracked per thread. A thread that was
+    resolved while its siblings were told why the round stopped still receives
+    the reason when it reopens; a task-wide memory would have suppressed it."""
+
+    open_document(seeded.root)
+    forge = StubForge(pr(thread("t1"), thread("t2", line=40)))
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+    (recorded,) = events(seeded.root, "lane_review_task")
+    task_id = recorded["task"]
+    fixing = f"Fixing in {task_id}."
+
+    path = naming.state_file(seeded.root, task_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    state = RunState(task_id=task_id, path=path)
+
+    for to in (
+        TaskState.CLAIMED,
+        TaskState.RUNNING,
+        TaskState.GATED,
+        TaskState.REVIEWED,
+        TaskState.READY,
+    ):
+        state.transition(to, "test")
+
+    state.escalate(EscalationReason.BLOCKER_FINDING, "the fix stayed red")
+
+    # t1 is resolved on the forge, so only t2 is told why the round stopped.
+    t1 = ReviewThread(
+        id="t1",
+        path="src/app.py",
+        line=12,
+        comments=(
+            ThreadComment(author=BOT, body="this dereference has no null check"),
+            ThreadComment(author="torve", body=fixing),
+        ),
+    )
+    t2 = ReviewThread(
+        id="t2",
+        path="src/app.py",
+        line=40,
+        comments=(
+            ThreadComment(author=BOT, body="this dereference has no null check"),
+            ThreadComment(author="torve", body=fixing),
+        ),
+    )
+    forge.info = pr(t2)
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    assert forge.replied == [("t1", fixing), ("t2", fixing), ("t2", "blocker_finding")]
+
+    # t1 reopens, still carrying only the fixing reply. It must hear why.
+    forge.info = pr(
+        t1,
+        ReviewThread(
+            id="t2",
+            path="src/app.py",
+            line=40,
+            comments=(
+                ThreadComment(author=BOT, body="this dereference has no null check"),
+                ThreadComment(author="torve", body=fixing),
+                ThreadComment(author="torve", body="blocker_finding"),
+            ),
+        ),
+    )
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    assert forge.replied[-1] == ("t1", "blocker_finding")
+
+
 def test_the_escalation_reason_on_the_thread_keeps_another_host_from_repeating_it(seeded):
     """S-0125/D-4: the forge comment is the durable carrier of a round's
     escalation reason. A host with no in-process memory still says nothing

@@ -136,10 +136,12 @@ FIXING_PREFIX = "Fixing in "
 FIXING_REPLY = f"{FIXING_PREFIX}{{task}}."
 
 # Escalated rounds already answered with their reason, for the life of the
-# process — (repository, task id, reason). On a real forge the thread's own
-# comment is the durable carrier; this remembers the pass whose `PrInfo` was
-# read before the reply landed, so one process does not repeat itself.
-ESCALATION_REPLIED: set[tuple[str, str, str]] = set()
+# process — (repository, task id, thread id, reason). On a real forge the
+# thread's own comment is the durable carrier; this remembers the pass whose
+# `PrInfo` was read before the reply landed, so one process does not repeat
+# itself. Keyed by thread rather than task: a thread resolved while its
+# siblings were answered must still be told the reason when it reopens.
+ESCALATION_REPLIED: set[tuple[str, str, str, str]] = set()
 
 # Minted rounds already named on a thread, for the life of the process —
 # (repository, task id, thread id). The mint-time reply can fail after the
@@ -1120,7 +1122,9 @@ def _reply_escalated_rounds(
     (S-0125/D-4): the escalation's reason, once, and never resolved — the
     thread is left for a person. A round still queued, running or landed has
     nothing to say, and a reason already posted on the thread is not posted
-    again by a later pass or another host."""
+    again by a later pass or another host. Replies are remembered per thread,
+    so a thread that was resolved while its siblings were answered still gets
+    the reason when it reopens."""
 
     answered = 0
 
@@ -1137,11 +1141,6 @@ def _reply_escalated_rounds(
 
         reason = state.escalation.reason
 
-        if (str(root), task_id, reason) in ESCALATION_REPLIED:
-            continue
-
-        wrote = False
-
         for finding in task.round.findings:
             for ident in finding.threads:
                 if str(ident).startswith(RECORD):
@@ -1150,6 +1149,11 @@ def _reply_escalated_rounds(
                 thread = open_threads.get(str(ident))
 
                 if thread is None or thread.author not in config.threads.bots:
+                    continue
+
+                key = (str(root), task_id, str(thread.id), reason)
+
+                if key in ESCALATION_REPLIED:
                     continue
 
                 # The forge carries the answer: a reason already on the thread
@@ -1161,7 +1165,7 @@ def _reply_escalated_rounds(
                     continue
 
                 forge.reply_thread(thread.id, reason)
-                wrote = True
+                ESCALATION_REPLIED.add(key)
                 answered += 1
                 engine_event(
                     root,
@@ -1174,9 +1178,6 @@ def _reply_escalated_rounds(
                         "reason": reason,
                     },
                 )
-
-        if wrote:
-            ESCALATION_REPLIED.add((str(root), task_id, reason))
 
     return answered
 
