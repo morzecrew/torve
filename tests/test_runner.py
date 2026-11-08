@@ -5156,6 +5156,62 @@ def test_session_revision_stopped_by_the_budget_still_writes_the_unit_record(
     }
 
 
+def test_a_unit_cap_stop_on_a_revision_keeps_the_revision(
+    review_rig,  # noqa: F811
+):
+    """S-0026/D-8: a session turn that takes the unit past $3 stops before its
+    re-review with a green tree (T-0904, 2026-11-08). A spent cap is budget
+    exhaustion, so the tree goes on the branch under the budget checkpoint and
+    a requeue resumes it instead of starting over from base."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.application.runstate import RunState
+    from torve.config.runconfig import ReviewConfig
+    from torve.domain.states import TaskState
+
+    repo, _runtime, deps_for = review_rig
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+            return AgentResult(exit_code=0, output="first", cost_usd=2.5)
+
+        def follow_up(self, ctx, previous, text):
+            return AgentResult(exit_code=0, output="second", cost_usd=3.5)
+
+    config = RunnerConfig(
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=2
+        )
+    )
+    deps = deps_for(SequencedReviewer([answer(findings=[finding()])] * 3))
+    deps.agent = SessionHarness([])
+    task = _unit_task()
+
+    state = run_task(repo.root, task, config, deps)
+
+    assert state.escalation is not None
+    assert state.escalation.detail.startswith("unit budget exhausted")
+    assert run_module._continuable(state.escalation, state)
+    [kept] = [message for message in deps.vcs.commits if "exhausted its budget" in message]
+    assert f"Torve-Checkpoint: {task.id} attempt {state.attempts}" in kept
+    assert not [message for message in deps.vcs.commits if "landing of attempt" in message]
+
+    requeued = RunState.load(naming.state_file(repo.root, task.id))
+    requeued.transition(TaskState.QUEUED, "requeued by an operator")
+    requeued.save()
+    assert run_module._should_resume(requeued)
+
+
 def test_session_revision_spends_every_round_in_the_same_session(
     review_rig,  # noqa: F811
 ):
