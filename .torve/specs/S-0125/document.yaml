@@ -6,7 +6,7 @@ change:
   type: fix
   scope: engine
 status: accepted
-implementation: none
+implementation: complete
 depends_on: [S-0122, S-0124]
 informed_by: [S-0123]
 supersedes: []

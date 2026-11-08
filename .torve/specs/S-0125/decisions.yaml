@@ -42,8 +42,9 @@ decisions:
     grade: ASSUMED
     text: >-
       Every review round carries at most `threads.findings_per_round` findings, whether
-      its head was triaged or not, and the default is 5; `batch_claims` still never
-      splits a file across rounds
+      its head was triaged or not, and the default is 5; a file with more findings
+      than the cap is one round of its own, because `batch_claims` never splits a
+      file across rounds
     paths: [src/torve/application/reviewleg.py, src/torve/config/runconfig.py]
     consequence: >-
       fifteen bot findings become three or more small rounds; a critic block in one
@@ -54,6 +55,7 @@ decisions:
     cites: [S-0122/D-15, S-0097/D-5]
     check: >-
       uv run pytest -q tests/test_reviewleg.py tests/test_runconfig.py -k findings_per_round
+    fingerprint: f2b4ea0d32532368/fe62264787a2595d
   - id: D-4
     grade: ASSUMED
     text: >-
