@@ -43,7 +43,13 @@ from torve.cli.options import (
     load_config,
     runtime_for,
 )
-from torve.domain.states import EXIT_CONFIG, EXIT_ENGINE_MOVED, EXIT_OK, TaskState
+from torve.domain.states import (
+    EXIT_CONFIG,
+    EXIT_ENGINE_MOVED,
+    EXIT_INFRASTRUCTURE,
+    EXIT_OK,
+    TaskState,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Awaitable, Callable, Container, Sequence
@@ -1242,6 +1248,7 @@ async def _serve(
         worker_obj = Worker(
             log=log,
             name=worker,
+            root=root,
             execute=runner_execute(
                 root,
                 config,
@@ -1920,6 +1927,35 @@ async def _resolve(
 # ....................... #
 
 
+def _live_durable_runs(config: RunnerConfig, dsn: str) -> set[str]:
+    """The store's RUNNING runs, the authority on whether a run still holds
+    its worktree (S-0121/D-19). A requeue consults it before clearing a
+    footprint whose host heartbeat has gone stale: a long attempt renews its
+    lease without touching the state file, so a heartbeat alone would read
+    live work as debris (S-0125/D-5)."""
+
+    import os
+
+    from torve.adapters.store.durable import open_store
+    from torve.application.taskstore import TaskStore
+
+    async def _ids() -> set[str]:
+        taskstore = TaskStore(await open_store(config.store), config.store)
+        return {record.run_id for record in await taskstore.live_records()}
+
+    previous = os.environ.get(config.store.dsn_env)
+    os.environ[config.store.dsn_env] = dsn
+
+    try:
+        return asyncio.run(_ids())
+
+    finally:
+        if previous is None:
+            os.environ.pop(config.store.dsn_env, None)
+        else:
+            os.environ[config.store.dsn_env] = previous
+
+
 async def _return(dsn: str | None, partition: str, task_id: str, reason: str, note: str) -> None:
     from torve.application.eventlog import event_log
     from torve.domain.events import ActorKind, EventKind, SubjectType
@@ -2153,9 +2189,13 @@ def resolve_cmd(
                 EXIT_CONFIG,
             )
 
+    root = root.resolve()
+    dsn_text = dsn_to_write(root, dsn)
+
     if resolution == "requeued":
         from torve.adapters.workspace.git import GitWorkspace
         from torve.application.reaper import clear_escalated
+        from torve.base import naming
 
         # S-0094/D-3: the escalation's own host footprint — run-state file,
         # worktree, sandbox — is cleared before the requeue is written, so
@@ -2163,14 +2203,44 @@ def resolve_cmd(
         # nor fails the overlap gate on a worktree the escalation left
         # behind. `abandoned` (S-0094/D-5) leaves this to `torve reap
         # --escalated` instead — a person can still read the worktree first.
-        root = root.resolve()
-        clear_escalated(
-            root, runtime_for(load_config(root, None), None), GitWorkspace(root), task_id
+        config = load_config(root, None)
+        # A run the durable store still holds is not debris, whatever its
+        # host heartbeat says; a mock store keeps nothing across processes,
+        # so only a real DSN has an answer to ask for.
+        live: set[str] | None = None
+
+        if dsn_text:
+            try:
+                live = _live_durable_runs(config, dsn_text)
+
+            except Exception as exc:
+                raise fail(
+                    "infrastructure failure: the durable store could not say whether "
+                    f"{task_id} is still running, so its footprint is left alone: {exc}",
+                    EXIT_INFRASTRUCTURE,
+                ) from exc
+
+        cleared = clear_escalated(
+            root,
+            runtime_for(config, None),
+            GitWorkspace(root),
+            task_id,
+            config=config,
+            live=live,
         )
 
-    asyncio.run(
-        _resolve(dsn_to_write(root, dsn) or None, partition, task_id, resolution, note, sha)
-    )
+        # A refused clear leaves the state file every next dispatch refuses
+        # on: a live run still holds it, or its worktree holds work no ref
+        # has. Recording the requeue over it would only hide that.
+        if not cleared and naming.state_file(root, task_id).is_file():
+            raise fail(
+                f"{task_id}'s footprint was left in place: a live run still holds it, or "
+                "its worktree holds uncommitted work that could not be checkpointed; "
+                "nothing was recorded",
+                EXIT_CONFIG,
+            )
+
+    asyncio.run(_resolve(dsn_text or None, partition, task_id, resolution, note, sha))
 
     briefed = False
 

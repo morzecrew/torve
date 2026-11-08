@@ -68,7 +68,12 @@ from torve.application.ports import (
     judge_ref,
 )
 from torve.application.reaper import STOPPED_MARKER
-from torve.application.review import mint_review_task, review_step, reviewer_for
+from torve.application.review import (
+    is_blocker_revision_fact,
+    mint_review_task,
+    review_step,
+    reviewer_for,
+)
 from torve.application.runstate import Escalation, RunState
 from torve.application.session import (
     AXIS_SEVERITY,
@@ -155,6 +160,13 @@ _BLOCKER_MARKER = "escalated from review on a blocker"
 _HALTED_MARKER = "escalated halted on a locked row"
 _UNDERSPECIFIED_MARKER = "escalated halted on a spec gap"
 
+# The subject `_commit_reviewed_tree` writes when the poison ceiling stops a
+# run whose history holds a revision round (S-0125). `_continuable` reads
+# the escalation's detail for the same words, so the two can never disagree
+# about whether the run stopped on a revision.
+_CEILING_REVISION_MARKER = "escalated at the ceiling on a revision"
+_ON_A_REVISION_MARKER = "on a revision"
+
 # The subject `checkpoint` writes when a run spends its budget (S-0026/D-9).
 # A requeue removes the state file `_should_resume` reads, so the branch tip
 # is the only record left that the run was a continuation.
@@ -175,13 +187,30 @@ def _exhausted(escalation: Escalation) -> bool:
     ) and escalation.detail.startswith(_WALLCLOCK_MARKER)
 
 
-def _continuable(escalation: Escalation) -> bool:
+def _on_a_revision(state: RunState) -> bool:
+    """Whether this run's history holds a surviving blocker's revision fact —
+    the `review blocker (revision k of n)` row a revision attempt follows
+    (S-0125). It is the fact, not the escalation reason, that says the
+    ceiling stopped work a review had already judged."""
+
+    return any(is_blocker_revision_fact(str(entry.get("fact", ""))) for entry in state.history)
+
+
+def _continuable(escalation: Escalation, state: RunState | None = None) -> bool:
     """The escalations the next dispatch resumes from: budget exhaustion
-    (S-0026/D-8), and a review blocker or a halt (S-0090/D-2, S-0096/D-1) —
-    a review that asks for one file's change costs that change, and a halt
-    answered by an amendment resumes where it stopped, whether it cites a
-    LOCKED row or is `underspecified`. A gate conviction still restarts from
-    base."""
+    (S-0026/D-8), and a review blocker, a halt (S-0090/D-2, S-0096/D-1) or a
+    ceiling reached after a revision round (S-0125) — a review that asks
+    for one file's change costs that change, a halt answered by an amendment
+    resumes where it stopped, whether it cites a LOCKED row or is
+    `underspecified`, and a revision the ceiling stopped resumes from its own
+    tree. A gate conviction still restarts from base."""
+
+    if escalation.reason == str(EscalationReason.POISON_CEILING):
+        return (
+            _on_a_revision(state)
+            if state is not None
+            else _ON_A_REVISION_MARKER in escalation.detail
+        )
 
     return _exhausted(escalation) or escalation.reason in (
         str(EscalationReason.BLOCKER_FINDING),
@@ -261,7 +290,20 @@ async def _attempt_loop(
 
         # Poison ceiling is checked before dispatch, never after (S-0001/state-machine).
         if made >= ceiling:
-            state.escalate(EscalationReason.POISON_CEILING, f"{made} attempts, ceiling {ceiling}")
+            on_revision = _on_a_revision(state)
+            detail = f"{made} attempts, ceiling {ceiling}"
+
+            if on_revision:
+                detail = f"{detail}; {_CEILING_REVISION_MARKER}"
+
+            state.escalate(EscalationReason.POISON_CEILING, detail)
+
+            # S-0125: a ceiling reached after a revision round keeps the
+            # revision's tree on the branch, as a review blocker's escalation
+            # does (S-0086/D-2). A run whose attempts saw no revision fact
+            # commits nothing and still restarts from base.
+            if on_revision and hooks.reviewed_tree is not None:
+                hooks.reviewed_tree(state)
 
             return state
 
@@ -1329,6 +1371,9 @@ def _commit_reviewed_tree(run: Dispatch, state: RunState) -> None:
     elif reason == str(EscalationReason.UNDERSPECIFIED):
         why = _UNDERSPECIFIED_MARKER
 
+    elif reason == str(EscalationReason.POISON_CEILING) and _on_a_revision(state):
+        why = _CEILING_REVISION_MARKER
+
     elif reason == str(EscalationReason.KILLED):
         why = "escalated on an urgent note"
 
@@ -1785,7 +1830,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         taken = [*(run.deps.taken() if run.deps.taken is not None else ()), *reviews]
         review_task = mint_review_task(run.root, run.task, taken=taken)
         reviews.append(review_task.id)
-        verdict = await asyncio.to_thread(critic_judge, candidate.run, review_task)
+        verdict = await asyncio.to_thread(critic_judge, candidate.run, review_task, state)
         candidate.verdict = verdict
 
         if critic:
@@ -1858,9 +1903,11 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         if verdict is None or not verdict.blockers:
             return False
 
-        from torve.application.review import _anchor_reraised, _recorded_blocker_anchors
+        from torve.application.review import _anchor_reraised, mapped_blocker_anchors
 
-        return _anchor_reraised(verdict.blockers, _recorded_blocker_anchors(state)) is not None
+        anchors = mapped_blocker_anchors(member.run.worktree, state)
+
+        return _anchor_reraised(verdict.blockers, anchors) is not None
 
     try:
         chosen_round = await selection.select(
@@ -2027,23 +2074,19 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                     # spend on a fresh attempt (S-0124/D-3, D-8): it records
                     # the same revision fact with the anchors it revised, so
                     # the next verdict is judged as the round after it.
-                    from torve.application.review import (
-                        BLOCKER_REVISION_MARKER,
-                        _anchors_suffix,
-                        _blocker_anchors,
-                    )
+                    from torve.application.review import blocker_fact
 
-                    detail = "; ".join(f.claim for f in verdict.blockers)
                     state.history.append(
                         {
                             "at": state.heartbeat,
                             "from": str(state.state),
                             "to": str(state.state),
-                            "fact": (
-                                f"{BLOCKER_REVISION_MARKER}{round_no} of "
-                                f"{run.config.review.resolved_blocker_revisions()}): "
-                                f"{verdict.review_id}: {detail[:300]}"
-                                f"{_anchors_suffix(_blocker_anchors(verdict.blockers))}"
+                            "fact": blocker_fact(
+                                verdict.review_id,
+                                round_no,
+                                run.config.review.resolved_blocker_revisions(),
+                                verdict.blockers,
+                                verdict.head,
                             ),
                         }
                     )
@@ -2696,15 +2739,16 @@ def _should_resume(previous: RunState) -> bool:
     if len(previous.history) < 2 or previous.history[-2].get("to") != str(TaskState.ESCALATED):
         return False
 
-    return _continuable(previous.escalation)
+    return _continuable(previous.escalation, previous)
 
 
 def _checkpointed_for_resume(root: Path, task: Task) -> bool:
     """S-0090/D-2: a task whose run state was reaped still resumes when its
-    branch tip is the checkpoint a review blocker, a halt, a spent budget or a
-    stopped run's requeue (`reaper.clear_escalated`) left — the tree is
-    on the branch either way, and the reaper removing the state file is not an
-    answer to the escalation."""
+    branch tip is the checkpoint a review blocker, a halt, a revision the
+    ceiling stopped (S-0125), a spent budget or a stopped run's requeue
+    (`reaper.clear_escalated`) left — the tree is on the branch either way,
+    and the reaper removing the state file is not an answer to the
+    escalation."""
 
     try:
         message = git(root, "log", "-1", "--format=%B", naming.branch(task.id))
@@ -2719,6 +2763,7 @@ def _checkpointed_for_resume(root: Path, task: Task) -> bool:
             _BLOCKER_MARKER,
             _HALTED_MARKER,
             _UNDERSPECIFIED_MARKER,
+            _CEILING_REVISION_MARKER,
             _EXHAUSTED_MARKER,
             STOPPED_MARKER,
         )

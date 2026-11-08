@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import re
 import warnings
+from contextlib import suppress
 from pathlib import Path
 from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlsplit
@@ -99,8 +100,10 @@ class TierConfig(BaseModel):
     model_id: str = ""
     """S-0064/D-3: what actually reaches the provider. The seat writes a roster key, which
     may be a local shorthand for a slug that is awkward to type; this is what travels."""
-    context_window: int = 0
-    """S-0064/D-1: the model's window, merged off the roster; 0 is unstated."""
+    context_window: int = Field(default=0, ge=0)
+    """S-0064/D-1, S-0125/D-8: the window this seat's harness compacts against, kept when
+    the seat states one and merged off the roster only when the seat states none; 0 is
+    unstated, and a negative window is refused at load rather than handed to a harness."""
     max_tokens: int = 0
     """S-0064/D-1: the cap on one response, merged off the roster; 0 is unstated."""
     request_timeout_s: float | None = None
@@ -1342,10 +1345,13 @@ class ThreadsConfig(BaseModel):
     rounds_per_pass: int = 1
     """How many revision rounds one served pass may mint (S-0084/D-16). Bounds the leg per
     pass; the night's own budget bounds it across the night."""
-    findings_per_round: int = 15
-    """How many findings one round carries (S-0097/D-5). A head's findings are minted
-    together as rounds of at most this many, grouped by file so no two rounds of one
-    wave share a file; `rounds_per_pass` still bounds what a pass mints."""
+    findings_per_round: int = 5
+    """How many findings one round carries (S-0097/D-5, S-0125/D-3). A head's findings
+    are minted together as rounds of at most this many, grouped by file so no two
+    rounds of one wave share a file; a file carrying more findings than this is one
+    round of its own rather than split. `rounds_per_pass` still bounds what a pass mints.
+    The cap applies whether triage ran on the head or not. The default is 5 (S-0125/D-3);
+    an operator who wants a larger round sets it explicitly."""
     review_wait: int = 45
     """Minutes a night waits for a document pull request's head to be reviewed before
     it would otherwise drain (S-0097/D-4). The wait ends early once every login in
@@ -1575,6 +1581,9 @@ def merge_records(tiers: dict[str, Any], records: dict[str, Provider]) -> None:
     every call site would be the split leaking out of the files it belongs in.
     Run after `resolve_seats` so a seat cannot write any of these itself — they
     are the record's, and a seat that could restate one could disagree with it.
+    `context_window` is the exception (S-0125/D-8): the window a harness
+    compacts against is the seat's to state, so the roster fills it only where
+    the seat states none.
     """
 
     for entry in tiers.values():
@@ -1606,13 +1615,25 @@ def merge_records(tiers: dict[str, Any], records: dict[str, Provider]) -> None:
             entry["base_url"] = route.base_url
 
         if model is not None:
-            entry.update(
-                {
-                    "model_id": model.id or str(entry.get("model") or ""),
-                    "context_window": model.context_window,
-                    "max_tokens": model.max_tokens,
-                }
-            )
+            entry["model_id"] = model.id or str(entry.get("model") or "")
+
+            # S-0125/D-8: a seat may hand its harness a smaller window than the
+            # model's, so the roster supplies one only where the seat states none.
+            # A quoted number states the same window as an unquoted one; read it
+            # as a number before the falsy test, so `"0"` is the unstated zero it
+            # is rather than a truthy string that bypasses the roster.
+            window = entry.get("context_window")
+
+            if isinstance(window, str):
+                # Not a number stays a truthy string: the model's validation
+                # refuses it by name, so the roster never hides the mistake.
+                with suppress(ValueError):
+                    window = int(window)
+
+            if not window:
+                entry["context_window"] = model.context_window
+
+            entry["max_tokens"] = model.max_tokens
 
 
 # ....................... #

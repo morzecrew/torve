@@ -33,7 +33,7 @@ import shlex
 import shutil
 import subprocess
 import uuid
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -128,6 +128,26 @@ ENGINE_WRITTEN_REPLY = (
     f"{AGENTS_FILE} projection is regenerated from the decision rows it renders; "
     "a fix belongs in that task or those rows, not in a comment on this pull request."
 )
+
+# What a minted round says on each of its bot threads (S-0125/D-4): the task
+# fixing it, posted before the round has landed. The thread is left unresolved
+# so a reader still sees it, and the landing answer follows as before.
+FIXING_PREFIX = "Fixing in "
+FIXING_REPLY = f"{FIXING_PREFIX}{{task}}."
+
+# Escalated rounds already answered with their reason, for the life of the
+# process — (repository, task id, thread id, reason). On a real forge the
+# thread's own comment is the durable carrier; this remembers the pass whose
+# `PrInfo` was read before the reply landed, so one process does not repeat
+# itself. Keyed by thread rather than task: a thread resolved while its
+# siblings were answered must still be told the reason when it reopens.
+ESCALATION_REPLIED: set[tuple[str, str, str, str]] = set()
+
+# Minted rounds already named on a thread, for the life of the process —
+# (repository, task id, thread id). The mint-time reply can fail after the
+# round is on the board, so a later pass retries it (S-0125/D-4); this keeps
+# that retry from repeating a reply the same process already posted.
+FIXING_REPLIED: set[tuple[str, str, str]] = set()
 
 # S-0102/D-6: (repository, branch, path, line) -> the head the leg last
 # recorded a re-raise at, for the life of the process. A served manager is one
@@ -254,6 +274,112 @@ def thread_text(thread: ReviewThread) -> str:
 # ....................... #
 
 
+def _base_commit(root: Path, branch: str) -> str | None:
+    """The commit the round is cut from: the remote's copy of the document
+    branch, as `runner` cuts a document task from it, else the local branch;
+    None when neither ref exists and the checkout is the only tree.
+
+    Resolved once per wave, not once per finding: the refs are mutable, and a
+    fetch that lands between two excerpts must not make one round carry lines
+    from two different commits."""
+
+    for ref in (f"refs/remotes/origin/{branch}", f"refs/heads/{branch}"):
+        probe = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--verify", "-q", f"{ref}^{{commit}}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if probe.returncode == 0:
+            return probe.stdout.strip()
+
+    return None
+
+
+def _base_text(root: Path, commit: str | None, path: str) -> str | None:
+    """*path* as the tree at *commit* holds it; the checkout only when the
+    branch has no ref at all (None). None when that tree does not hold the
+    file."""
+
+    if commit is not None:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "show", f"{commit}:{path}"],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+
+        return proc.stdout if proc.returncode == 0 else None
+
+    try:
+        tree = root.resolve()
+        target = (root / path).resolve()
+
+        if not target.is_relative_to(tree) or not target.is_file():
+            return None
+
+        return target.read_text(encoding="utf-8", errors="replace")
+
+    except OSError:
+        return None
+
+
+def _excerpt(root: Path, commit: str | None, finding: Finding) -> str:
+    """The base tree's numbered lines from `WINDOW` above to `WINDOW` below the
+    finding's anchor (S-0125/D-7), or "" when the finding has no anchor or its
+    file is absent from the base tree.
+
+    The base tree is the one the round is cut from (`_base_commit`) — never
+    the pull request's head, where a line the reviewer saw may no longer be
+    the line the base tree holds. Lines that carry the fence marker are the
+    tree's own code, not a thread's: the excerpt is withheld rather than the
+    round refused in the thread's name."""
+
+    if finding.line is None:
+        return ""
+
+    text = _base_text(root, commit, finding.path)
+
+    if text is None:
+        return ""
+
+    lines = text.splitlines()
+
+    first = max(1, finding.line - WINDOW)
+    last = min(len(lines), finding.line + WINDOW)
+
+    if first > last:
+        return ""
+
+    numbered = [f"{number:>4} | {lines[number - 1]}" for number in range(first, last + 1)]
+
+    if any(MARKER in line for line in numbered):
+        return f"base {finding.path}:{first}-{last} withheld: the lines carry the fence marker"
+
+    return "\n".join([f"base {finding.path}:{first}-{last}", *numbered])
+
+
+def _verdict(thread: ReviewThread, verdict: ThreadVerdict) -> str:
+    """Triage's verdict and evidence for one thread (S-0125/D-7), as the round
+    reads it under the finding that thread raised.
+
+    Evidence that carries the fence marker is the critic quoting it, not a
+    thread closing the fence: it is withheld rather than the round refused in
+    the thread's name, exactly as a base excerpt's marker lines are."""
+
+    evidence = verdict.evidence.strip()
+
+    if MARKER in evidence:
+        evidence = "withheld: the evidence carries the fence marker"
+
+    return f"triage {thread.id}: {verdict.verdict}" + (f" — {evidence}" if evidence else "")
+
+
+# ....................... #
+
+
 # A collapsed block, innermost first: CodeRabbit nests them.
 DETAILS = re.compile(r"<details\b(?:(?!<details\b).)*?</details\s*>", re.IGNORECASE | re.DOTALL)
 UNCLOSED = re.compile(r"<details\b.*\Z", re.IGNORECASE | re.DOTALL)
@@ -304,6 +430,14 @@ def fence(
     """
 
     body = "\n\n".join(text(thread) for thread in threads)
+
+    return _seal(body, nonce_source)
+
+
+def _seal(body: str, nonce_source: Callable[[], str]) -> tuple[str, str]:
+    """*body* behind the nonce-delimited fence (S-0084/D-8): the same check
+    `fence` has always run, over whatever the round's body now carries
+    (S-0125/D-7)."""
 
     if MARKER in body:
         raise FenceRefused("a thread body carries the fence marker — the round is not composable")
@@ -574,6 +708,39 @@ def _allow(
 # ....................... #
 
 
+def _wave_body(
+    root: Path,
+    branch: str,
+    claims: Sequence[Claim],
+    verdicts: Mapping[str, ThreadVerdict],
+) -> str:
+    """The fenced body of a wave (S-0125/D-7): under each finding its threads,
+    the base tree's numbered lines around its anchor, and triage's verdict and
+    evidence for each of those threads when the head was triaged."""
+
+    parts: list[str] = []
+    commit = _base_commit(root, branch)
+
+    for claim in claims:
+        finding = claim.finding
+        parts += [thread_text(collapsed(thread)) for thread in finding.threads]
+        excerpt = _excerpt(root, commit, finding)
+
+        if excerpt:
+            parts.append(excerpt)
+
+        parts += [
+            _verdict(thread, verdicts[thread.id])
+            for thread in finding.threads
+            if thread.id in verdicts
+        ]
+
+    return "\n\n".join(parts)
+
+
+# ....................... #
+
+
 def compose_round(
     root: Path,
     branch: str,
@@ -583,6 +750,7 @@ def compose_round(
     files: Sequence[str] = (),
     phases: Collection[int] = (),
     nonce_source: Callable[[], str] = _mint_nonce,
+    verdicts: Mapping[str, ThreadVerdict] | None = None,
 ) -> Round:
     """One finding composed into a round (S-0084/D-7, S-0084/D-8, S-0084/D-9)."""
 
@@ -593,6 +761,7 @@ def compose_round(
         (Claim(finding, tuple(files), tuple(phases)),),
         acceptance=round_acceptance(root),
         nonce_source=nonce_source,
+        verdicts=verdicts,
     )
 
 
@@ -607,13 +776,15 @@ def compose_wave(
     *,
     acceptance: Sequence[str],
     nonce_source: Callable[[], str] = _mint_nonce,
+    verdicts: Mapping[str, ThreadVerdict] | None = None,
 ) -> Round:
     """The findings of one file-disjoint wave into one round (S-0097/D-5):
     every claim's threads fenced together, and a scope wide enough for every
     one of them.
 
     `acceptance` is the caller's one read of `round_acceptance`, so the list a
-    guard refused on empty is the list the round carries.
+    guard refused on empty is the list the round carries. `verdicts` is
+    triage's answer for the head, empty when it did not run (S-0125/D-7).
 
     Nothing is written and nothing reaches the forge: an injecting thread
     raises here, before the round exists, and so does a text that could close
@@ -628,7 +799,7 @@ def compose_wave(
         if reason:
             raise InjectionRefused(f"{thread.id} {reason}")
 
-    nonce, fenced = fence(threads, nonce_source=nonce_source)
+    nonce, fenced = _seal(_wave_body(root, branch, claims, verdicts or {}), nonce_source)
 
     allow: list[str] = []
 
@@ -953,6 +1124,150 @@ def _escalate(root: Path, branch: str, detail: str) -> None:
 # ....................... #
 
 
+def _reply_escalated_rounds(
+    root: Path,
+    config: RunnerConfig,
+    forge: ThreadForge,
+    branch: str,
+    info: PrInfo,
+    open_threads: dict[str, ReviewThread],
+) -> int:
+    """Say on each of an escalated round's bot threads why it stopped
+    (S-0125/D-4): the escalation's reason, once, and never resolved — the
+    thread is left for a person. A round still queued, running or landed has
+    nothing to say, and a reason already posted on the thread is not posted
+    again by a later pass or another host. Replies are remembered per thread,
+    so a thread that was resolved while its siblings were answered still gets
+    the reason when it reopens."""
+
+    answered = 0
+
+    for task_id, task in round_tasks(root, branch):
+        path = naming.state_file(root, task_id)
+
+        if not path.is_file():
+            continue
+
+        state = RunState.load(path)
+
+        if state.state is not TaskState.ESCALATED or state.escalation is None:
+            continue
+
+        reason = state.escalation.reason
+
+        for finding in task.round.findings:
+            for ident in finding.threads:
+                if str(ident).startswith(RECORD):
+                    continue
+
+                thread = open_threads.get(str(ident))
+
+                if thread is None or thread.author not in config.threads.bots:
+                    continue
+
+                key = (str(root), task_id, str(thread.id), reason)
+
+                if key in ESCALATION_REPLIED:
+                    continue
+
+                # The forge carries the answer: a reason already on the thread
+                # means an earlier pass said it, on this host or another.
+                if any(
+                    comment.author == info.author and comment.body.strip() == reason
+                    for comment in thread.comments
+                ):
+                    continue
+
+                forge.reply_thread(thread.id, reason)
+                ESCALATION_REPLIED.add(key)
+                answered += 1
+                engine_event(
+                    root,
+                    "lane_thread_escalated",
+                    {
+                        "branch": branch,
+                        "pr": info.number,
+                        "task": task_id,
+                        "thread": thread.id,
+                        "reason": reason,
+                    },
+                )
+
+    return answered
+
+
+# ....................... #
+
+
+def _reply_minted_rounds(
+    root: Path,
+    config: RunnerConfig,
+    forge: ThreadForge,
+    branch: str,
+    info: PrInfo,
+    open_threads: dict[str, ReviewThread],
+    landed: Callable[[str], str | None],
+) -> int:
+    """Say `Fixing in T-NNNN.` on a minted round's bot threads (S-0125/D-4),
+    retrying a reply an earlier pass could not post. `mint_round` puts the
+    round on the board before the replies are made, so a forge that rejected
+    one leaves a finding whose round exists and which no later pass raises
+    again. A landed round belongs to the landing answer, an escalated one to
+    its reason, and a reply already on the thread or already made by this
+    process is not posted twice."""
+
+    answered = 0
+
+    for task_id, task in round_tasks(root, branch):
+        if landed(task_id):
+            continue
+
+        path = naming.state_file(root, task_id)
+
+        if path.is_file():
+            state = RunState.load(path)
+
+            if state.state in {TaskState.ESCALATED, TaskState.ABANDONED}:
+                continue
+
+        body = FIXING_REPLY.format(task=task_id)
+
+        for finding in task.round.findings:
+            for raw in finding.threads:
+                ident = str(raw)
+
+                if ident.startswith(RECORD):
+                    continue
+
+                key = (str(root), task_id, ident)
+
+                if key in FIXING_REPLIED:
+                    continue
+
+                thread = open_threads.get(ident)
+
+                if thread is None or thread.author not in config.threads.bots:
+                    continue
+
+                # The forge carries the answer: the reply is there, so an
+                # earlier pass on this host or another already said it.
+                if any(
+                    comment.author == info.author and _is_fixing_reply(comment.body)
+                    for comment in thread.comments
+                ):
+                    FIXING_REPLIED.add(key)
+                    continue
+
+                forge.reply_thread(thread.id, body)
+                FIXING_REPLIED.add(key)
+                answered += 1
+
+    return answered
+
+
+# ....................... #
+
+
 def _injection(finding: Finding) -> str:
     """The first thread of *finding* that asks for something a claim may not
     (S-0084/D-9), read off its visible text; "" when none does. The same scan
@@ -1255,13 +1570,39 @@ def _already_handled(thread: ReviewThread, engine: str) -> bool:
 
 
 def _engine_replied(thread: ReviewThread, engine: str) -> bool:
-    """Whether the engine has commented on this thread at all (S-0103/D-1) —
-    the round's answer, a refusal or the engine-written reply. A landed round
-    is answered once per thread, so one already carrying an engine comment is
-    not answered again: a comment after that reply is a re-raise, judged by the
-    leg, never the same reply posted a second time (S-0084/D-14)."""
+    """Whether the engine has answered this thread (S-0103/D-1) — the round's
+    answer, a refusal or the engine-written reply. A landed round is answered
+    once per thread, so one already carrying an engine comment is not answered
+    again: a comment after that reply is a re-raise, judged by the leg, never
+    the same reply posted a second time (S-0084/D-14).
 
-    return bool(engine and any(comment.author == engine for comment in thread.comments))
+    Neither a minted round's `Fixing in T-NNNN.` nor the reason an escalated
+    round left is the answer a landing posts (S-0125/D-4): each says where the
+    thread stands before it is done, and the landing answer still follows."""
+
+    return bool(
+        engine
+        and any(
+            comment.author == engine
+            and not _is_fixing_reply(comment.body)
+            and not _is_escalation_reply(comment.body)
+            for comment in thread.comments
+        )
+    )
+
+
+def _is_fixing_reply(body: str) -> bool:
+    """Whether *body* is the reply a minted round posts, never the answer a
+    landed one does (S-0125/D-4)."""
+
+    return body.lstrip().startswith(FIXING_PREFIX)
+
+
+def _is_escalation_reply(body: str) -> bool:
+    """Whether *body* is the reason an escalated round left on its thread,
+    never the answer a landed one posts (S-0125/D-4)."""
+
+    return body.strip() in {str(reason) for reason in EscalationReason}
 
 
 # ....................... #
@@ -1825,12 +2166,13 @@ End with one JSON document:
 {"schema": "torve.triage/v1", "threads": [{"thread": "<id>", "verdict": "apply",
 "evidence": "src/app.py:12 — ...", "duplicate_of": ""}]}"""
 
-# The heads already triaged by this manager process, with the verdict each
-# thread got, so a later pass over the same head makes no second call and still
-# carries what the first one said to apply (S-0122/D-15); and the heads whose
-# call gave no answer, which take the ordinary rounds without asking again. A
-# restart asks again, once.
-TRIAGED: dict[tuple[str, str, str], dict[str, str]] = {}
+# The heads already triaged by this manager process, with the verdict and
+# evidence each thread got, so a later pass over the same head makes no second
+# call and still carries what the first one said to apply and show in a round's
+# fence (S-0122/D-15, S-0125/D-7); and the heads whose call gave no answer,
+# which take the ordinary rounds without asking again. A restart asks again,
+# once.
+TRIAGED: dict[tuple[str, str, str], dict[str, ThreadVerdict]] = {}
 UNANSWERED: set[tuple[str, str, str]] = set()
 
 # One critic call over a head's bot threads: (branch, the pull request, the
@@ -1865,12 +2207,14 @@ def _triage(
     info: PrInfo,
     raised: list[ReviewThread],
     triage: Triage,
-) -> tuple[list[ReviewThread], int, bool]:
+) -> tuple[list[ReviewThread], int, bool, dict[str, ThreadVerdict]]:
     """(what the round still carries, the threads answered now, whether the
-    head is triaged). A head whose call already ran keeps each thread's
-    verdict — what it said to apply still reaches a round a later pass mints —
-    and holds back a bot thread raised since for the next head; a seat that
-    gave no answer, or threads no fence can carry, leave the leg as it was."""
+    head is triaged, triage's verdict and evidence by thread). A head whose
+    call already ran keeps each thread's verdict — what it said to apply still
+    reaches a round a later pass mints, and its evidence reaches that round's
+    fence (S-0125/D-7) — and holds back a bot thread raised since for the next
+    head; a seat that gave no answer, or threads no fence can carry, leave the
+    leg as it was."""
 
     # A thread flagged as injection is the refusal path's, never the critic's.
     bots = [
@@ -1881,25 +2225,29 @@ def _triage(
     key = (str(root), branch, info.head_sha)
 
     if not bots or key in UNANSWERED:
-        return raised, 0, False
+        return raised, 0, False, {}
 
     sorted_ = TRIAGED.get(key)
 
     if sorted_ is not None:
-        held = {thread.id for thread in bots if sorted_.get(thread.id, "unsorted") not in APPLIED}
-        return [thread for thread in raised if thread.id not in held], 0, True
+        held = {
+            thread.id
+            for thread in bots
+            if thread.id not in sorted_ or sorted_[thread.id].verdict not in APPLIED
+        }
+        return [thread for thread in raised if thread.id not in held], 0, True, dict(sorted_)
 
     try:
         prompt = triage_prompt(bots)
 
     except FenceRefused:
-        return raised, 0, False
+        return raised, 0, False, {}
 
     document = triage(branch, info, prompt)
 
     if document is None:
         UNANSWERED.add(key)
-        return raised, 0, False
+        return raised, 0, False, {}
 
     asked = {thread.id for thread in bots}
     verdicts: dict[str, ThreadVerdict] = {}
@@ -1921,10 +2269,13 @@ def _triage(
         ):
             verdicts[ident] = verdict.model_copy(update={"verdict": "apply"})
 
-    # A thread the answer named no verdict for is carried as apply.
-    TRIAGED[key] = {
-        ident: verdicts[ident].verdict if ident in verdicts else "apply" for ident in asked
+    # A thread the answer named no verdict for is carried as apply, and every
+    # verdict keeps its evidence so a later pass's round can carry both.
+    stored = {
+        ident: verdicts.get(ident) or ThreadVerdict(thread=ident, verdict="apply")
+        for ident in asked
     }
+    TRIAGED[key] = stored
     kept: list[ReviewThread] = []
     dismissed = 0
 
@@ -1953,7 +2304,7 @@ def _triage(
         forge.resolve_thread(thread.id)
         dismissed += 1
 
-    return kept, dismissed, True
+    return kept, dismissed, True, stored
 
 
 def _revision_acceptance(root: Path, claims: Sequence[Claim]) -> list[str]:
@@ -2096,6 +2447,18 @@ def review_thread_leg(
         # own threads are dropped before the findings are judged (S-0084/D-14).
         raised = [thread for thread in raised if thread.id not in handled]
 
+        # A round that stopped says why on the threads it carried (S-0125/D-4):
+        # once per thread, and never resolved — a person reads it where the
+        # finding was raised. It is said before an `underspecified` round is
+        # requeued, so the escalation that caused the retry is not silent.
+        answered += _reply_escalated_rounds(root, config, forge, branch, info, open_threads)
+
+        # A fixing reply a forge rejected after the round was minted is
+        # retried here: the round on the board is why no later pass raises its
+        # finding again and would otherwise leave the thread silent
+        # (S-0125/D-4).
+        answered += _reply_minted_rounds(root, config, forge, branch, info, open_threads, landed)
+
         requeued += requeue_underspecified(root, branch)
 
         # S-0097/D-7: the wave is behind the head, so the operator no longer
@@ -2116,9 +2479,12 @@ def review_thread_leg(
             continue
 
         triaged = False
+        verdicts: dict[str, ThreadVerdict] = {}
 
         if triage is not None:
-            raised, dismissed, triaged = _triage(root, config, forge, branch, info, raised, triage)
+            raised, dismissed, triaged, verdicts = _triage(
+                root, config, forge, branch, info, raised, triage
+            )
             answered += dismissed
 
         claims: list[Claim] = []
@@ -2277,15 +2643,18 @@ def review_thread_leg(
 
         # The head's findings minted together as rounds of file-disjoint waves
         # (S-0097/D-5), `rounds_per_pass` still bounding what this pass mints.
-        # A triaged head's valid threads are one revision (S-0122/D-15).
-        cap = max(len(claims), 1) if triaged else config.threads.findings_per_round
+        # The same cap applies whether the head was triaged or not (S-0125/D-3):
+        # a triaged head no longer buys one oversize revision.
+        cap = config.threads.findings_per_round
 
         for wave in batch_claims(claims, cap):
             if len(minted) >= config.threads.rounds_per_pass:
                 break
 
             try:
-                composed = [compose_wave(root, branch, info, wave, acceptance=acceptance)]
+                composed = [
+                    compose_wave(root, branch, info, wave, acceptance=acceptance, verdicts=verdicts)
+                ]
 
             except FenceRefused:
                 # A body that could close its own fence aborts the whole wave,
@@ -2297,7 +2666,14 @@ def review_thread_leg(
                 for claim in wave:
                     try:
                         composed.append(
-                            compose_wave(root, branch, info, (claim,), acceptance=acceptance)
+                            compose_wave(
+                                root,
+                                branch,
+                                info,
+                                (claim,),
+                                acceptance=acceptance,
+                                verdicts=verdicts,
+                            )
                         )
 
                     except (InjectionRefused, FenceRefused) as one:
@@ -2318,7 +2694,23 @@ def review_thread_leg(
 
                 # S-0056/D-9: the board's ids, not only the files, or a round
                 # takes the id of a task the record already holds.
-                minted.append(mint_round(root, config, round_, {one.subject_id for one in records}))
+                task_id = mint_round(root, config, round_, {one.subject_id for one in records})
+                minted.append(task_id)
+
+                # The round says which task is fixing its bot threads
+                # (S-0125/D-4), within the pass that triaged them. The threads
+                # stay unresolved: a person still sees what was raised, and
+                # the landed round answers them as before.
+                for finding in round_.findings:
+                    for thread in finding.threads:
+                        if (
+                            str(thread.id).startswith(RECORD)
+                            or thread.author not in config.threads.bots
+                        ):
+                            continue
+
+                        forge.reply_thread(thread.id, FIXING_REPLY.format(task=task_id))
+                        FIXING_REPLIED.add((str(root), task_id, str(thread.id)))
 
     parts: list[str] = []
 

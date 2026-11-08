@@ -32,8 +32,9 @@ this host and never moves, copies or sends one (S-0039/D-2).
 from __future__ import annotations
 
 import asyncio
+import subprocess
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -43,6 +44,7 @@ from torve.application.runstate import RunState
 from torve.base import naming
 from torve.config import layout
 from torve.config.runconfig import RunnerConfig
+from torve.gates.context import NO_HOOKS
 
 if TYPE_CHECKING:
     from torve.application.taskstore import TaskStore
@@ -408,20 +410,132 @@ STOPPED_MARKER = "escalated when its run stopped"
 STOPPED = (str(EscalationReason.KILLED), str(EscalationReason.LEASE_EXPIRED))
 
 
-def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task_id: str) -> bool:
+def _stopped_run(state: RunState) -> bool:
+    """Whether this run's tree is unfinished work a requeue must keep: an
+    active state, a stop reason, or a stop recorded before a durable timeout
+    restated it `budget_exhausted` (S-0125/D-6)."""
+
+    if state.state in ACTIVE:
+        return True
+
+    if state.escalation is not None:
+        if state.escalation.reason in STOPPED:
+            return True
+
+        # The worker's timeout verdict, whether it replaced a cancel's
+        # `killed` or escaped before one: the body was cancelled mid-attempt,
+        # so its tree never reached a checkpoint.
+        if state.escalation.detail.startswith("durable run timed out"):
+            return True
+
+    # A restatement keeps the transition into ESCALATED, which is where a
+    # cancel's `killed` or a lapsed lease still stands.
+    for entry in reversed(state.history):
+        if str(entry.get("to")) != str(TaskState.ESCALATED):
+            continue
+
+        if str(entry.get("from")) == str(TaskState.ESCALATED):
+            continue
+
+        return str(entry.get("fact", "")).split(":", 1)[0] in STOPPED
+
+    return False
+
+
+def _uncommitted(root: Path, task_id: str) -> bool:
+    """Whether the task's worktree still holds work no ref has.
+
+    A detached worktree is what `create` builds when the root is on the task
+    branch; `checkpoint` refuses it because it cannot update the branch from
+    a checkout it does not hold. The cleanup must not delete what it could
+    not keep (S-0125/D-5). A `git status` that cannot run reads as work to
+    keep: the safe answer is to leave the tree for a person.
+
+    A clean `git status` is not enough on its own: an agent in a detached
+    worktree can commit locally, leaving HEAD clean but on a commit no ref
+    reaches. `checkpoint` cannot put that commit on the branch either, so
+    removing the worktree would leave the work nameless — the same keep as
+    for an uncommitted change."""
+
+    path = naming.worktree(root, task_id)
+
+    if not path.is_dir():
+        return False
+
+    proc = subprocess.run(
+        ["git", *NO_HOOKS, "-C", str(path), "status", "--porcelain"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if proc.returncode != 0 or bool(proc.stdout.strip()):
+        return True
+
+    # `--contains` with no object reads the worktree's own HEAD: a detached
+    # commit no branch or remote ref holds is exactly the work status cannot
+    # see. A ref listing that cannot run is work to keep, as above.
+    held = subprocess.run(
+        ["git", *NO_HOOKS, "-C", str(path), "for-each-ref", "--count=1", "--contains"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    return held.returncode != 0 or not held.stdout.strip()
+
+
+def _live_run_ids(store: StoreFactory, config: RunnerConfig) -> set[str]:
+    """The durable runs the store still holds RUNNING."""
+
+    from torve.application.taskstore import TaskStore
+
+    async def _ids() -> set[str]:
+        taskstore = TaskStore(await store(config.store), config.store)
+        return {record.run_id for record in await taskstore.live_records()}
+
+    return asyncio.run(_ids())
+
+
+def clear_escalated(
+    root: Path,
+    runtime: Runtime,
+    workspace: WorkspacePort,
+    task_id: str,
+    config: RunnerConfig | None = None,
+    live: Collection[str] | None = None,
+    store: StoreFactory | None = None,
+) -> bool:
     """One escalated task's host footprint — its run-state file, worktree
     and sandbox — cleared ahead of a requeue (S-0094/D-3), so dispatch
     neither refuses on a state file still claiming the task nor fails the
     overlap gate on a worktree its own escalation left behind. The branch
     and whatever checkpoint ref a fresh `GitWorkspace.create` would tag onto
     it (S-0026/D-9) are never touched here — `remove` takes only the
-    worktree, not the branch it was cut from. A task with no escalated
-    state file is left exactly as it is: this is not a general-purpose
-    reap, only the one task a resolution names.
+    worktree, not the branch it was cut from. A task with no state file is
+    left exactly as it is: this is not a general-purpose reap, only the one
+    task a resolution names.
 
-    A run that stopped mid-attempt (KILLED, LEASE_EXPIRED) never reached the
+    *live* is the store's own listing of durable runs still held, and *store*
+    a factory the clear may open to read it. A run with a stale host heartbeat
+    but a live durable lease is still executing: its tree, sandbox and state
+    file are not debris, so a requeue leaves it alone (S-0121/D-19,
+    S-0125/D-5). Passing neither keeps the heartbeat test for a caller that
+    cannot read the store.
+
+    A state file that still says claimed, running, gated or reviewed is a run
+    that died mid-attempt: the record handed the task to a person, but the
+    runner never wrote that verdict to the file, so every next dispatch
+    refuses (S-0125/D-5). When no live engine run holds it — its heartbeat is
+    stale, the reaper's own host liveness test — it is cleared too rather
+    than left to block the requeue.
+
+    A run that stopped mid-attempt (KILLED, LEASE_EXPIRED, a durable
+    timeout, or an active file with no live run behind it) never reached the
     checkpoint a blocker or a clock commits, so its work is committed on the
-    branch first, under STOPPED_MARKER, and the next dispatch resumes it."""
+    branch first, under STOPPED_MARKER, and the next dispatch resumes it. A
+    detached worktree cannot be committed on its branch; when it still holds
+    uncommitted work the cleanup refuses instead of deleting it."""
 
     from contextlib import suppress
 
@@ -431,9 +545,44 @@ def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task
         return False
 
     state = RunState.load(state_path)
+    resolved = config or RunnerConfig()
 
-    if state.state is not TaskState.ESCALATED:
+    # An escalated file is already a person's and always cleared. An active
+    # one is cleared only when its heartbeat says no engine run still holds
+    # it; a fresh heartbeat is a live attempt, not debris.
+    stopped = state.state in ACTIVE
+
+    if state.state is not TaskState.ESCALATED and not (
+        stopped and state.heartbeat_age_s() > resolved.reap.stale_after
+    ):
         return False
+
+    # The durable lease is the ownership authority (S-0121/D-19): a long
+    # attempt renews it without touching the state file, so a stale host
+    # heartbeat alone would read live work as debris.
+    if live is None and store is not None and state.durable_run_id:
+        live = _live_run_ids(store, resolved)
+
+    if live is not None and state.durable_run_id and state.durable_run_id in live:
+        return False
+
+    # Preserve a stopped run's work before anything is torn down: a
+    # checkpoint that cannot be written means the tree is not ours to delete.
+    if _stopped_run(state):
+        checkpoint = getattr(workspace, "checkpoint", None)
+        preserved = False
+
+        if checkpoint is not None:
+            preserved = bool(
+                checkpoint(
+                    task_id,
+                    f"torve({task_id}): attempt {state.attempts} {STOPPED_MARKER}\n\n"
+                    f"Torve-Checkpoint: {task_id} attempt {state.attempts}",
+                )
+            )
+
+        if not preserved and _uncommitted(root, task_id):
+            return False
 
     # The state records each sandbox's own id, never a nested sandbox's
     # `-dockerd` side container (S-0111/D-2): removing only the recorded ids
@@ -456,13 +605,6 @@ def clear_escalated(root: Path, runtime: Runtime, workspace: WorkspacePort, task
     for sandbox in sandboxes:
         with suppress(Exception):  # best-effort, as the operator kill is (cli/run.py)
             runtime.destroy_by_id(sandbox)
-
-    if state.escalation is not None and state.escalation.reason in STOPPED:
-        workspace.checkpoint(
-            task_id,
-            f"torve({task_id}): attempt {state.attempts} {STOPPED_MARKER}\n\n"
-            f"Torve-Checkpoint: {task_id} attempt {state.attempts}",
-        )
 
     workspace.remove(task_id)
     state.path.unlink(missing_ok=True)

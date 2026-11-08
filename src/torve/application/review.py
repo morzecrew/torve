@@ -18,8 +18,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import posixpath
 import re
 import shutil
+import subprocess
+import tempfile
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
@@ -62,6 +66,7 @@ from torve.config.runconfig import (
 from torve.domain.attempt import Finding, GateResult
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import CONTRACT_SCHEMA_VERSION, Budget, InheritedDecision, Task
+from torve.gates.context import NO_HOOKS, GitError, git
 from torve.gates.evidence import CITATION, filter_findings
 
 # ----------------------- #
@@ -466,24 +471,166 @@ def schema_refusal(exc: ValidationError, root: str) -> str:
 # ....................... #
 
 
+_HUNK_HEADER = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+
+#: What the engine writes under `.torve/` and no revision produced: the
+#: feedback, the staged prompt, the run's task bookkeeping. A revision's diff
+#: keeps every other `.torve` path — the manifest, the configuration, the
+#: specifications — because those are reviewable changes like any other.
+REVISION_BOOKKEEPING = (
+    ":(exclude).torve/tasks",
+    ":(exclude).torve/context",
+    ":(exclude).torve/regimes",
+    ":(exclude).torve/traces",
+    ":(exclude).torve/skills",
+    ":(exclude).torve/tmp",
+    ":(exclude).torve/review",
+    ":(exclude).torve/telemetry.jsonl",
+    ":(exclude).torve/feedback.jsonl",
+    ":(exclude).torve/feedback.md",
+)
+
+
 def _changed_lines(diff_text: str) -> dict[str, set[int]]:
-    """New-side line numbers the diff adds or changes, by path."""
+    """New-side line numbers the diff adds or changes, by path.
+
+    Only a hunk's `+` lines and the positions its `-` lines left are
+    changed: the context a hunk carries three lines either side is code the
+    revision did not write, and a finding there must be carried, not blocked
+    (S-0125/D-1). A deletion marks where the removed code stood, so a
+    revision that only removes a guard is still judged on it."""
 
     changed: dict[str, set[int]] = {}
     path = ""
+    line_no = 0
+    in_hunk = False
 
     for line in diff_text.splitlines():
         if line.startswith("diff --git "):
             path = line.split(" b/", 1)[-1] if " b/" in line else ""
             changed.setdefault(path, set())
+            in_hunk = False
         elif line.startswith("@@ ") and path:
-            hunk = re.search(r"\+(\d+)(?:,(\d+))?", line)
+            hunk = _HUNK_HEADER.match(line)
 
             if hunk is not None:
-                start, count = int(hunk.group(1)), int(hunk.group(2) or "1")
-                changed[path].update(range(start, start + count))
+                line_no = int(hunk.group(3))
+                in_hunk = True
+        elif in_hunk and line.startswith("+"):
+            changed[path].add(line_no)
+            line_no += 1
+        elif in_hunk and line.startswith("-"):
+            changed[path].add(line_no)
+        elif in_hunk and not line.startswith("\\"):
+            line_no += 1
 
     return changed
+
+
+def _diff_hunks(diff_text: str, path: str) -> list[dict[str, Any]]:
+    """The hunks a revision diff applies to *path*, in order, each with its
+    old and new ranges and its body lines."""
+
+    hunks: list[dict[str, Any]] = []
+    current = ""
+    hunk: dict[str, Any] | None = None
+
+    for line in diff_text.splitlines():
+        if line.startswith("diff --git "):
+            current = line.split(" b/", 1)[-1] if " b/" in line else ""
+            hunk = None
+            continue
+
+        if current and posixpath.normpath(current) != posixpath.normpath(path):
+            continue
+
+        header = _HUNK_HEADER.match(line)
+
+        if header is not None:
+            hunk = {
+                "old_start": int(header.group(1)),
+                "old_count": int(header.group(2) or "1"),
+                "new_start": int(header.group(3)),
+                "new_count": int(header.group(4) or "1"),
+                "lines": [],
+            }
+            hunks.append(hunk)
+        elif hunk is not None:
+            hunk["lines"].append(line)
+
+    return hunks
+
+
+def _mapped_line(diff_text: str, path: str, line: int) -> int:
+    """Where old-side *line* of *path* sits in the revision's new tree. A
+    line the revision deleted or replaced maps to the position the deletion
+    left, where its replacement or the code that slid up now stands. Lines a revision inserted above an
+    earlier blocker are what move its anchor; matching the recorded number
+    against the new citation would miss the blocker once the shift passes
+    `threads.WINDOW` (S-0124/D-3)."""
+
+    offset = 0
+
+    for hunk in _diff_hunks(diff_text, path):
+        old_start = int(hunk["old_start"])
+        old_count = int(hunk["old_count"])
+        new_start = int(hunk["new_start"])
+        new_count = int(hunk["new_count"])
+
+        if old_count == 0:
+            if line <= old_start:
+                return line + offset
+
+            offset += new_count - old_count
+            continue
+
+        if line < old_start:
+            return line + offset
+
+        if line >= old_start + old_count:
+            offset += new_count - old_count
+            continue
+
+        old, new = old_start, new_start
+
+        for body in hunk["lines"]:
+            if body.startswith("\\"):
+                continue
+
+            if body.startswith("+"):
+                new += 1
+            elif body.startswith("-"):
+                if old == line:
+                    return new
+
+                old += 1
+            else:
+                if old == line:
+                    return new
+
+                old += 1
+                new += 1
+
+        return new
+
+    return line + offset
+
+
+@dataclass(frozen=True)
+class Revision:
+    """A revision attempt's own inputs (S-0125/D-2): what changed since the
+    head the previous review judged, and every earlier round's blocker
+    anchors and claims, read from the run's history."""
+
+    diff: str
+    blockers: list[dict[str, Any]] = field(default_factory=list)
+
+    @property
+    def changed(self) -> dict[str, set[int]]:
+        """The new-side lines *diff* adds or changes, by path — the lines a
+        kept finding must sit near to block the revision (S-0125/D-1)."""
+
+        return _changed_lines(self.diff)
 
 
 def promoted_paths(target: Task, diff_text: str) -> list[str]:
@@ -663,6 +810,10 @@ class ReviewOutcome:
     # leaves the classic shape, `blocker_threads` over the blockers.
     threads: list[dict[str, Any]] | None = None
     measured: dict[str, Any] | None = None
+    # The tree this review judged, as a git tree object (S-0125/D-2), written
+    # into the revision fact so the next round's `revision.diff` starts where
+    # this review ended. Empty for a reviewer that recorded none.
+    head: str = ""
 
 
 # ....................... #
@@ -1484,14 +1635,20 @@ BLOCKER_ANCHORS_MARKER = " anchors="
 
 def _finding_anchor(finding: Finding) -> dict[str, Any] | None:
     """The `path`/`line` a finding's evidence cites, or None when it cites no
-    filesystem coordinate (a backticked command with its output)."""
+    filesystem coordinate (a backticked command with its output). The path is
+    normalised the way `locate` resolves it, so `./src/app.py:12` and
+    `src/app.py:12` name the same anchor a previous round recorded
+    (S-0124/D-3)."""
 
     citation = CITATION.match(finding.evidence.split(" — ")[0].split(" - ")[0].strip())
 
     if citation is None:
         return None
 
-    return {"path": citation.group("path"), "line": int(citation.group("start"))}
+    return {
+        "path": posixpath.normpath(citation.group("path")),
+        "line": int(citation.group("start")),
+    }
 
 
 def _blocker_anchors(blockers: list[Finding]) -> list[dict[str, Any]]:
@@ -1504,36 +1661,313 @@ def _anchors_suffix(anchors: list[dict[str, Any]]) -> str:
     return f"{BLOCKER_ANCHORS_MARKER}{json.dumps(anchors, separators=(',', ':'))}"
 
 
-def _recorded_blocker_anchors(state: RunState) -> list[dict[str, Any]]:
-    """The anchors the previous revision round recorded (S-0124/D-3), from the
-    most recent `review blocker (revision k of n)` fact. A fact written before
-    anchors existed reads as none, so the round is spent exactly as before."""
+# The judged head and every blocker's claim, beside the anchors (S-0125/D-2).
+# They sit before `anchors=` so a reader that only wants anchors can take the
+# tail of the fact unchanged. Claims are per blocker, because the anchorless
+# ones have no `path` to pair a `detail` sentence with.
+BLOCKER_HEAD_MARKER = " head="
+BLOCKER_CLAIMS_MARKER = " blockers="
 
-    for entry in reversed(state.history):
+
+def _head_suffix(head: str) -> str:
+    judged = head.strip()
+
+    return f"{BLOCKER_HEAD_MARKER}{judged}" if judged else ""
+
+
+def _claims_suffix(blockers: list[Finding]) -> str:
+    if not blockers:
+        return ""
+
+    payload: list[dict[str, Any]] = []
+
+    for finding in blockers:
+        one: dict[str, Any] = {"claim": finding.claim}
+        anchor = _finding_anchor(finding)
+
+        if anchor is not None:
+            one.update(anchor)
+
+        payload.append(one)
+
+    return f"{BLOCKER_CLAIMS_MARKER}{json.dumps(payload, separators=(',', ':'))}"
+
+
+def blocker_fact(
+    review_id: str,
+    round_no: int,
+    budget: int,
+    blockers: list[Finding],
+    head: str = "",
+) -> str:
+    """The `review blocker (revision k of n)` fact: its claims, the head this
+    review judged and its anchors, from which the next round reads both its
+    `revision.diff` base and `blockers.yaml` (S-0125/D-2)."""
+
+    detail = "; ".join(f.claim for f in blockers)
+
+    return (
+        f"{BLOCKER_REVISION_MARKER}{round_no} of {budget}): "
+        f"{review_id}: {detail[:300]}"
+        f"{_head_suffix(head)}"
+        f"{_claims_suffix(blockers)}"
+        f"{_anchors_suffix(_blocker_anchors(blockers))}"
+    )
+
+
+def _marker_json(
+    text: str, marker: str, follower: str | None = None, end: int | None = None
+) -> tuple[int | None, list[Any] | None]:
+    """The first *marker* whose payload decodes as one complete JSON list and
+    is followed by *follower* (or ends the text), and where the marker starts;
+    (None, None) when there is none.
+
+    A blocker's own claim can carry ` head=`, ` blockers=` or ` anchors=` as
+    text, and the claim is itself inside the claims JSON. Splitting on a
+    marker occurrence would then land inside a JSON string and lose the
+    claims, so each candidate is decoded whole and only the one the engine
+    wrote — the one whose value ends at the next marker — is taken
+    (S-0125/D-2)."""
+
+    limit = len(text) if end is None else end
+    decoder = json.JSONDecoder()
+    start = 0
+
+    while True:
+        position = text.find(marker, start, limit)
+
+        if position < 0:
+            return None, None
+
+        payload = text[position + len(marker) : limit]
+
+        try:
+            value, consumed = decoder.raw_decode(payload)
+
+        except ValueError:
+            start = position + len(marker)
+            continue
+
+        rest = payload[consumed:]
+        follows = not rest.strip() if follower is None else False
+
+        if isinstance(value, list) and follower is not None:
+            tail = rest.lstrip()
+            lead = follower.strip()
+
+            if tail.startswith(lead):
+                try:
+                    tail_value, tail_consumed = decoder.raw_decode(tail[len(lead) :])
+
+                except ValueError:
+                    tail_value, tail_consumed = None, 0
+
+                follows = (
+                    isinstance(tail_value, list) and not tail[len(lead) + tail_consumed :].strip()
+                )
+
+        if isinstance(value, list) and follows:
+            return position, value
+
+        start = position + len(marker)
+
+
+def _blocker_rounds(state: RunState) -> list[dict[str, Any]]:
+    """Every revision round the run recorded, oldest first, each with its
+    number, the head it judged and the blockers it asked to fix (S-0125/D-2).
+    A fact written before the head or per-blocker claims existed still reads:
+    it has no head, and its anchors stand in for the claims."""
+
+    rounds: list[dict[str, Any]] = []
+
+    for entry in state.history:
         fact = str(entry.get("fact", ""))
 
         if not is_blocker_revision_fact(fact):
             continue
 
-        _, found, payload = fact.rpartition(BLOCKER_ANCHORS_MARKER)
+        anchor_position, anchors = _marker_json(fact, BLOCKER_ANCHORS_MARKER)
+        claim_position, blockers = _marker_json(
+            fact, BLOCKER_CLAIMS_MARKER, follower=BLOCKER_ANCHORS_MARKER
+        )
+        limit = (
+            claim_position
+            if claim_position is not None
+            else (anchor_position if anchor_position is not None else len(fact))
+        )
+        head = ""
+        start = 0
 
-        if not found:
-            return []
+        while True:
+            position = fact.find(BLOCKER_HEAD_MARKER, start, limit)
 
-        try:
-            recorded = json.loads(payload)
+            if position < 0:
+                break
 
-        except ValueError:
-            return []
+            candidate = fact[position + len(BLOCKER_HEAD_MARKER) : limit].strip()
 
-        if not isinstance(recorded, list):
-            return []
+            if re.fullmatch(r"[0-9a-f]{7,64}", candidate):
+                head = candidate
+                break
 
-        return [
-            one for one in recorded if isinstance(one, dict) and isinstance(one.get("path"), str)
-        ]
+            start = position + len(BLOCKER_HEAD_MARKER)
 
-    return []
+        if blockers is None:
+            blockers = [
+                one
+                for one in (anchors or [])
+                if isinstance(one, dict) and isinstance(one.get("path"), str)
+            ]
+
+        match = re.match(r"review blocker \(revision (\d+) of \d+\)", fact)
+        number = int(match.group(1)) if match is not None else len(rounds) + 1
+
+        rounds.append(
+            {
+                "round": number,
+                "head": head,
+                "blockers": [dict(one) for one in blockers if isinstance(one, dict)],
+            }
+        )
+
+    return rounds
+
+
+def tree_snapshot(worktree: Path) -> str:
+    """The tree *worktree* holds, tracked and untracked files alike, as a git
+    tree object written through a throwaway index — the engine commits an
+    attempt only when it lands, so `HEAD` is never what a review judged
+    (S-0125/D-2). Empty when *worktree* is not the top of a repository git
+    can read, where the tree's paths would not be the worktree's."""
+
+    try:
+        if git(worktree, "rev-parse", "--show-prefix").strip():
+            return ""
+
+    except GitError:
+        return ""
+
+    with tempfile.TemporaryDirectory() as scratch:
+        env = {**os.environ, "GIT_INDEX_FILE": str(Path(scratch) / "index")}
+
+        for args in (("read-tree", "HEAD"), ("add", "-A"), ("write-tree",)):
+            proc = subprocess.run(
+                ["git", *NO_HOOKS, "-C", str(worktree), *args],
+                capture_output=True,
+                text=True,
+                check=False,
+                env=env,
+            )
+
+            if proc.returncode != 0:
+                return ""
+
+        return proc.stdout.strip()
+
+
+def revision_for(run: Dispatch, state: RunState) -> Revision | None:
+    """The revision attempt's inputs (S-0125/D-2), from the tree the most
+    recent revision fact judged to the tree the worktree holds now, and every earlier round's
+    blockers. None for a first attempt — no round recorded yet — and for a
+    round whose head was never recorded, where no revision diff can be built
+    and the attempt is decided as a first one."""
+
+    rounds = _blocker_rounds(state)
+
+    if not rounds:
+        return None
+
+    head = str(rounds[-1].get("head") or "")
+
+    if not head:
+        return None
+
+    current = tree_snapshot(run.worktree)
+
+    if not current:
+        return None
+
+    diff = _revision_diff(run.worktree, head, current)
+
+    if diff is None:
+        return None
+
+    return Revision(diff=diff, blockers=_mapped_rounds(run.worktree, rounds, current))
+
+
+def _revision_diff(worktree: Path, head: str, current: str) -> str | None:
+    """The diff from judged tree *head* to tree *current*; None when git
+    cannot build it.
+
+    The engine's own files under `.torve/` (the feedback, the staged prompt,
+    the run's bookkeeping) change between rounds and are no part of what the
+    revision wrote. Every other `.torve` path stays: the manifest, the
+    configuration and the specifications are reviewed artefacts, and a
+    revision that changes one must be judged on it (S-0125/D-1)."""
+
+    try:
+        return git(
+            worktree,
+            "diff-tree",
+            "-p",
+            "-M",
+            "--no-color",
+            head,
+            current,
+            "--",
+            ".",
+            *REVISION_BOOKKEEPING,
+        )
+
+    except GitError:
+        return None
+
+
+def _mapped_rounds(
+    worktree: Path, rounds: list[dict[str, Any]], current: str
+) -> list[dict[str, Any]]:
+    """Every round's blockers, each tagged with its round, its line mapped
+    from the head that round judged to tree *current*. An anchor recorded
+    two rounds back sits in that round's coordinates, so it is mapped
+    through the diff from its own head, never the latest round's: code a
+    revision inserted above an unresolved blocker moves the line the critic
+    cites, and matching the number as recorded would carry a blocker no
+    revision fixed (S-0125/D-1, S-0124/D-3). A round with no head, or one
+    git cannot diff, keeps its lines as recorded."""
+
+    diffs: dict[str, str] = {}
+    mapped: list[dict[str, Any]] = []
+
+    for one in rounds:
+        head = str(one.get("head") or "")
+
+        if head and current and head not in diffs:
+            diffs[head] = _revision_diff(worktree, head, current) or ""
+
+        diff = diffs.get(head, "")
+
+        for blocker in one["blockers"]:
+            entry = {**blocker, "round": one["round"]}
+            path, line = entry.get("path"), entry.get("line")
+
+            if diff and isinstance(path, str) and isinstance(line, int):
+                entry["line"] = _mapped_line(diff, posixpath.normpath(path), line)
+
+            mapped.append(entry)
+
+    return mapped
+
+
+def mapped_blocker_anchors(worktree: Path, state: RunState) -> list[dict[str, Any]]:
+    """Every earlier round's blocker anchors in the coordinates of the tree
+    *worktree* holds now, what a revision's findings re-raise against
+    (S-0124/D-3)."""
+
+    return [
+        one
+        for one in _mapped_rounds(worktree, _blocker_rounds(state), tree_snapshot(worktree))
+        if isinstance(one.get("path"), str)
+    ]
 
 
 def _anchor_reraised(
@@ -1542,7 +1976,10 @@ def _anchor_reraised(
     """The finding this round re-raises (S-0124/D-3): one anchored in the same
     file within `threads.WINDOW` lines of an anchor the previous round
     recorded, or in the same file when either has no line. A re-raise stops
-    the run instead of buying another round."""
+    the run instead of buying another round.
+
+    *previous* is in the current tree's coordinates when a revision's
+    anchors were mapped there (`mapped_blocker_anchors`)."""
 
     for finding in blockers:
         anchor = _finding_anchor(finding)
@@ -1553,7 +1990,9 @@ def _anchor_reraised(
         path, line = anchor["path"], anchor["line"]
 
         for one in previous:
-            if one.get("path") != path:
+            recorded_path = one.get("path")
+
+            if not isinstance(recorded_path, str) or posixpath.normpath(recorded_path) != path:
                 continue
 
             recorded = one.get("line")
@@ -1613,7 +2052,7 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
         from torve.application.critic import judge
 
         review_task = mint_review_task(run.root, run.task, taken=taken)
-        outcome = await asyncio.to_thread(judge, run, review_task)
+        outcome = await asyncio.to_thread(judge, run, review_task, state)
 
     else:
         review_task = mint_review_task(run.root, run.task, taken=taken)
@@ -1700,7 +2139,9 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
         budget = run.config.review.resolved_blocker_revisions()
 
         if spent < budget:
-            reraised = _anchor_reraised(outcome.blockers, _recorded_blocker_anchors(state))
+            reraised = _anchor_reraised(
+                outcome.blockers, mapped_blocker_anchors(run.worktree, state)
+            )
 
             if reraised is not None:
                 path, line = reraised
@@ -1733,10 +2174,12 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
                     "at": state.heartbeat,
                     "from": str(state.state),
                     "to": str(state.state),
-                    "fact": (
-                        f"{BLOCKER_REVISION_MARKER}{spent + 1} of {budget}): "
-                        f"{outcome.review_id}: {detail[:300]}"
-                        f"{_anchors_suffix(_blocker_anchors(outcome.blockers))}"
+                    "fact": blocker_fact(
+                        outcome.review_id,
+                        spent + 1,
+                        budget,
+                        outcome.blockers,
+                        outcome.head,
                     ),
                 }
             )

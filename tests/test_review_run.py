@@ -368,6 +368,107 @@ def test_an_anchor_within_the_window_is_the_same_finding():
     assert _anchor_reraised([finding], [{"path": "other.py", "line": 12}]) is None
 
 
+def test_revision_inputs_record_the_judged_head_and_read_it_back(repo):
+    """S-0125/D-2: the revision fact carries the tree the review judged beside
+    its blockers' anchors and claims, and the next attempt reads that tree to
+    stage the diff the revision itself produced. The engine commits nothing
+    before land, so the judged tree is uncommitted and the revision's new
+    module is untracked."""
+
+    from types import SimpleNamespace
+
+    from test_critic import _candidate
+
+    from torve.application.critic import CriticDocument, decide
+    from torve.application.review import (
+        _blocker_rounds,
+        blocker_fact,
+        revision_for,
+        tree_snapshot,
+    )
+
+    worktree, target = _candidate(repo)
+    # The first round's change, left uncommitted as the engine leaves it.
+    (worktree / "src" / "app.py").write_text(
+        "def bound(n):\n    return n - 1  # round one\n", encoding="utf-8"
+    )
+    head = tree_snapshot(worktree)
+    state = RunState(task_id=target.id, path=repo.root / "state.json", run_id="run-1")
+    blocker = Finding(
+        severity="major", claim="the bound is off by one", evidence="src/app.py:2 — n - 1"
+    )
+    state.history.append(
+        {
+            "at": state.heartbeat,
+            "from": str(state.state),
+            "to": str(state.state),
+            "fact": blocker_fact("T-0900", 1, 2, [blocker], head),
+        }
+    )
+
+    fact = state.history[-1]["fact"]
+    assert head and f" head={head}" in fact
+    assert 'anchors=[{"path":"src/app.py","line":2}]' in fact
+    assert _blocker_rounds(state) == [
+        {
+            "round": 1,
+            "head": head,
+            "blockers": [{"claim": "the bound is off by one", "path": "src/app.py", "line": 2}],
+        }
+    ]
+
+    # The revision adds an untracked module and touches nothing else: the diff
+    # holds that module and none of the first round's change.
+    (worktree / "src" / "new.py").write_text(
+        "".join(f"n{number}\n" for number in range(1, 21)), encoding="utf-8"
+    )
+    revision = revision_for(SimpleNamespace(worktree=worktree), state)
+
+    assert revision is not None
+    assert "src/new.py" in revision.diff
+    assert "round one" not in revision.diff
+    assert revision.changed == {"src/new.py": set(range(1, 21))}
+    assert revision.blockers == [
+        {
+            "claim": "the bound is off by one",
+            "path": "src/app.py",
+            "line": 2,
+            "round": 1,
+        }
+    ]
+
+    # Read against it, a finding in the new module blocks and one on the
+    # first round's untouched code is carried.
+    document = CriticDocument.model_validate(
+        {
+            "rows": [],
+            "findings": [
+                {
+                    "id": f"F{number}",
+                    "severity": "blocker",
+                    "kind": "bug",
+                    "claim": claim,
+                    "evidence": evidence,
+                    "verified": "read",
+                    "confidence": "high",
+                }
+                for number, (claim, evidence) in enumerate(
+                    [
+                        ("a bug the revision added", "src/new.py:3 — x"),
+                        ("code no round asked about", "src/__init__.py:1 — x"),
+                    ],
+                    start=1,
+                )
+            ],
+        }
+    )
+    (worktree / "src" / "__init__.py").write_text("x\n", encoding="utf-8")
+    decision = decide(document, {}, worktree, "major", revision=revision)
+
+    assert [one.id for one in decision.blockers] == ["F1"]
+    assert [one.id for one in decision.carried] == ["F2"]
+
+
 def test_a_blocker_that_survives_the_revision_escalates_only_after_the_rung(review_rig):
     # S-0117/D-1: the first blocker sends the revision to the seat's
     # revision_variant — same worktree, same critique, stronger agent — and
@@ -1659,3 +1760,209 @@ def test_mints_no_review(review_rig):
     minted = sorted((repo.root / ".torve" / "tasks").glob("T-*/contract.yaml"))
     assert len(minted) == 1
     assert state.reviewed_by == minted[0].parent.name
+
+
+class StagedReading:
+    """A critic that keeps, per call, the revision inputs staged in its copy
+    and the prompt that named them; it blocks once, then passes."""
+
+    kind = "harness"
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, str]] = []
+
+    def run(self, ctx):
+        review = ctx.workspace / ".torve" / "review"
+        seen = {"prompt": ctx.prompt}
+
+        for name in ("revision.diff", "blockers.yaml"):
+            if (review / name).is_file():
+                seen[name] = (review / name).read_text(encoding="utf-8")
+
+        self.calls.append(seen)
+        findings = (
+            [
+                {
+                    "id": "F1",
+                    "severity": "major",
+                    "kind": "bug",
+                    "claim": "the bound is off by one",
+                    "evidence": "src/app.py:1 — the bound",
+                    "verified": "read",
+                    "confidence": "high",
+                }
+            ]
+            if len(self.calls) == 1
+            else []
+        )
+
+        return AgentResult(
+            exit_code=0,
+            output=json.dumps({"schema": "torve.critic/v1", "rows": [], "findings": findings}),
+        )
+
+
+class RevisingExecutor:
+    """The executor: its second session, the revision, adds a module."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def run(self, ctx):
+        self.calls += 1
+
+        if self.calls == 2:
+            (ctx.workspace / "src" / "new.py").write_text("fixed = True\n", encoding="utf-8")
+
+        return OK
+
+
+def test_revision_inputs_reach_the_revisions_critic_through_the_run_loop(review_rig):
+    """S-0125/D-2, end to end: `review_step` writes the tree the first critic
+    judged into the revision fact, and the revision's critic is staged the
+    diff from that tree to what the revision wrote, beside the earlier
+    round's blockers, both named in its prompt."""
+
+    import subprocess
+
+    from torve.application.review import tree_snapshot
+
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    (worktree / "src").mkdir(parents=True, exist_ok=True)
+    (worktree / "src" / "app.py").write_text("bound = 1\n", encoding="utf-8")
+    # A worktree of its own, as the engine's are: the judged tree is read from it.
+    for args in (("init", "-q"), ("add", "-A")):
+        subprocess.run(["git", "-C", str(worktree), *args], check=True)
+    subprocess.run(
+        [
+            *("git", "-C", str(worktree), "-c", "user.name=t", "-c", "user.email=t@t"),
+            *("commit", "-q", "--no-gpg-sign", "-m", "base"),
+        ],
+        check=True,
+    )
+    judged = tree_snapshot(worktree)
+    critic = StagedReading()
+    deps = deps_for(critic)
+    deps.agent = RevisingExecutor()
+
+    state = run_task(
+        repo.root,
+        task_for(repo),
+        RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic", max_width=1)),
+        deps,
+    )
+
+    assert state.state is TaskState.READY
+    (fact,) = [h["fact"] for h in state.history if h["fact"].startswith("review blocker")]
+    head = fact.split(" head=", 1)[1].split()[0]
+
+    def src(tree: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(worktree), "rev-parse", f"{tree}:src"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+    # The head is the tree the critic judged: the engine's own `.torve/` files
+    # differ from it, the code does not.
+    assert src(head) == src(judged)
+
+    first, second = critic.calls
+    assert "revision.diff" not in first and "blockers.yaml" not in first
+    assert "src/new.py" in second["revision.diff"]
+    assert "src/app.py" not in second["revision.diff"]
+    assert yaml.safe_load(second["blockers.yaml"]) == [
+        {"claim": "the bound is off by one", "path": "src/app.py", "line": 1, "round": 1}
+    ]
+    assert ".torve/review/revision.diff" in second["prompt"]
+    assert ".torve/review/blockers.yaml" in second["prompt"]
+
+
+def test_a_deletion_marks_where_it_stood_and_maps_a_removed_anchor_there():
+    """S-0125/D-1: a revision that only deletes code is judged on the deletion,
+    and an earlier blocker whose line the revision removed or replaced is still
+    found at the position the deletion left."""
+
+    from torve.application.review import _changed_lines, _mapped_line
+
+    deleted = (
+        "diff --git a/src/app.py b/src/app.py\n--- a/src/app.py\n+++ b/src/app.py\n"
+        "@@ -19,3 +19,2 @@\n a\n-bad = 1\n c\n"
+    )
+    replaced = deleted.replace("+19,2", "+19,3").replace("-bad = 1\n", "-bad = 1\n+bad = 2\n")
+
+    assert _changed_lines(deleted) == {"src/app.py": {20}}
+    assert _mapped_line(deleted, "src/app.py", 20) == 20
+    assert _mapped_line(replaced, "src/app.py", 20) == 20
+    assert _mapped_line(deleted, "src/app.py", 30) == 29
+
+
+def test_each_rounds_blockers_are_mapped_from_the_head_that_round_judged(repo):
+    """S-0125/D-1: a revision that inserts more than `threads.WINDOW` lines
+    above an unresolved blocker still meets it, in the round right after and
+    two rounds later when a later revision touched another file only; the
+    critic's decide and the escalation check read the same mapped anchors."""
+
+    from types import SimpleNamespace
+
+    from test_critic import _candidate
+
+    from torve.application.critic import CriticDocument, decide
+    from torve.application.review import (
+        _anchor_reraised,
+        blocker_fact,
+        mapped_blocker_anchors,
+        revision_for,
+        tree_snapshot,
+    )
+
+    worktree, target = _candidate(repo)
+    app = worktree / "src" / "app.py"
+    app.write_text("".join(f"line{number}\n" for number in range(1, 61)), encoding="utf-8")
+    state = RunState(task_id=target.id, path=repo.root / "state.json", run_id="run-1")
+
+    def record(round_no: int, evidence: str) -> None:
+        blocker = Finding(severity="major", claim=f"round {round_no}", evidence=evidence)
+        state.history.append(
+            {
+                "at": state.heartbeat,
+                "from": str(state.state),
+                "to": str(state.state),
+                "fact": blocker_fact("T-0900", round_no, 3, [blocker], tree_snapshot(worktree)),
+            }
+        )
+
+    def reraises(evidence: str) -> bool:
+        revision = revision_for(SimpleNamespace(worktree=worktree), state)
+        assert revision is not None
+        finding = {
+            "id": "F1",
+            "severity": "blocker",
+            "kind": "bug",
+            "claim": "still bad",
+            "evidence": evidence,
+            "verified": "read",
+            "confidence": "high",
+        }
+        document = CriticDocument.model_validate({"rows": [], "findings": [finding]})
+        decision = decide(document, {}, worktree, "major", revision=revision)
+        blocker = Finding(severity="blocker", claim="still bad", evidence=evidence)
+        escalates = _anchor_reraised([blocker], mapped_blocker_anchors(worktree, state))
+        assert (escalates is not None) == bool(decision.reraised)
+        return bool(decision.reraised)
+
+    record(1, "src/app.py:50 — bad")
+    # Revision 1 inserts twenty lines at the top: the blocker now sits at 70.
+    app.write_text(
+        "".join(f"new{number}\n" for number in range(20)) + app.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    assert reraises("src/app.py:70 — bad")
+    assert not reraises("src/app.py:50 — bad")
+
+    record(2, "src/__init__.py:1 — other")
+    # Revision 2 touches another file only; round 1's anchor is still at 70.
+    (worktree / "src" / "__init__.py").write_text("x = 1\n", encoding="utf-8")
+    assert reraises("src/app.py:70 — bad")

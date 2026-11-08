@@ -147,10 +147,25 @@ class TaskStore:
     # ....................... #
 
     async def live_records(self) -> list[DurableRunRecord]:
-        admin = resolve_durable_run_admin(self.ctx)
-        page = await admin.list_runs(status=DurableRunStatus.RUNNING, limit=200)
+        """Every RUNNING record, not just the listing's first page.
 
-        return list(page.records)
+        The listing is keyset-paged; a caller that reads one page treats a
+        live run past it as absent, and the reaper and a requeue are entitled
+        to delete the worktree of a run they cannot see (S-0121/D-19). Read to
+        the end so liveness is the whole set.
+        """
+
+        admin = resolve_durable_run_admin(self.ctx)
+        records: list[DurableRunRecord] = []
+        cursor: str | None = None
+
+        while True:
+            page = await admin.list_runs(status=DurableRunStatus.RUNNING, limit=200, cursor=cursor)
+            records.extend(page.records)
+            cursor = page.next_cursor
+
+            if cursor is None:
+                return records
 
     # ....................... #
 

@@ -286,6 +286,33 @@ def test_an_empty_roster_is_a_configuration_not_an_error(tmp_path):
 # ....................... #
 
 
+def test_context_window_is_the_seats_when_stated_and_the_rosters_when_not():
+    """S-0125/D-8: a seat may state a smaller window than the model holds; the
+    merge takes the roster's only where the seat states none."""
+
+    from torve.config.providers import Model, Route
+    from torve.config.runconfig import merge_records
+
+    records = {
+        "p": Provider(
+            key_env=KEY_ENV,
+            routes={"openai": Route(base_url=BASE_URL)},
+            models={"m": Model(context_window=1_000_000)},
+        )
+    }
+    tiers = {
+        "stated": {"provider": "p", "model": "m", "context_window": 200_000},
+        "zero": {"provider": "p", "model": "m", "context_window": 0},
+        "absent": {"provider": "p", "model": "m"},
+    }
+
+    merge_records(tiers, records)
+
+    assert tiers["stated"]["context_window"] == 200_000
+    assert tiers["zero"]["context_window"] == 1_000_000
+    assert tiers["absent"]["context_window"] == 1_000_000
+
+
 def test_an_unmeasured_model_value_is_absent_rather_than_zero(tmp_path):
     """What nobody measured is unstated: 0 for the window and the cap, and no
     price at all — which is a different fact from a price of zero."""

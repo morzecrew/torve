@@ -18,13 +18,23 @@ from __future__ import annotations
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import attrs
+from forze.base.exceptions import CoreException
 
 from torve.application.manager import LEASE_SECONDS, Board, dispatchable, project
+from torve.application.runstate import RunState
+from torve.base import naming
 from torve.domain.events import ActorKind, EventKind, SubjectType
-from torve.domain.states import EXIT_INFRASTRUCTURE, BlockedDispatch, EscalationReason
+from torve.domain.states import (
+    EXIT_EXHAUSTED,
+    EXIT_INFRASTRUCTURE,
+    BlockedDispatch,
+    EscalationReason,
+    TaskState,
+)
 
 if TYPE_CHECKING:
     from torve.application.eventlog import EventLog
@@ -70,6 +80,10 @@ class Worker:
     log: EventLog
     name: str
     execute: Execute
+    # The engine root whose run-state files this worker may escalate (S-0125/D-6).
+    # Optional because a lifecycle test's execute never writes one; wiring the
+    # resident serve passes the root it already holds.
+    root: Path | None = None
     on_base: OnBase | None = None
     # Claims the runner refused for an overlap with a run the board cannot
     # see (a hand `torve run` on the same host), by the moment they were
@@ -198,6 +212,41 @@ class Worker:
 
     # ....................... #
 
+    def _escalate_state(self, task_id: str, reason: EscalationReason, detail: str) -> None:
+        """Leave the task's own run-state file in the state the timeout put it
+        in (S-0125/D-6). The store's watchdog cancels the body before the
+        timeout surfaces, so the runner's cancel path has usually escalated
+        the file `killed` already; the timeout's reason and duration replace
+        that verdict. A file the timeout escaped before any verdict is
+        escalated here. Any other terminal or escalated file is left alone."""
+
+        if self.root is None:
+            return
+
+        path = naming.state_file(self.root, task_id)
+
+        if not path.is_file():
+            return
+
+        state = RunState.load(path)
+
+        if state.state in (
+            TaskState.CLAIMED,
+            TaskState.RUNNING,
+            TaskState.GATED,
+            TaskState.REVIEWED,
+        ):
+            state.escalate(reason, detail)
+
+        elif (
+            state.state is TaskState.ESCALATED
+            and state.escalation is not None
+            and state.escalation.reason == str(EscalationReason.KILLED)
+        ):
+            state.restate_escalation(reason, detail)
+
+    # ....................... #
+
     async def once(self, partition: str, *, only: str | None = None) -> str | None:
         """One full pass: claim, run, release. Returns the task id it
         handled, or None when the partition had nothing to start."""
@@ -221,6 +270,24 @@ class Worker:
                 attempt=0,
                 exit_code=EXIT_INFRASTRUCTURE,
                 detail=f"held: {exc}"[:300],
+            )
+
+        except CoreException as exc:
+            # A run past `store.max_run_duration` is cancelled by the store's
+            # watchdog and its CoreException escapes the runner (S-0125/D-6).
+            # Letting it escape the lifecycle ended the serve process and left
+            # the night unclosed (2026-11-07 02:49Z): a timeout is the task's
+            # budget, not the night's. Another CoreException keeps travelling.
+            if exc.code != "durable.run_timed_out":
+                raise
+
+            detail = f"durable run timed out: {exc.summary}"[:300]
+            self._escalate_state(task.id, EscalationReason.BUDGET_EXHAUSTED, detail)
+            outcome = Outcome(
+                attempt=0,
+                exit_code=EXIT_EXHAUSTED,
+                escalation=EscalationReason.BUDGET_EXHAUSTED,
+                detail=detail,
             )
 
         except (ValueError, RuntimeError) as exc:

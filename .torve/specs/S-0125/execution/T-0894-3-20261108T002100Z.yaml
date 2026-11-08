@@ -1,0 +1,240 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0894
+attempt: 3
+base: 9e3de31c096dfdec427095d0d6270ef1e58145b0
+commit: 96e4d960cef8b033f29856195f4f73af88ea00db
+at: '2026-11-08T00:21:00Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: D-4
+    grade: ASSUMED
+  - id: D-5
+    grade: ASSUMED
+  - id: D-6
+    grade: ASSUMED
+  - id: D-7
+    grade: ASSUMED
+  - id: D-8
+    grade: ASSUMED
+  - id: D-9
+    grade: OPEN
+  - id: D-10
+    grade: ASSUMED
+  - id: S-0121/D-1
+    grade: LOCKED
+  - id: S-0121/D-3
+    grade: LOCKED
+  - id: S-0121/D-11
+    grade: LOCKED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-15
+    grade: LOCKED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-28
+    grade: LOCKED
+  - id: S-0121/D-29
+    grade: LOCKED
+  - id: S-0121/D-30
+    grade: LOCKED
+  - id: S-0121/D-36
+    grade: LOCKED
+  - id: S-0121/D-38
+    grade: LOCKED
+  - id: S-0122/D-1
+    grade: LOCKED
+  - id: S-0122/D-2
+    grade: LOCKED
+  - id: S-0122/D-6
+    grade: ASSUMED
+  - id: S-0122/D-7
+    grade: ASSUMED
+  - id: S-0122/D-15
+    grade: ASSUMED
+  - id: S-0122/D-18
+    grade: ASSUMED
+  - id: S-0122/D-19
+    grade: ASSUMED
+  - id: S-0122/D-20
+    grade: ASSUMED
+  - id: S-0122/D-21
+    grade: OPEN
+  - id: S-0123/D-4
+    grade: ASSUMED
+  - id: S-0124/D-2
+    grade: ASSUMED
+  - id: S-0124/D-3
+    grade: ASSUMED
+  - id: S-0124/D-8
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-11-07T23:42:34Z'
+    claim: >-
+      The below-threshold finding is carried, not blocked: S-0122/D-1 (LOCKED) lets
+      only a finding at or above review.blocks_at block, and S-0125/D-1 records every
+      other kept finding non-blocking as carried. A minor on a changed line is not
+      a blocker.
+    evidence: >-
+      src/torve/application/critic.py:360 — the severity test precedes the anchor
+      test on purpose; a probe with a major and a minor on the same changed src/app.py:12
+      line blocks the major and carries the minor.
+    action: departed
+    proposal: >-
+      No change: carried is the record for every kept finding below review.blocks_at,
+      not only for findings away from the revision's change.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-07T23:42:34Z'
+    claim: >-
+      The revision wiring is covered end to end: test_revision_inputs_reach_the_revisions_critic_through_the_run_loop
+      asserts review_step writes the judged head into the blocker fact and that the
+      revision's critic is staged revision.diff and blockers.yaml. Replacing the revision
+      argument with None fails with KeyError: 'revision.diff'; writing an empty head
+      fails with IndexError on the fact.
+    evidence: >-
+      tests/test_review_run.py:1818 — the end-to-end revision test fails under either
+      mutation the claim says leaves the suite green.
+    action: departed
+    proposal: >-
+      No change: the claimed missing coverage exists on the tree (added by T-0883).
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-11-07T23:42:34Z'
+    claim: >-
+      The engine's default is 5 by S-0125/D-3 and the field now says so; the operating
+      guide still shows 15 and lives in pages/docs/operating.md, which this task's
+      paths do not include. The stale example is real, but the remedy is outside this
+      contract.
+    evidence: >-
+      pages/docs/operating.md:1416 — the guide's example still shows 15; src/torve/config/runconfig.py:1347
+      sets the default to 5 as S-0125/D-3 requires.
+    action: departed
+    proposal: >-
+      The operating guide's example and prose should say 5, with 15 named only as
+      an explicit override, in a task whose scope includes pages/docs/operating.md.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-11-08T00:08:17Z'
+    attempt: 3
+    claim: >-
+      A below-threshold finding on a changed line is carried, not blocked, and that
+      is what the rows say: S-0122/D-1 (LOCKED) lets only a finding at or above review.blocks_at
+      block, and S-0125/D-1 records every other kept finding non-blocking as carried.
+      Proximity to the revision's change only decides whether an at-or-above-threshold
+      finding blocks; it never makes a minor block.
+    evidence: >-
+      src/torve/application/critic.py:367 — the severity test precedes the anchor
+      test on purpose, so the probe's MINOR at src/app.py:12 is carried while a major
+      on the same line blocks.
+    action: departed
+    proposal: >-
+      No change: carried is the record for every kept finding below review.blocks_at,
+      not only for findings away from the revision's changes.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-08T00:08:17Z'
+    attempt: 3
+    claim: >-
+      The revision wiring is covered end to end: the run-loop test asserts review_step
+      writes the judged head into the blocker fact and that the revision's critic
+      is staged revision.diff and blockers.yaml. Replacing the revision argument in
+      judge with None makes that test fail.
+    evidence: >-
+      tests/test_review_run.py:1820 — test_revision_inputs_reach_the_revisions_critic_through_the_run_loop
+      fails under the revision=None mutation at src/torve/application/critic.py:983
+      (rerun on this attempt); the claim's run did not select it.
+    action: departed
+    proposal: >-
+      No change: the claimed missing coverage exists on the tree.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-11-08T00:08:17Z'
+    attempt: 3
+    claim: >-
+      The engine's default is 5 as S-0125/D-3 requires, and the field's docstring
+      now says so. The operating guide that still shows 15 lives in pages/docs/operating.md,
+      which this contract's scope and contingent list do not include, so its remedy
+      is outside this task.
+    evidence: >-
+      pages/docs/operating.md:1416 — the guide's example shows findings_per_round:
+      15 and line 1500 says default 15; src/torve/config/runconfig.py:1347 sets the
+      default to 5.
+    action: departed
+    proposal: >-
+      Update pages/docs/operating.md to say 5, naming 15 only as an explicit override,
+      in a task whose scope includes that file.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-11-08T00:09:25Z'
+    attempt: 3
+    claim: >-
+      A below-threshold finding on a changed line is carried, not blocked, and that
+      is what the rows say: S-0122/D-1 (LOCKED) lets only a finding at or above review.blocks_at
+      block, and S-0125/D-1 records every other kept finding non-blocking as carried.
+      Proximity to the revision's change only decides whether an at-or-above-threshold
+      finding blocks; it never makes a minor block.
+    evidence: >-
+      src/torve/application/critic.py:367 — the severity test precedes the anchor
+      test on purpose, so the probe's MINOR at src/app.py:12 is carried while a major
+      on the same line blocks.
+    action: departed
+    proposal: >-
+      No change: carried is the record for every kept finding below review.blocks_at,
+      not only for findings away from the revision's changes.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-08T00:09:25Z'
+    attempt: 3
+    claim: >-
+      The revision wiring is covered end to end: the run-loop test asserts review_step
+      writes the judged head into the blocker fact and that the revision's critic
+      is staged revision.diff and blockers.yaml. Replacing the revision argument in
+      judge with None makes that test fail.
+    evidence: >-
+      tests/test_review_run.py:1820 — test_revision_inputs_reach_the_revisions_critic_through_the_run_loop
+      fails under the revision=None mutation at src/torve/application/critic.py:983
+      (rerun on this attempt); the claim's run did not select it.
+    action: departed
+    proposal: >-
+      No change: the claimed missing coverage exists on the tree.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-11-08T00:09:25Z'
+    attempt: 3
+    claim: >-
+      The engine's default is 5 as S-0125/D-3 requires, and the field's docstring
+      now says so. The operating guide that still shows 15 lives in pages/docs/operating.md,
+      which this contract's scope and contingent list do not include, so its remedy
+      is outside this task.
+    evidence: >-
+      pages/docs/operating.md:1416 — the guide's example shows findings_per_round:
+      15 and line 1500 says default 15; src/torve/config/runconfig.py:1347 sets the
+      default to 5.
+    action: departed
+    proposal: >-
+      Update pages/docs/operating.md to say 5, naming 15 only as an explicit override,
+      in a task whose scope includes that file.

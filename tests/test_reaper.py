@@ -6,6 +6,7 @@ import subprocess
 import time
 from datetime import UTC, datetime, timedelta
 
+import pytest
 from test_run_loop import MockRuntime
 
 from torve.adapters.workspace.git import GitWorkspace
@@ -885,6 +886,206 @@ def test_a_stopped_run_with_nothing_new_adds_no_checkpoint(tmp_path):
     assert workspace.checkpoint("T-9812", "torve(T-9812): nothing") is False
     assert workspace.checkpoint("T-9899", "torve(T-9899): no worktree") is False
     assert git("rev-parse", "torve/T-9812") == git("rev-parse", "main")
+
+
+@pytest.mark.parametrize(
+    "active_state",
+    [TaskState.CLAIMED, TaskState.RUNNING, TaskState.GATED, TaskState.REVIEWED],
+)
+def test_requeue_clears_an_active_state_with_no_live_run(tmp_path, active_state):
+    """S-0125/D-5: a serve that died mid-run leaves its state file claimed,
+    running, gated or reviewed — not escalated — and every next dispatch
+    refused on it. A requeue clears it once no live engine run holds it,
+    committing the tree as stopped work so the next attempt continues it."""
+
+    from types import SimpleNamespace
+
+    from torve.application.reaper import clear_escalated
+    from torve.application.runner import _checkpointed_for_resume
+
+    def git(*args):
+        return subprocess.run(
+            ["git", "-C", str(tmp_path), *args], check=True, capture_output=True, text=True
+        ).stdout
+
+    task_id = "T-9821"
+    git("init", "-q", "-b", "main")
+    (tmp_path / "seed").write_text("x", encoding="utf-8")
+    git("add", "-A")
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--no-gpg-sign", "-m", "seed")
+    workspace = GitWorkspace(tmp_path)
+    worktree = workspace.create(task_id, "main")
+    (worktree / "work.py").write_text("done = True\n", encoding="utf-8")
+    # The heartbeat is the reaper's host liveness: a dead run's goes stale.
+    state = state_at(tmp_path, task_id, active_state, age_s=3600)
+
+    assert clear_escalated(tmp_path, MockRuntime(), workspace, task_id) is True
+
+    assert not worktree.exists()
+    assert not state.path.exists()
+    assert git("show", f"torve/{task_id}:work.py") == "done = True\n"
+    assert _checkpointed_for_resume(tmp_path, SimpleNamespace(id=task_id))
+
+
+def test_the_live_runs_a_requeue_reads_span_every_page(monkeypatch):
+    """S-0121/D-19: the listing is keyset-paged, and a live run past its
+    first page is still live; a requeue that read one page would clear the
+    worktree of a run it could not see."""
+    import asyncio
+    from types import SimpleNamespace
+
+    import torve.application.taskstore as taskstore
+    from torve.adapters.store.durable import open_mock_store
+    from torve.config.runconfig import StoreConfig
+
+    runs = [SimpleNamespace(run_id=f"run-{number}") for number in range(450)]
+    cursors: list[str | None] = []
+
+    class Admin:
+        async def list_runs(self, *, status, limit, cursor=None):
+            cursors.append(cursor)
+            start = int(cursor or 0)
+            end = start + limit
+            return SimpleNamespace(
+                records=runs[start:end], next_cursor=str(end) if end < len(runs) else None
+            )
+
+    monkeypatch.setattr(taskstore, "resolve_durable_run_admin", lambda _ctx: Admin())
+    store = taskstore.TaskStore(open_mock_store(), StoreConfig())
+
+    live = asyncio.run(store.live_records())
+
+    assert [record.run_id for record in live] == [run.run_id for run in runs]
+    assert cursors == [None, "200", "400"]
+
+
+def test_requeue_clears_leaves_a_live_active_run_alone(tmp_path):
+    """S-0125/D-5: a fresh heartbeat is a live engine run holding the task —
+    the requeue is not the one that clears it."""
+
+    from torve.application.reaper import clear_escalated
+
+    state = state_at(tmp_path, "T-9822", TaskState.RUNNING)
+    workspace = ListingWorkspace([("T-9822", tmp_path / ".wt" / "T-9822")])
+
+    assert clear_escalated(tmp_path, MockRuntime(), workspace, "T-9822") is False
+
+    assert state.path.exists()
+    assert workspace.removed == []
+
+
+def _seeded(tmp_path):
+    def git(*args):
+        return subprocess.run(
+            ["git", "-C", str(tmp_path), *args], check=True, capture_output=True, text=True
+        ).stdout
+
+    git("init", "-q", "-b", "main")
+    (tmp_path / "seed").write_text("x", encoding="utf-8")
+    git("add", "-A")
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--no-gpg-sign", "-m", "seed")
+    return git
+
+
+def test_requeue_leaves_a_run_whose_durable_lease_is_live(tmp_path):
+    """S-0125/D-5, S-0121/D-19: a stale host heartbeat with a live durable
+    lease is a run still executing; only once the store no longer holds it
+    is its footprint cleared."""
+
+    from torve.application.reaper import clear_escalated
+
+    state = state_at(tmp_path, "T-9823", TaskState.RUNNING, age_s=3600)
+    state.durable_run_id = "dr-1"
+    state.save()
+    workspace = ListingWorkspace([("T-9823", tmp_path / ".wt" / "T-9823")])
+
+    assert clear_escalated(tmp_path, MockRuntime(), workspace, "T-9823", live={"dr-1"}) is False
+    assert state.path.exists()
+    assert workspace.removed == []
+
+    assert clear_escalated(tmp_path, MockRuntime(), workspace, "T-9823", live=set()) is True
+    assert workspace.removed == ["T-9823"]
+
+
+def test_requeue_refuses_a_detached_worktree_it_cannot_checkpoint(tmp_path):
+    """S-0125/D-5: a detached worktree's uncommitted work cannot be committed
+    on its branch, so the cleanup refuses rather than delete it."""
+
+    from torve.application.reaper import clear_escalated
+
+    git = _seeded(tmp_path)
+    git("branch", "torve/T-9824")
+    worktree = naming.worktree(tmp_path, "T-9824")
+    git("worktree", "add", "--detach", str(worktree), "main")
+    (worktree / "work.py").write_text("keep\n", encoding="utf-8")
+    state = state_at(tmp_path, "T-9824", TaskState.RUNNING, age_s=3600)
+
+    assert clear_escalated(tmp_path, MockRuntime(), GitWorkspace(tmp_path), "T-9824") is False
+    assert (worktree / "work.py").read_text(encoding="utf-8") == "keep\n"
+    assert state.path.exists()
+
+
+def test_requeue_refuses_a_detached_worktree_holding_an_unreferenced_commit(tmp_path):
+    """S-0125/D-5: a detached worktree can be clean and still hold the only
+    copy of a commit `checkpoint` cannot put on its branch; the cleanup
+    refuses rather than leave that work nameless."""
+
+    from torve.application.reaper import clear_escalated
+
+    git = _seeded(tmp_path)
+    git("branch", "torve/T-9826")
+    worktree = naming.worktree(tmp_path, "T-9826")
+    git("worktree", "add", "--detach", str(worktree), "main")
+    (worktree / "work.py").write_text("keep\n", encoding="utf-8")
+    subprocess.run(
+        ["git", "-C", str(worktree), "add", "-A"],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(worktree),
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-q",
+            "--no-gpg-sign",
+            "-m",
+            "the work",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    state = state_at(tmp_path, "T-9826", TaskState.RUNNING, age_s=3600)
+
+    assert clear_escalated(tmp_path, MockRuntime(), GitWorkspace(tmp_path), "T-9826") is False
+    assert (worktree / "work.py").read_text(encoding="utf-8") == "keep\n"
+    assert state.path.exists()
+
+
+def test_a_durable_timeout_restating_killed_still_checkpoints(tmp_path):
+    """S-0125/D-6: the worker restates a cancel's `killed` as
+    `budget_exhausted`; the requeue still reads it as a stopped run and
+    commits its tree before removal."""
+
+    from torve.application.reaper import clear_escalated
+    from torve.domain.states import EscalationReason
+
+    git = _seeded(tmp_path)
+    workspace = GitWorkspace(tmp_path)
+    worktree = workspace.create("T-9825", "main")
+    (worktree / "work.py").write_text("keep\n", encoding="utf-8")
+    state = state_at(tmp_path, "T-9825", TaskState.RUNNING)
+    state.escalate(EscalationReason.KILLED, "cancelled")
+    state.restate_escalation(EscalationReason.BUDGET_EXHAUSTED, "durable run timed out after 10s")
+
+    assert clear_escalated(tmp_path, MockRuntime(), workspace, "T-9825") is True
+    assert not worktree.exists()
+    assert git("show", "torve/T-9825:work.py") == "keep\n"
 
 
 def test_clear_escalated_leaves_a_non_escalated_task_alone(tmp_path):

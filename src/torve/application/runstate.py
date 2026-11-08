@@ -124,6 +124,24 @@ class RunState:
 
     # ....................... #
 
+    def restate_escalation(self, reason: EscalationReason, detail: str) -> None:
+        """An escalated file's reason replaced by a later, truer one. The
+        state machine has no escalated-to-escalated edge, so the change is
+        recorded in the history as a restatement rather than a transition: a
+        durable timeout's cancel writes `killed` before the timeout surfaces,
+        and the timeout's reason is the one that holds (S-0125/D-6)."""
+
+        state = str(self.state)
+        self.history.append(
+            {"at": _now(), "from": state, "to": state, "fact": f"{reason}: {detail}"}
+        )
+        self.escalation = Escalation(reason=str(reason), detail=detail)
+        self.touch()
+        self.save()
+        self._append_escalation_event(str(reason), detail)
+
+    # ....................... #
+
     def _host_root(self) -> Path:
         """The repository root the escalation event rides, derived
         structurally from the state-file location: a state file lives at

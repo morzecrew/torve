@@ -245,6 +245,7 @@ SEAT_KEYS = frozenset(
         "sandbox_timeout",
         "reasoning",
         "dialect",
+        "context_window",
         "cache_volume",
     }
 )

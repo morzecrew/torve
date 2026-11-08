@@ -687,6 +687,111 @@ def _paired(tmp_path: Path, seat: str, api: str = "[openai]") -> RunnerConfig:
     )
 
 
+def test_a_seat_states_its_own_context_window(tmp_path: Path):
+    """S-0125/D-8: the roster supplies the window only where the seat states
+    none, so a seat can hand its harness a smaller window than the model's."""
+
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(
+        root,
+        "acme",
+        "key_env: ACME_KEY\n"
+        "routes: {openai: {base_url: https://acme.test/v1}}\n"
+        "models: {fast: {context_window: 1000000}}\n",
+    )
+    harness(root, "dialled", "adapter: api\nimage: probe-sandbox\napi: [openai]\n")
+
+    config = load(
+        tmp_path,
+        "schema_version: 1\ntiers:\n"
+        "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+        "  executor: {harness: dialled, provider: acme, model: fast, context_window: 200000}\n",
+    )
+
+    assert config.tiers["executor"].context_window == 200_000
+
+
+def test_an_absent_or_zero_context_window_takes_the_rosters(tmp_path: Path):
+    """S-0125/D-8: 0 and absence both mean the seat states none, so the model's
+    window still reaches a seat that names no window of its own."""
+
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(
+        root,
+        "acme",
+        "key_env: ACME_KEY\n"
+        "routes: {openai: {base_url: https://acme.test/v1}}\n"
+        "models: {fast: {context_window: 1000000}}\n",
+    )
+    harness(root, "dialled", "adapter: api\nimage: probe-sandbox\napi: [openai]\n")
+
+    def loaded(seat: str) -> int:
+        extra = f", {seat}" if seat else ""
+        config = load(
+            tmp_path,
+            "schema_version: 1\ntiers:\n"
+            "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+            f"  executor: {{harness: dialled, provider: acme, model: fast{extra}}}\n",
+        )
+
+        return config.tiers["executor"].context_window
+
+    assert loaded("context_window: 0") == 1_000_000
+    assert loaded("") == 1_000_000
+
+
+def test_a_quoted_zero_context_window_takes_the_rosters(tmp_path: Path):
+    """S-0125/D-8: a seat states no window as `0`, quoted or not; a quoted
+    zero must not pass the roster merge as a truthy string and reach the
+    harness as nothing."""
+
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(
+        root,
+        "acme",
+        "key_env: ACME_KEY\n"
+        "routes: {openai: {base_url: https://acme.test/v1}}\n"
+        "models: {fast: {context_window: 1000000}}\n",
+    )
+    harness(root, "dialled", "adapter: api\nimage: probe-sandbox\napi: [openai]\n")
+
+    config = load(
+        tmp_path,
+        "schema_version: 1\ntiers:\n"
+        "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+        '  executor: {harness: dialled, provider: acme, model: fast, context_window: "0"}\n',
+    )
+
+    assert config.tiers["executor"].context_window == 1_000_000
+
+
+def test_a_negative_context_window_is_refused_at_load(tmp_path: Path):
+    """S-0125/D-8: the window is the seat's to narrow, never to invert — a
+    negative value would reach the harness as TORVE_CONTEXT_WINDOW."""
+
+    root = tmp_path / "repo"
+    root.mkdir(exist_ok=True)
+    provider(
+        root,
+        "acme",
+        "key_env: ACME_KEY\n"
+        "routes: {openai: {base_url: https://acme.test/v1}}\n"
+        "models: {fast: {context_window: 1000000}}\n",
+    )
+    harness(root, "dialled", "adapter: api\nimage: probe-sandbox\napi: [openai]\n")
+
+    with pytest.raises(ValueError, match="context_window"):
+        load(
+            tmp_path,
+            "schema_version: 1\ntiers:\n"
+            "  planner: {harness: fake}\n  reviewer: {harness: fake}\n"
+            "  executor: {harness: dialled, provider: acme, model: fast, context_window: -5}\n",
+        )
+
+
 def test_a_seat_reaches_only_a_model_its_provider_declares(tmp_path: Path):
     """The roster is what a seat may reach. An undeclared model would reach the
     provider under whatever name was typed, and the regime hash would record a
@@ -964,7 +1069,7 @@ def test_the_thread_section_defaults_off_and_loads_its_terms(tmp_path: Path) -> 
     assert defaults.enabled is False
     assert defaults.bots == [] and defaults.rounds_per_pass == 1
     # S-0097/D-4, S-0097/D-5: the wait and the wave's cap have defaults too.
-    assert defaults.review_wait == 45 and defaults.findings_per_round == 15
+    assert defaults.review_wait == 45 and defaults.findings_per_round == 5
 
     config = load(
         tmp_path,
@@ -979,6 +1084,17 @@ def test_the_thread_section_defaults_off_and_loads_its_terms(tmp_path: Path) -> 
     assert config.threads.rounds_per_pass == 2
     assert config.threads.review_wait == 10
     assert config.threads.findings_per_round == 5
+
+
+def test_findings_per_round_defaults_to_five() -> None:
+    """S-0125/D-3: a round carries five findings unless the configuration says
+    otherwise — a wave of fifteen becomes three or more small rounds, so a
+    critic block in one leaves the others' fixes to land."""
+
+    from torve.config.runconfig import ThreadsConfig
+
+    assert ThreadsConfig().findings_per_round == 5
+    assert RunnerConfig().threads.findings_per_round == 5
 
 
 def test_the_thread_sources_default_to_the_forge_and_load_from_yaml(tmp_path: Path) -> None:

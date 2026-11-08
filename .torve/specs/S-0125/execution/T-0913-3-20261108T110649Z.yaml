@@ -1,0 +1,85 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0913
+base: 06e4df8b748f198fedeeb9fc1a56297f39a9822b
+commit: ce7c907d8b82c40360ce51a5014278ea21215590
+at: '2026-11-08T11:06:49Z'
+agent: Lev Litvinov
+decisions:
+- id: D-1
+  grade: ASSUMED
+- id: D-2
+  grade: ASSUMED
+- id: D-3
+  grade: ASSUMED
+- id: D-4
+  grade: ASSUMED
+- id: D-5
+  grade: ASSUMED
+- id: D-6
+  grade: ASSUMED
+- id: D-7
+  grade: ASSUMED
+- id: D-8
+  grade: ASSUMED
+- id: D-9
+  grade: OPEN
+- id: D-10
+  grade: ASSUMED
+- id: S-0121/D-3
+  grade: LOCKED
+- id: S-0121/D-11
+  grade: LOCKED
+- id: S-0121/D-12
+  grade: LOCKED
+- id: S-0121/D-13
+  grade: ASSUMED
+- id: S-0121/D-15
+  grade: LOCKED
+- id: S-0121/D-19
+  grade: LOCKED
+- id: S-0121/D-20
+  grade: LOCKED
+- id: S-0121/D-29
+  grade: LOCKED
+- id: S-0121/D-30
+  grade: LOCKED
+- id: S-0121/D-36
+  grade: LOCKED
+- id: S-0121/D-37
+  grade: ASSUMED
+- id: S-0121/D-38
+  grade: LOCKED
+- id: S-0121/D-40
+  grade: ASSUMED
+- id: S-0122/D-7
+  grade: ASSUMED
+- id: S-0122/D-15
+  grade: ASSUMED
+- id: S-0122/D-20
+  grade: ASSUMED
+- id: S-0122/D-21
+  grade: OPEN
+- id: S-0124/D-2
+  grade: ASSUMED
+- id: S-0124/D-8
+  grade: ASSUMED
+entries:
+- decision: unlisted
+  grade: UNLISTED
+  kind: contradicted
+  at: '2026-11-08T09:32:54Z'
+  claim: 'The claim at runconfig.py:1350 that a file with more findings than findings_per_round
+    makes an oversize round is true of the code but is not a defect: S-0125/D-3 states the
+    cap and, in the same row, that batch_claims still never splits a file across rounds. The
+    two only conflict for a file carrying more findings than the cap, and the row resolves
+    that case in favour of the file: two rounds of one wave on the same file would race on
+    it, which is what grouping by file exists to prevent. batch_claims keeps the file whole
+    by design; only the findings_per_round docstring was corrected to say so.'
+  evidence: src/torve/application/reviewleg.py:831-861 — batch_claims flushes a round before
+    a file group that would overflow it and never splits a group, and its docstring names
+    the oversize round as intended; S-0125/D-3 says batch_claims still never splits a file
+    across rounds
+  action: departed
+  proposal: 'S-0125/D-3 should say: every review round carries at most threads.findings_per_round
+    findings, except that a single file with more findings than the cap forms one round of
+    its own, because batch_claims never splits a file across rounds.'
