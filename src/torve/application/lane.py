@@ -2559,6 +2559,57 @@ def _base_reaches(root: Path, base_tip: str, branch_tip: str) -> bool:
     return bool(moved & ours)
 
 
+def _publish_held(
+    root: Path,
+    vcs: LaneVcs,
+    publish: Publisher,
+    document: str,
+    branch: str,
+    remote: str,
+    tasks: list[str],
+    number: int,
+    results: list[LaneResult],
+    status: StatusScm | None = None,
+) -> None:
+    """The push a finished wave still owes its open pull request: the
+    landings held on *branch* (S-0097/D-6), replayed onto *remote* when a hand
+    commit moved it, as `_document_branch` replays them before a landing. A
+    replay that conflicts is a person's, the branch left exactly as it was,
+    and is reported once per pair of tips: a `torve/rebase` failure on the
+    pull request's head naming the held tip (S-0101/D-3), since the forge
+    holds no status on a commit it was never sent."""
+
+    held = vcs.tip(root, branch) or ""
+    detail = (
+        f"the landings held on {branch!r} no longer replay onto the remote's copy, "
+        "which a hand commit moved; a person resolves it — nothing was pushed"
+    )
+
+    if _status_at(status, remote, REBASE_CONTEXT) == ("failure", held):
+        # Reported already; a carried task back at READY is escalated again.
+        _escalate_document(root, branch, tasks, detail)
+        results.append(LaneResult(document, branch, "conflict", detail, held))
+        return
+
+    if not _replayed_onto(root, vcs, document, branch, remote):
+        _write_status(root, status, remote, REBASE_CONTEXT, "failure", held)
+        engine_event(
+            root, "lane_document_conflict", {"branch": branch, "base_tip": remote, "tasks": tasks}
+        )
+        _escalate_document(root, branch, tasks, detail)
+        results.append(LaneResult(document, branch, "conflict", detail, held))
+
+        return
+
+    tip = vcs.tip(root, branch) or ""
+
+    if _publish(root, publish, tasks[-1], branch, tip, results) is None:
+        return
+
+    engine_event(root, "lane_wave_published", {"branch": branch, "sha": tip, "pr": number})
+    results.append(LaneResult(document, branch, "pull request", "published the held wave", tip))
+
+
 def _rebase_document(
     root: Path,
     vcs: LaneVcs,
@@ -2606,10 +2657,21 @@ def _rebase_document(
     # the republish leases against the fetch just made, so rebasing the local
     # ref would drop that commit without a refusal.
     remote = vcs.remote_tip(root, branch)
+    held = remote is not None and _unpublished(root, vcs, branch, remote)
+    outstanding = _wave_outstanding(root, branch, resolved)
 
-    if (remote is not None and _unpublished(root, vcs, branch, remote)) or _wave_outstanding(
-        root, branch, resolved
-    ):
+    if remote is not None and held and tasks and not outstanding:
+        # The wave is over and nothing landed last: its final round escalated,
+        # or a person resolved it, so no landing comes to publish what the
+        # branch holds (S-0097/D-6; #302 sat four landings ahead of its pull
+        # request, 2026-11-08). This pass publishes them, replayed onto a hand
+        # commit the remote gained meanwhile as a landing replays them, and a
+        # later pass judges and rebases what it published as it always has.
+        _publish_held(root, vcs, publish, document, branch, remote, tasks, number, results, status)
+
+        return
+
+    if held or outstanding:
         # The wave has not finished: a head's rounds are still queued or
         # running, so nothing here resets or republishes the branch, and any
         # landing already held on it stays unpublished (S-0097/D-6). The last

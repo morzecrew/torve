@@ -4507,6 +4507,38 @@ def test_a_round_that_escalated_does_not_hold_the_wave(lane_repo, tmp_path):
     assert git(lane_repo, "show", f"origin/{document}:two.py") == "# T-7512"
 
 
+def test_a_wave_whose_last_round_escalates_is_published_by_the_next_pass(lane_repo, tmp_path):
+    """The round a held landing waits for can escalate instead of landing, and
+    then no landing comes to publish the wave (#302, 2026-11-08): the next
+    pass over the open pull request pushes what the branch holds."""
+    published: list[tuple[str, str]] = []
+    spec = "S-0936"
+    document = _landed_document(lane_repo, tmp_path, spec, {"T-7561": "one.py"}, published)
+    _round(lane_repo, "T-7562", document, spec, "two.py", "# T-7562\n")
+    _round(lane_repo, "T-7563", document, spec, "three.py", "# T-7563\n", state=TaskState.QUEUED)
+    publish = _recording_publisher(published, root=lane_repo)
+    open_pr = _forge(_pr(number=31, state="open"), [])
+
+    process_lane(lane_repo, GitLane(), publish=publish, unit="document")
+    assert published == [("T-7561", document)]
+
+    # Still outstanding, the queued round keeps the wave held.
+    process_lane(lane_repo, GitLane(), publish=publish, forge=open_pr, unit="document")
+    assert published == [("T-7561", document)]
+
+    state = RunState.load(naming.state_file(lane_repo, "T-7563"))
+    state.state = TaskState.ESCALATED
+    state.save()
+
+    results = process_lane(lane_repo, GitLane(), publish=publish, forge=open_pr, unit="document")
+
+    assert published == [("T-7561", document), ("T-7562", document)]
+    assert git(lane_repo, "show", f"origin/{document}:two.py") == "# T-7562"
+    assert [r.detail for r in results if r.task == spec and r.action == "pull request"] == [
+        "published the held wave"
+    ]
+
+
 def test_a_round_no_worker_has_claimed_holds_the_wave(lane_repo, tmp_path):
     """A minted round has no run state until a worker claims it, and it is
     outstanding all the same: the wave is not over while it waits."""
@@ -4766,6 +4798,44 @@ def test_held_landings_that_conflict_with_a_hand_commit_ask_a_person(lane_repo, 
     assert git(lane_repo, "rev-parse", document) == local_before
     state = RunState.load(naming.state_file(lane_repo, "T-7543"))
     assert state.state is TaskState.ESCALATED
+
+
+def test_a_finished_wave_that_conflicts_with_a_hand_commit_is_reported_once(lane_repo, tmp_path):
+    """A wave whose last round escalated, held behind a hand commit it does not
+    replay onto, is reported once per pair of tips: a `torve/rebase` failure
+    on the pull request's head naming the held tip, read back by the next pass.
+    A carried task back at READY meanwhile is escalated again all the same."""
+    spec = "S-0937"
+    document, published, publish = _held_wave_and_hand_commit(
+        lane_repo, tmp_path, spec, ("two.py", "# a person's two\n")
+    )
+
+    def set_state(task_id: str, to: TaskState) -> None:
+        state = RunState.load(naming.state_file(lane_repo, task_id))
+        state.state = to
+        state.save()
+
+    set_state("T-7543", TaskState.ESCALATED)
+    remote = git(lane_repo, "rev-parse", f"origin/{document}")
+    held = git(lane_repo, "rev-parse", document)
+    status = _Status()
+    open_pr = _forge(_pr(number=33, state="open"), [])
+
+    for _ in range(2):
+        results = process_lane(
+            lane_repo, GitLane(), publish=publish, forge=open_pr, unit="document", status=status
+        )
+        assert [r.action for r in results if r.task == spec] == ["conflict"]
+        set_state("T-7542", TaskState.READY)
+
+    process_lane(
+        lane_repo, GitLane(), publish=publish, forge=open_pr, unit="document", status=status
+    )
+    assert RunState.load(naming.state_file(lane_repo, "T-7542")).state is TaskState.ESCALATED
+    assert status.status(remote, "torve/rebase") == ("failure", held)
+    assert len([e for e in _events(lane_repo) if e.get("event") == "lane_document_conflict"]) == 1
+    assert published == [("T-7541", document)]
+    assert git(lane_repo, "rev-parse", document) == held
 
 
 def test_a_copy_left_behind_a_rebased_remote_is_adopted_and_the_next_phase_lands(

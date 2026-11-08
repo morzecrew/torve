@@ -72,6 +72,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A landing nobody approved now records an empty `approver`, not the operator. The attempt
   record no longer lists toolchain caches and engine files as ignored writes.
 
+- A document's landings held for a wave of review rounds are now pushed when the wave's last
+  round escalates or is resolved. Only a round's landing used to publish them, so the pull
+  request stayed behind its branch until a person pushed it.
+
+- A chained night now closes at the first pass with no task in flight once a merge moves the
+  engine on the base, and `torve manager serve --chain` exits with the engine-moved code so the
+  launcher installs it.
+  `night.closed` records `engine_moved`. A paused chain reads the move too.
+
 ## [0.9.1] - 2026-11-06
 
 ### Changed

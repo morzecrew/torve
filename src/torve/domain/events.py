@@ -685,8 +685,15 @@ class NightClosed(BaseModel):
     model_config = STRICT
 
     # `passes`: a `--passes` bound ran out before any of the night's own terms.
+    # `engine_moved`: a chained night's base moved the engine (S-0120/D-2).
     reason: Literal[
-        "drained", "budget_usd", "budget_attempts", "wall_clock", "escalation", "passes"
+        "drained",
+        "budget_usd",
+        "budget_attempts",
+        "wall_clock",
+        "escalation",
+        "passes",
+        "engine_moved",
     ]
     # The escalation class that stopped the night, for `escalation`.
     detail: str = ""

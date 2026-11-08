@@ -2486,6 +2486,78 @@ def test_a_chain_ends_with_the_reason_engine_moved_after_recording_the_event(tmp
     assert event["count"] == 1
 
 
+def test_a_night_closes_at_the_next_pass_once_its_base_moves_the_engine(tmp_path, monkeypatch):
+    """S-0120/D-2 inside a night: the top of a pass is a gap, so a merge that
+    moves the engine closes the night there, planning nothing, and the chain
+    ends on `engine moved` for the launcher — no person stops it by hand."""
+
+    from types import SimpleNamespace
+
+    from torve.application import residency
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    config = RunnerConfig(night=NightConfig(budget_usd=10.0, budget_attempts=5))
+    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: config)
+
+    swept: list[bool] = []
+
+    async def fake_sync(*args, plan=True, **kwargs):
+        swept.append(plan)
+
+        # The night opens on an unmoved base; the merge lands during it.
+        return ["src/torve/engine.py"] if len(swept) > 1 else []
+
+    opened: list[bool] = []
+
+    async def fake_open(*args, **kwargs):
+        if opened:
+            raise AssertionError("the chain opened a second night on a stale engine")
+
+        opened.append(True)
+
+        return SimpleNamespace(stop_on=())
+
+    passes: list[str | None] = []
+
+    async def fake_serve(log, worker, root, partition, *, stop=None, **kwargs):
+        for _ in range(3):
+            passes.append(await stop())
+
+            if passes[-1] is not None:
+                break
+
+        return 0
+
+    async def fake_reached(*args, **kwargs):
+        return None
+
+    closed: list[str] = []
+
+    async def fake_close(log, partition, terms, *, reason, handled, actor_id, now=None):
+        closed.append(reason)
+
+        return reason
+
+    async def fake_remainder(*args, **kwargs):
+        return (10.0, 5)
+
+    monkeypatch.setattr(manager_cli, "_sync_and_plan", fake_sync)
+    monkeypatch.setattr(residency, "open_night", fake_open)
+    monkeypatch.setattr(residency, "serve", fake_serve)
+    monkeypatch.setattr(residency, "reached", fake_reached)
+    monkeypatch.setattr(residency, "close_night", fake_close)
+    monkeypatch.setattr(residency, "day_remainder", fake_remainder)
+
+    handled, reason = _chain_serve(tmp_path)
+
+    # The chain's sweep planned; the night's own sweep only read the move.
+    assert swept == [True, False]
+    assert passes == ["engine_moved"]
+    assert closed == ["engine_moved"]
+    assert (handled, reason) == (0, "engine moved")
+
+
 @pytest.mark.parametrize(
     "reason",
     ["engine moved", "", "drained", "passes", "escalation:killed", "escalation:locked_conflict"],
