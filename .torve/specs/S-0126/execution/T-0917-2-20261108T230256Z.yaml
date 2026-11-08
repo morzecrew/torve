@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0917
+phase: 2
+attempt: 2
+base: b00c721f62e85d7667caa70a79fb567343ed13fa
+commit: 32edc2c419ba3731b7770575202a4f2c7b97623c
+at: '2026-11-08T23:02:56Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0122/D-1
+    grade: LOCKED
+  - id: S-0122/D-2
+    grade: LOCKED
