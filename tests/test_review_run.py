@@ -1966,3 +1966,124 @@ def test_each_rounds_blockers_are_mapped_from_the_head_that_round_judged(repo):
     # Revision 2 touches another file only; round 1's anchor is still at 70.
     (worktree / "src" / "__init__.py").write_text("x = 1\n", encoding="utf-8")
     assert reraises("src/app.py:70 — bad")
+
+
+class ReadingStagedInput:
+    """A critic that keeps the files staged in its copy and gives one finding."""
+
+    kind = "harness"
+
+    def __init__(self, evidence: str) -> None:
+        self.evidence = evidence
+        self.staged: list[str] = []
+
+    def run(self, ctx):
+        review = ctx.workspace / ".torve" / "review"
+        self.staged = sorted(
+            str(path.relative_to(ctx.workspace)) for path in review.rglob("*") if path.is_file()
+        )
+
+        return AgentResult(
+            exit_code=0,
+            output=json.dumps(
+                {
+                    "schema": "torve.critic/v1",
+                    "rows": [],
+                    "findings": [
+                        {
+                            "id": "F1",
+                            "severity": "blocker",
+                            "kind": "bug",
+                            "claim": "the bound is off by one",
+                            "evidence": self.evidence,
+                            "verified": "read",
+                            "confidence": "high",
+                        }
+                    ],
+                }
+            ),
+        )
+
+
+def test_rejected_spots_run_critic_reads_the_log_and_stages_nothing(tmp_path):
+    """S-0126/D-2: `run_critic` reads the attempt's rejected spots from the
+    worktree's task log and passes them to `decide`, and nothing of them is
+    staged — the critic's input is unchanged by the rejection."""
+
+    from torve.application.critic import run_critic
+
+    worktree = tmp_path / "wt"
+    (worktree / "src").mkdir(parents=True)
+    (worktree / "src" / "app.py").write_text(
+        "".join(f"line {number}\n" for number in range(1, 41)), encoding="utf-8"
+    )
+    target = Task(
+        id="T-9004",
+        intent="Answer the round.",
+        decisions=[],
+        round={
+            "branch": "round/T-9004",
+            "findings": [{"path": "src/app.py", "line": 10, "end_line": 20, "threads": []}],
+        },
+    )
+    log = worktree / ".torve" / "tasks" / target.id / "log.yaml"
+    log.parent.mkdir(parents=True)
+    log.write_text(
+        yaml.safe_dump(
+            {
+                "entries": [
+                    {
+                        "decision": "unlisted",
+                        "kind": "contradicted",
+                        "attempt": 1,
+                        "claim": "the claim at app.py:10 is not a defect",
+                        "evidence": "src/app.py:10-20 — batch_claims never splits a file",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    critic = ReadingStagedInput("src/app.py:12 — the bound")
+    review = Task(id="T-9005", role="review", targets=[target.id], decisions=[])
+
+    verdict = run_critic(
+        tmp_path,
+        worktree,
+        target,
+        review,
+        review_config(),
+        MockRuntime(),
+        critic,
+        "",
+        None,
+        "digest",
+        attempt=1,
+    )
+
+    assert verdict.decision is not None and verdict.decision.blocked is False
+    assert [one.id for one in verdict.decision.rejected] == ["F1"]
+    staged_with_rejection = critic.staged
+
+    # The same call with no rejection is decided by the ordinary rule, and the
+    # critic sees exactly the same files.
+    log.unlink()
+    second = ReadingStagedInput("src/app.py:12 — the bound")
+    other = Task(id="T-9006", role="review", targets=[target.id], decisions=[])
+
+    blocked = run_critic(
+        tmp_path,
+        worktree,
+        target,
+        other,
+        review_config(),
+        MockRuntime(),
+        second,
+        "",
+        None,
+        "digest",
+        attempt=1,
+    )
+
+    assert blocked.decision is not None and blocked.decision.blocked is True
+    assert second.staged == staged_with_rejection

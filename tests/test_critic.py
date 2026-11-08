@@ -12,11 +12,14 @@ from pathlib import Path
 
 import pytest
 import yaml
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 from test_review_run import SequencedReviewer, review_rig  # noqa: F401 — the fixture, by name
 from test_run_loop import OK, MockRuntime, ScriptedAgent, task_for
 
 import torve.application.critic as critic_module
 import torve.application.runner as run_module
+from torve.application import threads
 from torve.application.critic import (
     PROMPT_FILE,
     SCHEMA_FILE,
@@ -27,6 +30,7 @@ from torve.application.critic import (
     decide,
     parse_critic,
     prompt_sha,
+    rejected_spots,
     run_critic,
 )
 from torve.application.feedback import feedback_file
@@ -249,6 +253,310 @@ def test_a_dotted_citation_blocks_where_its_normalised_path_was_changed(tmp_path
 
     assert [one.id for one in decision.blockers] == ["F1"]
     assert decision.carried == []
+
+
+# ....................... #
+# A round rejected a claim, so the engine carries what the critic says about it
+# (S-0126/D-1, S-0126/D-2). The critic never sees the rejection.
+
+
+def _lines(count: int) -> str:
+    return "\n".join(f"line {number}" for number in range(1, count + 1)) + "\n"
+
+
+def _files(root: Path, **files: int) -> None:
+    for name, count in files.items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_lines(count), encoding="utf-8")
+
+
+def _round_task(*findings: tuple[str, int | None, int | None], identifier="T-9002") -> Task:
+    return Task(
+        id=identifier,
+        intent="Answer the round.",
+        decisions=[],
+        round={
+            "branch": f"round/{identifier}",
+            "findings": [
+                {"path": path, "line": line, "end_line": end_line, "threads": []}
+                for path, line, end_line in findings
+            ],
+        },
+    )
+
+
+def _rejection(claim: str, evidence: str, attempt: int = 1) -> dict:
+    return {
+        "decision": "unlisted",
+        "kind": "contradicted",
+        "attempt": attempt,
+        "claim": claim,
+        "evidence": evidence,
+    }
+
+
+def _write_log(worktree: Path, task: Task, *entries: dict) -> None:
+    path = worktree / ".torve" / "tasks" / task.id / "log.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump({"entries": list(entries)}), encoding="utf-8")
+
+
+def test_rejected_spots_reads_the_rounds_log_for_the_attempt(tmp_path):
+    """S-0126/D-2: each rejection returns the span of every round finding its
+    claim names, or the round's one finding when it names none, and every
+    citation in its evidence that locates."""
+
+    _files(tmp_path, **{"src/app.py": 60, "src/other.py": 60})
+    task = _round_task(("src/app.py", 50, None), ("src/other.py", 3, None))
+    _write_log(
+        tmp_path,
+        task,
+        _rejection("the claim", "src/app.py:20-30 — decided here"),
+        _rejection("the claim about app.py:50 is not a defect", "src/ghost.py:1 — gone"),
+    )
+
+    assert rejected_spots(task, tmp_path, 1) == [
+        ("src/app.py", 20, 30),
+        ("src/app.py", 50, 50),
+    ]
+
+
+def test_rejected_spots_names_a_finding_with_no_end_line(tmp_path):
+    """S-0126/D-2: a finding with no `end_line` contributes its one line."""
+
+    _files(tmp_path, **{"src/app.py": 40})
+    task = _round_task(("src/app.py", 12, None), ("src/app.py", 30, None))
+    _write_log(tmp_path, task, _rejection("app.py:12 is not a defect", "src/ghost.py:1 — gone"))
+
+    assert rejected_spots(task, tmp_path, 1) == [("src/app.py", 12, 12)]
+
+
+def test_rejected_spots_unnamed_rejection_answers_a_one_finding_round(tmp_path):
+    """S-0126/D-2: when the round carries one finding and the claim names no
+    spot, that finding's whole span is rejected, as the reply already answers
+    its thread."""
+
+    _files(tmp_path, **{"src/app.py": 40})
+    task = _round_task(("src/app.py", 7, 9))
+    _write_log(tmp_path, task, _rejection("the bound is wrong", "src/ghost.py:1 — gone"))
+
+    assert rejected_spots(task, tmp_path, 1) == [("src/app.py", 7, 9)]
+
+
+def test_rejected_spots_an_earlier_attempts_rejection_carries_nothing(tmp_path):
+    """S-0126/D-2: a rejection stands only for the attempt that recorded it."""
+
+    _files(tmp_path, **{"src/app.py": 40})
+    task = _round_task(("src/app.py", 7, 9))
+    _write_log(
+        tmp_path, task, _rejection("app.py:7 is wrong", "src/app.py:7-9 — decided", attempt=1)
+    )
+
+    assert rejected_spots(task, tmp_path, 2) == []
+
+
+def test_rejected_spots_a_task_without_a_round_has_none(tmp_path):
+    """S-0126/D-2: only a review round carries rejected claims."""
+
+    _files(tmp_path, **{"src/app.py": 40})
+    task = Task(id="T-9003", intent="No round here.", decisions=[])
+    _write_log(
+        tmp_path, task, _rejection("app.py:7 is wrong", "src/app.py:7-9 — decided", attempt=1)
+    )
+
+    assert rejected_spots(task, tmp_path, 1) == []
+
+
+def test_rejected_claim_the_t0913_row_verdict_is_carried(tmp_path):
+    """S-0126/D-1: T-0913's attempt-3 critic findings cited a command and the
+    disputed lines later in their evidence, and the round's rejection cited a
+    range; the findings are carried, and the violated row with them."""
+
+    _files(
+        tmp_path,
+        **{
+            "src/torve/config/runconfig.py": 1400,
+            "src/torve/application/reviewleg.py": 900,
+        },
+    )
+    task = _round_task(("src/torve/config/runconfig.py", 1350, 1350))
+    _write_log(
+        tmp_path,
+        task,
+        _rejection(
+            "The claim at runconfig.py:1350 that a file with more findings than "
+            "the cap makes an oversized round is not a defect.",
+            "src/torve/application/reviewleg.py:831-861 — batch_claims never splits a file",
+        ),
+    )
+    document = CriticDocument.model_validate(
+        {
+            "rows": [
+                {
+                    "row": OWNED,
+                    "verdict": "violated",
+                    "evidence": "`python probes/p.py` — S-0125/D-3 is violated; "
+                    "src/torve/application/reviewleg.py:852",
+                }
+            ],
+            "findings": [
+                finding(
+                    "blocker",
+                    "`python probes/p.py` — the cap is not enforced; "
+                    "src/torve/application/reviewleg.py:852",
+                    id="F1",
+                ),
+                finding("blocker", "src/torve/config/runconfig.py:1351 — the cap", id="F2"),
+            ],
+        }
+    )
+    spots = rejected_spots(task, tmp_path, 1)
+
+    assert ("src/torve/application/reviewleg.py", 831, 861) in spots
+    assert ("src/torve/config/runconfig.py", 1350, 1350) in spots
+
+    decision = decide(document, {OWNED: True}, tmp_path, "blocker", rejected=spots)
+
+    assert decision.blocked is False
+    assert [one.id for one in decision.rejected] == ["F1", "F2"]
+    assert decision.violated == []
+    assert decision.rows[0]["blocks"] is False
+    assert decision.rows[0]["rejected"] is True
+
+
+def test_rejected_claim_a_citation_outside_every_span_blocks(tmp_path):
+    """S-0126/D-1: the finding's citation must lie within `threads.WINDOW`
+    lines of a rejected span in the same file."""
+
+    _files(tmp_path, **{"src/app.py": 60})
+    task = _round_task(("src/app.py", 50, None), ("src/other.py", 3, None))
+    _write_log(tmp_path, task, _rejection("the claim", "src/app.py:10-20 — decided here"))
+    document = CriticDocument.model_validate(
+        {"rows": [], "findings": [finding("blocker", "src/app.py:40 — elsewhere")]}
+    )
+    spots = rejected_spots(task, tmp_path, 1)
+
+    decision = decide(document, {}, tmp_path, "blocker", rejected=spots)
+
+    assert decision.blocked is True
+    assert decision.blockers == decision.kept
+    assert decision.rejected == []
+
+
+def test_rejected_claim_a_citation_that_does_not_locate_is_not_carried(tmp_path):
+    """S-0126/D-1: every cited `path:line` must locate, so a second citation
+    that does not leaves the finding under the ordinary rules."""
+
+    _files(tmp_path, **{"src/app.py": 60})
+    task = _round_task(("src/app.py", 50, None), ("src/other.py", 3, None))
+    _write_log(tmp_path, task, _rejection("the claim", "src/app.py:10-20 — decided here"))
+    document = CriticDocument.model_validate(
+        {
+            "rows": [],
+            "findings": [finding("blocker", "src/app.py:12 — see also src/ghost.py:3")],
+        }
+    )
+    spots = rejected_spots(task, tmp_path, 1)
+
+    decision = decide(document, {}, tmp_path, "blocker", rejected=spots)
+
+    assert decision.blocked is True
+    assert decision.rejected == []
+    assert decision.carried == []
+
+
+def test_rejected_claim_is_carried_and_marked_on_a_revision_attempt(tmp_path):
+    """S-0126/D-1: on a revision attempt, first or revision alike, a finding
+    near a rejected spot is carried before the S-0125/D-1 rules, even where
+    the revision changed the line, and the record marks it `rejected: true`."""
+
+    _files(tmp_path, **{"src/app.py": 60})
+    task = _round_task(("src/app.py", 12, None))
+    _write_log(tmp_path, task, _rejection("app.py:12 is not a defect", "src/ghost.py:1 — gone"))
+    diff = (
+        "diff --git a/src/app.py b/src/app.py\n--- a/src/app.py\n+++ b/src/app.py\n"
+        "@@ -12,1 +12,1 @@\n-old\n+new\n@@ -50,1 +50,1 @@\n-old\n+new\n"
+    )
+    document = CriticDocument.model_validate(
+        {
+            "rows": [],
+            "findings": [
+                finding("blocker", "src/app.py:12 — disputed", id="F1"),
+                finding("blocker", "src/app.py:50 — elsewhere", id="F2"),
+            ],
+        }
+    )
+
+    decision = decide(
+        document,
+        {},
+        tmp_path,
+        "blocker",
+        revision=Revision(diff=diff),
+        rejected=rejected_spots(task, tmp_path, 1),
+    )
+
+    assert [one.id for one in decision.blockers] == ["F2"]
+    assert [one.id for one in decision.carried] == ["F1"]
+    assert [one.id for one in decision.rejected] == ["F1"]
+    recorded = {one["id"]: one for one in critic_module._recorded_findings(decision)}
+    assert recorded["F1"]["rejected"] is True and recorded["F1"]["carried"] is True
+    assert "rejected" not in recorded["F2"] and "carried" not in recorded["F2"]
+
+
+def test_rejected_claim_judge_reads_the_attempt_under_review(monkeypatch):
+    """S-0126/D-2: `judge` hands `run_critic` the attempt under review, so a
+    rejection a later attempt recorded is the one read."""
+
+    from types import SimpleNamespace
+
+    seen: dict = {}
+    monkeypatch.setattr(critic_module, "run_critic", lambda *a, **kw: seen.update(kw))
+    monkeypatch.setattr(critic_module, "reviewer_for", lambda run: None)
+    monkeypatch.setattr(critic_module, "revision_for", lambda run, state: None)
+    run = SimpleNamespace(
+        root=Path("."),
+        worktree=Path("."),
+        task=None,
+        config=None,
+        deps=SimpleNamespace(runtime=None, broker=None),
+        last_pass=SimpleNamespace(patch="", evidence=None, digest=""),
+        broker_handle=None,
+    )
+
+    critic_module.judge(run, None, SimpleNamespace(attempts=3))  # type: ignore[arg-type]
+
+    assert seen["attempt"] == 3
+
+
+@given(
+    spot=st.integers(min_value=1, max_value=30),
+    width=st.integers(min_value=0, max_value=15),
+    cited=st.lists(st.integers(min_value=1, max_value=50), min_size=1, max_size=3),
+)
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+def test_rejected_claim_carries_exactly_the_findings_within_the_window(
+    tmp_path, spot, width, cited
+):
+    """S-0126/D-1: a finding is carried exactly when it cites at least one
+    `path:line`, all of them locate, and all lie within `threads.WINDOW` lines
+    of a rejected span."""
+
+    _files(tmp_path, **{"src/app.py": 60})
+    rejected = [("src/app.py", spot, spot + width)]
+    evidence = f"src/app.py:{cited[0]} — the bound" + "".join(
+        f"; src/app.py:{line}" for line in cited[1:]
+    )
+    document = CriticDocument.model_validate(
+        {"rows": [], "findings": [finding("blocker", evidence)]}
+    )
+
+    decision = decide(document, {}, tmp_path, "blocker", rejected=rejected)
+
+    expected = all(spot - threads.WINDOW <= line <= spot + width + threads.WINDOW for line in cited)
+    assert (decision.rejected != []) is expected
+    assert decision.blocked is not expected
 
 
 # ....................... #
