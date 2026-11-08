@@ -66,7 +66,6 @@ if TYPE_CHECKING:
     from torve.application.threads import TriageDocument
     from torve.config.runconfig import RunnerConfig
     from torve.domain.events import EventRecord
-    from torve.domain.spec import Document
     from torve.domain.task import Task
 
 # ----------------------- #
@@ -858,6 +857,7 @@ async def _sync_and_plan(
         PlanError,
         mint_contracts,
         plan_document,
+        unminted_phases,
         unplanned_documents,
     )
     from torve.application.telemetry import engine_event
@@ -952,7 +952,12 @@ async def _sync_and_plan(
 
     rfc_dir = root / config.specs.path
     try:
-        listing = unplanned_documents(root, board, rfc_dir=rfc_dir)
+        # A document nobody planned mints whole; one planned already mints only
+        # the phases an amendment added since.
+        listing: list[tuple[str, set[int] | None]] = [
+            (doc.id, None) for doc in unplanned_documents(root, board, rfc_dir=rfc_dir)
+        ]
+        listing += unminted_phases(root, board, rfc_dir=rfc_dir).items()
 
     except ValueError as exc:
         # A corpus the base cannot load (`SpecError`, `PlanError`) stops this
@@ -967,19 +972,19 @@ async def _sync_and_plan(
     refusals: dict[str, str] = {}
 
     while listing:
-        remaining: list[Document] = []
+        remaining: list[tuple[str, set[int] | None]] = []
         progressed = False
 
-        for doc in listing:
+        for document, phases in listing:
             try:
-                report = plan_document(root, rfc_dir, doc.id, board=board)
+                report = plan_document(root, rfc_dir, document, board=board, phases=phases)
 
             except PlanError as exc:
-                refusals[doc.id] = str(exc)
-                remaining.append(doc)
+                refusals[document] = str(exc)
+                remaining.append((document, phases))
                 continue
 
-            refusals.pop(doc.id, None)
+            refusals.pop(document, None)
             await mint_contracts(log, report, partition=partition, actor_id=worker)
             progressed = True
             board = project(await log.since(partition=partition))
