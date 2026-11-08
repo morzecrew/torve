@@ -223,6 +223,34 @@ def test_carried_finding_alone_leaves_the_revision_unblocked(tmp_path):
     assert decision.kept == decision.carried
 
 
+def test_a_dotted_citation_blocks_where_its_normalised_path_was_changed(tmp_path):
+    """S-0125/D-1: an anchor is compared to the revision's diff the way
+    `locate` resolves it, so `./src/app.py:12` and `src/app.py:12` name the
+    same changed line and both block."""
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text(
+        "\n".join(f"line {number}" for number in range(1, 61)) + "\n", encoding="utf-8"
+    )
+    document = CriticDocument.model_validate(
+        {
+            "rows": [],
+            "findings": [finding("major", "./src/app.py:12 — the changed line")],
+        }
+    )
+
+    decision = decide(
+        document,
+        {},
+        tmp_path,
+        "major",
+        revision=Revision(diff=REVISION_DIFF),
+    )
+
+    assert [one.id for one in decision.blockers] == ["F1"]
+    assert decision.carried == []
+
+
 # ....................... #
 # The frozen prompt and its schema (S-0122/D-19).
 

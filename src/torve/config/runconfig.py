@@ -1348,7 +1348,8 @@ class ThreadsConfig(BaseModel):
     """How many findings one round carries (S-0097/D-5, S-0125/D-3). A head's findings
     are minted together as rounds of at most this many, grouped by file so no two
     rounds of one wave share a file; `rounds_per_pass` still bounds what a pass mints.
-    The cap applies whether triage ran on the head or not."""
+    The cap applies whether triage ran on the head or not. The default is 5 (S-0125/D-3);
+    an operator who wants a larger round sets it explicitly."""
     review_wait: int = 45
     """Minutes a night waits for a document pull request's head to be reviewed before
     it would otherwise drain (S-0097/D-4). The wait ends early once every login in

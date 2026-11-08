@@ -141,6 +141,12 @@ FIXING_REPLY = f"{FIXING_PREFIX}{{task}}."
 # read before the reply landed, so one process does not repeat itself.
 ESCALATION_REPLIED: set[tuple[str, str, str]] = set()
 
+# Minted rounds already named on a thread, for the life of the process —
+# (repository, task id, thread id). The mint-time reply can fail after the
+# round is on the board, so a later pass retries it (S-0125/D-4); this keeps
+# that retry from repeating a reply the same process already posted.
+FIXING_REPLIED: set[tuple[str, str, str]] = set()
+
 # S-0102/D-6: (repository, branch, path, line) -> the head the leg last
 # recorded a re-raise at, for the life of the process. A served manager is one
 # process across a night's passes, so the dedupe needs no stream; a restarted
@@ -1164,6 +1170,75 @@ def _reply_escalated_rounds(
 
         if wrote:
             ESCALATION_REPLIED.add((str(root), task_id, reason))
+
+    return answered
+
+
+# ....................... #
+
+
+def _reply_minted_rounds(
+    root: Path,
+    config: RunnerConfig,
+    forge: ThreadForge,
+    branch: str,
+    info: PrInfo,
+    open_threads: dict[str, ReviewThread],
+    landed: Callable[[str], str | None],
+) -> int:
+    """Say `Fixing in T-NNNN.` on a minted round's bot threads (S-0125/D-4),
+    retrying a reply an earlier pass could not post. `mint_round` puts the
+    round on the board before the replies are made, so a forge that rejected
+    one leaves a finding whose round exists and which no later pass raises
+    again. A landed round belongs to the landing answer, an escalated one to
+    its reason, and a reply already on the thread or already made by this
+    process is not posted twice."""
+
+    answered = 0
+
+    for task_id, task in round_tasks(root, branch):
+        if landed(task_id):
+            continue
+
+        path = naming.state_file(root, task_id)
+
+        if path.is_file():
+            state = RunState.load(path)
+
+            if state.state in {TaskState.ESCALATED, TaskState.ABANDONED}:
+                continue
+
+        body = FIXING_REPLY.format(task=task_id)
+
+        for finding in task.round.findings:
+            for raw in finding.threads:
+                ident = str(raw)
+
+                if ident.startswith(RECORD):
+                    continue
+
+                key = (str(root), task_id, ident)
+
+                if key in FIXING_REPLIED:
+                    continue
+
+                thread = open_threads.get(ident)
+
+                if thread is None or thread.author not in config.threads.bots:
+                    continue
+
+                # The forge carries the answer: the reply is there, so an
+                # earlier pass on this host or another already said it.
+                if any(
+                    comment.author == info.author and _is_fixing_reply(comment.body)
+                    for comment in thread.comments
+                ):
+                    FIXING_REPLIED.add(key)
+                    continue
+
+                forge.reply_thread(thread.id, body)
+                FIXING_REPLIED.add(key)
+                answered += 1
 
     return answered
 
@@ -2356,6 +2431,12 @@ def review_thread_leg(
         # requeued, so the escalation that caused the retry is not silent.
         answered += _reply_escalated_rounds(root, config, forge, branch, info, open_threads)
 
+        # A fixing reply a forge rejected after the round was minted is
+        # retried here: the round on the board is why no later pass raises its
+        # finding again and would otherwise leave the thread silent
+        # (S-0125/D-4).
+        answered += _reply_minted_rounds(root, config, forge, branch, info, open_threads, landed)
+
         requeued += requeue_underspecified(root, branch)
 
         # S-0097/D-7: the wave is behind the head, so the operator no longer
@@ -2607,6 +2688,7 @@ def review_thread_leg(
                             continue
 
                         forge.reply_thread(thread.id, FIXING_REPLY.format(task=task_id))
+                        FIXING_REPLIED.add((str(root), task_id, str(thread.id)))
 
     parts: list[str] = []
 

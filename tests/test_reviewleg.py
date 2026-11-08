@@ -2653,20 +2653,22 @@ def test_a_head_whose_triage_gave_no_answer_is_not_asked_again(seeded, untriaged
 
 def test_findings_per_round_caps_a_triaged_head_without_splitting_a_file(seeded, untriaged):
     """S-0125/D-3: a triaged head's findings are rounds of at most
-    `threads.findings_per_round`, as an untriaged head's are. Fifteen threads
-    over three files become three rounds of five, and no file is worked by two
-    rounds of the wave."""
+    `threads.findings_per_round`, as an untriaged head's are. Twelve threads
+    over three files of three, four and five findings become three rounds,
+    one per file, and no file is worked by two rounds of the wave."""
 
     open_document(seeded.root)
     ready(seeded.root, "T-0900")
-    paths = ["src/a.py", "src/b.py", "src/c.py"]
+    # Unequal counts, so plain chunks of five would cut src/b.py and src/c.py
+    # across rounds ([5, 5, 2]); only grouping by file gives [3, 4, 5].
+    paths = ["src/a.py"] * 3 + ["src/b.py"] * 4 + ["src/c.py"] * 5
     threads = tuple(
-        thread(f"t{index}", path=paths[index // 5], line=(index % 5) * 20 + 1)
-        for index in range(15)
+        thread(f"t{index}", path=path, line=paths[:index].count(path) * 20 + 1)
+        for index, path in enumerate(paths)
     )
     critic = Critic(
         _triaged(
-            **{f"t{index}": ("apply", f"{paths[index // 5]}:1 — a finding") for index in range(15)}
+            **{f"t{index}": ("apply", f"{path}:1 — a finding") for index, path in enumerate(paths)}
         )
     )
     forge = StubForge(pr(*threads))
@@ -2677,12 +2679,14 @@ def test_findings_per_round_caps_a_triaged_head_without_splitting_a_file(seeded,
 
     assert minted is True
     rounds = events(seeded.root, "lane_review_task")
-    assert [len(row["findings"]) for row in rounds] == [5, 5, 5]
+    assert [len(row["findings"]) for row in rounds] == [3, 4, 5]
     # Each file's findings are one round's, never two rounds' (S-0097/D-5).
     assert [{finding["path"] for finding in row["findings"]} for row in rounds] == [
-        {path} for path in paths
+        {"src/a.py"},
+        {"src/b.py"},
+        {"src/c.py"},
     ]
-    assert sum(len(row["threads"]) for row in rounds) == 15
+    assert sum(len(row["threads"]) for row in rounds) == 12
 
 
 def test_fixing_reply_names_the_task_on_each_minted_round_s_bot_thread(seeded):
@@ -2712,6 +2716,58 @@ def test_fixing_reply_names_the_task_on_each_minted_round_s_bot_thread(seeded):
     review_thread_leg(seeded.root, config(), forge, lambda _t: False)
 
     assert forge.replied == [("t1", fixing), ("t2", fixing)]
+
+
+def test_a_fixing_reply_the_forge_rejected_is_retried_on_a_later_pass(seeded):
+    """S-0125/D-4: a round is on the board before its replies are made, so a
+    forge that rejects one must not leave the finding's thread silent — a
+    later pass posts the reply it lost, and does not repeat it."""
+
+    open_document(seeded.root)
+    forge = StubForge(pr(thread("t1")))
+    real = forge.reply_thread
+
+    def rejected(thread_id: str, body: str) -> None:
+        forge.reply_thread = real
+        raise OSError("the forge is unavailable")
+
+    forge.reply_thread = rejected
+
+    with pytest.raises(OSError):
+        review_thread_leg(seeded.root, config(), forge, lambda _t: None)
+
+    (recorded,) = events(seeded.root, "lane_review_task")
+    task_id = recorded["task"]
+    assert forge.replied == []
+
+    # A restarted process holds no memory of the reply it never made.
+    from torve.application import reviewleg
+
+    reviewleg.FIXING_REPLIED.clear()
+
+    detail, minted = review_thread_leg(seeded.root, config(), forge, lambda _t: None)
+
+    assert minted is False
+    assert forge.replied == [("t1", f"Fixing in {task_id}.")]
+    assert "answered 1 thread(s)" in detail
+
+    # The thread now carries the reply; a further pass says nothing twice.
+    forge.info = pr(
+        ReviewThread(
+            id="t1",
+            path="src/app.py",
+            line=12,
+            comments=(
+                ThreadComment(author=BOT, body="this dereference has no null check"),
+                ThreadComment(author="torve", body=f"Fixing in {task_id}."),
+            ),
+        )
+    )
+    reviewleg.FIXING_REPLIED.clear()
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: None)
+
+    assert forge.replied == [("t1", f"Fixing in {task_id}.")]
 
 
 def test_fixing_reply_says_the_escalation_s_reason_once(seeded):
@@ -2755,3 +2811,57 @@ def test_fixing_reply_says_the_escalation_s_reason_once(seeded):
     review_thread_leg(seeded.root, config(), forge, lambda _t: False)
 
     assert len(forge.replied) == 4
+
+
+def test_the_escalation_reason_on_the_thread_keeps_another_host_from_repeating_it(seeded):
+    """S-0125/D-4: the forge comment is the durable carrier of a round's
+    escalation reason. A host with no in-process memory still says nothing
+    when the thread already holds the reason."""
+
+    open_document(seeded.root)
+    forge = StubForge(pr(thread("t1")))
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+    (recorded,) = events(seeded.root, "lane_review_task")
+    task_id = recorded["task"]
+    fixing = f"Fixing in {task_id}."
+    path = naming.state_file(seeded.root, task_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    state = RunState(task_id=task_id, path=path)
+
+    for to in (
+        TaskState.CLAIMED,
+        TaskState.RUNNING,
+        TaskState.GATED,
+        TaskState.REVIEWED,
+        TaskState.READY,
+    ):
+        state.transition(to, "test")
+
+    state.escalate(EscalationReason.BLOCKER_FINDING, "the fix stayed red")
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    assert forge.replied == [("t1", fixing), ("t1", "blocker_finding")]
+
+    # A restarted process, or a leg on another host, holds no memory of the
+    # reason it posted; the thread's own comment is what suppresses a repeat.
+    from torve.application import reviewleg
+
+    reviewleg.ESCALATION_REPLIED.clear()
+    forge.info = pr(
+        ReviewThread(
+            id="t1",
+            path="src/app.py",
+            line=12,
+            comments=(
+                ThreadComment(author=BOT, body="this dereference has no null check"),
+                ThreadComment(author="torve", body=f"{fixing}"),
+                ThreadComment(author="torve", body="blocker_finding"),
+            ),
+        )
+    )
+
+    review_thread_leg(seeded.root, config(), forge, lambda _t: False)
+
+    assert forge.replied == [("t1", fixing), ("t1", "blocker_finding")]

@@ -26,6 +26,7 @@ its repro; everything else dies with the copy.
 from __future__ import annotations
 
 import hashlib
+import posixpath
 import shutil
 import tempfile
 from collections.abc import Iterable, Mapping
@@ -274,14 +275,18 @@ class Decision:
 
 def _finding_anchor(finding: CriticFinding) -> tuple[str, int] | None:
     """The `path` and line a finding's leading citation names, or None for
-    evidence that is a backticked command with no filesystem coordinate."""
+    evidence that is a backticked command with no filesystem coordinate.
+
+    The path is normalised the way `locate` resolves it, so `./src/app.py:12`
+    and `src/app.py:12` name the same file when the revision's diff is read
+    (S-0125/D-1)."""
 
     citation = CITATION.match(finding.evidence.split(" — ")[0].split(" - ")[0].strip())
 
     if citation is None:
         return None
 
-    return citation.group("path"), int(citation.group("start"))
+    return posixpath.normpath(citation.group("path")), int(citation.group("start"))
 
 
 def _anchor_changed(anchor: tuple[str, int], changed: Mapping[str, set[int]]) -> bool:
@@ -302,7 +307,9 @@ def _anchor_near(anchor: tuple[str, int], previous: list[dict[str, Any]]) -> boo
     path, line = anchor
 
     for one in previous:
-        if one.get("path") != path:
+        recorded_path = one.get("path")
+
+        if not isinstance(recorded_path, str) or posixpath.normpath(recorded_path) != path:
             continue
 
         recorded = one.get("line")
