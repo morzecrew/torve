@@ -5,7 +5,13 @@ with which way it erred readable from the finding it produced."""
 from __future__ import annotations
 
 from torve.application.ports import ReviewThread, ThreadComment
-from torve.application.threads import WINDOW, Finding, group_findings, names_spot, rejections
+from torve.application.threads import (
+    WINDOW,
+    Finding,
+    group_findings,
+    names_spot,
+    rejections,
+)
 
 # ----------------------- #
 
@@ -161,6 +167,35 @@ def test_rejections_keep_one_attempts_contradictions_once() -> None:
     assert [entry["claim"] for entry in rejections(entries, 1)] == [
         "an earlier attempt's rejection",
         "an entry with no attempt",
+    ]
+
+
+def test_rejections_treat_a_persisted_non_attempt_as_unpinned() -> None:
+    """S-0126/D-3: an invalid `attempt` is read like an entry written before
+    the pin — it answers every attempt rather than being dropped, so a legacy
+    log is never reported as fixed."""
+
+    entries = [
+        {
+            "decision": "unlisted",
+            "kind": "contradicted",
+            "attempt": "unknown",
+            "claim": "the legacy rejection",
+            "evidence": "src/a.py:10 — still not applied",
+        },
+        {
+            "decision": "unlisted",
+            "kind": "contradicted",
+            "attempt": 1,
+            "claim": "an earlier attempt's rejection",
+            "evidence": "src/a.py:11 — fixed on the retry",
+        },
+    ]
+
+    assert [entry["claim"] for entry in rejections(entries, 2)] == ["the legacy rejection"]
+    assert [entry["claim"] for entry in rejections(entries, 1)] == [
+        "the legacy rejection",
+        "an earlier attempt's rejection",
     ]
 
 

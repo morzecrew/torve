@@ -1958,8 +1958,11 @@ def _landing_record(
     """The round's execution record as its landing carried it, with the
     attempt its file name holds (S-0126/D-3): the record the landing commit
     wrote under the document's `execution/`, named
-    `<task>-<attempt>-<instant>.yaml`. A repository that keeps its contracts
-    on the record has no root log for a round at all (bloomery ignores
+    `<task>-<attempt>-<instant>.yaml`. The landing is a later commit than the
+    work commit the landing file names (S-0059/D-9), so the record is found by
+    its own path across the repository's refs: the work sha only says which
+    landing is this task's own. A repository that keeps its contracts on the
+    record has no root log for a round at all (bloomery ignores
     `.torve/tasks/`), and the worktree is gone by the time the answer is
     composed — the landing is where the entries survive."""
 
@@ -1968,31 +1971,60 @@ def _landing_record(
     if not sha:
         return None
 
+    prefix = f"{task_id}-"
     listing = subprocess.run(
-        ["git", "-C", str(root), "show", "--pretty=format:", "--name-only", sha],
+        [
+            "git",
+            "-C",
+            str(root),
+            "log",
+            "--all",
+            "--topo-order",
+            "--format=%H",
+            "--name-only",
+            "--",
+            f":(glob)**/execution/{prefix}*.yaml",
+        ],
         capture_output=True,
         encoding="utf-8",
         errors="replace",
         check=False,
     )
-    prefix = f"{task_id}-"
+    commit = ""
 
     for line in listing.stdout.splitlines():
-        if "/execution/" not in line:
+        line = line.strip()
+
+        if not line:
             continue
 
-        name = Path(line.strip()).name
+        if re.fullmatch(r"[0-9a-f]{40}", line):
+            commit = line
+            continue
 
-        if not name.startswith(prefix):
+        name = Path(line).name
+
+        if "/execution/" not in line or not name.startswith(prefix):
             continue
 
         named = re.match(r"^(\d+)-.+\.yaml$", name[len(prefix) :])
 
-        if named is None:
+        if named is None or not commit:
+            continue
+
+        # The landing that carries this task's work is its own; another
+        # attempt's record on the same branch is not.
+        ancestor = subprocess.run(
+            ["git", "-C", str(root), "merge-base", "--is-ancestor", sha, commit],
+            capture_output=True,
+            check=False,
+        )
+
+        if ancestor.returncode != 0:
             continue
 
         shown = subprocess.run(
-            ["git", "-C", str(root), "show", f"{sha}:{line.strip()}"],
+            ["git", "-C", str(root), "show", f"{commit}:{line}"],
             capture_output=True,
             encoding="utf-8",
             errors="replace",
@@ -2004,6 +2036,12 @@ def _landing_record(
         except yaml.YAMLError:
             return None
 
+        if isinstance(record, dict):
+            carried = record.get("commit")
+
+            if carried not in (None, "", sha):
+                continue
+
         entries = record.get("entries") if isinstance(record, dict) else None
 
         return (list(entries) if isinstance(entries, list) else []), int(named.group(1))
@@ -2012,13 +2050,22 @@ def _landing_record(
 
 
 def _latest_attempt(entries: Sequence[Any]) -> int:
-    """The attempt the root log's last entry recorded; 1 when none did."""
+    """The attempt the root log's last entry recorded; 1 when none did. A
+    persisted value that is not an attempt is ignored here, so a legacy or
+    hand-edited log still answers instead of raising before any reply is
+    posted (S-0126/D-3)."""
 
-    attempts = [
-        int(entry["attempt"])
-        for entry in entries
-        if isinstance(entry, dict) and entry.get("attempt") is not None
-    ]
+    attempts: list[int] = []
+
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.get("attempt") is None:
+            continue
+
+        try:
+            attempts.append(int(entry["attempt"]))
+
+        except (TypeError, ValueError):
+            continue
 
     return max(attempts) if attempts else 1
 

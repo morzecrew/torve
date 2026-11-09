@@ -1975,13 +1975,21 @@ class ReadingStagedInput:
 
     def __init__(self, evidence: str) -> None:
         self.evidence = evidence
-        self.staged: list[str] = []
+        # Names alone would pass an implementation that writes the rejected
+        # spans into an already-staged file; the bytes are what prove the
+        # critic's input unchanged (S-0126/D-2).
+        self.staged: list[tuple[str, str]] = []
 
     def run(self, ctx):
         review = ctx.workspace / ".torve" / "review"
-        self.staged = sorted(
-            str(path.relative_to(ctx.workspace)) for path in review.rglob("*") if path.is_file()
-        )
+        self.staged = [
+            (
+                str(path.relative_to(ctx.workspace)),
+                path.read_text(encoding="utf-8", errors="replace"),
+            )
+            for path in sorted(review.rglob("*"))
+            if path.is_file()
+        ]
 
         return AgentResult(
             exit_code=0,
@@ -2087,3 +2095,37 @@ def test_rejected_spots_run_critic_reads_the_log_and_stages_nothing(tmp_path):
 
     assert blocked.decision is not None and blocked.decision.blocked is True
     assert second.staged == staged_with_rejection
+
+
+def test_an_earlier_attempts_rejection_does_not_excuse_a_later_empty_diff(tmp_path):
+    """S-0126/D-3: only the current attempt's rejection answers for an empty
+    diff; attempt 1's contradiction does not let attempt 2 land an unchanged
+    tree."""
+
+    from torve.gates.context import DiffEntry, GateContext
+
+    ctx = GateContext(
+        root=tmp_path,
+        manifest=Manifest(),
+        head_sha="head",
+        base="main",
+        merge_base="main-tip",
+        diff=[DiffEntry(status="A", path=".torve/tasks/T-9001/log.yaml")],
+        task=Task(id="T-9001", role="implement", decisions=[]),
+        log_text=yaml.safe_dump(
+            {
+                "entries": [
+                    {
+                        "decision": "unlisted",
+                        "kind": "contradicted",
+                        "attempt": 1,
+                        "claim": "the claim is not a defect",
+                        "evidence": "src/app.py:10 — the guard checks it",
+                    }
+                ]
+            }
+        ),
+    )
+
+    assert not run_module._is_empty_implement_diff(ctx, tmp_path, 1)
+    assert run_module._is_empty_implement_diff(ctx, tmp_path, 2)

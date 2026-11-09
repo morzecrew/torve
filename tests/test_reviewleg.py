@@ -1880,6 +1880,60 @@ def test_rejections_read_the_landing_record_before_a_root_log_holding_other_entr
     assert "a later attempt's rejection" not in body
 
 
+def test_rejections_find_the_landing_record_written_after_the_work_commit(seeded):
+    """S-0126/D-3: `landed()` names the work commit, but the execution record
+    rides the landing commit after it (S-0059/D-9); the reply reads the
+    record by its own path rather than looking inside the work commit."""
+
+    task_id = "T-0902"
+    seeded.write("src/app.py", "print('changed')\n")
+    seeded.commit("the work")
+    work = head(seeded.root)
+    seeded.write(
+        f".torve/specs/S-0084/execution/{task_id}-1-20260919T000000Z.yaml",
+        "task: " + task_id + "\n"
+        "at: '2026-09-19T00:00:00Z'\n"
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: 1\n"
+        "    claim: the landed rejection\n"
+        "    evidence: src/app.py:12 — the caller checks it\n",
+    )
+    seeded.commit(f"torve({task_id}): landing of attempt 1")
+
+    assert head(seeded.root) != work
+
+    body = reply_body(seeded.root, landing((task_id, work)), task_id)
+
+    assert "Not applied — the landed rejection" in body
+    assert "Fixed in" not in body
+
+
+def test_a_persisted_non_attempt_does_not_stop_the_reply(seeded):
+    """S-0126/D-3: a legacy or hand-edited `attempt` is read like an entry
+    written before the pin, so the reply is composed rather than raising and
+    the rejection is never reported as fixed."""
+
+    task_id = "T-0904"
+    log = layout.log_file(seeded.root, task_id)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: unknown\n"
+        "    claim: the legacy rejection\n"
+        "    evidence: src/app.py:12 — the caller checks it\n",
+        encoding="utf-8",
+    )
+
+    body = reply_body(seeded.root, landing((task_id, "abc123")), task_id)
+
+    assert "Not applied — the legacy rejection" in body
+    assert "Fixed in" not in body
+
+
 def test_a_round_of_several_recorded_findings_is_answered_with_one_comment(seeded):
     """S-0086/D-5: the answer is said once as a comment, whatever number of
     recorded findings the round grouped (bloomery #160: three identical

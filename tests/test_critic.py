@@ -444,6 +444,25 @@ def test_rejected_claim_a_citation_outside_every_span_blocks(tmp_path):
     assert decision.rejected == []
 
 
+def test_rejected_claim_a_citation_in_another_file_is_not_carried(tmp_path):
+    """S-0126/D-1: the line alone does not carry a finding — the citation
+    must sit near a rejected span in the same file."""
+
+    _files(tmp_path, **{"src/app.py": 60, "src/other.py": 60})
+    task = _round_task(("src/app.py", 50, None), ("src/other.py", 3, None))
+    _write_log(tmp_path, task, _rejection("the claim", "src/app.py:10-20 — decided here"))
+    document = CriticDocument.model_validate(
+        {"rows": [], "findings": [finding("blocker", "src/other.py:12 — the same line elsewhere")]}
+    )
+    spots = rejected_spots(task, tmp_path, 1)
+
+    decision = decide(document, {}, tmp_path, "blocker", rejected=spots)
+
+    assert decision.blocked is True
+    assert decision.rejected == []
+    assert decision.carried == []
+
+
 def test_rejected_claim_a_citation_that_does_not_locate_is_not_carried(tmp_path):
     """S-0126/D-1: every cited `path:line` must locate, so a second citation
     that does not leaves the finding under the ordinary rules."""

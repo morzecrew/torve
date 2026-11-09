@@ -40,7 +40,7 @@ from forze.application.contracts.durable.function import (
 from forze.application.execution import ExecutionContext
 from forze.base.primitives import JsonDict
 
-from torve.application import decisions, feedback, selection
+from torve.application import decisions, feedback, selection, threads
 from torve.application.dispatch import (
     BARE,
     CONFIGURED,
@@ -856,7 +856,7 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
 
             ctx.execute = executor
 
-            if _is_empty_implement_diff(ctx, run.root):
+            if _is_empty_implement_diff(ctx, run.root, state.attempts):
                 # T-0172: an implement attempt that changed nothing against the
                 # merge base is a no-op — refusing it here makes the loop read a
                 # red gates fact and retry toward the poison ceiling, instead of
@@ -960,7 +960,7 @@ def _task_bookkeeping(task_id: str) -> set[str]:
     }
 
 
-def _is_empty_implement_diff(ctx: GateContext, root: Path) -> bool:
+def _is_empty_implement_diff(ctx: GateContext, root: Path, attempt: int | None = None) -> bool:
     """An implement attempt whose candidate changed nothing must read as a
     red attempt (T-0172) — a green verdict over an unchanged tree is exactly
     how a silent no-op promoted. The candidate's diff is judged excluding
@@ -1001,14 +1001,18 @@ def _is_empty_implement_diff(ctx: GateContext, root: Path) -> bool:
     # evidence" — has done the phase's work, and the execution record the
     # landing writes is its diff (bloomery T-0006, 2026-09-19: a phase its
     # document said may be dropped was refused twice for dropping it).
-    return only_bookkeeping and not _decides_a_row(ctx)
+    return only_bookkeeping and not _decides_a_row(ctx, attempt)
 
 
-def _decides_a_row(ctx: GateContext) -> bool:
+def _decides_a_row(ctx: GateContext, attempt: int | None = None) -> bool:
     """Whether the attempt's log answers a row the contract inherited, by
     either spelling of the row's id: a `departed` entry (the phase is not
     needed, with a proposal and evidence), or a `decided` one, which logs
-    written before S-0122/D-14 still carry."""
+    written before S-0122/D-14 still carry.
+
+    A rejection answers for the attempt that recorded it alone: an earlier
+    attempt's contradiction does not make a later empty diff a no-op. With no
+    *attempt* named, the log's latest recorded attempt is the one read."""
 
     from torve.gates.log_entry import parse_log
 
@@ -1025,24 +1029,29 @@ def _decides_a_row(ctx: GateContext) -> bool:
         row.id.rsplit("/", 1)[-1] for row in ctx.task.decisions
     }
 
+    if attempt is None:
+        recorded: list[int] = [
+            entry["attempt"]
+            for entry in entries
+            if isinstance(entry, dict) and isinstance(entry.get("attempt"), int)
+        ]
+        attempt = max(recorded) if recorded else 1
+
     def answers(entry: Any) -> bool:
         if not isinstance(entry, dict):
             return False
 
-        if (
+        return (
             entry.get("action") in ("departed", "decided")
             and str(entry.get("decision", "")) in rows
-        ):
-            return True
+        )
 
-        # A review round whose every claim is rejected with an entry has done
-        # its work (S-0084/D-13): the contradiction is the reply the engine
-        # posts, and the tree is right to be unchanged. bloomery's first live
-        # round (T-0028) rejected a claim already fixed on the branch three
-        # times and was refused as an empty diff each time.
-        return entry.get("decision") == "unlisted" and entry.get("kind") == "contradicted"
-
-    return any(answers(entry) for entry in entries)
+    # A review round whose every claim is rejected with an entry has done its
+    # work (S-0084/D-13): the contradiction is the reply the engine posts, and
+    # the tree is right to be unchanged. bloomery's first live round (T-0028)
+    # rejected a claim already fixed on the branch three times and was refused
+    # as an empty diff each time. Only the current attempt's rejections count.
+    return any(answers(entry) for entry in entries) or bool(threads.rejections(entries, attempt))
 
 
 # ....................... #

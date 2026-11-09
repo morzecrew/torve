@@ -136,7 +136,17 @@ def rejections(entries: Sequence[Any], attempt: int) -> list[dict[str, Any]]:
 
         recorded = entry.get("attempt")
 
-        if recorded is not None and int(recorded) != attempt:
+        if recorded is not None:
+            try:
+                recorded = int(recorded)
+
+            # A persisted value that is not an attempt cannot pin a rejection
+            # to one; it answers every attempt like an entry written before
+            # the pin, so a legacy log is never reported as fixed (S-0126/D-3).
+            except (TypeError, ValueError):
+                recorded = None
+
+        if recorded is not None and recorded != attempt:
             continue
 
         claim = str(entry.get("claim", ""))
