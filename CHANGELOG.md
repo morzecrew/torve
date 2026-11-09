@@ -142,6 +142,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `runconfig.py:1350`, now answers those two threads only. It used to answer every thread
   of the round with `Not applied`, the fixed findings' threads included.
 
+- A thread reply or a pull request comment is no longer posted twice when GitHub fails the
+  call after taking it. A write is retried only when the request never left the host, such
+  as a refused connection; a read still retries any transient failure.
+
+- A night whose serve was stopped or killed before it closed is now closed, with the reason
+  `abandoned`, when the same worker opens its next night. It used to stay open in the
+  store for good.
+
 ## [0.9.1] - 2026-11-06
 
 ### Changed
