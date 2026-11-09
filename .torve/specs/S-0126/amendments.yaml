@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-11-09T13:19:20Z'
+    title: A basename two findings share names both
+    changes:
+      - subject: D-3
+        field: text
+        before: >-
+          The reply and the carry read rejections by one rule: `threads.rejections(entries,
+          attempt)` keeps the `unlisted` entries with `kind: contradicted` that one
+          attempt recorded, counting an entry with no `attempt` for every attempt
+          and identical entries once, and `threads.names_spot` matches a claim to
+          a round finding by its full `path:line`, or by the file's name and line
+          only when no other finding of the round shares both; `reply_body` reads
+          the landing's execution record before the root log and keeps the landed
+          attempt's rejections, and the round's instructions ask each attempt to record
+          again every claim it still rejects
+        after: >-
+          The reply and the carry read rejections by one rule: `threads.rejections(entries,
+          attempt)` keeps the `unlisted` entries with `kind: contradicted` that one
+          attempt recorded, counting an entry with no `attempt` for every attempt
+          and identical entries once, and `threads.names_spot` matches a claim to
+          a round finding by its full `path:line`, or by the file's name and line,
+          which names every finding of the round that shares both; `reply_body` reads
+          the landing's execution record before the root log and keeps the landed
+          attempt's rejections, and the round's instructions ask each attempt to record
+          again every claim it still rejects
+      - subject: D-3
+        field: fingerprint
+        after: 4c9e230fd68b2b49/996ef338e74dd1b8
+    md: |
+      T-0923's attempt 3 departed from D-3 on 2026-11-09. Under the row as written, a claim that
+      cites `runconfig.py:1350`, where two findings of the round share that file name and line,
+      names neither finding. The reply then posts the rejection on every thread of the round,
+      the fixed findings' threads included, and the carry exempts neither finding's span.
+      Attempt 2 had scoped the reply alone to the shared pair, and its review flagged the split
+      between the reply's rule and the carry's. The attempt proposed this amendment instead:
+      `names_spot` itself names every finding that shares the name and line, so the reply and
+      the carry keep one rule. A full `path:line` still names only its own finding. The owner
+      agreed in session. The row's consequence changes with its text.

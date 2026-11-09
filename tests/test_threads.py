@@ -4,6 +4,9 @@ with which way it erred readable from the finding it produced."""
 
 from __future__ import annotations
 
+from hypothesis import assume, given
+from hypothesis import strategies as st
+
 from torve.application.ports import ReviewThread, ThreadComment
 from torve.application.threads import (
     WINDOW,
@@ -218,18 +221,44 @@ def test_rejections_treat_an_infinite_attempt_as_unpinned() -> None:
     assert [entry["claim"] for entry in rejections(entries, 2)] == ["the infinite rejection"]
 
 
-def test_names_spot_matches_a_full_path_and_refuses_a_shared_basename() -> None:
-    """S-0126/D-3: a claim names a spot by its full `path:line`; the file's
-    name and the line match only when no other spot of the round shares both,
-    so two `runconfig.py:1350` findings are answered by neither basename."""
+def test_names_spot_matches_a_full_path_or_every_spot_sharing_a_basename() -> None:
+    """S-0126/D-3, as S-0126/A-1 amends it: a claim names a spot by its full
+    `path:line`, or by the file's name and the line, so a `runconfig.py:1350`
+    claim names both findings that share it while a full path names its own."""
 
     shared = ("b/runconfig.py", 1350)
     unique = ("c/only.py", 12)
-    spots = {("a/runconfig.py", 1350), shared, unique}
 
-    assert names_spot("a/runconfig.py:1350 — the cap", ("a/runconfig.py", 1350), spots)
-    assert names_spot("b/runconfig.py:1350 — the cap", shared, spots)
-    assert not names_spot("runconfig.py:1350 — the cap", ("a/runconfig.py", 1350), spots)
-    assert not names_spot("runconfig.py:1350 — the cap", shared, spots)
-    assert names_spot("only.py:12 — the check", unique, spots)
-    assert names_spot("c/only.py:12 — the check", unique, spots)
+    assert names_spot("a/runconfig.py:1350 — the cap", ("a/runconfig.py", 1350))
+    assert not names_spot("a/runconfig.py:1350 — the cap", shared)
+    assert names_spot("runconfig.py:1350 — the cap", ("a/runconfig.py", 1350))
+    assert names_spot("runconfig.py:1350 — the cap", shared)
+    assert not names_spot("runconfig.py:1350 — the cap", unique)
+    assert not names_spot("runconfig.py:13500 — the cap", shared)
+    assert names_spot("only.py:12 — the check", unique)
+    assert names_spot("c/only.py:12 — the check", unique)
+
+
+_segment = st.text(alphabet="abcdefgh_", min_size=1, max_size=6)
+
+
+@given(
+    first=_segment,
+    second=_segment,
+    name=_segment,
+    line=st.integers(min_value=1, max_value=99999),
+)
+def test_names_spot_a_basename_names_every_file_sharing_it(
+    first: str, second: str, name: str, line: int
+) -> None:
+    """S-0126/D-3, as S-0126/A-1 amends it: for any two files with one name,
+    the bare `name:line` names both and each full path names only itself."""
+
+    assume(first != second)
+    a, b = (f"{first}/{name}.py", line), (f"{second}/{name}.py", line)
+
+    assert names_spot(f"{name}.py:{line} — the claim", a)
+    assert names_spot(f"{name}.py:{line} — the claim", b)
+    assert names_spot(f"{a[0]}:{line} — the claim", a)
+    assert not names_spot(f"{a[0]}:{line} — the claim", b)
+    assert not names_spot(f"{name}.py:{line + 1} — the claim", a)

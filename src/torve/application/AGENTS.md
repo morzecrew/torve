@@ -495,10 +495,10 @@ The rejected spots are computed by the engine and never staged for the critic: f
 
 ### S-0126/D-3 — `ASSUMED` (A rejected claim is not a blocker)
 
-The reply and the carry read rejections by one rule: `threads.rejections(entries, attempt)` keeps the `unlisted` entries with `kind: contradicted` that one attempt recorded, counting an entry with no `attempt` for every attempt and identical entries once, and `threads.names_spot` matches a claim to a round finding by its full `path:line`, or by the file's name and line only when no other finding of the round shares both; `reply_body` reads the landing's execution record before the root log and keeps the landed attempt's rejections, and the round's instructions ask each attempt to record again every claim it still rejects
+The reply and the carry read rejections by one rule: `threads.rejections(entries, attempt)` keeps the `unlisted` entries with `kind: contradicted` that one attempt recorded, counting an entry with no `attempt` for every attempt and identical entries once, and `threads.names_spot` matches a claim to a round finding by its full `path:line`, or by the file's name and line, which names every finding of the round that shares both; `reply_body` reads the landing's execution record before the root log and keeps the landed attempt's rejections, and the round's instructions ask each attempt to record again every claim it still rejects
 
 - Paths: `src/torve/application/threads.py` `src/torve/application/reviewleg.py`
-- Consequence: a thread reads "Not applied" exactly when the carry treated its claim as rejected, a rejection is posted once, and a basename shared by two files in one round matches neither
+- Consequence: a thread reads "Not applied" exactly when the carry treated its claim as rejected, a rejection is posted once, and a basename shared by two files in one round matches both, so the round's other threads still read "Fixed in"
 - Check: `uv run pytest -q tests/test_threads.py tests/test_reviewleg.py -k "rejections or names_spot"` (shadow; runs as `decision:S-0126/D-3`)
 
 <!-- /torve:managed -->

@@ -138,6 +138,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A document pull request merged during a lane pass is no longer escalated as
   `merge_conflict`. The pass used to rebase the merged branch onto its own squash.
 
+- A review round's rejection that names a file by a name two of its findings share, such as
+  `runconfig.py:1350`, now answers those two threads only. It used to answer every thread
+  of the round with `Not applied`, the fixed findings' threads included.
+
 ## [0.9.1] - 2026-11-06
 
 ### Changed

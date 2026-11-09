@@ -1941,6 +1941,37 @@ def test_a_descendant_that_deletes_the_landing_record_keeps_its_rejections(seede
     assert "Fixed in" not in body
 
 
+def test_names_spot_a_shared_basename_rejection_answers_its_two_threads(seeded):
+    """S-0126/A-1: a rejection naming the basename two findings of the round
+    share answers both of their threads, and the round's fixed finding still
+    reads "Fixed in" rather than the rejection."""
+
+    task_id = "T-0904"
+    seeded.write("src/app.py", "print('changed')\n")
+    seeded.commit("the work")
+    work = head(seeded.root)
+    seeded.write(
+        f".torve/specs/S-0084/execution/{task_id}-1-20260919T000000Z.yaml",
+        f"task: {task_id}\n"
+        "at: '2026-09-19T00:00:00Z'\n"
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: 1\n"
+        "    claim: runconfig.py:50 — the cap is the rule\n"
+        "    evidence: src/app.py:12 — the caller checks it\n",
+    )
+    seeded.commit(f"torve({task_id}): landing of attempt 1")
+    spots = [("a/runconfig.py", 50), ("b/runconfig.py", 50), ("src/app.py", 7)]
+
+    bodies = [
+        reply_body(seeded.root, landing((task_id, work)), task_id, spot, spots) for spot in spots
+    ]
+
+    assert all("Not applied — runconfig.py:50" in body for body in bodies[:2])
+    assert bodies[2] == f"Fixed in {work}."
+
+
 def test_a_persisted_non_attempt_does_not_stop_the_reply(seeded):
     """S-0126/D-3: a legacy or hand-edited `attempt` is read like an entry
     written before the pin, so the reply is composed rather than raising and

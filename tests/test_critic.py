@@ -344,6 +344,25 @@ def test_rejected_spots_unnamed_rejection_answers_a_one_finding_round(tmp_path):
     assert rejected_spots(task, tmp_path, 1) == [("src/app.py", 7, 9)]
 
 
+def test_rejected_spots_a_shared_basename_rejects_both_findings(tmp_path):
+    """S-0126/A-1: a claim naming the basename two findings of the round share
+    rejects both spans, as the reply answers both threads, and leaves the
+    round's other finding blocking."""
+
+    _files(tmp_path, **{"a/runconfig.py": 60, "b/runconfig.py": 60, "src/app.py": 60})
+    task = _round_task(
+        ("a/runconfig.py", 50, None), ("b/runconfig.py", 50, 52), ("src/app.py", 50, None)
+    )
+    _write_log(
+        tmp_path, task, _rejection("runconfig.py:50 — the cap is the rule", "src/ghost.py:1 — gone")
+    )
+
+    assert rejected_spots(task, tmp_path, 1) == [
+        ("a/runconfig.py", 50, 50),
+        ("b/runconfig.py", 50, 52),
+    ]
+
+
 def test_rejected_spots_an_earlier_attempts_rejection_carries_nothing(tmp_path):
     """S-0126/D-2: a rejection stands only for the attempt that recorded it."""
 
