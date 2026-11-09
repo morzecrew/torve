@@ -419,6 +419,42 @@ def test_ghscm_retries_a_transient_failure_once(monkeypatch):
     assert naps == [2.0]
 
 
+@pytest.mark.parametrize(
+    ("call", "error", "tries"),
+    [
+        # A read retries any transient failure.
+        (lambda scm: scm._api("repos/example/lab/commits/abc/statuses"), "HTTP 502", 2),
+        (lambda scm: scm._api("graphql", "-f", "query=query { viewer { login } }"), "HTTP 502", 2),
+        # A write retries only a failure before the request left the host: after
+        # a 502 or a reset the forge may hold it, and a second try posts twice.
+        (lambda scm: scm._api("graphql", "-f", "query=mutation { x }"), "HTTP 502", 1),
+        (lambda scm: scm._api("repos/r/pulls/1/comments/2/replies", "-f", "body=b"), "HTTP 502", 1),
+        (lambda scm: scm._api("-X", "POST", "repos/r/statuses/abc"), "connection reset", 1),
+        (lambda scm: scm.comment(1, "the reply", "k"), "unexpected EOF", 1),
+        (lambda scm: scm._api("graphql", "-f", "query=mutation { x }"), "connection refused", 2),
+        (lambda scm: scm.comment(1, "the reply", "k"), "TLS handshake timeout", 2),
+    ],
+)
+def test_ghscm_retries_a_write_only_when_it_never_left_the_host(monkeypatch, call, error, tries):
+    """A reply or a comment the forge took before the transport failed is
+    posted twice by a retry, so only a read or a failure before send retries."""
+
+    tried: list[str] = []
+
+    def fake_run(command, **kwargs):
+        if command[1:3] == ["pr", "view"]:
+            return subprocess.CompletedProcess(command, 0, stdout="{}", stderr="")
+        tried.append(" ".join(command))
+        return subprocess.CompletedProcess(command, 1, stdout="", stderr=f"gh: {error}")
+
+    monkeypatch.setattr(git_module.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match=error):
+        call(GhScm("example/lab", token_env=None, sleeper=lambda _: None))
+
+    assert len(tried) == tries
+
+
 def test_delete_remote_branch_over_a_local_origin(tmp_path: Path) -> None:
     # T-0059: the retry command's re-queue cleanup — a ref deletion, never
     # a rewrite; absent refs and missing origins answer False, quietly.
