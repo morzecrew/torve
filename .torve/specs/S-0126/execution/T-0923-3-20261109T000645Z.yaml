@@ -1,0 +1,91 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0923
+attempt: 3
+base: cb705a74f3ce9e3d8cd1943c9f07481d39a99338
+commit: 127decf54fd41e40ac3a3d14a057805cb274fd78
+at: '2026-11-09T00:06:45Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-29
+    grade: LOCKED
+  - id: S-0122/D-1
+    grade: LOCKED
+  - id: S-0122/D-2
+    grade: LOCKED
+  - id: S-0122/D-6
+    grade: ASSUMED
+  - id: S-0122/D-15
+    grade: ASSUMED
+  - id: S-0122/D-18
+    grade: ASSUMED
+  - id: S-0122/D-19
+    grade: ASSUMED
+  - id: S-0122/D-20
+    grade: ASSUMED
+  - id: S-0125/D-1
+    grade: ASSUMED
+  - id: S-0125/D-2
+    grade: ASSUMED
+  - id: S-0125/D-3
+    grade: ASSUMED
+  - id: S-0125/D-4
+    grade: ASSUMED
+  - id: S-0125/D-7
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-11-08T23:56:58Z'
+    attempt: 3
+    claim: >-
+      src/torve/application/reviewleg.py:2082 — not applied: S-0126/D-3 fixes one
+      rule for the reply and the carry, names_spot, under which a basename two findings
+      of one round share names neither; a rejection naming none answers every thread
+      by design. Scoping the reply to the shared pair (tried in attempt 2 as names_basename)
+      made the reply match what critic.rejected_spots refuses, which the review of
+      that attempt flagged as a D-3 violation. Telling ambiguous from unscoped needs
+      a row amendment, not a reply-only rule.
+    evidence: >-
+      src/torve/application/threads.py:164-187 — names_spot refuses a shared basename
+      ('names neither, because no reply can tell which thread it answers'); src/torve/application/reviewleg.py:2129
+      and src/torve/application/critic.py:434 both read names_spot alone
+    action: departed
+    proposal: >-
+      If ambiguous rejections should not broadcast, amend S-0126/D-3 so names_spot
+      itself (used by both reply and carry) matches every finding sharing the basename
+      and line, keeping one rule.
+  - decision: unlisted
+    grade: ASSUMED
+    kind: contradicted
+    class: spec-gap
+    at: '2026-11-08T23:57:23Z'
+    attempt: 3
+    claim: >-
+      src/torve/application/reviewleg.py:2082 — not applied: S-0126/D-3 fixes one
+      rule for the reply and the carry, names_spot, under which a basename two findings
+      of one round share names neither; a rejection naming none answers every thread
+      by design. Scoping the reply to the shared pair (tried in attempt 2 as names_basename)
+      made the reply match what critic.rejected_spots refuses, which the review of
+      that attempt flagged as a D-3 violation. Telling ambiguous from unscoped needs
+      a row amendment, not a reply-only rule.
+    evidence: >-
+      src/torve/application/threads.py:164-187 — names_spot refuses a shared basename
+      ('names neither, because no reply can tell which thread it answers'); src/torve/application/reviewleg.py:2129
+      and src/torve/application/critic.py:434 both read names_spot alone
+    action: departed
+    proposal: >-
+      If ambiguous rejections should not broadcast, amend S-0126/D-3 so names_spot
+      itself (used by both reply and carry) matches every finding sharing the basename
+      and line, keeping one rule.
