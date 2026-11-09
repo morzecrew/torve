@@ -2345,7 +2345,9 @@ def test_an_open_document_on_a_moved_base_rebases_regates_and_republishes(
         status=status,
     )
 
-    assert asked == [document]
+    # Asked again after the fetch, before the rebase: a merge in between is
+    # not rebased.
+    assert asked == [document, document]
     assert [r.action for r in results] == ["pull request", "already landed"]
     # The branch a person is looking at is the one the battery just judged,
     # sitting on the remote's `main` (S-0083/D-13).
@@ -2645,6 +2647,49 @@ def test_a_document_that_no_longer_rebases_escalates_once_per_base_tip(lane_repo
     assert len([e for e in _events(lane_repo) if e.get("event") == "lane_document_conflict"]) == 1
     assert git(lane_repo, "rev-parse", document) == tip
     assert len(published) == 1
+
+
+def test_a_document_merged_during_the_pass_is_not_rebased_or_escalated(lane_repo, tmp_path):
+    """The pass reads the pull request open, then its fetch brings the merge:
+    the document's own squash on the base, which no rebase of the branch
+    survives. Asked again before the rebase, the forge says merged, and the
+    pass leaves the branch to the next one (#308, 2026-11-09)."""
+
+    published: list[tuple[str, str]] = []
+    document = _landed_document(lane_repo, tmp_path, "S-0914", {"T-7307": "app.py"}, published)
+    tip = git(lane_repo, "rev-parse", document)
+
+    # The squash merge: the base takes the same line the phase wrote.
+    (lane_repo / "app.py").write_text("base = 7\n", encoding="utf-8")
+    git(lane_repo, "add", "-A")
+    git(lane_repo, "commit", "-q", "--no-gpg-sign", "-m", "the document merges as one commit")
+    git(lane_repo, "push", "-q", "origin", "main")
+    answers = iter([_pr(number=25, state="open"), _pr(number=25, state="merged")])
+    asked: list[str] = []
+
+    def forge(branch: str):
+        asked.append(branch)
+        return next(answers)
+
+    status = _Status()
+    results = process_lane(
+        lane_repo,
+        GitLane(),
+        publish=_recording_publisher(published, root=lane_repo),
+        forge=forge,
+        unit="document",
+        status=status,
+    )
+
+    # The landed phase stays the document's, as on any pass that finds its
+    # pull request open.
+    assert [r.action for r in results] == ["pull request", "already landed"]
+    assert results[0].detail == "pull request #25 was merged during this pass"
+    assert asked == [document, document]
+    assert not [e for e in _events(lane_repo) if e.get("event") == "lane_document_conflict"]
+    assert git(lane_repo, "rev-parse", document) == tip
+    assert RunState.load(naming.state_file(lane_repo, "T-7307")).state is not TaskState.ESCALATED
+    assert status.by_context == {}
 
 
 def test_a_document_conflict_is_a_status_reported_once_across_two_passes(lane_repo, tmp_path):

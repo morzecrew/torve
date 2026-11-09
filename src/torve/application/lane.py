@@ -2622,6 +2622,7 @@ def _rebase_document(
     status: StatusScm | None = None,
     gates: SandboxFactory | None = None,
     draft: bool = False,
+    forge: Forge | None = None,
 ) -> None:
     """A pull request still open (S-0083/D-13). Against an unmoved base it
     already shows the tree the battery judged and it is a person's turn —
@@ -2638,7 +2639,8 @@ def _rebase_document(
     give — is rebased in a disposable worktree, the battery re-run over the
     rebased tree and the branch republished under lease, bounded once per
     base tip, so a branch against a moving `main` cannot rebase itself in a
-    loop.
+    loop. Before a rebase, *forge* is asked again: a pull request merged or
+    closed since the pass read it is the next pass's to read, not a rebase.
 
     A conflict aborts and escalates for a person; the lane never resolves
     one, and the branch is left exactly as it was (S-0083/D-14). The conflict
@@ -2754,6 +2756,25 @@ def _rebase_document(
                 branch,
                 "conflict",
                 f"merge_conflict: {branch!r} still conflicts with {base!r} — escalated",
+                branch_tip,
+            )
+        )
+
+        return
+
+    again = forge(branch) if forge is not None else None
+
+    if again is not None and again.state in ("merged", "closed"):
+        # The pass read the pull request open before the fetch above, and a
+        # merge between the two put the document's own squash on the base, so
+        # no rebase of the branch could be clean (#308, 2026-11-09). The next
+        # pass reads the pull request as it now is.
+        results.append(
+            LaneResult(
+                document,
+                branch,
+                "pull request",
+                f"pull request #{number} was {again.state} during this pass",
                 branch_tip,
             )
         )
@@ -3010,6 +3031,7 @@ def _document_verdicts(
                 status,
                 gates,
                 info.draft,
+                forge,
             )
 
         carried.update(
