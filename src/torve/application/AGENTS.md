@@ -477,7 +477,7 @@ A run that escalates `poison_ceiling` after a revision attempt, one following a 
 - Consequence: a unit whose critic blocks converged but whose last revision went red on a gate is requeued from that revision's tree, not from base
 - Check: `uv run pytest -q tests/test_run_loop.py tests/test_runner.py -k ceiling_on_a_revision` (shadow; runs as `decision:S-0125/D-10`)
 
-### S-0126/D-1 — `ASSUMED` (A rejected claim is not a blocker) — implementation: none
+### S-0126/D-1 — `ASSUMED` (A rejected claim is not a blocker)
 
 On a review round's attempt, first or revision, `decide` records as non-blocking every kept finding and every `violated` row whose evidence cites at least one `path:line`, every one of which locates in the worktree and lies within `threads.WINDOW` lines of a rejected spot in the same file; this is checked before the S-0125/D-1 rules, and the review record marks each one `rejected: true`
 
@@ -485,7 +485,7 @@ On a review round's attempt, first or revision, `decide` records as non-blocking
 - Consequence: a round that rejects a claim with a recorded reason converges; the critic's objection to the rejection stays in the review record, and the bot's re-raise is what brings it to a person
 - Check: `uv run pytest -q tests/test_critic.py -k rejected_claim` (shadow; runs as `decision:S-0126/D-1`)
 
-### S-0126/D-2 — `ASSUMED` (A rejected claim is not a blocker) — implementation: none
+### S-0126/D-2 — `ASSUMED` (A rejected claim is not a blocker)
 
 The rejected spots are computed by the engine and never staged for the critic: for a task whose contract carries `round`, each rejection `threads.rejections` returns for the attempt under review from the worktree's task log gives the span of every round finding `threads.names_spot` matches in its claim, or of the round's one finding when the round carries one and the claim names none, and every `path:line` or `path:start-end` its evidence cites that locates in the worktree; a task with no round has none
 
@@ -493,7 +493,7 @@ The rejected spots are computed by the engine and never staged for the critic: f
 - Consequence: the critic's staged input is byte-for-byte what it was, and a rejection an earlier attempt recorded carries nothing on a retry
 - Check: `uv run pytest -q tests/test_critic.py tests/test_review_run.py -k rejected_spots` (shadow; runs as `decision:S-0126/D-2`)
 
-### S-0126/D-3 — `ASSUMED` (A rejected claim is not a blocker) — implementation: none
+### S-0126/D-3 — `ASSUMED` (A rejected claim is not a blocker)
 
 The reply and the carry read rejections by one rule: `threads.rejections(entries, attempt)` keeps the `unlisted` entries with `kind: contradicted` that one attempt recorded, counting an entry with no `attempt` for every attempt and identical entries once, and `threads.names_spot` matches a claim to a round finding by its full `path:line`, or by the file's name and line only when no other finding of the round shares both; `reply_body` reads the landing's execution record before the root log and keeps the landed attempt's rejections, and the round's instructions ask each attempt to record again every claim it still rejects
 

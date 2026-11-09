@@ -62,6 +62,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A review round that rejects a bot's claim with a recorded reason is no longer blocked by
+  the critic's findings on that claim. They are recorded as non-blocking. Such a round used
+  to be blocked until it escalated at its poison ceiling.
+
+- A landed review round's thread replies now name a rejected claim as `Not applied` with its
+  reason, posted once. They used to say `Fixed in <sha>` for every finding of the round.
+
 - `torve manager resolve --resolution requeued` now clears a run state the night left at
   `running` or `gated` when no engine run holds it. The next dispatch used to be refused and
   escalate the task again.
