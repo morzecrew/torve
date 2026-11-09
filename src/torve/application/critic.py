@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import hashlib
 import posixpath
+import re
 import shutil
 import tempfile
 from collections.abc import Iterable, Mapping
@@ -114,6 +115,17 @@ PROBE_CAP = 64_000
 
 #: How long the host may spend extracting the base tree into the copy.
 BASE_TIMEOUT = 120.0
+
+#: A retained `path:line` or `path:start-end` citation anywhere in evidence,
+#: not only the leading one: a verdict may lead with a command and cite the
+#: disputed line later in its prose (S-0126/D-1). The path is read the way
+#: `locate` reads it — every character but whitespace or the citing colon —
+#: so a supported name like `src/a+b.py` is not cut to `b.py`; the first
+#: character stays word-shaped, so punctuation before a citation in prose is
+#: not swallowed into the path.
+_CITED = re.compile(
+    r"(?<![\w./+-])(?P<path>[\w./+-][^\s:]*):(?P<start>\d+)(?:-(?P<end>\d+))?(?!\d)"
+)
 
 
 # ....................... #
@@ -261,7 +273,9 @@ class Decision:
 
     On a revision attempt (S-0125/D-1) `carried` is the kept findings outside
     the revision's own changed lines and its earlier blockers, and `reraised`
-    the ones that name an earlier blocker's anchor again."""
+    the ones that name an earlier blocker's anchor again. On a review round's
+    attempt (S-0126/D-1) `rejected` is the carried findings whose evidence
+    disputes a claim the attempt rejected; they are marked in the record."""
 
     blocked: bool
     blockers: list[CriticFinding]
@@ -271,6 +285,7 @@ class Decision:
     rows: list[dict[str, Any]]
     carried: list[CriticFinding] = field(default_factory=list)
     reraised: list[CriticFinding] = field(default_factory=list)
+    rejected: list[CriticFinding] = field(default_factory=list)
 
 
 def _finding_anchor(finding: CriticFinding) -> tuple[str, int] | None:
@@ -329,12 +344,162 @@ def _anchor_near(anchor: tuple[str, int], previous: list[dict[str, Any]]) -> boo
     return False
 
 
+def _citations(evidence: str, root: Path | None = None) -> list[tuple[str, int, int]]:
+    """Every `path:line` or `path:start-end` *evidence* cites, in order.
+
+    The location filter reads the leading citation, but a verdict may lead
+    with a command and cite the disputed line later in its prose, which is
+    the shape T-0913's row verdict had (S-0126/D-1). The path is read the way
+    `locate` reads it: with *root*, the words before `_CITED`'s path are tried
+    as part of a path containing spaces, so `src/legacy module.py:12` is not
+    truncated to `module.py:12` and left under the ordinary rules."""
+
+    found: list[tuple[str, int, int]] = []
+
+    for match in _CITED.finditer(evidence):
+        path = match.group("path")
+        start = int(match.group("start"))
+        end = int(match.group("end") or match.group("start"))
+
+        if root is not None:
+            path = _extend_path(evidence, match.start("path"), path, start, end, root)
+
+        found.append((path, start, end))
+
+    return found
+
+
+def _citation_locates(path: str, start: int, end: int, root: Path) -> bool:
+    """Whether one citation is a line or range `locate` accepts under *root*.
+
+    The whole *path* must be read: `locate` splits a span at ` — ` or ` - ` and
+    would accept a prefix, which is not the path the evidence cited."""
+
+    span = f"{path}:{start}" if end == start else f"{path}:{start}-{end}"
+
+    if span.startswith("`") or span.split(" — ")[0].split(" - ")[0].strip() != span:
+        return False
+
+    return locate(span, root) is None
+
+
+def _extend_path(evidence: str, beginning: int, path: str, start: int, end: int, root: Path) -> str:
+    """*path* with the space-separated words before it that make the citation
+    resolve under *root*: `locate`'s `CITATION` accepts a path containing
+    spaces, which `_CITED` finds only from its last word (S-0126/D-1).
+
+    The longest run that locates wins, so prose before the path is not
+    swallowed: only words whose addition makes an existing file are kept."""
+
+    prefix = evidence[evidence.rfind("\n", 0, beginning) + 1 : beginning]
+    words = prefix.split()
+
+    for index in range(len(words)):
+        candidate = " ".join([*words[index:], path])
+
+        if _citation_locates(candidate, start, end, root):
+            return candidate
+
+    return path
+
+
+def _near_rejected(evidence: str, rejected: Iterable[tuple[str, int, int]], root: Path) -> bool:
+    """Whether *evidence* disputes a rejected claim (S-0126/D-1): it cites at
+    least one `path:line`, every citation locates in *root*, and every one
+    lies within `threads.WINDOW` lines of a rejected span in the same file.
+
+    A citation that does not locate keeps the finding under the ordinary
+    rules, because it may name a separate defect, and evidence with no
+    citation is not carried this way either, because nothing ties it to the
+    claim."""
+
+    cited = _citations(evidence, root)
+
+    if not cited:
+        return False
+
+    spots = [(posixpath.normpath(path), start, end) for path, start, end in rejected]
+
+    for path, start, end in cited:
+        if not _citation_locates(path, start, end, root):
+            return False
+
+        normalised = posixpath.normpath(path)
+
+        if not any(
+            normalised == spot_path
+            and spot_start - threads.WINDOW <= start
+            and end <= spot_end + threads.WINDOW
+            for spot_path, spot_start, spot_end in spots
+        ):
+            return False
+
+    return True
+
+
+def rejected_spots(task: Task, worktree: Path, attempt: int) -> list[tuple[str, int, int]]:
+    """The spans a review round's *attempt* rejected (S-0126/D-2): none unless
+    the contract carries a `round`, otherwise each rejection the worktree's
+    task log holds for *attempt* contributes the span of every round finding
+    its claim names, the round's one finding when the claim names none, and
+    every citation in its evidence that locates under *worktree*.
+
+    The engine reads these; they are never staged for the critic, whose input
+    stays byte-for-byte what it was (S-0121/D-28, S-0122/D-2)."""
+
+    round_ = task.round
+
+    if round_ is None:
+        return []
+
+    from torve.application.divergence import open_log
+
+    entries = open_log(worktree, task.id).get("entries") or []
+    findings = round_.findings
+    spots = [(finding.path, finding.line) for finding in findings]
+    spans: list[tuple[str, int, int]] = []
+    seen: set[tuple[str, int, int]] = set()
+
+    def add(span: tuple[str, int, int]) -> None:
+        if span not in seen:
+            seen.add(span)
+            spans.append(span)
+
+    for rejection in threads.rejections(list(entries), attempt):
+        claim = str(rejection.get("claim", ""))
+        named = [
+            finding
+            for finding in findings
+            if threads.names_spot(claim, (finding.path, finding.line), spots)
+        ]
+
+        if not named and len(findings) == 1:
+            named = list(findings)
+
+        for finding in named:
+            if finding.line is not None:
+                add(
+                    (
+                        posixpath.normpath(finding.path),
+                        finding.line,
+                        finding.end_line or finding.line,
+                    )
+                )
+
+        for path, start, end in _citations(str(rejection.get("evidence", "")), worktree):
+            if _citation_locates(path, start, end, worktree):
+                add((posixpath.normpath(path), start, end))
+
+    return spans
+
+
 def decide(
     document: CriticDocument,
     rows: Mapping[str, bool],
     root: Path,
     blocks_at: Literal["blocker", "major"],
     revision: Revision | None = None,
+    rejected: Iterable[tuple[str, int, int]] = (),
 ) -> Decision:
     """Block or pass, from the findings and never from the critic's words
     (S-0122/D-1, LOCKED).
@@ -349,21 +514,44 @@ def decide(
     A first attempt (*revision* None) is decided exactly so. On a revision
     attempt (S-0125/D-1) a kept finding blocks only when it re-raises an
     earlier blocker or sits near a line the revision changed; every other
-    kept finding, anchorless ones included, is carried non-blocking."""
+    kept finding, anchorless ones included, is carried non-blocking.
+
+    *rejected* is the spans a review round's attempt rejected (S-0126/D-1).
+    Before the other rules, a kept finding or a `violated` row whose every
+    citation locates within `threads.WINDOW` lines of one of them is carried
+    non-blocking, because the critic cannot see the rejection and only the
+    engine can tell that the finding disputes it."""
 
     kept, discarded = filter_findings(document.findings, root)
     stopping = STOPS_AT[blocks_at]
+    spots = list(rejected)
     carried: list[CriticFinding] = []
+    rejected_findings: list[CriticFinding] = []
     reraised: list[CriticFinding] = []
 
+    if spots:
+        for finding in kept:
+            if _near_rejected(finding.evidence, spots, root):
+                carried.append(finding)
+                rejected_findings.append(finding)
+
+    disputed = {id(finding) for finding in rejected_findings}
+
     if revision is None:
-        blockers = [finding for finding in kept if finding.severity in stopping]
+        blockers = [
+            finding
+            for finding in kept
+            if finding.severity in stopping and id(finding) not in disputed
+        ]
 
     else:
         changed = revision.changed
         blockers = []
 
         for finding in kept:
+            if id(finding) in disputed:
+                continue
+
             anchor = _finding_anchor(finding)
 
             if finding.severity not in stopping or anchor is None:
@@ -376,12 +564,17 @@ def decide(
             else:
                 carried.append(finding)
 
-    def weight(verdict: RowVerdict) -> tuple[bool, bool]:
+    def weight(verdict: RowVerdict) -> tuple[bool, bool, bool]:
         located = bool(verdict.evidence) and locate(verdict.evidence, root) is None
-        return verdict.verdict == "violated", located
+        # S-0126/D-1: a verdict disputing a rejected claim must not outrank an
+        # independent one for the same row, or the reduction hides the defect
+        # that still blocks.
+        rejected = bool(spots) and located and _near_rejected(verdict.evidence, spots, root)
+        return verdict.verdict == "violated", located, not rejected
 
     # A row answered twice keeps its gravest verdict: a later `holds` never
-    # erases a located `violated`.
+    # erases a located `violated`, and a rejected `violated` never erases an
+    # independent one.
     answered = {verdict.row: verdict for verdict in sorted(document.rows, key=weight)}
     violated: list[RowVerdict] = []
     recorded: list[dict[str, Any]] = []
@@ -394,23 +587,34 @@ def decide(
             continue
 
         located = bool(verdict.evidence) and locate(verdict.evidence, root) is None
-        blocks = verdict.verdict == "violated" and located
+        # S-0126/D-1: a violated row on a rejected claim is recorded
+        # non-blocking, never counted as a violation.
+        rejected_row = (
+            verdict.verdict == "violated"
+            and located
+            and bool(spots)
+            and _near_rejected(verdict.evidence, spots, root)
+        )
+        blocks = verdict.verdict == "violated" and located and not rejected_row
 
         if blocks:
             violated.append(verdict)
 
-        elif verdict.verdict == "violated":
+        elif verdict.verdict == "violated" and not rejected_row:
             discarded.append(f"row {row}: violated without evidence that locates")
 
-        recorded.append(
-            {
-                "row": row,
-                "owned": owned,
-                "verdict": verdict.verdict,
-                "located": located,
-                "blocks": blocks,
-            }
-        )
+        entry = {
+            "row": row,
+            "owned": owned,
+            "verdict": verdict.verdict,
+            "located": located,
+            "blocks": blocks,
+        }
+
+        if rejected_row:
+            entry["rejected"] = True
+
+        recorded.append(entry)
 
     return Decision(
         blocked=bool(blockers or violated),
@@ -421,6 +625,7 @@ def decide(
         rows=recorded,
         carried=carried,
         reraised=reraised,
+        rejected=rejected_findings,
     )
 
 
@@ -455,9 +660,11 @@ def _as_finding(finding: CriticFinding) -> Finding:
 
 def _recorded_findings(decision: Decision) -> list[dict[str, Any]]:
     """The kept findings as the review record carries them, each one a
-    revision carried (S-0125/D-1) marked non-blocking."""
+    revision carried (S-0125/D-1) or a review round's rejected claim
+    (S-0126/D-1) marked non-blocking."""
 
     carried = {id(finding) for finding in decision.carried}
+    rejected = {id(finding) for finding in decision.rejected}
     recorded: list[dict[str, Any]] = []
 
     for finding in decision.kept:
@@ -465,6 +672,9 @@ def _recorded_findings(decision: Decision) -> list[dict[str, Any]]:
 
         if id(finding) in carried:
             one["carried"] = True
+
+        if id(finding) in rejected:
+            one["rejected"] = True
 
         recorded.append(one)
 
@@ -671,6 +881,7 @@ def run_critic(
     broker_handle: BrokerHandle | None = None,
     trigger: str = "task_gated",
     revision: Revision | None = None,
+    attempt: int = 1,
 ) -> CriticVerdict:
     """One critic call over one candidate (S-0122/D-6). Everything the critic
     reads is composed here, before the copy exists; the copy is then scrubbed
@@ -678,7 +889,10 @@ def run_critic(
 
     A revision attempt also stages its own `revision.diff` and the earlier
     rounds' `blockers.yaml`, and its findings are read against them
-    (S-0125/D-1, S-0125/D-2)."""
+    (S-0125/D-1, S-0125/D-2). A review round's *attempt* contributes the
+    rejected spots `decide` carries findings on (S-0126/D-1, S-0126/D-2);
+    they are read from the worktree's task log after staging, and nothing of
+    them is staged for the critic."""
 
     manifest_path = layout.gates_file(root)
     manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
@@ -751,6 +965,9 @@ def run_critic(
     unparseable = document is None and refusal is None
     seat_error = seat_api_error(session.result.output) if unparseable else None
     grades = {row.id: row.grade for row, _ in rows}
+    # S-0126/D-2: read after staging, from the worktree's log, never from
+    # anything the critic was given.
+    rejected = rejected_spots(target, worktree, attempt)
     decision = (
         decide(
             document,
@@ -758,6 +975,7 @@ def run_critic(
             worktree,
             config.review.blocks_at,
             revision=revision,
+            rejected=rejected,
         )
         if document is not None
         else None
@@ -983,6 +1201,7 @@ def judge(run: Dispatch, review: Task, state: RunState | None = None) -> CriticV
         broker=run.deps.broker,
         broker_handle=run.broker_handle,
         revision=revision_for(run, state) if state is not None else None,
+        attempt=state.attempts if state is not None else 1,
     )
 
 

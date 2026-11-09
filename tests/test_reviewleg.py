@@ -29,6 +29,7 @@ from torve.application.reviewleg import (
     fence,
     mint_round,
     record_threads,
+    reply_body,
     review_thread_leg,
     review_wait_owing,
     review_wait_running,
@@ -1822,6 +1823,170 @@ def test_a_contradiction_is_read_from_the_landing_when_the_root_holds_no_log(see
     assert "Not applied — the claim does not hold, the caller checks it" in answer["body"]
     assert "Fixed in" not in answer["body"]
     assert forge.commented[0][1] == answer["body"]
+
+
+def test_rejections_read_the_landing_record_before_a_root_log_holding_other_entries(seeded):
+    """S-0126/D-3: the landing's execution record names the attempt whose
+    rejections the reply carries; a root log holding entries from another
+    attempt is not read beside it, and neither is another attempt's entry the
+    landing record itself carries, so the landed rejection alone is posted."""
+
+    task_id = "T-0901"
+    log = layout.log_file(seeded.root, task_id)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: 2\n"
+        "    claim: the root log's latest rejection\n"
+        "    evidence: src/app.py:2 — the root log's copy\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: 1\n"
+        "    claim: an older root entry\n"
+        "    evidence: src/app.py:1 — an older copy\n",
+        encoding="utf-8",
+    )
+    seeded.write(
+        f".torve/specs/S-0084/execution/{task_id}-1-20260919T000000Z.yaml",
+        "task: " + task_id + "\n"
+        "at: '2026-09-19T00:00:00Z'\n"
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    grade: UNLISTED\n"
+        "    kind: contradicted\n"
+        "    at: '2026-09-19T00:00:00Z'\n"
+        "    attempt: 1\n"
+        "    claim: the landed attempt's rejection\n"
+        "    evidence: src/app.py:12 — the landed evidence\n"
+        "    action: decided\n"
+        "  - decision: unlisted\n"
+        "    grade: UNLISTED\n"
+        "    kind: contradicted\n"
+        "    at: '2026-09-19T00:00:00Z'\n"
+        "    attempt: 2\n"
+        "    claim: a later attempt's rejection\n"
+        "    evidence: src/app.py:13 — not this landing's evidence\n"
+        "    action: decided\n",
+    )
+    seeded.commit(f"torve({task_id}): landing of attempt 1")
+
+    body = reply_body(seeded.root, landing((task_id, head(seeded.root))), task_id)
+
+    assert "Not applied — the landed attempt's rejection" in body
+    assert "the root log's latest rejection" not in body
+    assert "an older root entry" not in body
+    assert "a later attempt's rejection" not in body
+
+
+def test_rejections_find_the_landing_record_written_after_the_work_commit(seeded):
+    """S-0126/D-3: `landed()` names the work commit, but the execution record
+    rides the landing commit after it (S-0059/D-9); the reply reads the
+    record by its own path rather than looking inside the work commit."""
+
+    task_id = "T-0902"
+    seeded.write("src/app.py", "print('changed')\n")
+    seeded.commit("the work")
+    work = head(seeded.root)
+    seeded.write(
+        f".torve/specs/S-0084/execution/{task_id}-1-20260919T000000Z.yaml",
+        "task: " + task_id + "\n"
+        "at: '2026-09-19T00:00:00Z'\n"
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: 1\n"
+        "    claim: the landed rejection\n"
+        "    evidence: src/app.py:12 — the caller checks it\n",
+    )
+    seeded.commit(f"torve({task_id}): landing of attempt 1")
+
+    assert head(seeded.root) != work
+
+    body = reply_body(seeded.root, landing((task_id, work)), task_id)
+
+    assert "Not applied — the landed rejection" in body
+    assert "Fixed in" not in body
+
+
+def test_a_descendant_that_deletes_the_landing_record_keeps_its_rejections(seeded):
+    """S-0126/D-3: the history listing names a record a later commit deleted;
+    the failed `git show` is skipped, so the landing's own record still
+    answers and the reply never says "Fixed in" for a rejected claim."""
+
+    task_id = "T-0903"
+    seeded.write("src/app.py", "print('changed')\n")
+    seeded.commit("the work")
+    work = head(seeded.root)
+    record = f".torve/specs/S-0084/execution/{task_id}-1-20260919T000000Z.yaml"
+    seeded.write(
+        record,
+        f"task: {task_id}\n"
+        "at: '2026-09-19T00:00:00Z'\n"
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: 1\n"
+        "    claim: the landed rejection\n"
+        "    evidence: src/app.py:12 — the caller checks it\n",
+    )
+    seeded.commit(f"torve({task_id}): landing of attempt 1")
+    (seeded.root / record).unlink()
+    seeded.commit("a descendant deletes the record")
+
+    body = reply_body(seeded.root, landing((task_id, work)), task_id)
+
+    assert "Not applied — the landed rejection" in body
+    assert "Fixed in" not in body
+
+
+def test_a_persisted_non_attempt_does_not_stop_the_reply(seeded):
+    """S-0126/D-3: a legacy or hand-edited `attempt` is read like an entry
+    written before the pin, so the reply is composed rather than raising and
+    the rejection is never reported as fixed."""
+
+    task_id = "T-0904"
+    log = layout.log_file(seeded.root, task_id)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: unknown\n"
+        "    claim: the legacy rejection\n"
+        "    evidence: src/app.py:12 — the caller checks it\n",
+        encoding="utf-8",
+    )
+
+    body = reply_body(seeded.root, landing((task_id, "abc123")), task_id)
+
+    assert "Not applied — the legacy rejection" in body
+    assert "Fixed in" not in body
+
+
+def test_a_persisted_infinite_attempt_does_not_stop_the_reply(seeded):
+    """S-0126/D-3: YAML reads `.inf` as a float infinity and `int` refuses it
+    with OverflowError; the reply is composed rather than raised, and the
+    rejection is never reported as fixed."""
+
+    task_id = "T-0904"
+    log = layout.log_file(seeded.root, task_id)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: .inf\n"
+        "    claim: the infinite rejection\n"
+        "    evidence: src/app.py:12 — the caller checks it\n",
+        encoding="utf-8",
+    )
+
+    body = reply_body(seeded.root, landing((task_id, "abc123")), task_id)
+
+    assert "Not applied — the infinite rejection" in body
+    assert "Fixed in" not in body
 
 
 def test_a_round_of_several_recorded_findings_is_answered_with_one_comment(seeded):

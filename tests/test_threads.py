@@ -5,7 +5,13 @@ with which way it erred readable from the finding it produced."""
 from __future__ import annotations
 
 from torve.application.ports import ReviewThread, ThreadComment
-from torve.application.threads import WINDOW, Finding, group_findings
+from torve.application.threads import (
+    WINDOW,
+    Finding,
+    group_findings,
+    names_spot,
+    rejections,
+)
 
 # ----------------------- #
 
@@ -85,3 +91,145 @@ def test_a_file_level_thread_alone_anchors_to_no_line() -> None:
 
 def test_no_threads_are_no_findings() -> None:
     assert group_findings([]) == []
+
+
+# ....................... #
+# S-0126/D-3: the reply and the carry read rejections by one rule.
+
+
+def test_rejections_keep_one_attempts_contradictions_once() -> None:
+    """S-0126/D-3: a rejection stands for the attempt that recorded it, an
+    entry with no attempt counts for every attempt, and recording the same
+    rejection again posts it once (T-0913's attempt 3 recorded one three
+    times)."""
+
+    entries = [
+        {
+            "decision": "unlisted",
+            "kind": "contradicted",
+            "attempt": 3,
+            "claim": "the cap is not an oversized round",
+            "evidence": "src/a.py:10 — the cap bounds findings, not files",
+            "at": "2026-11-08T09:00:00Z",
+        },
+        # The same rejection, recorded again on the same attempt.
+        {
+            "decision": "unlisted",
+            "kind": "contradicted",
+            "attempt": 3,
+            "claim": "the cap is not an oversized round",
+            "evidence": "src/a.py:10 — the cap bounds findings, not files",
+            "at": "2026-11-08T09:02:00Z",
+        },
+        {
+            "decision": "unlisted",
+            "kind": "contradicted",
+            "attempt": 1,
+            "claim": "an earlier attempt's rejection",
+            "evidence": "src/a.py:11 — this was fixed on the retry",
+        },
+        {
+            "decision": "unlisted",
+            "kind": "blocked",
+            "attempt": 3,
+            "claim": "a halt is not a rejection",
+            "evidence": "src/a.py:12 — a blocked entry",
+        },
+        {
+            "decision": "S-0126/D-3",
+            "kind": "contradicted",
+            "attempt": 3,
+            "claim": "a departure is not an unlisted rejection",
+            "evidence": "src/a.py:13 — a cited row",
+        },
+        {
+            "decision": "unlisted",
+            "kind": "contradicted",
+            "claim": "an entry with no attempt",
+            "evidence": "src/a.py:14 — written before the pin",
+        },
+        {
+            "decision": "unlisted",
+            "kind": "contradicted",
+            "attempt": 3,
+            "claim": "a different rejection",
+            "evidence": "src/a.py:15 — another claim",
+        },
+    ]
+
+    kept = rejections(entries, 3)
+
+    assert [entry["claim"] for entry in kept] == [
+        "the cap is not an oversized round",
+        "an entry with no attempt",
+        "a different rejection",
+    ]
+    assert [entry["claim"] for entry in rejections(entries, 1)] == [
+        "an earlier attempt's rejection",
+        "an entry with no attempt",
+    ]
+
+
+def test_rejections_treat_a_persisted_non_attempt_as_unpinned() -> None:
+    """S-0126/D-3: an invalid `attempt` is read like an entry written before
+    the pin — it answers every attempt rather than being dropped, so a legacy
+    log is never reported as fixed."""
+
+    entries = [
+        {
+            "decision": "unlisted",
+            "kind": "contradicted",
+            "attempt": "unknown",
+            "claim": "the legacy rejection",
+            "evidence": "src/a.py:10 — still not applied",
+        },
+        {
+            "decision": "unlisted",
+            "kind": "contradicted",
+            "attempt": 1,
+            "claim": "an earlier attempt's rejection",
+            "evidence": "src/a.py:11 — fixed on the retry",
+        },
+    ]
+
+    assert [entry["claim"] for entry in rejections(entries, 2)] == ["the legacy rejection"]
+    assert [entry["claim"] for entry in rejections(entries, 1)] == [
+        "the legacy rejection",
+        "an earlier attempt's rejection",
+    ]
+
+
+def test_rejections_treat_an_infinite_attempt_as_unpinned() -> None:
+    """S-0126/D-3: YAML reads `.inf` as a float infinity and `int` refuses it
+    with OverflowError; the hand-edited value answers every attempt like one
+    written before the pin instead of breaking the reply."""
+
+    entries = [
+        {
+            "decision": "unlisted",
+            "kind": "contradicted",
+            "attempt": float("inf"),
+            "claim": "the infinite rejection",
+            "evidence": "src/a.py:10 — still not applied",
+        }
+    ]
+
+    assert [entry["claim"] for entry in rejections(entries, 1)] == ["the infinite rejection"]
+    assert [entry["claim"] for entry in rejections(entries, 2)] == ["the infinite rejection"]
+
+
+def test_names_spot_matches_a_full_path_and_refuses_a_shared_basename() -> None:
+    """S-0126/D-3: a claim names a spot by its full `path:line`; the file's
+    name and the line match only when no other spot of the round shares both,
+    so two `runconfig.py:1350` findings are answered by neither basename."""
+
+    shared = ("b/runconfig.py", 1350)
+    unique = ("c/only.py", 12)
+    spots = {("a/runconfig.py", 1350), shared, unique}
+
+    assert names_spot("a/runconfig.py:1350 — the cap", ("a/runconfig.py", 1350), spots)
+    assert names_spot("b/runconfig.py:1350 — the cap", shared, spots)
+    assert not names_spot("runconfig.py:1350 — the cap", ("a/runconfig.py", 1350), spots)
+    assert not names_spot("runconfig.py:1350 — the cap", shared, spots)
+    assert names_spot("only.py:12 — the check", unique, spots)
+    assert names_spot("c/only.py:12 — the check", unique, spots)

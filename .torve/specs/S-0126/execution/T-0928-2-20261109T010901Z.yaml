@@ -1,0 +1,205 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0928
+attempt: 2
+base: 8ee84708f1183f8e8ce974b97cf700b4880028e9
+commit: 7673b4d5883b0eabf1a5c55d42e4fd972b964785
+at: '2026-11-09T01:09:01Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: S-0121/D-1
+    grade: LOCKED
+  - id: S-0121/D-2
+    grade: LOCKED
+  - id: S-0121/D-3
+    grade: LOCKED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-18
+    grade: ASSUMED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-29
+    grade: LOCKED
+  - id: S-0121/D-34
+    grade: LOCKED
+  - id: S-0121/D-39
+    grade: ASSUMED
+  - id: S-0122/D-1
+    grade: LOCKED
+  - id: S-0122/D-2
+    grade: LOCKED
+  - id: S-0122/D-6
+    grade: ASSUMED
+  - id: S-0122/D-8
+    grade: ASSUMED
+  - id: S-0122/D-15
+    grade: ASSUMED
+  - id: S-0122/D-18
+    grade: ASSUMED
+  - id: S-0122/D-19
+    grade: ASSUMED
+  - id: S-0122/D-20
+    grade: ASSUMED
+  - id: S-0123/D-1
+    grade: ASSUMED
+  - id: S-0123/D-2
+    grade: ASSUMED
+  - id: S-0124/D-1
+    grade: ASSUMED
+  - id: S-0124/D-5
+    grade: ASSUMED
+  - id: S-0124/D-6
+    grade: ASSUMED
+  - id: S-0124/D-8
+    grade: ASSUMED
+  - id: S-0124/D-11
+    grade: ASSUMED
+  - id: S-0125/D-1
+    grade: ASSUMED
+  - id: S-0125/D-2
+    grade: ASSUMED
+  - id: S-0125/D-3
+    grade: ASSUMED
+  - id: S-0125/D-4
+    grade: ASSUMED
+  - id: S-0125/D-7
+    grade: ASSUMED
+  - id: S-0125/D-10
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-09T00:41:37Z'
+    claim: >-
+      src/torve/application/runner.py:1054 — the exemption is S-0084/D-13's, not a
+      defect: an attempt that records a contradicted rejection has said why the tree
+      is unchanged, and the tree's pinned tests require that for a task with no `round`
+      record. Restricting it to `Task.round` would re-refuse a legacy or round-less
+      review round's rejection — the bloomery T-0028 regression S-0084/D-13 exists
+      to prevent. The attempt scoping S-0126/D-3 asks for is already here.
+    evidence: >-
+      tests/test_run_loop.py:1347 — pins that a round rejecting its claim with an
+      entry is not an empty diff; tests/test_review_run.py:2100 pins that only the
+      current attempt's rejection counts.
+    action: departed
+    proposal: >-
+      no change: S-0084/D-13 exempts an attempt that records a contradicted rejection,
+      without requiring a `round` record.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-09T00:43:14Z'
+    claim: >-
+      src/torve/application/runner.py:1054 — the exemption is S-0084/D-13's, not a
+      defect: an attempt that records a contradicted rejection has said why the tree
+      is unchanged, and the tree's pinned tests require that for a task with no `round`
+      record. Restricting it to `Task.round` would re-refuse a legacy or round-less
+      review round's rejection — the bloomery T-0028 regression S-0084/D-13 exists
+      to prevent. The attempt scoping S-0126/D-3 asks for is already here.
+    evidence: >-
+      tests/test_run_loop.py:1347 — pins that a round rejecting its claim with an
+      entry is not an empty diff; tests/test_review_run.py:2100 pins that only the
+      current attempt's rejection counts.
+    action: departed
+    proposal: >-
+      no change: S-0084/D-13 exempts an attempt that records a contradicted rejection,
+      without requiring a `round` record.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-09T00:55:25Z'
+    attempt: 2
+    claim: >-
+      src/torve/application/runner.py:1054 — the claim does not hold as a defect:
+      exempting a round-less implement task that records a contradicted rejection
+      is the behaviour the existing tests require. tests/test_run_loop.py:1347-1383
+      runs a task built by base_task, which carries no round, whose only work is an
+      unlisted/contradicted entry, and asserts it lands READY on attempt 1; tests/test_review_run.py:2100-2130
+      asserts the same exemption for Task(id='T-9001', role='implement') with no round.
+      Requiring a round, as the claim proposes, turns both red (the previous attempt's
+      suite gate showed exactly these two failures), and tests/test_run_loop.py is
+      outside this task's editable tests. The current-attempt pin from S-0126/D-3
+      already stops an earlier attempt's rejection from excusing a later empty diff.
+      Narrowing the exemption to rounds needs a row amending S-0084/D-13 and those
+      tests first.
+    evidence: >-
+      tests/test_run_loop.py:1347-1383 — a round-less base_task whose only change
+      is a contradicted entry must land READY; tests/test_review_run.py:2100-2130
+      pins the same exemption for a round-less implement Task
+    action: departed
+    proposal: >-
+      If a rejection should exempt only review rounds, amend S-0084/D-13 to say so
+      and update tests/test_run_loop.py:1347 and tests/test_review_run.py:2100 in
+      the same change.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-09T00:57:24Z'
+    claim: >-
+      src/torve/application/runner.py:1054 — the exemption is S-0084/D-13's, not a
+      defect: an attempt that records a contradicted rejection has said why the tree
+      is unchanged, and the tree's pinned tests require that for a task with no `round`
+      record. Restricting it to `Task.round` would re-refuse a legacy or round-less
+      review round's rejection — the bloomery T-0028 regression S-0084/D-13 exists
+      to prevent. The attempt scoping S-0126/D-3 asks for is already here.
+    evidence: >-
+      tests/test_run_loop.py:1347 — pins that a round rejecting its claim with an
+      entry is not an empty diff; tests/test_review_run.py:2100 pins that only the
+      current attempt's rejection counts.
+    action: departed
+    proposal: >-
+      no change: S-0084/D-13 exempts an attempt that records a contradicted rejection,
+      without requiring a `round` record.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-09T00:57:24Z'
+    attempt: 2
+    claim: >-
+      src/torve/application/runner.py:1054 — the claim does not hold as a defect:
+      exempting a round-less implement task that records a contradicted rejection
+      is the behaviour the existing tests require. tests/test_run_loop.py:1347-1383
+      runs a task built by base_task, which carries no round, whose only work is an
+      unlisted/contradicted entry, and asserts it lands READY on attempt 1; tests/test_review_run.py:2100-2130
+      asserts the same exemption for Task(id='T-9001', role='implement') with no round.
+      Requiring a round, as the claim proposes, turns both red (the previous attempt's
+      suite gate showed exactly these two failures), and tests/test_run_loop.py is
+      outside this task's editable tests. The current-attempt pin from S-0126/D-3
+      already stops an earlier attempt's rejection from excusing a later empty diff.
+      Narrowing the exemption to rounds needs a row amending S-0084/D-13 and those
+      tests first.
+    evidence: >-
+      tests/test_run_loop.py:1347-1383 — a round-less base_task whose only change
+      is a contradicted entry must land READY; tests/test_review_run.py:2100-2130
+      pins the same exemption for a round-less implement Task
+    action: departed
+    proposal: >-
+      If a rejection should exempt only review rounds, amend S-0084/D-13 to say so
+      and update tests/test_run_loop.py:1347 and tests/test_review_run.py:2100 in
+      the same change.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-09T00:57:24Z'
+    claim: >-
+      src/torve/application/runner.py:1054 — the exemption is S-0084/D-13's, not a
+      defect: an attempt that records a contradicted rejection has said why the tree
+      is unchanged, and the tree's pinned tests require that for a task with no `round`
+      record. Restricting it to `Task.round` would re-refuse a legacy or round-less
+      review round's rejection — the bloomery T-0028 regression S-0084/D-13 exists
+      to prevent. The attempt scoping S-0126/D-3 asks for is already here.
+    evidence: >-
+      tests/test_run_loop.py:1347 — pins that a round rejecting its claim with an
+      entry is not an empty diff; tests/test_review_run.py:2100 pins that only the
+      current attempt's rejection counts.
+    action: departed
+    proposal: >-
+      no change: S-0084/D-13 exempts an attempt that records a contradicted rejection,
+      without requiring a `round` record.
