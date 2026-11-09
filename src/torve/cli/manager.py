@@ -936,11 +936,17 @@ async def _sync_and_plan(
             left_alone(f"the checkout does not fast-forward to origin/{branch}")
             return []
 
+    after = lane.tip(root, "HEAD")
+
+    if after != remote:
+        # A local commit the base does not carry is not the base moving.
+        left_alone(f"the checkout is not at origin/{branch} after the fast-forward")
+        return []
+
     # The engine runs the tree it started on, and a person's pull may already
     # have moved the checkout past it, leaving this sweep nothing to move
     # (2026-11-09: a hand pull of #308 kept the old engine serving 3h).
     before = engine_at or head
-    after = lane.tip(root, "HEAD")
     moved = _engine_paths_moved(root, before, after, config.night.engine_paths)
 
     if moved:
@@ -958,10 +964,6 @@ async def _sync_and_plan(
             },
         )
         return moved
-
-    if lane.tip(root, "HEAD") != remote:
-        left_alone(f"the checkout is not at origin/{branch} after the fast-forward")
-        return []
 
     if not plan:
         return []
@@ -1061,6 +1063,10 @@ async def _serve(
     from torve.cli import assembly
     from torve.domain.events import SubjectType
 
+    # The launcher installs the engine from this checkout just before the
+    # process starts, so its HEAD now, before any other work, is the tree the
+    # engine was built from.
+    engine_at = GitLane().tip(root, "HEAD") if chain else None
     config = load_config(root, config_path)
 
     if slot is not None:
@@ -1280,9 +1286,6 @@ async def _serve(
         # S-0117/D-6: a chain whose engine imports from this checkout neither
         # fast-forwards nor plans from it.
         planning = chain and not _engine_imports_under(root)
-        # The launcher installs the engine from this checkout just before the
-        # process starts, so its HEAD now is the tree the engine was built from.
-        engine_at = GitLane().tip(root, "HEAD") if planning else None
 
         async def run_night(terms: Night) -> tuple[int, str]:
             nonlocal passes_left

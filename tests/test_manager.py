@@ -2569,7 +2569,9 @@ def test_a_checkout_pulled_by_hand_past_the_engine_still_reports_engine_moved(tm
 
 def test_a_chain_reads_the_engine_move_from_the_commit_it_started_on(tmp_path, monkeypatch):
     """The commit the chain hands every sweep is the checkout's HEAD when the
-    process started, which is the tree the launcher installed the engine from."""
+    process started, which is the tree the launcher installed the engine from.
+    It is read before any startup work, so a commit that lands during that
+    work is not taken for the engine's tree."""
 
     from torve.cli import manager as manager_cli
     from torve.config.runconfig import NightConfig, RunnerConfig
@@ -2578,7 +2580,14 @@ def test_a_chain_reads_the_engine_move_from_the_commit_it_started_on(tmp_path, m
     _publish(repo)
     started = _head(repo.root)
     config = RunnerConfig(night=NightConfig(engine_paths=["src/torve/**"]))
-    monkeypatch.setattr(manager_cli, "load_config", lambda root, path: config)
+
+    def load_config(root, path):
+        # The first startup step: the checkout moves while it runs.
+        repo.git("commit", "-q", "--no-gpg-sign", "--allow-empty", "-m", "during startup")
+
+        return config
+
+    monkeypatch.setattr(manager_cli, "load_config", load_config)
     handed: list[str | None] = []
 
     async def fake_sync(*args, engine_at=None, **kwargs):
@@ -2590,6 +2599,39 @@ def test_a_chain_reads_the_engine_move_from_the_commit_it_started_on(tmp_path, m
 
     assert _chain_serve(repo.root) == (0, "engine moved")
     assert handed == [started]
+    assert _head(repo.root) != started
+
+
+def test_a_local_engine_commit_after_start_is_not_an_engine_move(tmp_path):
+    """A commit made on the checkout and never pushed moves HEAD past the
+    engine, but the base has not moved: the sweep leaves the checkout alone,
+    as it did before it read moves from the engine's commit."""
+
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _publish(repo)
+    before = _head(repo.root)
+    (repo.root / "src" / "torve").mkdir(parents=True, exist_ok=True)
+    (repo.root / "src" / "torve" / "engine.py").write_text("local = True\n", encoding="utf-8")
+    repo.git("add", "-A")
+    repo.git("commit", "-q", "--no-gpg-sign", "-m", "a local engine edit")
+    config = RunnerConfig(night=NightConfig(engine_paths=["src/torve/**"]))
+
+    async def scenario(log):
+        moved = await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=config, worker="w-1", engine_at=before
+        )
+
+        assert moved == []
+
+    run(scenario)
+
+    rows = _engine_rows(repo.root)
+    assert [row for row in rows if row.get("event") == "chain_engine_moved"] == []
+    (refused,) = [row for row in rows if row.get("event") == "plan_refused"]
+    assert "not at origin/main" in refused["error"]
 
 
 def test_a_chain_ends_with_the_reason_engine_moved_after_recording_the_event(tmp_path, monkeypatch):
