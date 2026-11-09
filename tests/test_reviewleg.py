@@ -1934,6 +1934,30 @@ def test_a_persisted_non_attempt_does_not_stop_the_reply(seeded):
     assert "Fixed in" not in body
 
 
+def test_a_persisted_infinite_attempt_does_not_stop_the_reply(seeded):
+    """S-0126/D-3: YAML reads `.inf` as a float infinity and `int` refuses it
+    with OverflowError; the reply is composed rather than raised, and the
+    rejection is never reported as fixed."""
+
+    task_id = "T-0904"
+    log = layout.log_file(seeded.root, task_id)
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: .inf\n"
+        "    claim: the infinite rejection\n"
+        "    evidence: src/app.py:12 — the caller checks it\n",
+        encoding="utf-8",
+    )
+
+    body = reply_body(seeded.root, landing((task_id, "abc123")), task_id)
+
+    assert "Not applied — the infinite rejection" in body
+    assert "Fixed in" not in body
+
+
 def test_a_round_of_several_recorded_findings_is_answered_with_one_comment(seeded):
     """S-0086/D-5: the answer is said once as a comment, whatever number of
     recorded findings the round grouped (bloomery #160: three identical

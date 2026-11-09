@@ -199,6 +199,25 @@ def test_rejections_treat_a_persisted_non_attempt_as_unpinned() -> None:
     ]
 
 
+def test_rejections_treat_an_infinite_attempt_as_unpinned() -> None:
+    """S-0126/D-3: YAML reads `.inf` as a float infinity and `int` refuses it
+    with OverflowError; the hand-edited value answers every attempt like one
+    written before the pin instead of breaking the reply."""
+
+    entries = [
+        {
+            "decision": "unlisted",
+            "kind": "contradicted",
+            "attempt": float("inf"),
+            "claim": "the infinite rejection",
+            "evidence": "src/a.py:10 — still not applied",
+        }
+    ]
+
+    assert [entry["claim"] for entry in rejections(entries, 1)] == ["the infinite rejection"]
+    assert [entry["claim"] for entry in rejections(entries, 2)] == ["the infinite rejection"]
+
+
 def test_names_spot_matches_a_full_path_and_refuses_a_shared_basename() -> None:
     """S-0126/D-3: a claim names a spot by its full `path:line`; the file's
     name and the line match only when no other spot of the round shares both,

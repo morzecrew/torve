@@ -338,30 +338,63 @@ def _anchor_near(anchor: tuple[str, int], previous: list[dict[str, Any]]) -> boo
     return False
 
 
-def _citations(evidence: str) -> list[tuple[str, int, int]]:
+def _citations(evidence: str, root: Path | None = None) -> list[tuple[str, int, int]]:
     """Every `path:line` or `path:start-end` *evidence* cites, in order.
 
     The location filter reads the leading citation, but a verdict may lead
     with a command and cite the disputed line later in its prose, which is
-    the shape T-0913's row verdict had (S-0126/D-1). The path is left as
-    written; the carry normalises it the way `locate` resolves it."""
+    the shape T-0913's row verdict had (S-0126/D-1). The path is read the way
+    `locate` reads it: with *root*, the words before `_CITED`'s path are tried
+    as part of a path containing spaces, so `src/legacy module.py:12` is not
+    truncated to `module.py:12` and left under the ordinary rules."""
 
-    return [
-        (
-            match.group("path"),
-            int(match.group("start")),
-            int(match.group("end") or match.group("start")),
-        )
-        for match in _CITED.finditer(evidence)
-    ]
+    found: list[tuple[str, int, int]] = []
+
+    for match in _CITED.finditer(evidence):
+        path = match.group("path")
+        start = int(match.group("start"))
+        end = int(match.group("end") or match.group("start"))
+
+        if root is not None:
+            path = _extend_path(evidence, match.start("path"), path, start, end, root)
+
+        found.append((path, start, end))
+
+    return found
 
 
 def _citation_locates(path: str, start: int, end: int, root: Path) -> bool:
-    """Whether one citation is a line or range `locate` accepts under *root*."""
+    """Whether one citation is a line or range `locate` accepts under *root*.
+
+    The whole *path* must be read: `locate` splits a span at ` — ` or ` - ` and
+    would accept a prefix, which is not the path the evidence cited."""
 
     span = f"{path}:{start}" if end == start else f"{path}:{start}-{end}"
 
+    if span.startswith("`") or span.split(" — ")[0].split(" - ")[0].strip() != span:
+        return False
+
     return locate(span, root) is None
+
+
+def _extend_path(evidence: str, beginning: int, path: str, start: int, end: int, root: Path) -> str:
+    """*path* with the space-separated words before it that make the citation
+    resolve under *root*: `locate`'s `CITATION` accepts a path containing
+    spaces, which `_CITED` finds only from its last word (S-0126/D-1).
+
+    The longest run that locates wins, so prose before the path is not
+    swallowed: only words whose addition makes an existing file are kept."""
+
+    prefix = evidence[evidence.rfind("\n", 0, beginning) + 1 : beginning]
+    words = prefix.split()
+
+    for index in range(len(words)):
+        candidate = " ".join([*words[index:], path])
+
+        if _citation_locates(candidate, start, end, root):
+            return candidate
+
+    return path
 
 
 def _near_rejected(evidence: str, rejected: Iterable[tuple[str, int, int]], root: Path) -> bool:
@@ -374,7 +407,7 @@ def _near_rejected(evidence: str, rejected: Iterable[tuple[str, int, int]], root
     citation is not carried this way either, because nothing ties it to the
     claim."""
 
-    cited = _citations(evidence)
+    cited = _citations(evidence, root)
 
     if not cited:
         return False
@@ -447,7 +480,7 @@ def rejected_spots(task: Task, worktree: Path, attempt: int) -> list[tuple[str, 
                     )
                 )
 
-        for path, start, end in _citations(str(rejection.get("evidence", ""))):
+        for path, start, end in _citations(str(rejection.get("evidence", "")), worktree):
             if _citation_locates(path, start, end, worktree):
                 add((posixpath.normpath(path), start, end))
 

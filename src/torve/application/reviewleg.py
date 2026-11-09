@@ -2064,7 +2064,9 @@ def _latest_attempt(entries: Sequence[Any]) -> int:
         try:
             attempts.append(int(entry["attempt"]))
 
-        except (TypeError, ValueError):
+        # `.inf` is a float YAML accepts and `int` refuses with OverflowError:
+        # a hand-edited log must still answer, not raise (S-0126/D-3).
+        except (TypeError, ValueError, OverflowError):
             continue
 
     return max(attempts) if attempts else 1

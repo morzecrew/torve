@@ -143,7 +143,8 @@ def rejections(entries: Sequence[Any], attempt: int) -> list[dict[str, Any]]:
             # A persisted value that is not an attempt cannot pin a rejection
             # to one; it answers every attempt like an entry written before
             # the pin, so a legacy log is never reported as fixed (S-0126/D-3).
-            except (TypeError, ValueError):
+            # `.inf` is the one YAML scalar `int` refuses with OverflowError.
+            except (TypeError, ValueError, OverflowError):
                 recorded = None
 
         if recorded is not None and recorded != attempt:

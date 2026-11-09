@@ -425,6 +425,33 @@ def test_rejected_claim_the_t0913_row_verdict_is_carried(tmp_path):
     assert decision.rows[0]["rejected"] is True
 
 
+def test_rejected_claim_a_path_with_spaces_is_read_whole(tmp_path):
+    """S-0126/D-1: `locate` accepts a path containing spaces, so
+    `src/legacy module.py:12` is one citation and not the truncated
+    `module.py:12`; a finding disputing a rejected claim is carried."""
+
+    _files(tmp_path, **{"src/legacy module.py": 60})
+    task = _round_task(("src/legacy module.py", 8, None))
+    _write_log(
+        tmp_path,
+        task,
+        _rejection(
+            "legacy module.py:8 is not a defect",
+            "src/legacy module.py:8 — the caller checks it",
+        ),
+    )
+    document = CriticDocument.model_validate(
+        {"rows": [], "findings": [finding("blocker", "src/legacy module.py:9 — disputed")]}
+    )
+
+    spots = rejected_spots(task, tmp_path, 1)
+    decision = decide(document, {}, tmp_path, "blocker", rejected=spots)
+
+    assert spots == [("src/legacy module.py", 8, 8)]
+    assert decision.blocked is False
+    assert [one.id for one in decision.rejected] == ["F1"]
+
+
 def test_rejected_claim_a_citation_outside_every_span_blocks(tmp_path):
     """S-0126/D-1: the finding's citation must lie within `threads.WINDOW`
     lines of a rejected span in the same file."""
