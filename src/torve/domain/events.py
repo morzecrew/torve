@@ -686,6 +686,8 @@ class NightClosed(BaseModel):
 
     # `passes`: a `--passes` bound ran out before any of the night's own terms.
     # `engine_moved`: a chained night's base moved the engine (S-0120/D-2).
+    # `abandoned`: its process stopped before the close, and the worker's next
+    # open closed it.
     reason: Literal[
         "drained",
         "budget_usd",
@@ -694,8 +696,10 @@ class NightClosed(BaseModel):
         "escalation",
         "passes",
         "engine_moved",
+        "abandoned",
     ]
-    # The escalation class that stopped the night, for `escalation`.
+    # The escalation class that stopped the night, for `escalation`; what
+    # closed it, for `abandoned`.
     detail: str = ""
     # What the night did and how late it closed (S-0079/D-12): the attempts it
     # handled, and the seconds past its wall-clock end the close landed — the

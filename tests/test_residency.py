@@ -34,6 +34,7 @@ from torve.application.residency import (
     serve,
 )
 from torve.application.worker import Outcome, Worker
+from torve.base.clock import parse
 from torve.config.runconfig import NightConfig, PromotionConfig, RunnerConfig
 from torve.domain.events import ActorKind, EventKind, SubjectType
 from torve.domain.states import TaskState
@@ -1998,6 +1999,46 @@ def test_the_open_releases_the_workers_own_claims_and_says_why(tmp_path):
             one for one in await log.history("T-0001") if one.kind is EventKind.TASK_RELEASED
         ]
         assert "worker-1" in recorded[0].payload["reason"]
+
+    run(scenario)
+
+
+def test_the_open_closes_a_night_its_own_earlier_process_left_open(tmp_path):
+    """A night opened under the worker's own name and never closed belongs to
+    an earlier process, stopped before its close (20261108T075953Z): the next
+    open closes it `abandoned`, and leaves another worker's night open."""
+
+    contract(tmp_path, "T-0001")
+
+    async def scenario(log):
+        await mint(log, contracts(tmp_path), partition=PARTITION, actor_id="manager-1")
+        stale = await open_night(
+            log,
+            PARTITION,
+            config=NightConfig(),
+            actor_id="worker-1",
+            now=parse("2026-11-08T08:00:00Z"),
+        )
+        other = await open_night(
+            log,
+            PARTITION,
+            config=NightConfig(),
+            actor_id="worker-2",
+            now=parse("2026-11-08T08:01:00Z"),
+        )
+
+        await open_night(log, PARTITION, config=NightConfig(), actor_id="worker-1")
+
+        closes = [
+            one
+            for one in await log.since(partition=PARTITION)
+            if one.kind is EventKind.NIGHT_CLOSED
+        ]
+
+        assert [(one.subject_id, one.payload["reason"]) for one in closes] == [
+            (stale.night_id, "abandoned")
+        ]
+        assert other.night_id not in {one.subject_id for one in closes}
 
     run(scenario)
 
