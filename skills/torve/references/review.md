@@ -37,17 +37,23 @@ GitHub's API sometimes fails with a TLS or EOF error. Retry it.
 
 ## A round that rejects a claim
 
-A review round may reject a bot's claim instead of fixing it, with a reason
-recorded as an `unlisted` divergence entry of `kind: contradicted`. The critic
-never reads that entry. Its findings within ten lines of the rejected spot are
-recorded with `rejected: true` and do not block the round. Each attempt
-records again what it still rejects: only an attempt's own entries say what
-that attempt rejects, so a revision that leaves one out is judged as if it
-had accepted the claim. When the
-round lands, the bot's thread gets `Not applied — <reason>` and is resolved.
-You see the claim again only if the bot raises it again, as an escalation. To
-check a reply against what the round did, read its landing record under
-`.torve/specs/S-NNNN/execution/`.
+A review round may reject a bot's claim instead of fixing it. It records an
+`unlisted` divergence entry of `kind: contradicted`, whose claim and evidence
+say why. The critic never reads that entry. A critic finding does not block
+the round when every `path:line` it cites locates in the worktree and lies
+within ten lines of a rejected spot; it is recorded with `rejected: true`. A
+finding that also cites a line outside those windows still blocks.
+
+Each attempt records again what it still rejects. An entry pinned to an
+earlier attempt rejects nothing in a revision; only an entry with no usable
+`attempt` counts for every attempt.
+
+When the round lands, the bot's thread gets `Not applied — <claim>` with the
+entry's evidence, and is resolved. A later pass leaves alone a thread that
+already carries the engine's reply, so if one is still open, resolve it by
+hand. You see the claim again only if the bot raises it again, as an
+escalation. To check a reply against what the round did, read its landing
+record under `.torve/specs/S-NNNN/execution/`.
 
 ## Threads that arrive after the night
 
