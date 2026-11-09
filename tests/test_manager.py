@@ -2537,6 +2537,103 @@ def test_a_checkout_the_fast_forward_did_not_move_reports_no_engine_moved(tmp_pa
     ] == []
 
 
+def test_a_checkout_pulled_by_hand_past_the_engine_still_reports_engine_moved(tmp_path):
+    """A person's pull moves the checkout before the sweep does, so the sweep
+    has nothing to fast-forward. The move is read from the commit the engine
+    started on, and the chain still ends for the launcher (2026-11-09: a hand
+    pull of #308 kept the old engine serving for three hours)."""
+
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _chain_document(repo.root / ".torve" / "specs", "0100", "Accepted")
+    _publish(repo)
+    before = _head(repo.root)
+    after = _push_change(tmp_path, "src/torve/engine.py", "moved = True\n", "engine moved")
+    repo.git("pull", "-q", "--ff-only")
+    config = RunnerConfig(night=NightConfig(engine_paths=["src/torve/**"]))
+
+    async def scenario(log):
+        moved = await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=config, worker="w-1", engine_at=before
+        )
+
+        assert moved == ["src/torve/engine.py"]
+
+    run(scenario)
+
+    (event,) = [row for row in _engine_rows(repo.root) if row.get("event") == "chain_engine_moved"]
+    assert (event["from"], event["to"]) == (before, after)
+
+
+def test_a_chain_reads_the_engine_move_from_the_commit_it_started_on(tmp_path, monkeypatch):
+    """The commit the chain hands every sweep is the checkout's HEAD when the
+    process started, which is the tree the launcher installed the engine from.
+    It is read before any startup work, so a commit that lands during that
+    work is not taken for the engine's tree."""
+
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _publish(repo)
+    started = _head(repo.root)
+    config = RunnerConfig(night=NightConfig(engine_paths=["src/torve/**"]))
+
+    def load_config(root, path):
+        # The first startup step: the checkout moves while it runs.
+        repo.git("commit", "-q", "--no-gpg-sign", "--allow-empty", "-m", "during startup")
+
+        return config
+
+    monkeypatch.setattr(manager_cli, "load_config", load_config)
+    handed: list[str | None] = []
+
+    async def fake_sync(*args, engine_at=None, **kwargs):
+        handed.append(engine_at)
+
+        return ["src/torve/engine.py"]
+
+    monkeypatch.setattr(manager_cli, "_sync_and_plan", fake_sync)
+
+    assert _chain_serve(repo.root) == (0, "engine moved")
+    assert handed == [started]
+    assert _head(repo.root) != started
+
+
+def test_a_local_engine_commit_after_start_is_not_an_engine_move(tmp_path):
+    """A commit made on the checkout and never pushed moves HEAD past the
+    engine, but the base has not moved: the sweep leaves the checkout alone,
+    as it did before it read moves from the engine's commit."""
+
+    from torve.cli import manager as manager_cli
+    from torve.config.runconfig import NightConfig, RunnerConfig
+
+    repo = _planning_repo(tmp_path)
+    _publish(repo)
+    before = _head(repo.root)
+    (repo.root / "src" / "torve").mkdir(parents=True, exist_ok=True)
+    (repo.root / "src" / "torve" / "engine.py").write_text("local = True\n", encoding="utf-8")
+    repo.git("add", "-A")
+    repo.git("commit", "-q", "--no-gpg-sign", "-m", "a local engine edit")
+    config = RunnerConfig(night=NightConfig(engine_paths=["src/torve/**"]))
+
+    async def scenario(log):
+        moved = await manager_cli._sync_and_plan(
+            repo.root, log, PARTITION, config=config, worker="w-1", engine_at=before
+        )
+
+        assert moved == []
+
+    run(scenario)
+
+    rows = _engine_rows(repo.root)
+    assert [row for row in rows if row.get("event") == "chain_engine_moved"] == []
+    (refused,) = [row for row in rows if row.get("event") == "plan_refused"]
+    assert "not at origin/main" in refused["error"]
+
+
 def test_a_chain_ends_with_the_reason_engine_moved_after_recording_the_event(tmp_path, monkeypatch):
     """S-0120/D-2, D-4: the chain's own sweep is where the move is seen. The
     chain opens no night after it, returns the reason, and the event is on the

@@ -836,6 +836,7 @@ async def _sync_and_plan(
     config: RunnerConfig,
     worker: str,
     plan: bool = True,
+    engine_at: str | None = None,
 ) -> list[str]:
     """S-0117/D-5: between nights, bring the checkout to the remote's base and
     mint every accepted, unimplemented document the record has not planned
@@ -853,8 +854,11 @@ async def _sync_and_plan(
 
     Returns the matched engine paths when the fast-forward moved the checkout
     across a change to one of them (S-0120/D-2): the engine this process runs
-    is now older than its base, so nothing is planned and the chain ends. The
-    empty list is every other outcome, including a checkout it did not move."""
+    is now older than its base, so nothing is planned and the chain ends. With
+    *engine_at*, the commit the process started on, the move is read from
+    there, so a checkout someone else already moved past the engine still
+    reports it. The empty list is every other outcome, including a checkout
+    nobody moved."""
 
     from torve.adapters.vcs.git import GitLane
     from torve.application.manager import project
@@ -932,28 +936,34 @@ async def _sync_and_plan(
             left_alone(f"the checkout does not fast-forward to origin/{branch}")
             return []
 
-        after = lane.tip(root, "HEAD")
-        moved = _engine_paths_moved(root, head, after, config.night.engine_paths)
+    after = lane.tip(root, "HEAD")
 
-        if moved:
-            # S-0120/D-2: planning is engine code too, so nothing is planned
-            # against an engine the base has moved past. The event says which
-            # commits and which of its own files the launcher has to install.
-            engine_event(
-                root,
-                "chain_engine_moved",
-                {
-                    "from": head,
-                    "to": after,
-                    "paths": moved[:10],
-                    "count": len(moved),
-                },
-            )
-            return moved
-
-    if lane.tip(root, "HEAD") != remote:
+    if after != remote:
+        # A local commit the base does not carry is not the base moving.
         left_alone(f"the checkout is not at origin/{branch} after the fast-forward")
         return []
+
+    # The engine runs the tree it started on, and a person's pull may already
+    # have moved the checkout past it, leaving this sweep nothing to move
+    # (2026-11-09: a hand pull of #308 kept the old engine serving 3h).
+    before = engine_at or head
+    moved = _engine_paths_moved(root, before, after, config.night.engine_paths)
+
+    if moved:
+        # S-0120/D-2: planning is engine code too, so nothing is planned
+        # against an engine the base has moved past. The event says which
+        # commits and which of its own files the launcher has to install.
+        engine_event(
+            root,
+            "chain_engine_moved",
+            {
+                "from": before,
+                "to": after,
+                "paths": moved[:10],
+                "count": len(moved),
+            },
+        )
+        return moved
 
     if not plan:
         return []
@@ -1032,6 +1042,7 @@ async def _serve(
     chain: bool = False,
     slot: int | None = None,
 ) -> tuple[int, str]:
+    from torve.adapters.vcs.git import GitLane
     from torve.application.eventlog import event_log
     from torve.application.executors import runner_execute
     from torve.application.manager import escalated_tasks, project
@@ -1052,6 +1063,10 @@ async def _serve(
     from torve.cli import assembly
     from torve.domain.events import SubjectType
 
+    # The launcher installs the engine from this checkout just before the
+    # process starts, so its HEAD now, before any other work, is the tree the
+    # engine was built from.
+    engine_at = GitLane().tip(root, "HEAD") if chain else None
     config = load_config(root, config_path)
 
     if slot is not None:
@@ -1289,7 +1304,13 @@ async def _serve(
                     and planning
                     and not moved
                     and await _sync_and_plan(
-                        root, log, partition, config=config, worker=worker, plan=False
+                        root,
+                        log,
+                        partition,
+                        config=config,
+                        worker=worker,
+                        plan=False,
+                        engine_at=engine_at,
                     )
                 ):
                     moved.append(NIGHT_ENGINE_MOVED)
@@ -1421,7 +1442,13 @@ async def _serve(
             # the fix a paused queue waits on is often that move.
             if planning:
                 moved = await _sync_and_plan(
-                    root, log, partition, config=config, worker=worker, plan=not await paused()
+                    root,
+                    log,
+                    partition,
+                    config=config,
+                    worker=worker,
+                    plan=not await paused(),
+                    engine_at=engine_at,
                 )
 
                 if moved:
