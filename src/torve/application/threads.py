@@ -16,7 +16,7 @@ span it covers beside the threads it carries says which way it went.
 from __future__ import annotations
 
 import re
-from collections.abc import Collection, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -162,11 +162,11 @@ def rejections(entries: Sequence[Any], attempt: int) -> list[dict[str, Any]]:
     return kept
 
 
-def names_spot(claim: str, spot: tuple[Any, Any], spots: Collection[tuple[Any, Any]]) -> bool:
+def names_spot(claim: str, spot: tuple[Any, Any]) -> bool:
     """Whether *claim* names the finding at *spot* (S-0126/D-3): by its full
-    `path:line`, or by the file's own name and the line only when no other
-    spot in *spots* shares both. A basename two files of one round share
-    names neither, because no reply can tell which thread it answers."""
+    `path:line`, or by the file's own name and the line. A basename two files
+    of one round share names both, so the rejection answers those two threads
+    and not every thread of the round (S-0126/A-1)."""
 
     path, line = spot
 
@@ -177,16 +177,6 @@ def names_spot(claim: str, spot: tuple[Any, Any], spots: Collection[tuple[Any, A
         return True
 
     name = Path(str(path)).name
-    shared = any(
-        (other_path, other_line) != (path, line)
-        and Path(str(other_path)).name == name
-        and other_line == line
-        for other_path, other_line in spots
-    )
-
-    if shared:
-        return False
-
     return bool(re.search(rf"(?<![\w/.-]){re.escape(name)}:{line}(?!\d)", claim))
 
 

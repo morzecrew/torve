@@ -49,15 +49,15 @@ decisions:
       attempt)` keeps the `unlisted` entries with `kind: contradicted` that one attempt
       recorded, counting an entry with no `attempt` for every attempt and identical
       entries once, and `threads.names_spot` matches a claim to a round finding by
-      its full `path:line`, or by the file's name and line only when no other finding
-      of the round shares both; `reply_body` reads the landing's execution record
+      its full `path:line`, or by the file's name and line, which names every finding
+      of the round that shares both; `reply_body` reads the landing's execution record
       before the root log and keeps the landed attempt's rejections, and the round's
       instructions ask each attempt to record again every claim it still rejects
     paths: [src/torve/application/threads.py, src/torve/application/reviewleg.py]
     consequence: >-
       a thread reads "Not applied" exactly when the carry treated its claim as rejected,
       a rejection is posted once, and a basename shared by two files in one round
-      matches neither
+      matches both, so the round's other threads still read "Fixed in"
     rationale: >-
       the reply read every attempt's entries from the root log first, while the carry
       reads the attempt under review from the worktree, so the two could disagree;
@@ -66,3 +66,4 @@ decisions:
     check: >-
       uv run pytest -q tests/test_threads.py tests/test_reviewleg.py -k "rejections
       or names_spot"
+    fingerprint: 4c9e230fd68b2b49/996ef338e74dd1b8

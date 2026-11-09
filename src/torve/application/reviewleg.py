@@ -2135,7 +2135,7 @@ def reply_body(
     reasons = []
 
     for claim, reason in _rejections(root, landed, task_id):
-        named = [one for one in spots if names_spot(claim, one, spots)]
+        named = [one for one in spots if names_spot(claim, one)]
 
         if spot is None or not named or spot in named:
             reasons.append(reason)

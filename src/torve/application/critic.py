@@ -456,7 +456,6 @@ def rejected_spots(task: Task, worktree: Path, attempt: int) -> list[tuple[str, 
 
     entries = open_log(worktree, task.id).get("entries") or []
     findings = round_.findings
-    spots = [(finding.path, finding.line) for finding in findings]
     spans: list[tuple[str, int, int]] = []
     seen: set[tuple[str, int, int]] = set()
 
@@ -470,7 +469,7 @@ def rejected_spots(task: Task, worktree: Path, attempt: int) -> list[tuple[str, 
         named = [
             finding
             for finding in findings
-            if threads.names_spot(claim, (finding.path, finding.line), spots)
+            if threads.names_spot(claim, (finding.path, finding.line))
         ]
 
         if not named and len(findings) == 1:
