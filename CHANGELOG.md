@@ -123,6 +123,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own: "Fixed in" on the fixed ones and the rejection on the rejected one. Every thread of the
   round used to receive the rejection.
 
+- A chained night now ends for its launcher to reinstall even when a person pulled the
+  checkout past the engine first. The pull used to hide the move, and the old engine kept
+  serving.
+
+- A document pull request merged during a lane pass is no longer escalated as
+  `merge_conflict`. The pass used to rebase the merged branch onto its own squash.
+
 ## [0.9.1] - 2026-11-06
 
 ### Changed
