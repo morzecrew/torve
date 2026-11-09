@@ -1,0 +1,152 @@
+# yaml-language-server: $schema=../../../schemas/landing.json
+task: T-0932
+attempt: 2
+base: 8cf75e8431454ca59a9f7d3ae61ba37aaec6ac22
+commit: d46b80c200cd9f4b2ec54012a4a71874cbbf94ed
+at: '2026-11-09T01:51:44Z'
+agent: subscription/claude-opus-5-5@claude-opus-5-5
+decisions:
+  - id: D-1
+    grade: ASSUMED
+  - id: D-2
+    grade: ASSUMED
+  - id: D-3
+    grade: ASSUMED
+  - id: S-0121/D-1
+    grade: LOCKED
+  - id: S-0121/D-2
+    grade: LOCKED
+  - id: S-0121/D-3
+    grade: LOCKED
+  - id: S-0121/D-12
+    grade: LOCKED
+  - id: S-0121/D-18
+    grade: ASSUMED
+  - id: S-0121/D-20
+    grade: LOCKED
+  - id: S-0121/D-29
+    grade: LOCKED
+  - id: S-0121/D-34
+    grade: LOCKED
+  - id: S-0121/D-39
+    grade: ASSUMED
+  - id: S-0122/D-1
+    grade: LOCKED
+  - id: S-0122/D-2
+    grade: LOCKED
+  - id: S-0122/D-6
+    grade: ASSUMED
+  - id: S-0122/D-8
+    grade: ASSUMED
+  - id: S-0122/D-15
+    grade: ASSUMED
+  - id: S-0122/D-18
+    grade: ASSUMED
+  - id: S-0122/D-19
+    grade: ASSUMED
+  - id: S-0122/D-20
+    grade: ASSUMED
+  - id: S-0123/D-1
+    grade: ASSUMED
+  - id: S-0123/D-2
+    grade: ASSUMED
+  - id: S-0124/D-1
+    grade: ASSUMED
+  - id: S-0124/D-5
+    grade: ASSUMED
+  - id: S-0124/D-6
+    grade: ASSUMED
+  - id: S-0124/D-8
+    grade: ASSUMED
+  - id: S-0124/D-11
+    grade: ASSUMED
+  - id: S-0125/D-1
+    grade: ASSUMED
+  - id: S-0125/D-2
+    grade: ASSUMED
+  - id: S-0125/D-3
+    grade: ASSUMED
+  - id: S-0125/D-4
+    grade: ASSUMED
+  - id: S-0125/D-7
+    grade: ASSUMED
+  - id: S-0125/D-10
+    grade: ASSUMED
+entries:
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-09T01:26:49Z'
+    claim: >-
+      src/torve/application/critic.py:471 — the missing spans are not a defect but
+      S-0126/D-2's own rule. The carry takes a finding's span only when threads.names_spot
+      matches it in the claim, or the round's one finding when the claim names none,
+      plus every locating citation in the evidence. A multi-finding round whose rejection
+      names no spot therefore contributes no finding span, and tests/test_critic.py:305-323
+      pins that exact case. The reply answering every thread is the conservative half
+      of the pair (S-0097/D-5): it cannot say a thread was fixed when nothing says
+      which finding the rejection is about. Extending the carry to every finding would
+      clear an independent defect sitting at one of them, the S-0126/D-1 failure in
+      reverse, so S-0126/D-2 and D-3 would have to be amended to say so first.
+    evidence: >-
+      src/torve/application/AGENTS.md:490 — S-0126/D-2 gives the span of every finding
+      names_spot matches in the claim, or the round's one finding when the claim names
+      none, and tests/test_critic.py:305-323 pins a two-finding round whose unnamed
+      rejection contributes no finding span.
+    action: departed
+    proposal: >-
+      If an unnamed rejection in a multi-finding round should count for every finding,
+      S-0126/D-2 must say so and S-0126/D-3's consequence be reworded; until then
+      the carry keeps names_spot's attribution.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-09T01:38:41Z'
+    attempt: 2
+    claim: >-
+      src/torve/application/critic.py:471 — the one-finding fallback is S-0126/D-2's
+      own rule, not a defect. The carry takes a finding's span only when threads.names_spot
+      matches it in the claim, or the round's one finding when the round carries one
+      and the claim names none; a multi-finding round whose rejection names no spot
+      contributes no finding span, and tests/test_critic.py:305-323 pins that case.
+      The reply answering every thread on an unscoped rejection is the conservative
+      half: nothing says which finding the rejection is about. Widening the carry
+      to every finding would clear an independent defect at the other finding, so
+      S-0126/D-2 and D-3 would need amending first.
+    evidence: >-
+      src/torve/application/AGENTS.md:490 — S-0126/D-2 gives the span of every finding
+      names_spot matches, or of the round's one finding when the round carries one
+      and the claim names none; src/torve/application/critic.py:476 keeps exactly
+      that, and tests/test_critic.py:305-323 pins a two-finding round whose unnamed
+      rejection contributes no finding span.
+    action: departed
+    proposal: >-
+      If an unnamed rejection in a multi-finding round should count for every finding,
+      amend S-0126/D-2 to say so and reword S-0126/D-3's consequence; until then the
+      carry keeps names_spot's attribution.
+  - decision: unlisted
+    grade: UNLISTED
+    kind: contradicted
+    at: '2026-11-09T01:39:50Z'
+    attempt: 2
+    claim: >-
+      src/torve/application/critic.py:471 — the one-finding fallback is S-0126/D-2's
+      own rule, not a defect. The carry takes a finding's span only when threads.names_spot
+      matches it in the claim, or the round's one finding when the round carries one
+      and the claim names none; a multi-finding round whose rejection names no spot
+      contributes no finding span, and tests/test_critic.py:305-323 pins that case.
+      The reply answering every thread on an unscoped rejection is the conservative
+      half: nothing says which finding the rejection is about. Widening the carry
+      to every finding would clear an independent defect at the other finding, so
+      S-0126/D-2 and D-3 would need amending first.
+    evidence: >-
+      src/torve/application/AGENTS.md:490 — S-0126/D-2 gives the span of every finding
+      names_spot matches, or of the round's one finding when the round carries one
+      and the claim names none; src/torve/application/critic.py:476 keeps exactly
+      that, and tests/test_critic.py:305-323 pins a two-finding round whose unnamed
+      rejection contributes no finding span.
+    action: departed
+    proposal: >-
+      If an unnamed rejection in a multi-finding round should count for every finding,
+      amend S-0126/D-2 to say so and reword S-0126/D-3's consequence; until then the
+      carry keeps names_spot's attribution.
