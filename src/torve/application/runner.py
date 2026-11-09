@@ -1030,11 +1030,21 @@ def _decides_a_row(ctx: GateContext, attempt: int | None = None) -> bool:
     }
 
     if attempt is None:
-        recorded: list[int] = [
-            entry["attempt"]
-            for entry in entries
-            if isinstance(entry, dict) and isinstance(entry.get("attempt"), int)
-        ]
+        recorded: list[int] = []
+
+        for entry in entries:
+            if not isinstance(entry, dict) or entry.get("attempt") is None:
+                continue
+
+            # A persisted attempt may be a numeric string, a legacy or
+            # hand-edited value; it is read the way `threads.rejections` reads
+            # it, so the latest attempt it names is not silently attempt 1.
+            try:
+                recorded.append(int(entry["attempt"]))
+
+            except (TypeError, ValueError, OverflowError):
+                continue
+
         attempt = max(recorded) if recorded else 1
 
     def answers(entry: Any) -> bool:

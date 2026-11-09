@@ -452,6 +452,30 @@ def test_rejected_claim_a_path_with_spaces_is_read_whole(tmp_path):
     assert [one.id for one in decision.rejected] == ["F1"]
 
 
+def test_rejected_claim_a_path_with_the_citation_alphabet_is_read_whole(tmp_path):
+    """S-0126/D-1: `locate` accepts `src/a+b.py:12`, so the carry reads the
+    whole name and not the truncated `b.py:12`; a finding disputing the
+    rejected claim is carried, not left blocking."""
+
+    _files(tmp_path, **{"src/a+b.py": 60})
+    task = _round_task(("src/a+b.py", 12, None))
+    _write_log(
+        tmp_path,
+        task,
+        _rejection("src/a+b.py:12 is not a defect", "src/a+b.py:12 — the caller checks it"),
+    )
+    document = CriticDocument.model_validate(
+        {"rows": [], "findings": [finding("blocker", "src/a+b.py:12 — disputed")]}
+    )
+
+    spots = rejected_spots(task, tmp_path, 1)
+    decision = decide(document, {}, tmp_path, "blocker", rejected=spots)
+
+    assert spots == [("src/a+b.py", 12, 12)]
+    assert decision.blocked is False
+    assert [one.id for one in decision.rejected] == ["F1"]
+
+
 def test_rejected_claim_a_citation_outside_every_span_blocks(tmp_path):
     """S-0126/D-1: the finding's citation must lie within `threads.WINDOW`
     lines of a rejected span in the same file."""
@@ -603,6 +627,31 @@ def test_rejected_claim_carries_exactly_the_findings_within_the_window(
     expected = all(spot - threads.WINDOW <= line <= spot + width + threads.WINDOW for line in cited)
     assert (decision.rejected != []) is expected
     assert decision.blocked is not expected
+
+
+def test_a_rejected_row_verdict_never_erases_an_independent_violation(tmp_path):
+    """S-0122/D-1, S-0126/D-1: a row the critic answers twice keeps a located
+    `violated` that stands on its own beside one disputing a rejected claim,
+    so the independent violation still blocks."""
+
+    _files(tmp_path, **{"src/app.py": 60})
+    rows = [
+        {"row": OWNED, "verdict": "violated", "evidence": "src/app.py:60 — an independent defect"},
+        {"row": OWNED, "verdict": "violated", "evidence": "src/app.py:14 — the rejected claim"},
+    ]
+    document = CriticDocument.model_validate({"rows": rows, "findings": []})
+
+    decision = decide(
+        document,
+        {OWNED: True},
+        tmp_path,
+        "blocker",
+        rejected=[("src/app.py", 12, 14)],
+    )
+
+    assert decision.blocked is True
+    assert [one.evidence for one in decision.violated] == ["src/app.py:60 — an independent defect"]
+    assert "rejected" not in decision.rows[0]
 
 
 # ....................... #

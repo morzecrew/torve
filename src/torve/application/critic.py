@@ -118,8 +118,14 @@ BASE_TIMEOUT = 120.0
 
 #: A retained `path:line` or `path:start-end` citation anywhere in evidence,
 #: not only the leading one: a verdict may lead with a command and cite the
-#: disputed line later in its prose (S-0126/D-1).
-_CITED = re.compile(r"(?<![\w./-])(?P<path>[\w./-]+):(?P<start>\d+)(?:-(?P<end>\d+))?(?!\d)")
+#: disputed line later in its prose (S-0126/D-1). The path is read the way
+#: `locate` reads it — every character but whitespace or the citing colon —
+#: so a supported name like `src/a+b.py` is not cut to `b.py`; the first
+#: character stays word-shaped, so punctuation before a citation in prose is
+#: not swallowed into the path.
+_CITED = re.compile(
+    r"(?<![\w./+-])(?P<path>[\w./+-][^\s:]*):(?P<start>\d+)(?:-(?P<end>\d+))?(?!\d)"
+)
 
 
 # ....................... #
@@ -558,12 +564,17 @@ def decide(
             else:
                 carried.append(finding)
 
-    def weight(verdict: RowVerdict) -> tuple[bool, bool]:
+    def weight(verdict: RowVerdict) -> tuple[bool, bool, bool]:
         located = bool(verdict.evidence) and locate(verdict.evidence, root) is None
-        return verdict.verdict == "violated", located
+        # S-0126/D-1: a verdict disputing a rejected claim must not outrank an
+        # independent one for the same row, or the reduction hides the defect
+        # that still blocks.
+        rejected = bool(spots) and located and _near_rejected(verdict.evidence, spots, root)
+        return verdict.verdict == "violated", located, not rejected
 
     # A row answered twice keeps its gravest verdict: a later `holds` never
-    # erases a located `violated`.
+    # erases a located `violated`, and a rejected `violated` never erases an
+    # independent one.
     answered = {verdict.row: verdict for verdict in sorted(document.rows, key=weight)}
     violated: list[RowVerdict] = []
     recorded: list[dict[str, Any]] = []

@@ -2031,6 +2031,13 @@ def _landing_record(
             check=False,
         )
 
+        # The listing names a path for every commit that touched it, and a
+        # descendant that deleted the record names it too; a failed `show` is
+        # no record at all, so the landing's own copy is still ahead
+        # (S-0126/D-3).
+        if shown.returncode != 0:
+            continue
+
         try:
             record = yaml.safe_load(shown.stdout)
         except yaml.YAMLError:

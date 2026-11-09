@@ -1910,6 +1910,37 @@ def test_rejections_find_the_landing_record_written_after_the_work_commit(seeded
     assert "Fixed in" not in body
 
 
+def test_a_descendant_that_deletes_the_landing_record_keeps_its_rejections(seeded):
+    """S-0126/D-3: the history listing names a record a later commit deleted;
+    the failed `git show` is skipped, so the landing's own record still
+    answers and the reply never says "Fixed in" for a rejected claim."""
+
+    task_id = "T-0903"
+    seeded.write("src/app.py", "print('changed')\n")
+    seeded.commit("the work")
+    work = head(seeded.root)
+    record = f".torve/specs/S-0084/execution/{task_id}-1-20260919T000000Z.yaml"
+    seeded.write(
+        record,
+        f"task: {task_id}\n"
+        "at: '2026-09-19T00:00:00Z'\n"
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    kind: contradicted\n"
+        "    attempt: 1\n"
+        "    claim: the landed rejection\n"
+        "    evidence: src/app.py:12 — the caller checks it\n",
+    )
+    seeded.commit(f"torve({task_id}): landing of attempt 1")
+    (seeded.root / record).unlink()
+    seeded.commit("a descendant deletes the record")
+
+    body = reply_body(seeded.root, landing((task_id, work)), task_id)
+
+    assert "Not applied — the landed rejection" in body
+    assert "Fixed in" not in body
+
+
 def test_a_persisted_non_attempt_does_not_stop_the_reply(seeded):
     """S-0126/D-3: a legacy or hand-edited `attempt` is read like an entry
     written before the pin, so the reply is composed rather than raising and

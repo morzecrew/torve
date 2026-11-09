@@ -778,6 +778,40 @@ def test_the_empty_implement_diff_predicate(tmp_path):
     assert not _is_empty_implement_diff(ctx(task=sequenced), adopted)
 
 
+def test_the_decides_a_row_fallback_reads_a_numeric_attempt(tmp_path):
+    """S-0126/D-3, S-0084/D-13: with no attempt named, a persisted numeric
+    string is the attempt it records, read the way `threads.rejections` reads
+    it, so a rejection-only diff is not refused as empty."""
+
+    from torve.config.manifest import Manifest
+    from torve.gates.context import DiffEntry, GateContext
+
+    ctx = GateContext(
+        root=tmp_path,
+        manifest=Manifest(),
+        head_sha="head",
+        base="main",
+        merge_base="main-tip",
+        diff=[DiffEntry(status="A", path=".torve/tasks/T-9001/log.yaml")],
+        task=Task(id="T-9001", role="implement", decisions=[]),
+        log_text=yaml.safe_dump(
+            {
+                "entries": [
+                    {
+                        "decision": "unlisted",
+                        "kind": "contradicted",
+                        "attempt": "2",
+                        "claim": "the claim is not a defect",
+                        "evidence": "src/app.py:10 — the guard checks it",
+                    }
+                ]
+            }
+        ),
+    )
+
+    assert run_module._decides_a_row(ctx)
+
+
 def _gate_dispatch(
     *,
     root=None,
