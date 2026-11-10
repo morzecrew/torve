@@ -68,14 +68,17 @@ def trial(set_dir: Path, out: Path, task: str, arm: str, spec: dict, number: int
     shutil.rmtree(tree, ignore_errors=True)
     tree.parent.mkdir(parents=True, exist_ok=True)
 
-    subprocess.run(
-        ["git", "clone", "-q", "--no-checkout", str(meta["repo"]), str(tree)], check=True
-    )
-    git(tree, "checkout", "-q", "-B", meta.get("branch", "main"), meta["base"])
-    git(tree, "remote", "remove", "origin")
+    # Only the base's history: a clone would carry the tags and every later
+    # commit, and a tag past the base holds the very change the arm is asked for.
+    tree.mkdir()
+    git(tree, "init", "-q")
+    git(tree, "fetch", "-q", "--no-tags", str(meta["repo"]), meta["base"])
+    git(tree, "checkout", "-q", "-B", meta.get("branch", "main"), "FETCH_HEAD")
 
     env = {name: os.environ[name] for name in ("PATH", "HOME", "LANG") if name in os.environ}
-    env |= {name: os.environ.get(name, "") for name in spec.get("env", [])}
+    # Only what the host sets: an empty `no_proxy` is not an unset one, and
+    # Python lets it override the host's `NO_PROXY`.
+    env |= {name: os.environ[name] for name in spec.get("env", []) if name in os.environ}
     env |= {
         "MEASURE_TASK": task,
         "MEASURE_ARM": arm,
@@ -251,6 +254,10 @@ def selfcheck() -> None:
         git(repo, "add", "-A")
         git(repo, "-c", "user.name=m", "-c", "user.email=m@m", "commit", "-qm", "base")
         base = git(repo, "rev-parse", "HEAD").strip()
+        (repo / "app.py").write_text("x = 2\n")
+        git(repo, "-c", "user.name=m", "-c", "user.email=m@m", "commit", "-qam", "the answer")
+        git(repo, "tag", "v1")
+        later = git(repo, "rev-parse", "HEAD").strip()
 
         task = set_dir / "tasks" / "t1"
         (task / "check").mkdir(parents=True)
@@ -264,7 +271,12 @@ def selfcheck() -> None:
                 {
                     "arms": {
                         # The check is not there to read while the arm runs.
-                        "right": {"run": "test ! -e check_app.py && echo 'x = 2' > app.py"},
+                        # A variable the host does not set reaches no arm, not even empty.
+                        "right": {
+                            "run": 'test ! -e check_app.py && test -z "${MEASURE_UNSET+x}"'
+                            " && echo 'x = 2' > app.py",
+                            "env": ["MEASURE_UNSET"],
+                        },
                         "wrong": {"run": "echo '{\"cost_usd\": 0.25}'"},
                     }
                 }
@@ -277,6 +289,9 @@ def selfcheck() -> None:
         assert all(r["passed"] == (r["arm"] == "right") for r in rows), rows
         assert {r["cost_usd"] for r in rows if r["arm"] == "wrong"} == {0.25}
         assert git(repo, "status", "--porcelain") == ""
+        tree = out / "trees" / "t1.right.1"
+        assert git(tree, "tag") == "" and git(tree, "rev-list", "--all").split() == [base]
+        assert subprocess.run(["git", "-C", str(tree), "cat-file", "-e", later]).returncode != 0
 
         pairs(out, 0)
         key = json.loads((out / "pairs" / "key.json").read_text())

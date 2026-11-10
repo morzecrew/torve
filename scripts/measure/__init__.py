@@ -13,8 +13,9 @@ The task set is private and lives outside the repository:
     <set>/tasks/<name>/prompt.md     what a bare arm is asked
     <set>/tasks/<name>/check/        copied into the tree after the arm, never before
 
-An arm is a shell command run in a fresh clone at the task's base, with the
-clone's `origin` removed so nothing it does reaches the source repository:
+An arm is a shell command run in a fresh repository holding only the base's
+history, with no remote and no tags, so nothing it does reaches the source
+repository and no later commit shows it the answer:
 
     arms:
       opus-bare:
