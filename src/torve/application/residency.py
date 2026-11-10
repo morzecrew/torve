@@ -992,7 +992,28 @@ async def open_night(
 
     opened_at = now or datetime.now(UTC)
     window = lease if lease is not None else timedelta(seconds=LEASE_SECONDS)
-    board = project(await log.since(partition=partition))
+    records = await log.since(partition=partition)
+    board = project(records)
+
+    # A night opened under this worker's name and never closed was an earlier
+    # process's, as S-0089/D-3 reads a claim below: stopped or killed before its
+    # close (20261108T075953Z), and its window would otherwise never end.
+    closed = {one.subject_id for one in records if one.kind is NIGHT_CLOSED}
+
+    for one in records:
+        if one.kind is NIGHT_OPENED and one.actor_id == actor_id and one.subject_id not in closed:
+            await log.record(
+                NIGHT_CLOSED,
+                partition=partition,
+                subject_type=NIGHT_SUBJECT,
+                subject_id=one.subject_id,
+                actor_kind=ActorKind.MANAGER,
+                actor_id=actor_id,
+                payload={
+                    "reason": "abandoned",
+                    "detail": f"its process stopped before the close; {actor_id} opened again",
+                },
+            )
 
     # S-0089/D-3: a claim held under this worker's own name was taken by an
     # earlier process of the same worker, which is gone — nothing else answers

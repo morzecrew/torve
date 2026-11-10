@@ -17,6 +17,7 @@ import subprocess
 import time
 from collections.abc import Callable
 from datetime import datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, cast
 
@@ -646,6 +647,37 @@ TRANSIENT = (
     "503",
 )
 
+# The marks among those of a failure before the request left the host. Only
+# these retry a write: after a timeout, a reset or a 502 the forge may already
+# have taken it, and a reply or a comment taken twice is posted twice.
+UNSENT = (
+    "tls handshake",
+    "connection refused",
+    "temporary failure",
+    "no such host",
+    "network is unreachable",
+)
+
+
+def _retried(error: str, writes: bool) -> bool:
+    return any(mark in error.lower() for mark in (UNSENT if writes else TRANSIENT))
+
+
+def _api_writes(args: tuple[str, ...]) -> bool:
+    """Whether a `gh api` call writes: a GraphQL `mutation`, or a REST call gh
+    sends as other than GET, which an explicit method or any field makes it."""
+
+    if args and args[0] == "graphql":
+        return any(
+            arg.startswith("query=") and arg[6:].lstrip().startswith("mutation") for arg in args
+        )
+
+    for flag, value in pairwise(args):
+        if flag in ("-X", "--method"):
+            return value.upper() != "GET"
+
+    return any(arg in ("-f", "-F", "--field", "--raw-field", "--input") for arg in args)
+
 
 # ....................... #
 
@@ -838,9 +870,10 @@ class GhScm:
 
             error = proc.stderr.strip() or f"gh {args[0]} failed"
 
-            # One retry for a transient transport failure (T-0058): every
-            # destination write is idempotent, so at-least-once is safe.
-            if attempt == 1 and any(mark in error.lower() for mark in TRANSIENT):
+            # One retry for a transient transport failure (T-0058). A write
+            # retries only a failure that never reached the forge: a comment's
+            # marker is read before the call, not between its two tries.
+            if attempt == 1 and _retried(error, args[:2] not in (("pr", "view"), ("pr", "list"))):
                 self.sleeper(2.0)
                 continue
 
@@ -1138,7 +1171,7 @@ class GhScm:
 
             error = proc.stderr.strip() or "gh api failed"
 
-            if attempt == 1 and any(mark in error.lower() for mark in TRANSIENT):
+            if attempt == 1 and _retried(error, _api_writes(args)):
                 self.sleeper(2.0)
                 continue
 

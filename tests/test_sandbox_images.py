@@ -151,11 +151,15 @@ def test_sandbox_digest_reports_an_identity_that_tracks_content(tmp_path):
     it; something else built it (S-0063/D-11)."""
 
     import json
+    import uuid
 
     root = seed_repo(tmp_path, {})
-    definition = root / "sandboxes" / "probe"
+    # The tag is the daemon's, not this run's: another suite on the same host
+    # building and removing a fixed `probe-sandbox` turned this test red.
+    name = f"probe-{uuid.uuid4().hex[:12]}"
+    definition = root / "sandboxes" / name
     definition.mkdir(parents=True)
-    tag = "probe-sandbox"
+    tag = f"{name}-sandbox"
 
     def build(label: str) -> None:
         definition.joinpath("Dockerfile").write_text(
@@ -168,7 +172,7 @@ def test_sandbox_digest_reports_an_identity_that_tracks_content(tmp_path):
 
     def reported() -> str:
         result = CliRunner().invoke(
-            app, ["sandbox", "digest", "probe", "--root", str(root), "--format", "json"]
+            app, ["sandbox", "digest", name, "--root", str(root), "--format", "json"]
         )
         assert result.exit_code == 0, result.output
         return str(json.loads(result.stdout)["images"][0]["digest"])
