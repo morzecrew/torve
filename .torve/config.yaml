@@ -17,11 +17,11 @@ runtime:
   # ~2200s and got it as two attempts and a continuation. A seat may name its own
   # `agent_timeout`; this is the fallback for one that does not.
   agent_timeout: 2200        # hard cap per agent attempt
-  network: host              # this host's egress runs through a local proxy
-                             # (Outline VPN): "host" shares the host stack AND
-                             # forwards the standard proxy env (http_proxy et
-                             # al., names only). "" = docker's default bridge,
-                             # which is region-blocked from here.
+  network: torve-sealed      # the broker's internal network (broker.network):
+                             # no route leaves it but the broker, whose own leg
+                             # goes out through this host's proxy. "host" would
+                             # share the host's stack — its loopback services
+                             # and its egress — with the sandbox.
 
 store:
   adapter: postgres          # mock | postgres — postgres for real cross-process runs (D-3.6)
@@ -260,9 +260,20 @@ tiers:
 # holding the key's variable name, the clocks, the routes and the model roster
 # (S-0064/D-1). `broker:` keeps the three things that are about the broker, and
 # the wire facts it needs are projected from those records at load.
+#
+# Sealed, not endpoint (S-0021/D-3): endpoint mode keeps the keys in custody and
+# leaves every other destination open, and a sandbox's prompt carries text
+# nobody vetted. Sealed makes the broker the run's only route; the two PyPI
+# hosts are what `uv` needs when a lock moves past the warm cache, and both are
+# read-only (uploads go to upload.pypi.org, which is not declared). The host's
+# own services on its other interfaces are reachable at the network's gateway
+# until the host's firewall closes them — the network is the run's envelope,
+# the firewall is the host's (see `torve doctor`).
 broker:
   adapter: local
-  mode: endpoint
+  mode: sealed
+  network: torve-sealed
+  pass_through: [pypi.org, files.pythonhosted.org]
   cost_tolerance: 0.25
 
 providers:

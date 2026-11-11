@@ -853,6 +853,68 @@ def _broker_check(root: Path, config_path: Path | None) -> list[tuple[str, bool,
 # ....................... #
 
 
+def _egress_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
+    """Where a sandbox's traffic can go. A sandbox's prompt carries text
+    nobody vetted — a bot's review claim, an issue body — and the agent runs
+    a shell, so the network is the containment. `network: host` shares this
+    host's stack: every service on its loopback, the run store among them,
+    and its own egress. That is red. Endpoint mode on a bridge keeps the keys
+    in custody and leaves egress open, which is said; sealed mode is the one
+    where the broker is the only route off the host (S-0021/D-3). Even
+    sealed, the host itself sits at the internal network's gateway, so what
+    it listens for on every interface is its firewall's to close — said
+    rather than probed, since doctor does not start a sandbox to find out."""
+
+    config = load_config(root, config_path)
+
+    if config.runtime.network == "host":
+        return [
+            (
+                "egress",
+                False,
+                (
+                    "runtime.network: host — every sandbox shares this host's network "
+                    "stack, so its loopback services and its egress are one connect "
+                    "away from untrusted prompt text. Set broker.mode: sealed, with "
+                    "runtime.network naming broker.network."
+                ),
+            )
+        ]
+
+    if config.broker.mode != "sealed":
+        bridge = config.runtime.network or "the default bridge"
+
+        return [
+            (
+                "egress",
+                True,
+                (
+                    f"egress: open — a sandbox on {bridge} reaches any host its "
+                    "network routes to; broker.mode: sealed makes the broker the "
+                    "only route"
+                ),
+            )
+        ]
+
+    declared = ", ".join(config.broker.pass_through) or "none"
+
+    return [
+        (
+            "egress",
+            True,
+            (
+                f"egress: sealed on {config.broker.network} — the broker is the only "
+                f"route off the host; pass-through: {declared}. A service the host "
+                "itself listens on every interface for still answers at the "
+                "network's gateway unless the host's firewall closes it"
+            ),
+        )
+    ]
+
+
+# ....................... #
+
+
 def _review_bias_check(root: Path, config_path: Path | None) -> list[tuple[str, bool, str]]:
     """A reviewer sharing the executor's model reviews its own kind —
     models are biased toward output that looks like theirs, and S-0005/D-1's
@@ -1176,6 +1238,7 @@ def doctor(
     else:
         checks += _store_checks(root, config_path)
         checks += _broker_check(root, config_path)
+        checks += _egress_check(root, config_path)
         checks += _review_bias_check(root, config_path)
         checks += _threads_check(root, config_path)
         checks += _promotion_check(root, config_path)
