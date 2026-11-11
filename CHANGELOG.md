@@ -150,6 +150,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `abandoned`, when the same worker opens its next night. It used to stay open in the
   store for good.
 
+- Sealed broker mode now reaches its declared pass-through hosts through the host's own
+  proxy, `all_proxy` and a proxy's credential included, honouring `no_proxy`. It works on
+  a host whose only way out is that proxy, and an unreachable host is a counted refusal
+  instead of a dropped connection.
+
+### Security
+
+- `torve doctor` now marks `runtime.network: host` red: it gives every sandbox this host's
+  loopback services and its egress. It also says when the endpoint broker leaves egress
+  open, and names the sealed network and its pass-through hosts when the broker is the
+  only route.
+
 ## [0.9.1] - 2026-11-06
 
 ### Changed

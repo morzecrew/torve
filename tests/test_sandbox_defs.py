@@ -884,6 +884,10 @@ def test_the_dsh_environment_is_one_file_every_entry_point_reads() -> None:
 
     assert values["DSH_PERMISSION_MODE"] == "danger-full-access"
     assert values["DSH_TELEMETRY_DISABLED"] == "1"
+    # pnpm's update check is a registry call a sealed broker only refuses, and
+    # pnpm reads the setting under its own prefix, not npm's.
+    assert values["pnpm_config_update_notifier"] == "false"
+    assert "npm_config_update_notifier" not in values
     assert values["DSH_HOME"].startswith("/tmp/")
     assert values["DSH_AGENTS_HOME"].startswith("/tmp/")
 
