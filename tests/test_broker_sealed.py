@@ -17,7 +17,6 @@ integration tests.
 from __future__ import annotations
 
 import contextlib
-import http.client
 import json
 import os
 import re
@@ -731,8 +730,9 @@ PROXY_ENV_NAMES = (
 @pytest.fixture
 def host_proxy(monkeypatch):
     """A fake host proxy on loopback, set as the only proxy in the environment:
-    it records each request line, splices a CONNECT to its target, relays an
-    absolute-URI GET, and refuses everything while `state["refuse"]` holds."""
+    it records each request line, splices a CONNECT to its target, answers an
+    absolute-URI GET with the path it asked for, and refuses everything while
+    `state["refuse"]` holds."""
 
     state: dict[str, object] = {"lines": [], "refuse": False}
 
@@ -769,17 +769,15 @@ def host_proxy(monkeypatch):
             upstream.close()
 
         def do_GET(self) -> None:
+            # Answered here rather than fetched: the request line is what the
+            # test reads, and a fixture that fetched whatever URL it was sent
+            # would be a request forger of its own.
             state["lines"].append(f"GET {self.path}")
-            parsed = urlsplit(self.path)
-            conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=10)
-            conn.request("GET", parsed.path or "/")
-            resp = conn.getresponse()
-            body = resp.read()
-            self.send_response(resp.status)
+            body = json.dumps({"path": urlsplit(self.path).path}).encode("utf-8")
+            self.send_response(200)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
-            conn.close()
 
         def log_message(self, format: str, *args: object) -> None:
             pass
