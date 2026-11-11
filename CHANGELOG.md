@@ -150,6 +150,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `abandoned`, when the same worker opens its next night. It used to stay open in the
   store for good.
 
+- A review's trace now holds the reviewer's whole session. It used to hold only the first
+  line and the verdict, because the record wrote the clipped command output over the
+  session the harness had saved, and a second ask's session replaced the first's.
+
 ## [0.9.1] - 2026-11-06
 
 ### Changed

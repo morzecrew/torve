@@ -919,6 +919,20 @@ class SeatSession(Generic[V]):
     harvested: Any = None
 
 
+def _session_stream(root: Path, result: AgentResult) -> bytes | None:
+    """The bytes at the trace *result* cites, read as soon as its ask returns:
+    every ask of one review runs as the same attempt in the same copy, so the
+    harness writes the second ask's session over the first's path."""
+
+    if result.trace_ref is None:
+        return None
+
+    path = Path(result.trace_ref)
+    path = path if path.is_absolute() else root / path
+
+    return path.read_bytes() if path.is_file() else None
+
+
 def run_seat(
     root: Path,
     worktree: Path,
@@ -1029,11 +1043,13 @@ def run_seat(
         # reviewer's envelope carried no document; a reviewer that cannot
         # answer twice is broken, and a readable verdict is never re-asked.
         asks = [result]
+        streams = [_session_stream(root, result)]
 
         if verdict is None:
             result = agent.run(context)
             verdict, refusal = read(result.output)
             asks.append(result)
+            streams.append(_session_stream(root, result))
 
         answered = True
 
@@ -1076,15 +1092,25 @@ def run_seat(
     # a harness-shaped path nothing produced is a fabricated coordinate — as
     # misleading as a missing one.
     # One trace per ask, numbered by it (S-0086/D-1): a second ask's session is
-    # its own evidence, and both refs ride the record below.
+    # its own evidence, and both refs ride the record below. What lands there
+    # is the stream the adapter wrote, verbatim (S-0039/D-5); the result's
+    # output stands in only for an adapter that cites a trace it did not write,
+    # because that output is clipped like every exec result — a critic's tool
+    # calls cut down to its first line and its verdict.
     review_trace_refs: list[str] = []
 
-    for ask_number, ask in enumerate(asks, start=1):
+    for ask_number, (ask, stream) in enumerate(zip(asks, streams, strict=True), start=1):
         if ask.trace_ref is None:
             continue
 
         review_worktree = naming.worktree(root, review.id)
-        naming.trace_file(review_worktree, ask_number).write_text(ask.output, encoding="utf-8")
+        trace = naming.trace_file(review_worktree, ask_number)
+
+        if stream is not None:
+            trace.write_bytes(stream)
+        else:
+            trace.write_text(ask.output, encoding="utf-8")
+
         review_trace_refs.append(naming.trace_ref(review_worktree, ask_number))
 
     # T-0186: the reviewer's self-reported token counts must survive the

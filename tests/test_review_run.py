@@ -1690,6 +1690,65 @@ def test_a_second_unreadable_answer_escalates_with_both_trace_refs(review_rig):
     assert review_records[0]["agent"]["trace_ref"] == f".torve/traces/{review_id}.a2.trace.log"
 
 
+class ClippingReviewer(SequencedReviewer):
+    """Writes its session the way the harness does — verbatim, at the attempt
+    it was given, which is 1 for every ask of one review — and answers with
+    the clipped exec output the runtime hands back."""
+
+    def run(self, ctx):
+        result = super().run(ctx)
+        trace = naming.trace_file(ctx.workspace, ctx.attempt)
+        trace.write_text(f"ask {self.calls}: every tool call\n{result.output}", encoding="utf-8")
+        clipped = f"ask {self.calls}\n… truncated …\n{result.output}"
+        return AgentResult(exit_code=0, output=clipped, trace_ref=str(trace))
+
+
+def _review_traces(repo, review_id: str, asks: int) -> list[str]:
+    return [
+        naming.trace_file(repo.root / ".wt" / review_id, ask).read_text(encoding="utf-8")
+        for ask in range(1, asks + 1)
+    ]
+
+
+def test_the_review_trace_is_the_session_verbatim_not_the_clipped_output(review_rig):
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    (worktree / ".torve").mkdir(parents=True, exist_ok=True)
+    (worktree / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+
+    output = reviewer_output([])
+    state = run_task(
+        repo.root, task_for(repo), review_config(), deps_for(ClippingReviewer([output]))
+    )
+
+    assert state.state is TaskState.READY
+    assert _review_traces(repo, state.reviewed_by, 1) == [f"ask 1: every tool call\n{output}"]
+
+
+def test_a_second_ask_keeps_each_asks_own_session(review_rig):
+    # Both asks write the same path, so the first ask's session is read before
+    # the second runs; each record ref then holds its own ask's whole stream.
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    (worktree / ".torve").mkdir(parents=True, exist_ok=True)
+    (worktree / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+
+    output = reviewer_output([])
+    reviewer = ClippingReviewer(["prose, no document", output])
+    state = run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
+
+    assert state.state is TaskState.READY
+    assert reviewer.calls == 2
+    assert _review_traces(repo, state.reviewed_by, 2) == [
+        "ask 1: every tool call\nprose, no document",
+        f"ask 2: every tool call\n{output}",
+    ]
+
+
 def test_a_refused_document_is_asked_once_more_too(review_rig):
     # S-0086/D-1 covers both shapes of unreadable: a document the schema
     # refused by field is re-asked exactly as no document at all is.
