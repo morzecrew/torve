@@ -200,16 +200,21 @@ decisions:
     text: >-
       `runner.reproduce(run, state, commands, probes)` runs each command in a fresh
       gates sandbox (`_gates_spec`: the battery's image and cache) over a fresh judge
-      checkout of the candidate, with each probe's text written at its path first, each
-      command bounded by the timeout of the `acceptance` gate in the attempt's manifest
-      (`run.manifest_file`), and all of one review's re-runs together by what is left
-      of the unit's clock (D-9), a command the clock leaves no time for not run; it returns
-      one `CommandRun` per command, its exit `None` on a timeout or when it was not run,
-      and the checkout and the sandbox are removed when it returns, whatever happened
+      checkout of the candidate, with each probe's text written at its path first, but
+      only at a path that is new to the checkout — no file there, tracked or not — and
+      lies under the review's probe directory with no component a link, a probe at any
+      other path refusing the whole repro so its finding is advisory; each command is
+      bounded by the timeout of the `acceptance` gate in the attempt's manifest
+      (`run.manifest_file`), or by the runtime's `sandbox_timeout` when the manifest has
+      no such gate, and all of one review's re-runs together by what is left of the
+      unit's clock (D-9), a command the clock leaves no time for not run; it returns one
+      `CommandRun` per command, its exit `None` on a timeout or when it was not run, and
+      the checkout and the sandbox are removed when it returns, whatever happened
     paths: [src/torve/application/runner.py]
     consequence: >-
-      a re-run is as isolated as the battery and leaves nothing behind, and the critic
-      never sees its result
+      a re-run is as isolated as the battery and leaves nothing behind, the critic never
+      sees its result, and a failing repro always measures the candidate the gates
+      passed, never a file the critic rewrote
     rationale: >-
       S-0122/D-2 keeps every reading the judge relies on to the host or a throwaway
       gates sandbox, and the critic's own runs happen in a copy where nothing it writes
