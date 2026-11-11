@@ -137,10 +137,13 @@ def test_the_egress_check_names_a_sealed_network_and_what_it_lets_through(tmp_pa
     [(_, ok, detail)] = _egress_check(root, None)
 
     assert ok is True
-    assert detail == (
-        "egress: sealed on torve-sealed — the broker is the only route; "
-        "pass-through: pypi.org, files.pythonhosted.org"
+    assert detail.startswith(
+        "egress: sealed on torve-sealed — the broker is the only route off the host; "
+        "pass-through: pypi.org, files.pythonhosted.org."
     )
+    # The host itself is still at the gateway; doctor says so rather than
+    # claiming more containment than the network gives.
+    assert "the host's firewall closes it" in detail
 
 
 # ....................... #

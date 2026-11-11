@@ -16,6 +16,7 @@ integration tests.
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import json
 import os
@@ -368,11 +369,13 @@ def connect_through(
     return sock, status, rest
 
 
-def proxy_get(host: str, port: int, target: str, timeout: float = 10) -> tuple[str, bytes]:
+def proxy_get(
+    host: str, port: int, target: str, timeout: float = 10, headers: str = ""
+) -> tuple[str, bytes]:
     sock = socket.create_connection((host, port), timeout=timeout)
     sock.settimeout(timeout)
     sock.sendall(
-        f"GET {target} HTTP/1.1\r\nHost: {urlsplit(target).netloc}\r\n"
+        f"GET {target} HTTP/1.1\r\nHost: {urlsplit(target).netloc}\r\n{headers}"
         "Connection: close\r\n\r\n".encode("ascii")
     )
     data = b""
@@ -730,15 +733,21 @@ PROXY_ENV_NAMES = (
 @pytest.fixture
 def host_proxy(monkeypatch):
     """A fake host proxy on loopback, set as the only proxy in the environment:
-    it records each request line, splices a CONNECT to its target, answers an
-    absolute-URI GET with the path it asked for, and refuses everything while
-    `state["refuse"]` holds."""
+    it records each request line with its `Host` and `Proxy-Authorization`,
+    splices a CONNECT to its target, answers an absolute-URI GET with the path
+    it asked for, and refuses everything while `state["refuse"]` holds.
+    `state["port"]` is where it listens."""
 
-    state: dict[str, object] = {"lines": [], "refuse": False}
+    state: dict[str, object] = {"lines": [], "hosts": [], "auth": [], "refuse": False}
 
     class Handler(BaseHTTPRequestHandler):
+        def _record(self) -> None:
+            state["lines"].append(f"{self.command} {self.path}")
+            state["hosts"].append(self.headers.get("Host"))
+            state["auth"].append(self.headers.get("Proxy-Authorization"))
+
         def do_CONNECT(self) -> None:
-            state["lines"].append(f"CONNECT {self.path}")
+            self._record()
 
             if state["refuse"]:
                 self.send_error(403)
@@ -772,7 +781,7 @@ def host_proxy(monkeypatch):
             # Answered here rather than fetched: the request line is what the
             # test reads, and a fixture that fetched whatever URL it was sent
             # would be a request forger of its own.
-            state["lines"].append(f"GET {self.path}")
+            self._record()
             body = json.dumps({"path": urlsplit(self.path).path}).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Length", str(len(body)))
@@ -788,7 +797,8 @@ def host_proxy(monkeypatch):
     for name in PROXY_ENV_NAMES:
         monkeypatch.delenv(name, raising=False)
 
-    url = f"http://127.0.0.1:{server.server_address[1]}"
+    state["port"] = server.server_address[1]
+    url = f"http://127.0.0.1:{state['port']}"
     monkeypatch.setenv("https_proxy", url)
     monkeypatch.setenv("http_proxy", url)
 
@@ -881,6 +891,129 @@ def test_sealed_absolute_uri_travels_through_the_host_proxy(
     assert status.startswith("HTTP/1.0 200")
     assert json.loads(body)["path"] == "/hello"
     assert host_proxy["lines"] == [f"GET {plain_origin}/hello"]
+    # `http.client` takes `Host` from the absolute target, so the host proxy
+    # reads the destination, not itself.
+    assert host_proxy["hosts"] == [urlsplit(plain_origin).netloc]
+    broker.close(handle)
+
+
+def _sealed_broker(fake_docker, provider_upstream, sealed_network, monkeypatch):
+    monkeypatch.setenv(KEY_ENV, "k-123-secret")
+    _, upstream_url = provider_upstream
+    broker = LocalBroker(
+        sealed_config(upstream_url, network=sealed_network), docker_bin=str(fake_docker.script)
+    )
+    handle = broker.open("T-0106", routing_for(upstream_url), BrokerBudget())
+
+    return broker, handle, broker_address(handle)
+
+
+def _only_all_proxy(monkeypatch, host_proxy) -> None:
+    for name in ("http_proxy", "https_proxy"):
+        monkeypatch.delenv(name, raising=False)
+
+    monkeypatch.setenv("ALL_PROXY", f"http://127.0.0.1:{host_proxy['port']}")
+
+
+def test_sealed_connect_falls_back_to_all_proxy(
+    fake_docker, provider_upstream, echo_port, sealed_network, host_proxy, monkeypatch
+):
+    _only_all_proxy(monkeypatch, host_proxy)
+    broker, handle, (host, port) = _sealed_broker(
+        fake_docker, provider_upstream, sealed_network, monkeypatch
+    )
+
+    sock, status, _ = connect_through(host, port, f"127.0.0.1:{echo_port}")
+    assert status.startswith("HTTP/1.0 200")
+    sock.close()
+
+    assert host_proxy["lines"] == [f"CONNECT 127.0.0.1:{echo_port}"]
+    broker.close(handle)
+
+
+def test_sealed_absolute_uri_falls_back_to_all_proxy(
+    fake_docker, provider_upstream, plain_origin, sealed_network, host_proxy, monkeypatch
+):
+    _only_all_proxy(monkeypatch, host_proxy)
+    broker, handle, (host, port) = _sealed_broker(
+        fake_docker, provider_upstream, sealed_network, monkeypatch
+    )
+
+    status, _ = proxy_get(host, port, f"{plain_origin}/hello")
+
+    assert status.startswith("HTTP/1.0 200")
+    assert host_proxy["lines"] == [f"GET {plain_origin}/hello"]
+    broker.close(handle)
+
+
+def test_sealed_connect_honours_a_no_proxy_entry_that_names_the_port(
+    fake_docker, provider_upstream, echo_port, sealed_network, host_proxy, monkeypatch
+):
+    monkeypatch.setenv("NO_PROXY", f"127.0.0.1:{echo_port}")
+    broker, handle, (host, port) = _sealed_broker(
+        fake_docker, provider_upstream, sealed_network, monkeypatch
+    )
+
+    sock, status, _ = connect_through(host, port, f"127.0.0.1:{echo_port}")
+    assert status.startswith("HTTP/1.0 200")
+    sock.close()
+
+    assert host_proxy["lines"] == []
+    broker.close(handle)
+
+
+def test_sealed_connect_a_proxy_port_that_is_no_number_is_a_counted_refusal(
+    fake_docker, provider_upstream, echo_port, sealed_network, host_proxy, monkeypatch
+):
+    monkeypatch.setenv("https_proxy", "http://127.0.0.1:notaport")
+    broker, handle, (host, port) = _sealed_broker(
+        fake_docker, provider_upstream, sealed_network, monkeypatch
+    )
+
+    sock, status, body = connect_through(host, port, f"127.0.0.1:{echo_port}")
+    sock.close()
+
+    assert status.startswith("HTTP/1.0 502")
+    assert json.loads(body)["error"]["cause"] == "upstream"
+    # The refusal names the scheme, never the operator's proxy URL.
+    assert b"notaport" not in body
+    assert broker.close(handle).refusals == {"upstream": 1}
+
+
+def test_sealed_relays_carry_the_proxy_url_s_credential(
+    fake_docker, provider_upstream, echo_port, plain_origin, sealed_network, host_proxy, monkeypatch
+):
+    authenticated = f"http://torve:p%40ss@127.0.0.1:{host_proxy['port']}"
+    monkeypatch.setenv("https_proxy", authenticated)
+    monkeypatch.setenv("http_proxy", authenticated)
+    broker, handle, (host, port) = _sealed_broker(
+        fake_docker, provider_upstream, sealed_network, monkeypatch
+    )
+
+    sock, status, _ = connect_through(host, port, f"127.0.0.1:{echo_port}")
+    assert status.startswith("HTTP/1.0 200")
+    sock.close()
+    status, _ = proxy_get(host, port, f"{plain_origin}/hello")
+    assert status.startswith("HTTP/1.0 200")
+
+    expected = "Basic " + base64.b64encode(b"torve:p@ss").decode("ascii")
+    assert host_proxy["auth"] == [expected, expected]
+    broker.close(handle)
+
+
+def test_sealed_absolute_uri_never_passes_the_sandbox_s_proxy_credential_on(
+    fake_docker, provider_upstream, plain_origin, sealed_network, host_proxy, monkeypatch
+):
+    broker, handle, (host, port) = _sealed_broker(
+        fake_docker, provider_upstream, sealed_network, monkeypatch
+    )
+
+    status, _ = proxy_get(
+        host, port, f"{plain_origin}/hello", headers="Proxy-Authorization: Basic c2FuZGJveA==\r\n"
+    )
+
+    assert status.startswith("HTTP/1.0 200")
+    assert host_proxy["auth"] == [None]
     broker.close(handle)
 
 

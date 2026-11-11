@@ -860,7 +860,10 @@ def _egress_check(root: Path, config_path: Path | None) -> list[tuple[str, bool,
     host's stack: every service on its loopback, the run store among them,
     and its own egress. That is red. Endpoint mode on a bridge keeps the keys
     in custody and leaves egress open, which is said; sealed mode is the one
-    where the broker is the only route (S-0021/D-3)."""
+    where the broker is the only route off the host (S-0021/D-3). Even
+    sealed, the host itself sits at the internal network's gateway, so what
+    it listens for on every interface is its firewall's to close — said
+    rather than probed, since doctor does not start a sandbox to find out."""
 
     config = load_config(root, config_path)
 
@@ -901,7 +904,9 @@ def _egress_check(root: Path, config_path: Path | None) -> list[tuple[str, bool,
             True,
             (
                 f"egress: sealed on {config.broker.network} — the broker is the only "
-                f"route; pass-through: {declared}"
+                f"route off the host; pass-through: {declared}. A service the host "
+                "itself listens on every interface for still answers at the "
+                "network's gateway unless the host's firewall closes it"
             ),
         )
     ]

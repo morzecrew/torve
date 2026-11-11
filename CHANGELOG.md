@@ -151,9 +151,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   store for good.
 
 - Sealed broker mode now reaches its declared pass-through hosts through the host's own
-  proxy, honouring `no_proxy`, so it works on a host whose only way out is that proxy. A
-  pass-through host that cannot be reached is a counted refusal instead of a dropped
-  connection.
+  proxy, `all_proxy` and a proxy's credential included, honouring `no_proxy`. It works on
+  a host whose only way out is that proxy, and an unreachable host is a counted refusal
+  instead of a dropped connection.
 
 ### Security
 

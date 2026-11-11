@@ -42,6 +42,7 @@ deployment — the engine ships plaintext-capable and names that plainly.
 
 from __future__ import annotations
 
+import base64
 import contextlib
 import http.client
 import json
@@ -55,7 +56,7 @@ import urllib.request
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, cast
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from torve.application.ports import (
     BrokerBudget,
@@ -115,6 +116,9 @@ HOP_BY_HOP = frozenset(
         "content-length",
         "keep-alive",
         "proxy-connection",
+        # The sandbox's own proxy credential is for the broker; the host's
+        # proxy gets the host's (`_host_proxy`), never the sandbox's.
+        "proxy-authorization",
         "te",
         "trailer",
         "transfer-encoding",
@@ -470,30 +474,63 @@ class _BrokerState:
 # ....................... #
 
 
-def _host_proxy(scheme: str, host: str) -> tuple[str, int] | None:
+@dataclass(frozen=True)
+class _HostProxy:
+    """The host's own http proxy: where it listens, and the credential its
+    URL carries, ready for the `Proxy-Authorization` header."""
+
+    host: str
+    port: int
+    authorization: str | None = None
+
+
+def _authority(host: str, port: int) -> str:
+    return f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+
+
+def _host_proxy(scheme: str, host: str, port: int) -> _HostProxy | None:
     """The host's own http proxy for *scheme* (`https` for a tunnel, `http`
-    for a plain relay), or None when there is none, *host* is exempt by
-    `no_proxy`, or the proxy speaks something other than http. A host whose
-    egress runs only through its proxy cannot reach a pass-through host by
-    dialling it, so the relay leaves the way the provider leg does
-    (S-0021/A-1). The standard library reads the environment, so an empty
-    `no_proxy` clears `NO_PROXY` exactly as it does for every other client."""
+    for a plain relay), or None when there is none, *host*:*port* is exempt
+    by `no_proxy`, or the proxy speaks something other than http. A host
+    whose egress runs only through its proxy cannot reach a pass-through host
+    by dialling it, so the relay leaves the way the provider leg does
+    (S-0021/A-1).
+
+    The standard library reads the environment, so an empty `no_proxy`
+    clears `NO_PROXY` exactly as it does for every other client; `all_proxy`
+    answers for a scheme with no proxy of its own; and the exemption is read
+    against host and port, so an entry naming a port holds. A credential in
+    the proxy's URL travels as `Proxy-Authorization` rather than being a
+    reason to dial around the proxy. A URL whose port is no number raises
+    OSError, so the relay is a counted refusal — naming the scheme and never
+    the URL, which is the operator's and may carry that credential."""
 
     proxies = urllib.request.getproxies_environment()
-    proxy = proxies.get(scheme)
+    proxy = proxies.get(scheme) or proxies.get("all")
 
-    if not proxy or urllib.request.proxy_bypass(host):
+    if not proxy or urllib.request.proxy_bypass(_authority(host, port)):
         return None
 
     parsed = urlsplit(proxy if "://" in proxy else f"http://{proxy}")
 
-    # ponytail: an http proxy without credentials only — a socks, https or
-    # authenticated proxy dials directly, as before; add the scheme when a
-    # host needs one.
-    if parsed.scheme != "http" or parsed.username:
+    # ponytail: an http proxy only — a socks or https proxy dials directly, as
+    # before; add the scheme when a host needs one.
+    if parsed.scheme != "http":
         return None
 
-    return parsed.hostname or "localhost", parsed.port or 80
+    try:
+        proxy_port = parsed.port or 80
+
+    except ValueError as exc:
+        raise OSError(f"the host's {scheme} proxy names no valid port") from exc
+
+    authorization = None
+
+    if parsed.username is not None:
+        credential = f"{unquote(parsed.username)}:{unquote(parsed.password or '')}"
+        authorization = "Basic " + base64.b64encode(credential.encode("utf-8")).decode("ascii")
+
+    return _HostProxy(parsed.hostname or "localhost", proxy_port, authorization)
 
 
 def _dial(host: str, port: int) -> tuple[socket.socket, bytes]:
@@ -503,16 +540,21 @@ def _dial(host: str, port: int) -> tuple[socket.socket, bytes]:
     the CONNECT raises, so the relay is refused rather than spliced to an
     error page."""
 
-    proxy = _host_proxy("https", host)
+    proxy = _host_proxy("https", host, port)
 
     if proxy is None:
         return socket.create_connection((host, port), timeout=UPSTREAM_TIMEOUT_S), b""
 
-    authority = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
-    sock = socket.create_connection(proxy, timeout=UPSTREAM_TIMEOUT_S)
+    authority = _authority(host, port)
+    sock = socket.create_connection((proxy.host, proxy.port), timeout=UPSTREAM_TIMEOUT_S)
 
     try:
-        sock.sendall(f"CONNECT {authority} HTTP/1.1\r\nHost: {authority}\r\n\r\n".encode("ascii"))
+        request = f"CONNECT {authority} HTTP/1.1\r\nHost: {authority}\r\n"
+
+        if proxy.authorization is not None:
+            request += f"Proxy-Authorization: {proxy.authorization}\r\n"
+
+        sock.sendall(f"{request}\r\n".encode("ascii"))
         answer = b""
 
         while b"\r\n\r\n" not in answer:
@@ -729,10 +771,10 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
             no key injection (this is not a provider route), no metering —
             just the request forwarded and the answer relayed (S-0021/D-3).
             Through the host's proxy when `_host_proxy` names one, which
-            takes the absolute form of the target."""
+            takes the absolute form of the target; `http.client` then takes
+            the `Host` header from that target, so the proxy reads the
+            destination rather than itself."""
 
-            proxy = _host_proxy("http", host)
-            conn = http.client.HTTPConnection(*(proxy or (host, port)), timeout=UPSTREAM_TIMEOUT_S)
             headers = {
                 key: value
                 for key, value in self.headers.items()
@@ -744,12 +786,23 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
             if parsed.query:
                 target += f"?{parsed.query}"
 
-            if proxy is not None:
-                target = f"http://{host}:{port}{target}"
-
             length = int(self.headers.get("Content-Length") or 0)
 
             try:
+                proxy = _host_proxy("http", host, port)
+
+                if proxy is None:
+                    conn = http.client.HTTPConnection(host, port, timeout=UPSTREAM_TIMEOUT_S)
+
+                else:
+                    conn = http.client.HTTPConnection(
+                        proxy.host, proxy.port, timeout=UPSTREAM_TIMEOUT_S
+                    )
+                    target = f"http://{_authority(host, port)}{target}"
+
+                    if proxy.authorization is not None:
+                        headers["Proxy-Authorization"] = proxy.authorization
+
                 conn.request(self.command, target, body=self.rfile.read(length), headers=headers)
                 resp = conn.getresponse()
                 data = resp.read()
