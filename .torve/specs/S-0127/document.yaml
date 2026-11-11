@@ -131,9 +131,12 @@ design:
 
       `runner.reproduce(run, state, commands, probes)` runs them in a fresh gates sandbox
       over a fresh judge checkout of the candidate. Each probe `repro.file` names is written
-      at its path first, from the text `_keep_probes` kept. Each command gets 300 seconds,
-      the bound S-0122/D-6 gives the critic's own runs. The checkout and the sandbox are gone
-      when it returns.
+      at its path first, from the text `_keep_probes` kept. A repro is a test command, so
+      each command gets the timeout of the battery's own `acceptance` gate in the task's
+      manifest (900 seconds in this repository), and all of one review's re-runs together
+      get what is left of the unit's clock (D-9); a command the clock leaves no time for is
+      not run. No new constant is introduced. The checkout and the sandbox are gone when it
+      returns.
 
       | Re-run | Effect |
       |---|---|
@@ -334,9 +337,8 @@ risks: |
   - **An independent attempt throws away a tree that was one lint fix from green.** D-7
     makes that rarer, and the repair route still names the convicting gate's command.
   - **The budget figures are guessed.** M keeps today's; S halves and L doubles them (Q-4).
-  - **The re-run's bound is borrowed.** 300 seconds per command is S-0122/D-6's figure for
-    the critic's runs, enforced nowhere and never measured; a slow repro times out and is
-    advisory (Q-7).
+  - **Re-runs spend the unit's clock.** A review with many slow repros can use up what is
+    left of D-9's clock, and the commands it leaves unrun are advisory (Q-7).
   - **Misreading.** D-1 does not silence the critic. Every finding is still recorded, and
     its repro decides; a reader who skims D-1 and D-2 as "the critic no longer matters"
     misses D-13.
@@ -438,10 +440,10 @@ questions:
     status: settled
   - id: Q-7
     text: >-
-      D-10 bounds each re-run command by 300 seconds, borrowed from S-0122/D-6's figure for
-      the critic's own runs. That figure is enforced by no code and was never measured, and
-      it may have meant the critic's whole session rather than one command. Does the owner
-      keep 300 seconds per command, take the manifest's own gate timeouts as the bound
-      (the suite's is 600), or bound the re-runs of one review together? The bed's re-run
-      durations settle it either way.
-    status: open
+      What bounds a re-run, given S-0122/D-6's 300 seconds is enforced by no code and was
+      never measured? Settled (coordinator, 2026-11-11): each command gets the timeout of
+      the battery's own `acceptance` gate in the task's manifest, because a repro is a test
+      command, and all of one review's re-runs together get what is left of the unit's
+      clock (D-9); no new constant.
+    status: settled
+    settled_by: D-10

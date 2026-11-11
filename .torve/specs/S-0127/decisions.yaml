@@ -200,10 +200,12 @@ decisions:
     text: >-
       `runner.reproduce(run, state, commands, probes)` runs each command in a fresh
       gates sandbox (`_gates_spec`: the battery's image and cache) over a fresh judge
-      checkout of the candidate, with each probe's text written at its path first and
-      each command bounded by 300 seconds, and returns one `CommandRun` per command,
-      its exit `None` on a timeout; the checkout and the sandbox are removed when it
-      returns, whatever happened
+      checkout of the candidate, with each probe's text written at its path first, each
+      command bounded by the timeout of the `acceptance` gate in the attempt's manifest
+      (`run.manifest_file`), and all of one review's re-runs together by what is left
+      of the unit's clock (D-9), a command the clock leaves no time for not run; it returns
+      one `CommandRun` per command, its exit `None` on a timeout or when it was not run,
+      and the checkout and the sandbox are removed when it returns, whatever happened
     paths: [src/torve/application/runner.py]
     consequence: >-
       a re-run is as isolated as the battery and leaves nothing behind, and the critic
@@ -211,12 +213,12 @@ decisions:
     rationale: >-
       S-0122/D-2 keeps every reading the judge relies on to the host or a throwaway
       gates sandbox, and the critic's own runs happen in a copy where nothing it writes
-      is evidence; the 300-second bound is S-0122/D-6's figure for the critic's own runs,
-      which no code enforces and nothing measured, so it stands only until Q-7 settles
-      it
-    cites: [S-0122/D-2, S-0122/D-6, S-0114/D-5]
+      is evidence; a repro is a test command, so it gets the bound the battery already
+      gives the task's test commands, and the unit's clock already bounds the unit, so
+      no new constant is needed (Q-7)
+    cites: [S-0122/D-2, S-0122/D-6, S-0114/D-5, D-9]
     check: >-
-      uv run pytest -q tests/test_runner.py -k reproduce
+      uv run pytest -q tests/test_runner.py -k "reproduce or rerun_bound"
   - id: D-11
     grade: OPEN
     text: >-

@@ -55,9 +55,12 @@ phasing:
       with the `escalated` flag and without the revision flag, and each place that read `UNIT_BUDGET_USD` or `UNIT_MINUTES`
       reads its class's figure. `runner.reproduce(run, state, commands, probes)` opens
       a fresh judge checkout and a `SandboxExecutor` on `_gates_spec`, writes each
-      probe at its path, runs each command for at most 300 seconds, returns `CommandRun`s
-      with exit `None` on a timeout, and removes both whatever happened; nothing calls
-      it until phase 3. Tests named `independent_attempt` in `tests/test_runner.py`,
+      probe at its path, runs each command for at most the manifest's `acceptance`
+      gate timeout and stops starting commands when the unit's clock has no time left,
+      returns `CommandRun`s with exit `None` on a timeout or for a command not run,
+      and removes both whatever happened; nothing calls it until phase 3. Tests named
+      `rerun_bound` in `tests/test_runner.py` (the acceptance gate's timeout reaches
+      the executor, and a spent clock leaves the remaining commands unrun). Tests named `independent_attempt` in `tests/test_runner.py`,
       `first_green` in `tests/test_selection.py` (a Hypothesis property over finish
       orders and green sets: the winner is the first green to finish and the critic
       is asked once), `shown_acceptance` in `tests/test_dispatch.py` and `tests/test_runner.py`,
