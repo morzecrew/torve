@@ -1,0 +1,262 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      Under `review.mode: critic`, a kept finding at or above `review.blocks_at` and
+      a `violated` row with located evidence block only when their repro fails on
+      re-run: the command is the finding's `repro.command`, else the first backticked
+      command its evidence carries with output after it, and the engine re-runs it
+      against the candidate through `runner.reproduce` (D-10); a non-zero exit blocks,
+      while a zero exit, an exit of 126 or 127, a timeout or no command records the
+      finding or row `advisory: true` in the review record with the command, its exit
+      code and its output tail, never blocking; the S-0125/D-1 and S-0126/D-1 carries
+      are read first and a carried finding is not re-run, `build_critic_prompt` says
+      that only a repro exiting non-zero on the candidate can block, and a blocker's
+      revision thread carries the command, its exit code and the re-run's output
+    paths: [src/torve/application/critic.py]
+    consequence: >-
+      a finding the critic only read, or whose probe passes on the candidate, never
+      stops a unit; a real defect the critic did not reproduce lands, recorded as
+      advisory in the review record and the document's pull request (D-13)
+    rationale: >-
+      in the pilot the critic was accurate (0 of 20 sampled findings wrong) but its
+      blocks were a coin flip against the hidden checks (precision 5/8, recall 5/11);
+      an exit code the engine measured is a fact, a severity the critic wrote is a
+      reading
+    cites: [S-0122/D-1, S-0122/D-2, S-0122/D-6, S-0125/D-1, S-0126/D-1, S-0121/D-28]
+    check: >-
+      uv run pytest -q tests/test_critic.py tests/test_review_run.py -k reproduced
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A `weak_test` finding never blocks and is never re-run, whatever its severity
+      and its repro: `decide` records it `advisory: true`
+    paths: [src/torve/application/critic.py]
+    consequence: >-
+      a test that proves too little reaches the review record and the document's pull
+      request as advisory, and its unit still lands
+    rationale: >-
+      11 of the pilot's 25 blocking findings were `weak_test`, and none of those blocks
+      changed a hidden-check result; the 10 weak-test findings of the 20 sampled were
+      true and were still not defects
+    cites: [S-0122/D-1]
+    check: >-
+      uv run pytest -q tests/test_critic.py -k weak_test
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      `locate` accepts evidence that carries, anywhere in its text, a `path:line` or
+      `path:start-end` citation that resolves under the root, as `evidence.citations`
+      reads them with the grammar `critic._citations` uses today, or a backticked command
+      followed by output; evidence holding neither is refused with today's messages,
+      and `filter_findings` and the execution log's evidence check, which share `locate`,
+      both accept a citation that follows prose
+    paths: [src/torve/gates/evidence.py, src/torve/gates/log_entry.py]
+    consequence: >-
+      a probe or mutation sentence citing the line it changed survives the location
+      filter; a divergence entry whose citation follows prose is accepted too, and the
+      log's teaching rejection no longer asks for a leading citation
+    rationale: >-
+      `locate` discarded 5 of the pilot's majors whose evidence was a mutation or probe
+      sentence citing `path:line` mid-text, while `critic._citations` already reads such
+      citations for S-0126/D-1
+    cites: [S-0005/D-4, S-0121/D-28, S-0126/D-1]
+    check: >-
+      uv run pytest -q tests/test_review_role.py tests/test_gates.py -k locates_anywhere
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      A finding's anchor is the first citation in its evidence that resolves, wherever
+      it sits, for the S-0125/D-1 rules and for re-raise alike; a revision's blocker
+      is re-raised only when it repeats an earlier round's blocker, by naming the same
+      row, or by having the same `kind`, a citation whose span overlaps the earlier
+      blocker's span as mapped into the current tree, and a claim D-11's measure matches;
+      a blocker near an earlier anchor that repeats neither is a new blocker inside
+      the revision budget, `blocker_fact` records each blocker's `kind` and `row` beside
+      its claim and anchor, and `decide` computes `reraised` by this rule, which `review_step`
+      reads for a critic verdict
+    paths: [src/torve/application/critic.py, src/torve/application/review.py]
+    consequence: >-
+      a new defect a revision introduces beside an old one spends the revision budget
+      instead of escalating as a re-raise; a finding led by an executed probe is judged
+      by the line it cites, not carried for having no leading anchor
+    rationale: >-
+      T-0804 escalated as a re-raised blocker that was a new defect the revision introduced
+      on the next line, inside `threads.WINDOW`; on the pilot's revision rounds 6 findings
+      at major or above led by an executed backticked probe were carried for having
+      no leading anchor, while prose citing `path:line` could block
+    cites: [S-0124/D-3, S-0125/D-1, S-0125/D-2, D-11]
+    check: >-
+      uv run pytest -q tests/test_critic.py tests/test_review_run.py -k repeats_a_blocker
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      `review.revision` gains `off`, the default: a surviving blocker sends the unit
+      to one fresh attempt on the task's own seat, never its `revision_variant`, on
+      the blocked candidate's tree with the feedback record D-1's threads fill, and
+      a blocker surviving that attempt escalates `blocker_finding`; under `off`, `review.blocker_revisions`
+      resolves to 1 unless the configuration names a number, and `fresh` and `session`
+      keep their meaning when a configuration names them
+    paths: [src/torve/config/runconfig.py, src/torve/application/session.py]
+    consequence: >-
+      no Opus revision runs unless a configuration asks for one, and a unit blocked
+      twice reaches the owner after two executor sessions
+    rationale: >-
+      the pilot's critic and revision loop flipped 0 of 6 failing first candidates and
+      broke 0 passing ones, at about $0.92 of Opus and 10 more minutes per unit
+    cites: [S-0122/D-8, S-0124/D-1, S-0124/D-2, S-0124/D-8, S-0117/D-1]
+    check: >-
+      uv run pytest -q tests/test_runconfig.py tests/test_session.py -k revision_off
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      When an attempt's gates are red, the next attempt is an independent fresh session
+      from the tree the red attempt started from, up to the poison ceiling: the red
+      candidate gets no follow-up turn in its own session and no convicted tree is committed
+      or carried, though `_route_repair` still adds the convicting gate's command to
+      the next attempt's acceptance and the context pack still names earlier attempts'
+      convictions; among one attempt's candidates the first to finish green wins, the
+      others are cut when it does, and the critic reads only it
+    paths: [src/torve/application/runner.py, src/torve/application/selection.py]
+    consequence: >-
+      attempts are independent samples, so a red attempt's tree never anchors the next;
+      pre-rank and collapse no longer choose a winner, and a blocked first green goes
+      to D-5, never to a sibling
+    rationale: >-
+      revising a candidate added nothing in the pilot (0 of 6 flipped), and a critic
+      whose blocks scored precision 5/8 and recall 5/11 against the hidden checks is
+      no judge between two green candidates
+    cites: [S-0122/D-7, S-0122/D-8, S-0069/D-3, S-0069/D-4, S-0054/D-12]
+    check: >-
+      uv run pytest -q tests/test_runner.py tests/test_selection.py -k "independent_attempt
+      or first_green"
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      The acceptance an attempt is shown is the contract's commands followed by the
+      command of every gate the attempt's manifest runs `blocking` as a shell command,
+      not a `@` builtin, with a declared timeout of 120 seconds or less, each command
+      once; the contract on disk and the battery's `acceptance` gate are unchanged,
+      so nothing runs twice
+    paths: [src/torve/application/dispatch.py, src/torve/application/runner.py]
+    consequence: >-
+      in this repository an attempt is told to run the lint and format check, the layering
+      contract and mypy before it finishes; a gate past 120 seconds, like the suite,
+      is not shown
+    rationale: >-
+      T-0880's acceptance named its tests and `uv run mypy src`, and the round went
+      red on the lint gate it was never told to run
+    cites: [S-0122/D-4, S-0069/D-3]
+    check: >-
+      uv run pytest -q tests/test_dispatch.py tests/test_runner.py -k shown_acceptance
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      On a review round's attempt, a `halted` divergence entry whose claim or evidence
+      names one of the round's findings by `threads.names_spot` does not end the attempt
+      while some finding of the round is named by no halt: `halted` reads it as that
+      claim declined and the attempt goes on to its gates, and a halt that names no
+      finding of the round, or halts that name all of them, end the attempt as today
+    paths: [src/torve/application/session.py]
+    consequence: >-
+      a round with one out-of-scope claim lands its other fixes, and a round that declines
+      everything still escalates; a halt on one claim that cites a LOCKED row is declined
+      on its thread too, not escalated `locked_conflict`
+    rationale: >-
+      T-0894's attempt halted on one out-of-scope claim, which discarded a round carrying
+      six green fixes
+    cites: [S-0096/D-1, S-0084/D-13, S-0121/D-29]
+    check: >-
+      uv run pytest -q tests/test_session.py -k halted_claim
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      Under `review.mode: critic` a unit's notional-spend cap and its clock are its
+      class's, from `selection.UNIT_BUDGETS`: S $1.50 and 45 minutes, M $3 and 90 minutes,
+      L $6 and 180 minutes; the class is `selection.unit_class` over the contract against
+      the repository root's tree, with the `escalated` flag `_width` reads and without
+      the revision flag, so every attempt of a run reads the same one, and a contract
+      naming `budget.wallclock_minutes` keeps its own clock
+    paths: [src/torve/application/selection.py, src/torve/application/runner.py]
+    consequence: >-
+      an L unit can afford a second attempt's gates and an S unit stops sooner than
+      today, while an M unit's bounds are unchanged
+    rationale: >-
+      T-0810, an XL unit in the pilot, hit the flat $3 cap before its second attempt's
+      gates ran
+    cites: [S-0123/D-1, S-0123/D-2, S-0122/D-7]
+    check: >-
+      uv run pytest -q tests/test_selection.py tests/test_runner.py -k class_budget
+  - id: D-10
+    grade: ASSUMED
+    text: >-
+      `runner.reproduce(run, state, commands, probes)` runs each command in a fresh
+      gates sandbox (`_gates_spec`: the battery's image and cache) over a fresh judge
+      checkout of the candidate, with each probe's text written at its path first and
+      each command bounded by 300 seconds, and returns one `CommandRun` per command,
+      its exit `None` on a timeout; the checkout and the sandbox are removed when it
+      returns, whatever happened
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      a re-run is as isolated as the battery and leaves nothing behind, and the critic
+      never sees its result
+    rationale: >-
+      S-0122/D-2 keeps every reading the judge relies on to the host or a throwaway
+      gates sandbox, and the critic's own runs happen in a copy where nothing it writes
+      is evidence
+    cites: [S-0122/D-2, S-0122/D-6, S-0114/D-5]
+    check: >-
+      uv run pytest -q tests/test_runner.py -k reproduce
+  - id: D-11
+    grade: OPEN
+    text: >-
+      Which deterministic measure over two blocker claims D-4 reads as a match, for
+      example the overlap of their normalised words above a threshold: the phase chooses
+      it, tests it on a new defect cited on the line after an earlier blocker, which
+      must not match, and on the same defect described in other words, which must,
+      and records the choice in its log
+    paths: [src/torve/application/review.py]
+    consequence: >-
+      too loose a measure brings T-0804's false re-raise back, and too strict a one
+      lets a repeated defect spend the revision budget again
+    rationale: >-
+      the pilot shows one false re-raise (T-0804) and no measured true one, so no threshold
+      can be read off it, and the engine, not a model, decides what repeats (S-0122/D-1)
+  - id: D-12
+    grade: ASSUMED
+    text: >-
+      `threads.rejections(entries, attempt)` also keeps that attempt's `halted` entries,
+      so the carry (S-0126/D-1, S-0126/D-2) and the reply read a declined claim as they
+      read a contradicted one, and the leg answers a halted entry's thread `Out of scope
+      — <claim>` with its evidence where it answers a contradicted one `Not applied
+      — <claim>`
+    paths: [src/torve/application/threads.py, src/torve/application/reviewleg.py]
+    consequence: >-
+      the bot's thread says the claim was declined and why, the critic's findings on
+      it are carried as on a rejected claim, and a bot that raises it again escalates
+      to a person
+    rationale: >-
+      T-0894's declined claim got no answer on its thread; the round's escalation was
+      all a reader saw
+    cites: [S-0126/D-3, S-0084/D-13, S-0121/D-29, D-8]
+    check: >-
+      uv run pytest -q tests/test_threads.py tests/test_reviewleg.py -k declined
+  - id: D-13
+    grade: ASSUMED
+    text: >-
+      The document's pull-request body lists, under each landing, the findings its
+      last task-gated review recorded, by severity, anchor and claim, read from the
+      store's `review.recorded` items, under a heading that names them the critic's
+      advisory findings; a landed candidate's last review blocked nothing, so every
+      finding listed is advisory
+    paths: [src/torve/application/forge.py, src/torve/cli/merge.py]
+    consequence: >-
+      a person merging reads what the critic found and could not reproduce, and the
+      body stays bounded by `BODY_LIMIT`
+    rationale: >-
+      D-1 makes most of the critic's findings advisory, and a review record on the host
+      that ran the critic is read by nobody before a merge
+    cites: [S-0121/D-34, S-0083/D-8, D-1]
+    check: >-
+      uv run pytest -q tests/test_forge.py -k advisory
