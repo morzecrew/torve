@@ -5,7 +5,9 @@ decisions:
     text: >-
       Under `review.mode: critic`, a kept finding at or above `review.blocks_at` and
       a `violated` row with located evidence block only when their repro fails on
-      re-run: the command is the finding's `repro.command`, else the first backticked
+      re-run, except that a kept `gaming` finding at or above `review.blocks_at` and
+      a `violated` verdict on a LOCKED row still block on located evidence alone: the
+      command is the finding's `repro.command`, else the first backticked
       command its evidence carries with output after it, and the engine re-runs it
       against the candidate through `runner.reproduce` (D-10); a non-zero exit blocks,
       while a zero exit, an exit of 126 or 127, a timeout or no command records the
@@ -16,17 +18,19 @@ decisions:
       revision thread carries the command, its exit code and the re-run's output
     paths: [src/torve/application/critic.py]
     consequence: >-
-      a finding the critic only read, or whose probe passes on the candidate, never
-      stops a unit; a real defect the critic did not reproduce lands, recorded as
-      advisory in the review record and the document's pull request (D-13)
+      a defect finding the critic only read, or whose probe passes on the candidate,
+      never stops a unit, and lands recorded as advisory in the review record and the
+      document's pull request (D-13); gaming and a LOCKED row's breach stop it as today
     rationale: >-
       in the pilot the critic was accurate (0 of 20 sampled findings wrong) but its
       blocks were a coin flip against the hidden checks (precision 5/8, recall 5/11);
       an exit code the engine measured is a fact, a severity the critic wrote is a
-      reading
+      reading; integrity and the owner's rules rarely reproduce by a command, so those
+      two keep blocking on what locates (Q-3)
     cites: [S-0122/D-1, S-0122/D-2, S-0122/D-6, S-0125/D-1, S-0126/D-1, S-0121/D-28]
     check: >-
-      uv run pytest -q tests/test_critic.py tests/test_review_run.py -k reproduced
+      uv run pytest -q tests/test_critic.py tests/test_review_run.py -k "reproduced
+      or blocks_on_reading"
   - id: D-2
     grade: ASSUMED
     text: >-
@@ -153,22 +157,25 @@ decisions:
   - id: D-8
     grade: ASSUMED
     text: >-
-      On a review round's attempt, a `halted` divergence entry whose claim or evidence
-      names one of the round's findings by `threads.names_spot` does not end the attempt
-      while some finding of the round is named by no halt: `halted` reads it as that
-      claim declined and the attempt goes on to its gates, and a halt that names no
-      finding of the round, or halts that name all of them, end the attempt as today
+      On a review round's attempt, a `halted` divergence entry that cites no LOCKED
+      row and whose claim or evidence names one of the round's findings by `threads.names_spot`
+      does not end the attempt while some finding of the round is named by no halt:
+      `halted` reads it as that claim declined and the attempt goes on to its gates;
+      a halt citing a LOCKED row escalates `locked_conflict` as S-0096/D-1 says, and
+      a halt that names no finding of the round, or halts that name all of them, end
+      the attempt as today
     paths: [src/torve/application/session.py]
     consequence: >-
-      a round with one out-of-scope claim lands its other fixes, and a round that declines
-      everything still escalates; a halt on one claim that cites a LOCKED row is declined
-      on its thread too, not escalated `locked_conflict`
+      a round with one out-of-scope claim lands its other fixes, a round that declines
+      everything still escalates, and a claim that collides with a LOCKED row still
+      reaches the owner before the round lands
     rationale: >-
       T-0894's attempt halted on one out-of-scope claim, which discarded a round carrying
-      six green fixes
+      six green fixes; a LOCKED row is the owner's to reopen, so its conflict is asked
+      first (Q-5)
     cites: [S-0096/D-1, S-0084/D-13, S-0121/D-29]
     check: >-
-      uv run pytest -q tests/test_session.py -k halted_claim
+      uv run pytest -q tests/test_session.py -k "halted_claim or locked_halt"
   - id: D-9
     grade: ASSUMED
     text: >-
@@ -204,7 +211,9 @@ decisions:
     rationale: >-
       S-0122/D-2 keeps every reading the judge relies on to the host or a throwaway
       gates sandbox, and the critic's own runs happen in a copy where nothing it writes
-      is evidence
+      is evidence; the 300-second bound is S-0122/D-6's figure for the critic's own runs,
+      which no code enforces and nothing measured, so it stands only until Q-7 settles
+      it
     cites: [S-0122/D-2, S-0122/D-6, S-0114/D-5]
     check: >-
       uv run pytest -q tests/test_runner.py -k reproduce
@@ -226,8 +235,8 @@ decisions:
   - id: D-12
     grade: ASSUMED
     text: >-
-      `threads.rejections(entries, attempt)` also keeps that attempt's `halted` entries,
-      so the carry (S-0126/D-1, S-0126/D-2) and the reply read a declined claim as they
+      `threads.rejections(entries, attempt)` also keeps that attempt's `halted` entries
+      that cite no LOCKED row, so the carry (S-0126/D-1, S-0126/D-2) and the reply read a declined claim as they
       read a contradicted one, and the leg answers a halted entry's thread `Out of scope
       — <claim>` with its evidence where it answers a contradicted one `Not applied
       — <claim>`
@@ -245,18 +254,41 @@ decisions:
   - id: D-13
     grade: ASSUMED
     text: >-
-      The document's pull-request body lists, under each landing, the findings its
-      last task-gated review recorded, by severity, anchor and claim, read from the
-      store's `review.recorded` items, under a heading that names them the critic's
-      advisory findings; a landed candidate's last review blocked nothing, so every
-      finding listed is advisory
+      The document's pull-request body lists, under each landing, each finding its
+      last task-gated review recorded, by severity, kind, anchor (`path:line`) and,
+      when the engine re-ran it, the re-run's command and exit code, read from the
+      store's `review.recorded` items (D-14) under a heading that names them the critic's
+      advisory findings; no claim or evidence text is listed, and a landed candidate's
+      last review blocked nothing, so every finding listed is advisory
     paths: [src/torve/application/forge.py, src/torve/cli/merge.py]
     consequence: >-
-      a person merging reads what the critic found and could not reproduce, and the
-      body stays bounded by `BODY_LIMIT`
+      a person merging sees where the critic found something and what the engine measured
+      of it, reads the claim in the review record, and the body stays composed from records
+      and bounded by `BODY_LIMIT`
     rationale: >-
       D-1 makes most of the critic's findings advisory, and a review record on the host
-      that ran the critic is read by nobody before a merge
-    cites: [S-0121/D-34, S-0083/D-8, D-1]
+      that ran the critic is read by nobody before a merge; S-0121/D-34 (LOCKED) keeps
+      agent prose out of the body, so the critic's words stay out and S-0121/D-34 stands
+      unamended (Q-2)
+    cites: [S-0121/D-34, S-0083/D-8, D-1, D-14]
     check: >-
       uv run pytest -q tests/test_forge.py -k advisory
+  - id: D-14
+    grade: ASSUMED
+    text: >-
+      Each item a critic review's `review.recorded` event carries holds the finding's
+      `kind` (`contract` for a violated row) and, when the engine re-ran its repro,
+      the command and exit code, as `ReviewItem` fields with defaults (`kind` empty,
+      `rerun_command` empty, `rerun_exit` none), so a review recorded before them reads
+      with none and every other field keeps its meaning
+    paths: [src/torve/domain/events.py, src/torve/application/review.py]
+    consequence: >-
+      any host reads what a finding was and what the engine measured of it from the
+      record, without the review record on the host that ran the critic
+    rationale: >-
+      D-13 lists kind and re-run from the store, and the store's items held only severity,
+      anchor, claim and evidence; additive fields with defaults are how S-0101/D-11 grew
+      the same event
+    cites: [S-0101/D-4, S-0101/D-11, S-0121/D-4, D-1]
+    check: >-
+      uv run pytest -q tests/test_review_run.py tests/test_events.py -k rerun_item
