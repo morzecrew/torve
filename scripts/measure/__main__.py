@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import random
+import re
 import shutil
 import statistics
 import subprocess
@@ -18,10 +19,25 @@ from pathlib import Path
 
 import yaml
 
-from . import paired, pass_hat
+from . import bootstrap, mcnemar, paired, pass_hat, sign_flip_p
 
 # The paths a blinded diff leaves out: an engine's own records name the arm.
 UNBLINDING = [":(exclude).torve", ":(exclude).wt"]
+
+# What a trial's log or traces show when an arm went looking for the answer
+# rather than writing it (the first pilot: clones of the upstream repository,
+# its PR diffs over the API, the installed engine's own source). A hit flags
+# the trial for review; it convicts nothing by itself.
+LEAKS = {
+    # Any fetch, not only one naming a URL: a trial holds no remote, so a fetch
+    # or pull means one was added, and `gh` reaches the forge by itself.
+    "fetch": r"\bgit (?:clone|ls-remote|fetch|pull)\b|\bgit remote add\b|\bgh (?:api|repo|pr|release)\b"
+    r"|\bcurl\b|\bwget\b|\burlopen\(|\bpip download\b",
+    "forge": r"api\.github\.com|raw\.githubusercontent\.com|codeload\.github\.com",
+    "registry": r"pypi\.org/(?:pypi|simple)/|files\.pythonhosted\.org|registry\.npmjs\.org",
+    "history": r"\bgit (?:log|rev-list)\b[^\n]*--all\b|\bgit reflog\b|\bgit fsck\b|--lost-found",
+    "installed": r"site-packages/|/opt/torve/(?:cli|cache)|archive-v0",
+}
 
 
 def git(tree: Path, *args: str) -> str:
@@ -75,11 +91,21 @@ def trial(set_dir: Path, out: Path, task: str, arm: str, spec: dict, number: int
     git(tree, "fetch", "-q", "--no-tags", str(meta["repo"]), meta["base"])
     git(tree, "checkout", "-q", "-B", meta.get("branch", "main"), "FETCH_HEAD")
 
-    env = {name: os.environ[name] for name in ("PATH", "HOME", "LANG") if name in os.environ}
+    # A home of the trial's own: an operator's settings, memory, plugins and
+    # credentials live under the host's HOME, and a trial that could read them
+    # would be measuring the operator's machine. Caches are the set's, shared
+    # across trials, so a fresh home does not mean a cold install every time.
+    home = out / "homes" / f"{task}.{arm}.{number}"
+    shutil.rmtree(home, ignore_errors=True)
+    home.mkdir(parents=True)
+    env = {name: os.environ[name] for name in ("PATH", "LANG") if name in os.environ}
     # Only what the host sets: an empty `no_proxy` is not an unset one, and
     # Python lets it override the host's `NO_PROXY`.
     env |= {name: os.environ[name] for name in spec.get("env", []) if name in os.environ}
+    # Set after an arm's own list, so no arm can name the host's home back in.
     env |= {
+        "HOME": str(home),
+        "XDG_CACHE_HOME": str(set_dir.resolve() / ".cache"),
         "MEASURE_TASK": task,
         "MEASURE_ARM": arm,
         "MEASURE_TRIAL": str(number),
@@ -116,17 +142,23 @@ def trial(set_dir: Path, out: Path, task: str, arm: str, spec: dict, number: int
     diff.parent.mkdir(parents=True, exist_ok=True)
     diff.write_text(git(tree, "diff", "--cached", meta["base"], "--", ".", *UNBLINDING))
 
-    # The check arrives only now, so no arm can read it.
+    # The check arrives only now, so no arm can read it. A check that judges
+    # several units says which passed in its last JSON line, `{"units": {...}}`.
     shutil.copytree(task_dir / "check", tree, dirs_exist_ok=True)
+    units = None
     try:
         check = subprocess.run(
             ["bash", "-c", meta["check"]],
             cwd=tree,
-            env={k: v for k, v in env.items() if k in ("PATH", "HOME")},
+            env={k: v for k, v in env.items() if k in ("PATH", "HOME", "XDG_CACHE_HOME")},
             capture_output=True,
+            text=True,
             timeout=meta.get("check_timeout", 900),
         )
         passed = check.returncode == 0
+        named = last_json(check.stdout).get("units")
+        if isinstance(named, dict):
+            units = {str(unit): bool(ok) for unit, ok in named.items()}
     except subprocess.TimeoutExpired:
         passed = False
 
@@ -140,26 +172,37 @@ def trial(set_dir: Path, out: Path, task: str, arm: str, spec: dict, number: int
         "wall_s": round(wall_s, 3),
         "cost_usd": cost if cost is not None else telemetry_cost(tree),
         "owner_minutes": reported.get("owner_minutes"),
+        "units": units,
         "diff": str(diff.relative_to(out)),
     }
 
 
-def run(set_dir: Path, out: Path, arms: list[str], tasks: list[str], trials: int) -> None:
+def run(
+    set_dir: Path, out: Path, arms: list[str], tasks: list[str], trials: int, seed: int = 0
+) -> None:
     specs = yaml.safe_load((set_dir / "arms.yaml").read_text())["arms"]
     arms = arms or sorted(specs)
     tasks = tasks or sorted(p.name for p in (set_dir / "tasks").iterdir() if p.is_dir())
     done = {(r["task"], r["arm"], r["trial"]) for r in results(out)}
     out.mkdir(parents=True, exist_ok=True)
 
-    for task in tasks:
-        for arm in arms:
-            for number in range(1, trials + 1):
-                if (task, arm, number) in done:
-                    continue
-                row = trial(set_dir, out, task, arm, specs[arm], number)
-                with (out / "results.jsonl").open("a") as sink:
-                    sink.write(json.dumps(row) + "\n")
-                print(f"{task} {arm} #{number}: {'pass' if row['passed'] else 'fail'}")
+    # In a seeded random order, not arm by arm: the cold set cache, a provider
+    # slowing through the night, a quota running down — whatever drifts falls on
+    # every arm alike instead of on whichever ran first or last.
+    order = [
+        (task, arm, number)
+        for task in tasks
+        for arm in arms
+        for number in range(1, trials + 1)
+        if (task, arm, number) not in done
+    ]
+    random.Random(seed).shuffle(order)
+
+    for task, arm, number in order:
+        row = trial(set_dir, out, task, arm, specs[arm], number)
+        with (out / "results.jsonl").open("a") as sink:
+            sink.write(json.dumps(row) + "\n")
+        print(f"{task} {arm} #{number}: {'pass' if row['passed'] else 'fail'}")
 
 
 def pairs(out: Path, seed: int) -> None:
@@ -176,15 +219,55 @@ def pairs(out: Path, seed: int) -> None:
         for n, (a, b) in enumerate(combinations(arms, 2), 1):
             if rng.random() < 0.5:
                 a, b = b, a
-            ident = f"{task}.{n}"
-            key[ident] = {"task": task, "A": a, "B": b}
-            body = [f"# {task}\n", "Which change is better? Answer A, B or tie.\n"]
-            for side, arm in (("A", a), ("B", b)):
-                diff = (out / first[(task, arm)]["diff"]).read_text()
-                body += [f"## {side}\n", "```diff", diff, "```\n"]
-            (target / f"{ident}.md").write_text("\n".join(body))
+            # Each pair in both orders: a judge that prefers a position over a
+            # change answers the two differently, and the report counts that
+            # as a tie rather than a win.
+            for order, (first_arm, second_arm) in enumerate(((a, b), (b, a)), 1):
+                ident = f"{task}.{n}.{order}"
+                key[ident] = {"task": task, "pair": f"{task}.{n}", "A": first_arm, "B": second_arm}
+                body = [f"# {task}\n", "Which change is better? Answer A, B or tie.\n"]
+                for side, arm in (("A", first_arm), ("B", second_arm)):
+                    diff = (out / first[(task, arm)]["diff"]).read_text()
+                    body += [f"## {side}\n", "```diff", diff, "```\n"]
+                (target / f"{ident}.md").write_text("\n".join(body))
+    # Shuffled so a judge working down the list never sees a pair's two orders
+    # side by side.
+    order = list(key)
+    rng.shuffle(order)
+    (target / "order.txt").write_text("\n".join(order) + "\n")
     (target / "key.json").write_text(json.dumps(key, indent=2))
-    print(f"{len(key)} pair(s) under {target}")
+    print(f"{len(key)} comparison(s) under {target}")
+
+
+def audit(out: Path) -> dict[str, dict[str, int]]:
+    """Each trial's hits against `LEAKS`, in its log and in every trace its tree
+    kept, written to `<out>/audit.json` and printed with whether the trial
+    passed — a flagged pass is the one to read before counting it."""
+
+    passed = {f"{r['task']}.{r['arm']}.{r['trial']}": r["passed"] for r in results(out)}
+    patterns = {name: re.compile(rx) for name, rx in LEAKS.items()}
+    found: dict[str, dict[str, int]] = {}
+
+    for trial_id in sorted(passed):
+        texts = [out / "logs" / f"{trial_id}.log"]
+        texts += sorted((out / "trees" / trial_id / ".torve" / "traces").glob("*.log"))
+        hits: dict[str, int] = defaultdict(int)
+        for path in texts:
+            if not path.is_file():
+                continue
+            text = path.read_text(errors="replace")
+            for name, pattern in patterns.items():
+                hits[name] += len(pattern.findall(text))
+        if any(hits.values()):
+            found[trial_id] = {name: n for name, n in hits.items() if n}
+
+    (out / "audit.json").write_text(json.dumps(found, indent=1))
+    for trial_id, hits in found.items():
+        verdict = "PASS" if passed[trial_id] else "fail"
+        print(f"{trial_id:<32} {verdict}  " + " ".join(f"{k}={v}" for k, v in sorted(hits.items())))
+    flagged_passes = sum(passed[t] for t in found)
+    print(f"{len(found)} trial(s) flagged, {flagged_passes} of them passed")
+    return found
 
 
 def report(out: Path) -> None:
@@ -221,22 +304,96 @@ def report(out: Path) -> None:
             mean, half = paired([p1[(a, t)] - p1[(b, t)] for t in shared])
             print(f"  {a} vs {b}: {mean:+.2f} ± {half:.2f}  ({len(shared)} tasks)")
 
+    unit_report(rows)
+
     verdicts = out / "pairs" / "verdicts.jsonl"
     if verdicts.exists():
         key = json.loads((out / "pairs" / "key.json").read_text())
-        tally: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0, 0])
-        for line in verdicts.read_text().splitlines():
-            if not line.strip():
-                continue
-            verdict = json.loads(line)
-            sides = key[verdict["pair"]]
-            a, b = sorted((sides["A"], sides["B"]))
-            prefer = verdict["prefer"]
-            winner = sides[prefer] if prefer in ("A", "B") else None
-            tally[(a, b)][0 if winner == a else 1 if winner == b else 2] += 1
-        print("\nblind pairwise review (wins / losses / ties)")
-        for (a, b), (won, lost, tied) in sorted(tally.items()):
-            print(f"  {a} vs {b}: {won} / {lost} / {tied}")
+        tally = pair_tally(key, verdicts.read_text().splitlines())
+        print("\nblind pairwise review, both orders judged (wins / losses / ties · incomplete)")
+        for (a, b), (won, lost, tied, incomplete) in sorted(tally.items()):
+            print(f"  {a} vs {b}: {won} / {lost} / {tied} · {incomplete}")
+
+
+def pair_tally(key: dict[str, dict], lines: list[str]) -> dict[tuple[str, str], list[int]]:
+    """(wins, losses, ties, incomplete) per pair of arms, in sorted arm order.
+    A pair counts only once both its orders have a verdict: one winner across
+    both is a win, a split is a tie, and a pair judged in one order alone is
+    incomplete rather than a win a position-biased judge could have given."""
+
+    chosen: dict[str, dict[str, str | None]] = defaultdict(dict)
+    for line in lines:
+        if not line.strip():
+            continue
+        verdict = json.loads(line)
+        sides = key[verdict["pair"]]
+        prefer = verdict["prefer"]
+        chosen[sides.get("pair", verdict["pair"])][verdict["pair"]] = (
+            sides[prefer] if prefer in ("A", "B") else None
+        )
+
+    orders: dict[str, int] = defaultdict(int)
+    for ident, sides in key.items():
+        orders[sides.get("pair", ident)] += 1
+
+    tally: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0, 0, 0])
+    for pair, judged in chosen.items():
+        sides = next(s for i, s in key.items() if s.get("pair", i) == pair)
+        a, b = sorted((sides["A"], sides["B"]))
+        if len(judged) < orders[pair]:
+            tally[(a, b)][3] += 1
+            continue
+        winners = set(judged.values())
+        winner = next(iter(winners)) if len(winners) == 1 else None
+        tally[(a, b)][0 if winner == a else 1 if winner == b else 2] += 1
+    return dict(tally)
+
+
+def unit_report(rows: list[dict]) -> None:
+    """The unit-level result for trials whose check named its units: each arm's
+    unit pass rate, then each pair of arms compared per document — the
+    difference of their unit pass rates over that document's units and
+    trials — with the mean over documents, its bootstrap interval and its
+    sign-flip p, and exact McNemar over trial 1's units."""
+
+    unit_rows = [r for r in rows if r.get("units")]
+    if not unit_rows:
+        return
+
+    outcomes: dict[tuple[str, str], list[bool]] = defaultdict(list)
+    first: dict[tuple[str, str, str], bool] = {}
+    for r in unit_rows:
+        for unit, ok in r["units"].items():
+            outcomes[(r["arm"], r["task"])].append(ok)
+            if r["trial"] == 1:
+                first[(r["arm"], r["task"], unit)] = ok
+
+    arms = sorted({arm for arm, _ in outcomes})
+    print("\nunit pass rate (units × trials)")
+    for arm in arms:
+        mine = [ok for (a, _), oks in outcomes.items() if a == arm for ok in oks]
+        print(f"  {arm:<16} {sum(mine) / len(mine):.2f}  ({len(mine)})")
+
+    print(
+        "\nper document, row minus column: mean [95% bootstrap]  sign-flip p  · McNemar p (trial 1)"
+    )
+    for a, b in combinations(arms, 2):
+        documents = sorted(
+            {t for arm, t in outcomes if arm == a} & {t for arm, t in outcomes if arm == b}
+        )
+        if not documents:
+            continue
+        rate = {key: sum(v) / len(v) for key, v in outcomes.items()}
+        differences = [rate[(a, t)] - rate[(b, t)] for t in documents]
+        low, high = bootstrap(differences)
+        shared = [(t, u) for (arm, t, u) in first if arm == a and (b, t, u) in first]
+        only_a = sum(first[(a, t, u)] and not first[(b, t, u)] for t, u in shared)
+        only_b = sum(first[(b, t, u)] and not first[(a, t, u)] for t, u in shared)
+        print(
+            f"  {a} vs {b}: {statistics.fmean(differences):+.2f} [{low:+.2f}, {high:+.2f}]"
+            f"  p={sign_flip_p(differences):.3f}  · McNemar {only_a}/{only_b} p={mcnemar(only_a, only_b):.3f}"
+            f"  ({len(documents)} documents)"
+        )
 
 
 def selfcheck() -> None:
@@ -244,6 +401,12 @@ def selfcheck() -> None:
     assert abs(pass_hat(4, 5, 3) - 0.4) < 1e-9
     assert paired([0.5, 0.5]) == (0.5, 0.0)
     assert last_json('noise\n{"total_cost_usd": 1.5}\n{bad\n') == {"total_cost_usd": 1.5}
+    # Four documents all one way: only the two all-same sign assignments are as
+    # extreme, so p is 2/16.
+    assert sign_flip_p([1.0, 1.0, 1.0, 1.0]) == 0.125
+    assert sign_flip_p([1.0, -1.0]) == 1.0
+    assert all(abs(bound - 0.2) < 1e-9 for bound in bootstrap([0.2, 0.2, 0.2]))
+    assert mcnemar(0, 0) == 1.0 and mcnemar(5, 0) == 0.0625 and mcnemar(3, 3) == 1.0
 
     with tempfile.TemporaryDirectory() as scratch:
         root = Path(scratch)
@@ -261,7 +424,11 @@ def selfcheck() -> None:
 
         task = set_dir / "tasks" / "t1"
         (task / "check").mkdir(parents=True)
-        (task / "check" / "check_app.py").write_text("import app\nassert app.x == 2\n")
+        (task / "check" / "check_app.py").write_text(
+            "import json, sys\nimport app\n"
+            'print(json.dumps({"units": {"u1": app.x == 2, "u2": True}}))\n'
+            "sys.exit(0 if app.x == 2 else 1)\n"
+        )
         (task / "prompt.md").write_text("Make x two.\n")
         (task / "task.yaml").write_text(
             yaml.safe_dump({"repo": str(repo), "base": base, "check": "python3 check_app.py"})
@@ -272,12 +439,19 @@ def selfcheck() -> None:
                     "arms": {
                         # The check is not there to read while the arm runs.
                         # A variable the host does not set reaches no arm, not even empty.
+                        # The home is the trial's own, never the host's, even
+                        # for an arm that names HOME in its own list.
                         "right": {
                             "run": 'test ! -e check_app.py && test -z "${MEASURE_UNSET+x}"'
+                            ' && case "$HOME" in */homes/t1.right.*) ;; *) exit 1;; esac'
                             " && echo 'x = 2' > app.py",
-                            "env": ["MEASURE_UNSET"],
+                            "env": ["MEASURE_UNSET", "HOME"],
                         },
-                        "wrong": {"run": "echo '{\"cost_usd\": 0.25}'"},
+                        "wrong": {
+                            "run": "echo '{\"cost_usd\": 0.25}'"
+                            " && echo 'curl -s https://api.github.com/repos/o/r' >&2"
+                            " && echo 'git fetch origin && gh api repos/o/r/pulls' >&2"
+                        },
                     }
                 }
             )
@@ -292,12 +466,32 @@ def selfcheck() -> None:
         tree = out / "trees" / "t1.right.1"
         assert git(tree, "tag") == "" and git(tree, "rev-list", "--all").split() == [base]
         assert subprocess.run(["git", "-C", str(tree), "cat-file", "-e", later]).returncode != 0
+        assert {r["arm"]: tuple(sorted(r["units"].items())) for r in rows} == {
+            "right": (("u1", True), ("u2", True)),
+            "wrong": (("u1", False), ("u2", True)),
+        }
+
+        flagged = audit(out)
+        assert set(flagged) == {f"t1.wrong.{n}" for n in (1, 2, 3)}, flagged
+        assert all(hits == {"fetch": 3, "forge": 1} for hits in flagged.values()), flagged
 
         pairs(out, 0)
         key = json.loads((out / "pairs" / "key.json").read_text())
-        side = "A" if key["t1.1"]["A"] == "right" else "B"
-        (out / "pairs" / "verdicts.jsonl").write_text(json.dumps({"pair": "t1.1", "prefer": side}))
-        assert "right" not in (out / "pairs" / "t1.1.md").read_text()
+        assert key["t1.1.1"]["A"] == key["t1.1.2"]["B"] and key["t1.1.1"]["pair"] == "t1.1"
+        verdicts = [
+            {"pair": ident, "prefer": "A" if sides["A"] == "right" else "B"}
+            for ident, sides in key.items()
+        ]
+        (out / "pairs" / "verdicts.jsonl").write_text(
+            "\n".join(json.dumps(v) for v in verdicts) + "\n"
+        )
+        assert all("right" not in (out / "pairs" / f"{i}.md").read_text() for i in key)
+        lines = [json.dumps(v) for v in verdicts]
+        assert pair_tally(key, lines) == {("right", "wrong"): [1, 0, 0, 0]}
+        # One order alone is incomplete, never a win; a split is a tie.
+        assert pair_tally(key, lines[:1]) == {("right", "wrong"): [0, 0, 0, 1]}
+        split = [lines[0], json.dumps({"pair": verdicts[1]["pair"], "prefer": "tie"})]
+        assert pair_tally(key, split) == {("right", "wrong"): [0, 0, 1, 0]}
         report(out)
     print("selfcheck ok")
 
@@ -314,16 +508,20 @@ def main() -> None:
     run_p.add_argument("--arm", action="append", default=[])
     run_p.add_argument("--task", action="append", default=[])
     run_p.add_argument("--trials", type=int, default=3)
+    run_p.add_argument("--seed", type=int, default=0)
     pairs_p = verbs.add_parser("pairs")
     pairs_p.add_argument("out", type=Path)
     pairs_p.add_argument("--seed", type=int, default=0)
     verbs.add_parser("report").add_argument("out", type=Path)
+    verbs.add_parser("audit").add_argument("out", type=Path)
     args = parser.parse_args()
 
     if args.verb == "run":
-        run(args.set, args.out, args.arm, args.task, args.trials)
+        run(args.set, args.out, args.arm, args.task, args.trials, args.seed)
     elif args.verb == "pairs":
         pairs(args.out, args.seed)
+    elif args.verb == "audit":
+        audit(args.out)
     else:
         report(args.out)
 
