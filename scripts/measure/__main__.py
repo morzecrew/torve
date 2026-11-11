@@ -29,7 +29,10 @@ UNBLINDING = [":(exclude).torve", ":(exclude).wt"]
 # its PR diffs over the API, the installed engine's own source). A hit flags
 # the trial for review; it convicts nothing by itself.
 LEAKS = {
-    "fetch": r"\bgit (?:clone|ls-remote|fetch)\s+\S*://|\bcurl\b|\bwget\b|\burlopen\(|\bpip download\b",
+    # Any fetch, not only one naming a URL: a trial holds no remote, so a fetch
+    # or pull means one was added, and `gh` reaches the forge by itself.
+    "fetch": r"\bgit (?:clone|ls-remote|fetch|pull)\b|\bgit remote add\b|\bgh (?:api|repo|pr|release)\b"
+    r"|\bcurl\b|\bwget\b|\burlopen\(|\bpip download\b",
     "forge": r"api\.github\.com|raw\.githubusercontent\.com|codeload\.github\.com",
     "registry": r"pypi\.org/(?:pypi|simple)/|files\.pythonhosted\.org|registry\.npmjs\.org",
     "history": r"\bgit (?:log|rev-list)\b[^\n]*--all\b|\bgit reflog\b|\bgit fsck\b|--lost-found",
@@ -96,11 +99,13 @@ def trial(set_dir: Path, out: Path, task: str, arm: str, spec: dict, number: int
     shutil.rmtree(home, ignore_errors=True)
     home.mkdir(parents=True)
     env = {name: os.environ[name] for name in ("PATH", "LANG") if name in os.environ}
-    env |= {"HOME": str(home), "XDG_CACHE_HOME": str(set_dir.resolve() / ".cache")}
     # Only what the host sets: an empty `no_proxy` is not an unset one, and
     # Python lets it override the host's `NO_PROXY`.
     env |= {name: os.environ[name] for name in spec.get("env", []) if name in os.environ}
+    # Set after an arm's own list, so no arm can name the host's home back in.
     env |= {
+        "HOME": str(home),
+        "XDG_CACHE_HOME": str(set_dir.resolve() / ".cache"),
         "MEASURE_TASK": task,
         "MEASURE_ARM": arm,
         "MEASURE_TRIAL": str(number),
@@ -172,22 +177,32 @@ def trial(set_dir: Path, out: Path, task: str, arm: str, spec: dict, number: int
     }
 
 
-def run(set_dir: Path, out: Path, arms: list[str], tasks: list[str], trials: int) -> None:
+def run(
+    set_dir: Path, out: Path, arms: list[str], tasks: list[str], trials: int, seed: int = 0
+) -> None:
     specs = yaml.safe_load((set_dir / "arms.yaml").read_text())["arms"]
     arms = arms or sorted(specs)
     tasks = tasks or sorted(p.name for p in (set_dir / "tasks").iterdir() if p.is_dir())
     done = {(r["task"], r["arm"], r["trial"]) for r in results(out)}
     out.mkdir(parents=True, exist_ok=True)
 
-    for task in tasks:
-        for arm in arms:
-            for number in range(1, trials + 1):
-                if (task, arm, number) in done:
-                    continue
-                row = trial(set_dir, out, task, arm, specs[arm], number)
-                with (out / "results.jsonl").open("a") as sink:
-                    sink.write(json.dumps(row) + "\n")
-                print(f"{task} {arm} #{number}: {'pass' if row['passed'] else 'fail'}")
+    # In a seeded random order, not arm by arm: the cold set cache, a provider
+    # slowing through the night, a quota running down — whatever drifts falls on
+    # every arm alike instead of on whichever ran first or last.
+    order = [
+        (task, arm, number)
+        for task in tasks
+        for arm in arms
+        for number in range(1, trials + 1)
+        if (task, arm, number) not in done
+    ]
+    random.Random(seed).shuffle(order)
+
+    for task, arm, number in order:
+        row = trial(set_dir, out, task, arm, specs[arm], number)
+        with (out / "results.jsonl").open("a") as sink:
+            sink.write(json.dumps(row) + "\n")
+        print(f"{task} {arm} #{number}: {'pass' if row['passed'] else 'fail'}")
 
 
 def pairs(out: Path, seed: int) -> None:
@@ -294,26 +309,44 @@ def report(out: Path) -> None:
     verdicts = out / "pairs" / "verdicts.jsonl"
     if verdicts.exists():
         key = json.loads((out / "pairs" / "key.json").read_text())
-        # One winner per pair across its two orders: a split is a tie.
-        winners: dict[str, set[str | None]] = defaultdict(set)
-        for line in verdicts.read_text().splitlines():
-            if not line.strip():
-                continue
-            verdict = json.loads(line)
-            sides = key[verdict["pair"]]
-            prefer = verdict["prefer"]
-            winners[sides.get("pair", verdict["pair"])].add(
-                sides[prefer] if prefer in ("A", "B") else None
-            )
-        tally: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0, 0])
-        for pair, chosen in winners.items():
-            sides = next(s for s in key.values() if s.get("pair", pair) == pair)
-            a, b = sorted((sides["A"], sides["B"]))
-            winner = next(iter(chosen)) if len(chosen) == 1 else None
-            tally[(a, b)][0 if winner == a else 1 if winner == b else 2] += 1
-        print("\nblind pairwise review, both orders agreeing (wins / losses / ties)")
-        for (a, b), (won, lost, tied) in sorted(tally.items()):
-            print(f"  {a} vs {b}: {won} / {lost} / {tied}")
+        tally = pair_tally(key, verdicts.read_text().splitlines())
+        print("\nblind pairwise review, both orders judged (wins / losses / ties · incomplete)")
+        for (a, b), (won, lost, tied, incomplete) in sorted(tally.items()):
+            print(f"  {a} vs {b}: {won} / {lost} / {tied} · {incomplete}")
+
+
+def pair_tally(key: dict[str, dict], lines: list[str]) -> dict[tuple[str, str], list[int]]:
+    """(wins, losses, ties, incomplete) per pair of arms, in sorted arm order.
+    A pair counts only once both its orders have a verdict: one winner across
+    both is a win, a split is a tie, and a pair judged in one order alone is
+    incomplete rather than a win a position-biased judge could have given."""
+
+    chosen: dict[str, dict[str, str | None]] = defaultdict(dict)
+    for line in lines:
+        if not line.strip():
+            continue
+        verdict = json.loads(line)
+        sides = key[verdict["pair"]]
+        prefer = verdict["prefer"]
+        chosen[sides.get("pair", verdict["pair"])][verdict["pair"]] = (
+            sides[prefer] if prefer in ("A", "B") else None
+        )
+
+    orders: dict[str, int] = defaultdict(int)
+    for ident, sides in key.items():
+        orders[sides.get("pair", ident)] += 1
+
+    tally: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0, 0, 0])
+    for pair, judged in chosen.items():
+        sides = next(s for i, s in key.items() if s.get("pair", i) == pair)
+        a, b = sorted((sides["A"], sides["B"]))
+        if len(judged) < orders[pair]:
+            tally[(a, b)][3] += 1
+            continue
+        winners = set(judged.values())
+        winner = next(iter(winners)) if len(winners) == 1 else None
+        tally[(a, b)][0 if winner == a else 1 if winner == b else 2] += 1
+    return dict(tally)
 
 
 def unit_report(rows: list[dict]) -> None:
@@ -406,16 +439,18 @@ def selfcheck() -> None:
                     "arms": {
                         # The check is not there to read while the arm runs.
                         # A variable the host does not set reaches no arm, not even empty.
-                        # The home is the trial's own, never the host's.
+                        # The home is the trial's own, never the host's, even
+                        # for an arm that names HOME in its own list.
                         "right": {
                             "run": 'test ! -e check_app.py && test -z "${MEASURE_UNSET+x}"'
                             ' && case "$HOME" in */homes/t1.right.*) ;; *) exit 1;; esac'
                             " && echo 'x = 2' > app.py",
-                            "env": ["MEASURE_UNSET"],
+                            "env": ["MEASURE_UNSET", "HOME"],
                         },
                         "wrong": {
                             "run": "echo '{\"cost_usd\": 0.25}'"
                             " && echo 'curl -s https://api.github.com/repos/o/r' >&2"
+                            " && echo 'git fetch origin && gh api repos/o/r/pulls' >&2"
                         },
                     }
                 }
@@ -438,7 +473,7 @@ def selfcheck() -> None:
 
         flagged = audit(out)
         assert set(flagged) == {f"t1.wrong.{n}" for n in (1, 2, 3)}, flagged
-        assert all(hits == {"fetch": 1, "forge": 1} for hits in flagged.values()), flagged
+        assert all(hits == {"fetch": 3, "forge": 1} for hits in flagged.values()), flagged
 
         pairs(out, 0)
         key = json.loads((out / "pairs" / "key.json").read_text())
@@ -451,6 +486,12 @@ def selfcheck() -> None:
             "\n".join(json.dumps(v) for v in verdicts) + "\n"
         )
         assert all("right" not in (out / "pairs" / f"{i}.md").read_text() for i in key)
+        lines = [json.dumps(v) for v in verdicts]
+        assert pair_tally(key, lines) == {("right", "wrong"): [1, 0, 0, 0]}
+        # One order alone is incomplete, never a win; a split is a tie.
+        assert pair_tally(key, lines[:1]) == {("right", "wrong"): [0, 0, 0, 1]}
+        split = [lines[0], json.dumps({"pair": verdicts[1]["pair"], "prefer": "tie"})]
+        assert pair_tally(key, split) == {("right", "wrong"): [0, 0, 1, 0]}
         report(out)
     print("selfcheck ok")
 
@@ -467,6 +508,7 @@ def main() -> None:
     run_p.add_argument("--arm", action="append", default=[])
     run_p.add_argument("--task", action="append", default=[])
     run_p.add_argument("--trials", type=int, default=3)
+    run_p.add_argument("--seed", type=int, default=0)
     pairs_p = verbs.add_parser("pairs")
     pairs_p.add_argument("out", type=Path)
     pairs_p.add_argument("--seed", type=int, default=0)
@@ -475,7 +517,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.verb == "run":
-        run(args.set, args.out, args.arm, args.task, args.trials)
+        run(args.set, args.out, args.arm, args.task, args.trials, args.seed)
     elif args.verb == "pairs":
         pairs(args.out, args.seed)
     elif args.verb == "audit":

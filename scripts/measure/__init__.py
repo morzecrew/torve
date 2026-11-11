@@ -34,18 +34,20 @@ costed from its rows. The check runs with only `PATH`, that `HOME` and that
 cache; a check that judges several units — a task that is a whole document —
 names them in its last JSON line, `{"units": {"<unit>": true | false}}`.
 
-    python3 -m scripts.measure run <set> <out> [--arm A]... [--task T]... [--trials 3]
+    python3 -m scripts.measure run <set> <out> [--arm A]... [--task T]... [--trials 3] [--seed 0]
     python3 -m scripts.measure pairs <out> [--seed 0]
     python3 -m scripts.measure audit <out>
     python3 -m scripts.measure report <out>
     python3 -m scripts.measure --selfcheck
 
 `run` resumes: a (task, arm, trial) already in `<out>/results.jsonl` is not
-run again. `pairs` writes each pair of arms' first trials twice, once in each
-order, under `<out>/pairs/`, with the key in `key.json` and a shuffled reading
-order in `order.txt`; a judge who never opens the key writes `verdicts.jsonl`,
-one `{"pair": id, "prefer": "A" | "B" | "tie"}` per line, and `report`
-unblinds it, counting a pair whose two orders disagree as a tie. `audit` flags
+run again, and the rest run in a seeded random order, so whatever drifts over
+a run falls on every arm alike. `pairs` writes each pair of arms' first trials
+twice, once in each order, under `<out>/pairs/`, with the key in `key.json` and
+a shuffled reading order in `order.txt`; a judge who never opens the key
+writes `verdicts.jsonl`, one `{"pair": id, "prefer": "A" | "B" | "tie"}` per
+line, and `report` unblinds it, counting a pair whose two orders disagree as a
+tie and one judged in a single order as incomplete. `audit` flags
 the trials whose log or traces show an arm fetching, mining history or reading
 an installed package (`LEAKS`), and says which of them passed.
 
