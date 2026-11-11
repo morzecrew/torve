@@ -100,6 +100,52 @@ def test_the_threads_check_is_silent_with_the_leg_off_or_commands_named(tmp_path
 # ....................... #
 
 
+def test_the_egress_check_reds_a_sandbox_on_the_host_network(tmp_path: Path):
+    from torve.cli.doctor import _egress_check
+
+    root = _doctor_repo(tmp_path, {"runtime": {"network": "host"}, "broker": {"adapter": "local"}})
+
+    [(name, ok, detail)] = _egress_check(root, None)
+
+    assert name == "egress" and ok is False
+    assert "runtime.network: host" in detail and "broker.mode: sealed" in detail
+
+
+def test_the_egress_check_says_endpoint_mode_on_a_bridge_leaves_egress_open(tmp_path: Path):
+    from torve.cli.doctor import _egress_check
+
+    [(_, ok, detail)] = _egress_check(
+        _doctor_repo(tmp_path, {"broker": {"adapter": "local"}}), None
+    )
+
+    assert ok is True
+    assert detail.startswith("egress: open") and "the default bridge" in detail
+
+
+def test_the_egress_check_names_a_sealed_network_and_what_it_lets_through(tmp_path: Path):
+    from torve.cli.doctor import _egress_check
+
+    sealed = {"adapter": "local", "mode": "sealed", "network": "torve-sealed"}
+    root = _doctor_repo(
+        tmp_path,
+        {
+            "runtime": {"network": "torve-sealed"},
+            "broker": {**sealed, "pass_through": ["pypi.org", "files.pythonhosted.org"]},
+        },
+    )
+
+    [(_, ok, detail)] = _egress_check(root, None)
+
+    assert ok is True
+    assert detail == (
+        "egress: sealed on torve-sealed — the broker is the only route; "
+        "pass-through: pypi.org, files.pythonhosted.org"
+    )
+
+
+# ....................... #
+
+
 def test_seat_check_names_the_harness_and_the_profile(tmp_path: Path):
     root = _seat_repo(
         tmp_path,

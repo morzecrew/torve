@@ -51,6 +51,7 @@ import socket
 import subprocess
 import threading
 import time
+import urllib.request
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, cast
@@ -469,6 +470,75 @@ class _BrokerState:
 # ....................... #
 
 
+def _host_proxy(scheme: str, host: str) -> tuple[str, int] | None:
+    """The host's own http proxy for *scheme* (`https` for a tunnel, `http`
+    for a plain relay), or None when there is none, *host* is exempt by
+    `no_proxy`, or the proxy speaks something other than http. A host whose
+    egress runs only through its proxy cannot reach a pass-through host by
+    dialling it, so the relay leaves the way the provider leg does
+    (S-0021/A-1). The standard library reads the environment, so an empty
+    `no_proxy` clears `NO_PROXY` exactly as it does for every other client."""
+
+    proxies = urllib.request.getproxies_environment()
+    proxy = proxies.get(scheme)
+
+    if not proxy or urllib.request.proxy_bypass(host):
+        return None
+
+    parsed = urlsplit(proxy if "://" in proxy else f"http://{proxy}")
+
+    # ponytail: an http proxy without credentials only — a socks, https or
+    # authenticated proxy dials directly, as before; add the scheme when a
+    # host needs one.
+    if parsed.scheme != "http" or parsed.username:
+        return None
+
+    return parsed.hostname or "localhost", parsed.port or 80
+
+
+def _dial(host: str, port: int) -> tuple[socket.socket, bytes]:
+    """A connection to *host*:*port* for the pass-through tunnel, and the
+    bytes that arrived behind the proxy's answer: through the host's proxy
+    when `_host_proxy` names one, directly otherwise. A proxy that refuses
+    the CONNECT raises, so the relay is refused rather than spliced to an
+    error page."""
+
+    proxy = _host_proxy("https", host)
+
+    if proxy is None:
+        return socket.create_connection((host, port), timeout=UPSTREAM_TIMEOUT_S), b""
+
+    authority = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+    sock = socket.create_connection(proxy, timeout=UPSTREAM_TIMEOUT_S)
+
+    try:
+        sock.sendall(f"CONNECT {authority} HTTP/1.1\r\nHost: {authority}\r\n\r\n".encode("ascii"))
+        answer = b""
+
+        while b"\r\n\r\n" not in answer:
+            chunk = sock.recv(4096)
+
+            if not chunk or len(answer) > 65536:
+                raise OSError(f"the host proxy answered no CONNECT {authority}")
+
+            answer += chunk
+
+        head, _, early = answer.partition(b"\r\n\r\n")
+        status = head.split(b"\r\n", 1)[0].decode("ascii", "replace")
+
+        if status.split()[1:2] != ["200"]:
+            raise OSError(f"the host proxy refused CONNECT {authority}: {status}")
+
+    except BaseException:
+        sock.close()
+        raise
+
+    return sock, early
+
+
+# ....................... #
+
+
 def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         """One wire request: authenticate the run token, route the provider,
@@ -589,13 +659,32 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
             splice the sockets — bytes are relayed, never inspected, kept or
             metered beyond the request count (S-0021/D-7). The tunnel dies with
             either side: the first direction to close shuts both sockets, so
-            a half-closed tunnel cannot pin the broker's port."""
+            a half-closed tunnel cannot pin the broker's port. A destination
+            that cannot be reached is a refusal the sandbox can read, not a
+            reset."""
 
-            upstream = socket.create_connection((host, port), timeout=UPSTREAM_TIMEOUT_S)
+            try:
+                upstream, early = _dial(host, port)
+
+            except OSError as exc:
+                destination = f"{host}:{port}"
+                self._refuse(
+                    CAUSE_UPSTREAM,
+                    502,
+                    destination,
+                    destination=destination,
+                    message=f"{type(exc).__name__}: {exc}",
+                )
+                return
+
             upstream.settimeout(UPSTREAM_TIMEOUT_S)
             self.connection.settimeout(UPSTREAM_TIMEOUT_S)
             self.send_response(200, "Connection established")
             self.end_headers()
+
+            if early:
+                self.wfile.write(early)
+
             closing = threading.Event()
 
             def pump(source: socket.socket, sink: socket.socket) -> None:
@@ -638,9 +727,12 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
         def _forward_plain(self, host: str, port: int) -> None:
             """A pass-through http:// request, relayed without inspection:
             no key injection (this is not a provider route), no metering —
-            just the request forwarded and the answer relayed (S-0021/D-3)."""
+            just the request forwarded and the answer relayed (S-0021/D-3).
+            Through the host's proxy when `_host_proxy` names one, which
+            takes the absolute form of the target."""
 
-            conn = http.client.HTTPConnection(host, port, timeout=UPSTREAM_TIMEOUT_S)
+            proxy = _host_proxy("http", host)
+            conn = http.client.HTTPConnection(*(proxy or (host, port)), timeout=UPSTREAM_TIMEOUT_S)
             headers = {
                 key: value
                 for key, value in self.headers.items()
@@ -652,10 +744,26 @@ def _handler_for(state: _BrokerState) -> type[BaseHTTPRequestHandler]:
             if parsed.query:
                 target += f"?{parsed.query}"
 
+            if proxy is not None:
+                target = f"http://{host}:{port}{target}"
+
             length = int(self.headers.get("Content-Length") or 0)
-            conn.request(self.command, target, body=self.rfile.read(length), headers=headers)
-            resp = conn.getresponse()
-            data = resp.read()
+
+            try:
+                conn.request(self.command, target, body=self.rfile.read(length), headers=headers)
+                resp = conn.getresponse()
+                data = resp.read()
+
+            except (OSError, http.client.HTTPException) as exc:
+                destination = f"{host}:{port}"
+                self._refuse(
+                    CAUSE_UPSTREAM,
+                    502,
+                    destination,
+                    destination=destination,
+                    message=f"{type(exc).__name__}: {exc}",
+                )
+                return
 
             self.send_response(resp.status)
 
