@@ -335,7 +335,7 @@ Each revision round records its blocking findings' anchors, kinds and rows in th
 
 ### S-0124/D-4 — `ASSUMED` (Candidates side by side, and S-0122's revision)
 
-Under `review.mode: critic` a unit's candidates start together; from the first green candidate's finish, a candidate whose agent turn runs past `straggler_clock` of that wall time is cancelled and recorded red, a gate pass already running is never cancelled, an escalating candidate cancels the others' turns, and candidates are ordered by index before collapse and pre-rank
+Under `review.mode: critic` a unit's candidates start together; when the first finishes green it wins and the others' agent turns are cancelled and recorded red, a gate pass already running is never cancelled, an escalating candidate cancels the others' turns, and candidates that finish together are ordered by index (S-0127/D-6)
 
 - Paths: `src/torve/application/selection.py`
 - Consequence: an L-class unit takes about the time of its slowest candidate, not the sum of three
@@ -359,7 +359,7 @@ Every candidate of one attempt runs on the tier the attempt resolved before any 
 
 ### S-0124/D-7 — `ASSUMED` (Candidates side by side, and S-0122's revision)
 
-The unit's $3 bound is checked before its candidates launch, before each critic call and before a revision turn, so work launched under the bound, a batch of candidates, a critic call or a turn, may finish above it by that work's own spend; a cancelled candidate's spend from the turns it finished still counts
+The unit's bound, its class's notional-spend cap (S-0127/D-9), is checked before its candidates launch, before each critic call and before a revision turn, so work launched under the bound, a batch of candidates, a critic call or a turn, may finish above it by that work's own spend; a cancelled candidate's spend from the turns it finished still counts
 
 - Paths: `src/torve/application/selection.py`
 - Consequence: the bound stays a stop before new work, and is soft by the work already launched

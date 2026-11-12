@@ -88,3 +88,52 @@ amendments:
     md: |
       Amended on 2026-11-12 in the pull request that accepts S-0127 (S-0127/Q-6).
       Distance alone named new findings near an old anchor as re-raises. S-0127/D-4 asks a re-raise to repeat the row, or the kind, span and claim, so a new blocker near an old one is a new blocker inside the revision budget.
+  - id: A-6
+    at: '2026-11-12T04:01:29Z'
+    title: >-
+      The first green wins and cuts the rest (S-0127/D-6)
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          Under `review.mode: critic` a unit's candidates start together; from the
+          first green candidate's finish, a candidate whose agent turn runs past `straggler_clock`
+          of that wall time is cancelled and recorded red, a gate pass already running
+          is never cancelled, an escalating candidate cancels the others' turns, and
+          candidates are ordered by index before collapse and pre-rank
+        after: >-
+          Under `review.mode: critic` a unit's candidates start together; when the
+          first finishes green it wins and the others' agent turns are cancelled and
+          recorded red, a gate pass already running is never cancelled, an escalating
+          candidate cancels the others' turns, and candidates that finish together
+          are ordered by index (S-0127/D-6)
+      - subject: D-4
+        field: fingerprint
+        after: eff6ee2e1de73fa6/f9347bebfb8f8e32
+    md: |
+      Amended on 2026-11-12 while building S-0127.
+      S-0127/D-6 replaced the straggler clock, the collapse of identical diffs and the pre-rank with the first green finisher; S-0127/Q-6 missed this row, and building S-0127's phase 2 found it.
+  - id: A-7
+    at: '2026-11-12T04:02:19Z'
+    title: The bound is the class's (S-0127/D-9)
+    changes:
+      - subject: D-7
+        field: text
+        before: >-
+          The unit's $3 bound is checked before its candidates launch, before each
+          critic call and before a revision turn, so work launched under the bound,
+          a batch of candidates, a critic call or a turn, may finish above it by that
+          work's own spend; a cancelled candidate's spend from the turns it finished
+          still counts
+        after: >-
+          The unit's bound, its class's notional-spend cap (S-0127/D-9), is checked
+          before its candidates launch, before each critic call and before a revision
+          turn, so work launched under the bound, a batch of candidates, a critic
+          call or a turn, may finish above it by that work's own spend; a cancelled
+          candidate's spend from the turns it finished still counts
+      - subject: D-7
+        field: fingerprint
+        after: dd7724e4dea908d9/f9347bebfb8f8e32
+    md: |
+      Amended on 2026-11-12 while building S-0127.
+      S-0127/D-9 replaced the flat $3 with the class's cap; when the bound is checked is unchanged. S-0127/Q-6 missed this row, and building S-0127's phase 2 found it.

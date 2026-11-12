@@ -101,13 +101,13 @@ stand on.
 
 ## When a conviction routes a repair
 
-A red battery routes one way by default: a fresh attempt from base, the same
-prompt, the same contract, the previous reasoning deliberately not
-privileged. Measured over this repository's record that is expensive — the
-same gate convicted the next attempt of the same task 196 times across 28
-tasks: `acceptance` 52, `layering` 41, `user-facing-text` 39,
-`decisions-reported` 26, `scope` 14. A **repair** is the other route: the
-same task's next attempt, starting from the tree that was convicted and
+A red battery routes one way: the next attempt is an independent fresh
+session from the tree the red attempt started from, the same prompt, the same
+contract, the previous reasoning deliberately not privileged (S-0127/D-6).
+Measured over this repository's record, the same gate convicted the next
+attempt of the same task 196 times across 28 tasks: `acceptance` 52,
+`layering` 41, `user-facing-text` 39, `decisions-reported` 26, `scope` 14. A
+**repair** is what a qualifying conviction adds to that next attempt: it is
 judged by the convicting gate as well as by everything its contract already
 declared.
 
@@ -141,22 +141,12 @@ and the addition is rebuilt on every red from the acceptance sealed at
 dispatch, so it never accumulates and never leaks into an attempt that was
 not routed as a repair.
 
-**Where it starts.** From the convicted attempt's tree, not from base
-(S-0069/D-4): the work that was right survives the mistake. Routing commits
-whatever that attempt left, so the repair's worktree carries those commits
-and an ordinary retry's does not:
-
-```
-torve(T-0390): attempt 2 convicted by scope
-
-Torve-Checkpoint: T-0390 attempt 2
-```
-
-That commit is kin to the budget checkpoint and is not a landing: same
-trailer, no execution record, nothing to mistake for a candidate. If the
-commit itself fails the routing still stands and the engine records
-`repair_tree_uncommitted` — the tree is the one the repair would carry
-anyway, and an infrastructure failure must not replace the conviction.
+**Where it starts.** From the tree the red attempt started from, never the
+convicted tree (S-0127/D-6). The attempt snapshots its tree before its first
+candidate runs, and a red one is put back to that snapshot, so no convicted
+tree is committed or carried; the context pack still names the earlier
+attempts' convictions. The attempts are independent samples, so a red
+tree never anchors the next.
 
 **A checkpoint survives a recut.** The same trailer marks the tree an
 escalation leaves behind — from the review stage, or when the attempt halts
@@ -179,7 +169,7 @@ record, so a repair is visible in the record rather than inferred from a
 prompt — two convictions on one gate show one repair and then the ordinary
 path.
 
-**The third place a tree is committed short of a landing.** An escalation from
+**The second place a tree is committed short of a landing.** An escalation from
 the review stage — a surviving blocker, an unreadable verdict, a broker
 refusal — used to leave a gate-green tree in the worktree only, because the
 candidate is committed after the review. It is now committed first (S-0086/D-2),

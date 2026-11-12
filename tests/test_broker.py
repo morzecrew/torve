@@ -922,6 +922,11 @@ class _WorktreeJudge:
     def remove_judge(self, task_id: str) -> None:
         pass
 
+    # S-0127/D-6: every attempt snapshots its tree before it runs; one that
+    # never goes red is never put back, so the worktree's HEAD will do.
+    def snapshot(self, task_id: str) -> str:
+        return ""
+
 
 def _drive_task(tmp_path: Path, config: RunnerConfig, task: Task, deps) -> object:
     from torve.application.runner import drive_attempts, real_hooks
