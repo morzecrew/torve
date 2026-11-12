@@ -27,14 +27,11 @@ from typing import Any, cast
 import yaml
 
 from torve.domain.vocabulary import ENTRY_ACTIONS, ENTRY_CLASSES, ENTRY_GRADES, ENTRY_KINDS
-from torve.gates.evidence import BACKTICKED, CITATION, locate
+from torve.gates.evidence import BACKTICKED, CITATION, CITED, locate
 
 # ----------------------- #
 
 RFC3339 = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(?:Z|\+00:00)$")
-# The locator's CITATION without the end anchor — the diagnosis needs to know
-# where the leading citation ends, not whether the whole line is one (S-0005/D-4).
-CITATION_PREFIX = re.compile(r"^(?P<path>[^\s:][^:]*):(?P<start>\d+)(?:-(?P<end>\d+))?")
 REQUIRED = ("decision", "grade", "at", "attempt", "claim", "evidence", "action")
 OPTIONAL = ("kind", "class", "proposal", "notes")
 # The one vocabulary's words as sets (S-0059/D-5) — the log's and the record's.
@@ -185,12 +182,12 @@ def _check_legality(index: int, entry: dict[str, Any]) -> list[str]:
 
 def _is_grammar_rejection(evidence: str) -> bool:
     """True when the shared locator's rejection of *evidence* is the grammar
-    one (neither a path:line citation nor a backticked command), as opposed
-    to a locatable-format line pointing at a missing or out-of-range path.
-    Mirrors the locator's own branches with its own regexes, so the
-    judgement cannot drift from it (S-0005/D-4)."""
+    one (no path:line citation and no backticked command anywhere in it), as
+    opposed to a citation pointing at a missing or out-of-range path, or a
+    command with no output. Mirrors the locator's own branches with its own
+    regexes, so the judgement cannot drift from it (S-0005/D-4, S-0127/D-3)."""
 
-    if BACKTICKED.match(evidence):
+    if BACKTICKED.search(evidence) or CITED.search(evidence):
         return False
 
     citation = evidence.split(" — ")[0].split(" - ")[0].strip()
@@ -198,42 +195,18 @@ def _is_grammar_rejection(evidence: str) -> bool:
     return CITATION.match(citation) is None
 
 
-def _first_evidence_defect(evidence: str) -> str:
-    """The first grammar defect found in *evidence*, for the teaching
-    rejection: no citation at all, a semicolon chain of citations where
-    prose belongs, or the separator missing after the citation. (A line
-    whose citation is already followed by ` — ` cannot reach here — the
-    locator would have accepted it.)"""
-
-    m = CITATION_PREFIX.match(evidence)
-
-    if m is None:
-        return "no citation at all — a sentence is a claim, not evidence"
-
-    after = evidence[m.end() :].lstrip()
-
-    if after.startswith(";"):
-        return (
-            "multiple semicolon-joined citations where prose belongs — "
-            "one citation leads; the rest is prose after ` — `"
-        )
-
-    return "separator missing after the citation — prose follows after ` — `"
-
-
 def _grammar_rejection_message(evidence: str) -> str:
     """The teaching version of the locator's grammar rejection: the expected
-    grammar, the offending line quoted, and the first defect diagnosed. The
-    judgement is the locator's — only the message changes."""
+    grammar, the offending line quoted, and its defect. A citation may sit
+    anywhere in the evidence, so the only grammar defect left is citing
+    nothing (S-0127/D-3). The judgement is the locator's — only the message
+    changes."""
 
     return "\n".join(
         [
             f"evidence {evidence!r} is not locatable",
-            (
-                "expected: a single leading `path:line — one sentence` citation, "
-                "or a backticked command with its output"
-            ),
-            f"first defect: {_first_evidence_defect(evidence)}",
+            "expected: a `path:line` citation, or a backticked command with its output",
+            "first defect: no citation at all — a sentence is a claim, not evidence",
         ]
     )
 

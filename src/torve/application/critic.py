@@ -27,7 +27,6 @@ from __future__ import annotations
 
 import hashlib
 import posixpath
-import re
 import shutil
 import tempfile
 from collections.abc import Iterable, Mapping
@@ -68,7 +67,7 @@ from torve.domain.attempt import Finding
 from torve.domain.task import InheritedDecision, Task
 from torve.domain.vocabulary import FindingSeverity
 from torve.gates.context import NO_HOOKS, build_context
-from torve.gates.evidence import CITATION, filter_findings, locate
+from torve.gates.evidence import CITATION, citations, filter_findings, locate
 from torve.gates.evidence_package import (
     EvidencePackage,
     build_evidence,
@@ -115,17 +114,6 @@ PROBE_CAP = 64_000
 
 #: How long the host may spend extracting the base tree into the copy.
 BASE_TIMEOUT = 120.0
-
-#: A retained `path:line` or `path:start-end` citation anywhere in evidence,
-#: not only the leading one: a verdict may lead with a command and cite the
-#: disputed line later in its prose (S-0126/D-1). The path is read the way
-#: `locate` reads it — every character but whitespace or the citing colon —
-#: so a supported name like `src/a+b.py` is not cut to `b.py`; the first
-#: character stays word-shaped, so punctuation before a citation in prose is
-#: not swallowed into the path.
-_CITED = re.compile(
-    r"(?<![\w./+-])(?P<path>[\w./+-][^\s:]*):(?P<start>\d+)(?:-(?P<end>\d+))?(?!\d)"
-)
 
 
 # ....................... #
@@ -344,31 +332,6 @@ def _anchor_near(anchor: tuple[str, int], previous: list[dict[str, Any]]) -> boo
     return False
 
 
-def _citations(evidence: str, root: Path | None = None) -> list[tuple[str, int, int]]:
-    """Every `path:line` or `path:start-end` *evidence* cites, in order.
-
-    The location filter reads the leading citation, but a verdict may lead
-    with a command and cite the disputed line later in its prose, which is
-    the shape T-0913's row verdict had (S-0126/D-1). The path is read the way
-    `locate` reads it: with *root*, the words before `_CITED`'s path are tried
-    as part of a path containing spaces, so `src/legacy module.py:12` is not
-    truncated to `module.py:12` and left under the ordinary rules."""
-
-    found: list[tuple[str, int, int]] = []
-
-    for match in _CITED.finditer(evidence):
-        path = match.group("path")
-        start = int(match.group("start"))
-        end = int(match.group("end") or match.group("start"))
-
-        if root is not None:
-            path = _extend_path(evidence, match.start("path"), path, start, end, root)
-
-        found.append((path, start, end))
-
-    return found
-
-
 def _citation_locates(path: str, start: int, end: int, root: Path) -> bool:
     """Whether one citation is a line or range `locate` accepts under *root*.
 
@@ -383,26 +346,6 @@ def _citation_locates(path: str, start: int, end: int, root: Path) -> bool:
     return locate(span, root) is None
 
 
-def _extend_path(evidence: str, beginning: int, path: str, start: int, end: int, root: Path) -> str:
-    """*path* with the space-separated words before it that make the citation
-    resolve under *root*: `locate`'s `CITATION` accepts a path containing
-    spaces, which `_CITED` finds only from its last word (S-0126/D-1).
-
-    The longest run that locates wins, so prose before the path is not
-    swallowed: only words whose addition makes an existing file are kept."""
-
-    prefix = evidence[evidence.rfind("\n", 0, beginning) + 1 : beginning]
-    words = prefix.split()
-
-    for index in range(len(words)):
-        candidate = " ".join([*words[index:], path])
-
-        if _citation_locates(candidate, start, end, root):
-            return candidate
-
-    return path
-
-
 def _near_rejected(evidence: str, rejected: Iterable[tuple[str, int, int]], root: Path) -> bool:
     """Whether *evidence* disputes a rejected claim (S-0126/D-1): it cites at
     least one `path:line`, every citation locates in *root*, and every one
@@ -413,7 +356,7 @@ def _near_rejected(evidence: str, rejected: Iterable[tuple[str, int, int]], root
     citation is not carried this way either, because nothing ties it to the
     claim."""
 
-    cited = _citations(evidence, root)
+    cited = citations(evidence, root)
 
     if not cited:
         return False
@@ -485,7 +428,7 @@ def rejected_spots(task: Task, worktree: Path, attempt: int) -> list[tuple[str, 
                     )
                 )
 
-        for path, start, end in _citations(str(rejection.get("evidence", "")), worktree):
+        for path, start, end in citations(str(rejection.get("evidence", "")), worktree):
             if _citation_locates(path, start, end, worktree):
                 add((posixpath.normpath(path), start, end))
 

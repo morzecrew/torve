@@ -165,34 +165,41 @@ def test_decisions_skill_style_entry_is_accepted(repo):
 
 
 @pytest.mark.parametrize(
-    ("evidence", "defect"),
+    "evidence",
     [
-        ("src/app.py:1 the guard", "separator missing after the citation"),
-        (
-            "src/app.py:1; src/app.py:2 — the guard",
-            "multiple semicolon-joined citations where prose belongs",
-        ),
-        ("no redis service in this deployment", "no citation at all"),
+        "src/app.py:1 the guard",
+        "src/app.py:1; src/app.py:2 — the guard",
+        "the guard at src/app.py:1 holds",
     ],
 )
-def test_decisions_evidence_rejection_teaches_the_repair(repo, evidence, defect):
-    """T-0203: the grammar rejection quotes the offending line, prints the
-    expected grammar, and diagnoses the first defect — the judgement itself
-    is unchanged (still a rejection)."""
+def test_locates_anywhere_the_t0203_citations_are_accepted(repo, evidence):
+    """S-0127/D-3: T-0203's entries whose citation resolves are accepted
+    with no separator after it, beside another citation, or after prose."""
     repo.seed()
+    assert check_entry(_halt(evidence=evidence), repo.root) == []
+
+
+def test_locates_anywhere_a_sentence_citing_nothing_keeps_its_teaching_rejection(repo):
+    """T-0203, S-0127/D-3: the grammar rejection quotes the offending line,
+    asks for a citation or a command with its output, no longer a leading
+    one, and diagnoses the defect — the judgement itself is the locator's."""
+    repo.seed()
+    evidence = "no redis service in this deployment"
     output = "\n".join(check_entry(_halt(evidence=evidence), repo.root))
     assert f"evidence {evidence!r} is not locatable" in output
-    assert "expected: a single leading `path:line — one sentence` citation" in output
-    assert defect in output
+    assert "expected: a `path:line` citation, or a backticked command with its output" in output
+    assert "no citation at all" in output
 
 
-def test_decisions_evidence_path_rejection_keeps_the_locators_message(repo):
-    """A locatable-format line pointing nowhere is not a grammar rejection —
-    it keeps the locator's message; only the grammar rejection teaches."""
+@pytest.mark.parametrize("evidence", ["ghost.py:1", "the guard at ghost.py:1"])
+def test_decisions_evidence_path_rejection_keeps_the_locators_message(repo, evidence):
+    """A citation pointing nowhere is not a grammar rejection, wherever it
+    sits — it keeps the locator's message; only the grammar rejection
+    teaches."""
     repo.seed()
-    output = "\n".join(check_entry(_halt(evidence="ghost.py:1"), repo.root))
+    output = "\n".join(check_entry(_halt(evidence=evidence), repo.root))
     assert "does not exist" in output
-    assert "expected: a single leading" not in output
+    assert "expected:" not in output
 
 
 def test_decisions_evidence_with_separator_still_passes(repo):
