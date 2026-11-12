@@ -4896,7 +4896,7 @@ def test_one_tier_resolved_before_any_candidate_starts(
         advanced.append(run.candidate)
         return resolved
 
-    async def session(run, _state, _repair=None):
+    async def session(run, _state):
         sessions.append((run.candidate or 1, run.resolved_agent))
 
         # Candidate 1 is not green before candidate 2 has started, so no

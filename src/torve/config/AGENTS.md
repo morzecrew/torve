@@ -145,7 +145,7 @@ Whether dsh compacts against the context window torve passes and at what fractio
 - Paths: `src/torve/config/runconfig.py`
 - Consequence: if dsh does not compact against the passed window, D-8 bounds nothing for dsh and a per-attempt token budget comes back into scope
 
-### S-0127/D-5 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-5 — `ASSUMED` (A verdict comes from what ran)
 
 `review.revision` gains `off`, the default: a surviving blocker sends the unit to one fresh attempt on the task's own seat, never its `revision_variant`, on the blocked candidate's tree with the feedback record D-1's threads fill, and a blocker surviving that attempt escalates `blocker_finding`; under `off`, `review.blocker_revisions` resolves to 1 unless the configuration names a number, and `fresh` and `session` keep their meaning when a configuration names them
 

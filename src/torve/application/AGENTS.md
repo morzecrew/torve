@@ -501,7 +501,7 @@ The reply and the carry read rejections by one rule: `threads.rejections(entries
 - Consequence: a thread reads "Not applied" exactly when the carry treated its claim as rejected, a rejection is posted once, and a basename shared by two files in one round matches both, so the round's other threads still read "Fixed in"
 - Check: `uv run pytest -q tests/test_threads.py tests/test_reviewleg.py -k "rejections or names_spot"` (shadow; runs as `decision:S-0126/D-3`)
 
-### S-0127/D-1 — `LOCKED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-1 — `LOCKED` (A verdict comes from what ran)
 
 Under `review.mode: critic`, a kept finding at or above `review.blocks_at` and a `violated` row with located evidence block only when their repro fails on re-run, except that a kept `gaming` finding at or above `review.blocks_at` and a `violated` verdict on a LOCKED row still block on located evidence alone: the command is the finding's `repro.command`, else the first backticked command its evidence carries with output after it, and the engine re-runs it against the candidate through `runner.reproduce` (D-10); a non-zero exit blocks, while a zero exit, an exit of 126 or 127, a timeout or no command records the finding or row `advisory: true` in the review record with the command, its exit code and its output tail, never blocking; the S-0125/D-1 and S-0126/D-1 carries are read first and a carried finding is not re-run, `build_critic_prompt` says that only a repro exiting non-zero on the candidate can block, and a blocker's revision thread carries the command, its exit code and the re-run's output
 
@@ -509,7 +509,7 @@ Under `review.mode: critic`, a kept finding at or above `review.blocks_at` and a
 - Consequence: a defect finding the critic only read, or whose probe passes on the candidate, never stops a unit, and lands recorded as advisory in the review record and the document's pull request (D-13); gaming and a LOCKED row's breach stop it as today
 - Check: `uv run pytest -q tests/test_critic.py tests/test_review_run.py -k "reproduced or blocks_on_reading"` (shadow; runs as `decision:S-0127/D-1`)
 
-### S-0127/D-2 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-2 — `ASSUMED` (A verdict comes from what ran)
 
 A `weak_test` finding never blocks and is never re-run, whatever its severity and its repro: `decide` records it `advisory: true`
 
@@ -517,7 +517,7 @@ A `weak_test` finding never blocks and is never re-run, whatever its severity an
 - Consequence: a test that proves too little reaches the review record and the document's pull request as advisory, and its unit still lands
 - Check: `uv run pytest -q tests/test_critic.py -k weak_test` (shadow; runs as `decision:S-0127/D-2`)
 
-### S-0127/D-4 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-4 — `ASSUMED` (A verdict comes from what ran)
 
 A finding's anchor is the first citation in its evidence that resolves, wherever it sits, for the S-0125/D-1 rules and for re-raise alike; a revision's blocker is re-raised only when it repeats an earlier round's blocker, by naming the same row, or by having the same `kind`, a citation whose span overlaps the earlier blocker's span as mapped into the current tree, and a claim D-11's measure matches; a blocker near an earlier anchor that repeats neither is a new blocker inside the revision budget, `blocker_fact` records each blocker's `kind` and `row` beside its claim and anchor, and `decide` computes `reraised` by this rule, which `review_step` reads for a critic verdict
 
@@ -525,7 +525,7 @@ A finding's anchor is the first citation in its evidence that resolves, wherever
 - Consequence: a new defect a revision introduces beside an old one spends the revision budget instead of escalating as a re-raise; a finding led by an executed probe is judged by the line it cites, not carried for having no leading anchor
 - Check: `uv run pytest -q tests/test_critic.py tests/test_review_run.py -k repeats_a_blocker` (shadow; runs as `decision:S-0127/D-4`)
 
-### S-0127/D-5 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-5 — `ASSUMED` (A verdict comes from what ran)
 
 `review.revision` gains `off`, the default: a surviving blocker sends the unit to one fresh attempt on the task's own seat, never its `revision_variant`, on the blocked candidate's tree with the feedback record D-1's threads fill, and a blocker surviving that attempt escalates `blocker_finding`; under `off`, `review.blocker_revisions` resolves to 1 unless the configuration names a number, and `fresh` and `session` keep their meaning when a configuration names them
 
@@ -533,7 +533,7 @@ A finding's anchor is the first citation in its evidence that resolves, wherever
 - Consequence: no Opus revision runs unless a configuration asks for one, and a unit blocked twice reaches the owner after two executor sessions
 - Check: `uv run pytest -q tests/test_runconfig.py tests/test_session.py -k revision_off` (shadow; runs as `decision:S-0127/D-5`)
 
-### S-0127/D-6 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-6 — `ASSUMED` (A verdict comes from what ran)
 
 When an attempt's gates are red, the next attempt is an independent fresh session from the tree the red attempt started from, up to the poison ceiling: the red candidate gets no follow-up turn in its own session and no convicted tree is committed or carried, though `_route_repair` still adds the convicting gate's command to the next attempt's acceptance and the context pack still names earlier attempts' convictions; among one attempt's candidates the first to finish green wins, the others are cut when it does, and the critic reads only it
 
@@ -541,7 +541,7 @@ When an attempt's gates are red, the next attempt is an independent fresh sessio
 - Consequence: attempts are independent samples, so a red attempt's tree never anchors the next; pre-rank and collapse no longer choose a winner, and a blocked first green goes to D-5, never to a sibling
 - Check: `uv run pytest -q tests/test_runner.py tests/test_selection.py -k "independent_attempt or first_green"` (shadow; runs as `decision:S-0127/D-6`)
 
-### S-0127/D-7 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-7 — `ASSUMED` (A verdict comes from what ran)
 
 The acceptance an attempt is shown is the contract's commands followed by the command of every gate the attempt's manifest runs `blocking` as a shell command, not a `@` builtin, with a declared timeout of 120 seconds or less, each command once; the contract on disk and the battery's `acceptance` gate are unchanged, so nothing runs twice
 
@@ -549,7 +549,7 @@ The acceptance an attempt is shown is the contract's commands followed by the co
 - Consequence: in this repository an attempt is told to run the lint and format check, the layering contract and mypy before it finishes; a gate past 120 seconds, like the suite, is not shown
 - Check: `uv run pytest -q tests/test_dispatch.py tests/test_runner.py -k shown_acceptance` (shadow; runs as `decision:S-0127/D-7`)
 
-### S-0127/D-8 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-8 — `ASSUMED` (A verdict comes from what ran)
 
 On a review round's attempt, a `halted` divergence entry that cites no LOCKED row and whose claim or evidence names one of the round's findings by `threads.names_spot` does not end the attempt while some finding of the round is named by no halt: `halted` reads it as that claim declined and the attempt goes on to its gates; a halt citing a LOCKED row escalates `locked_conflict` as S-0096/D-1 says, and a halt that names no finding of the round, or halts that name all of them, end the attempt as today
 
@@ -557,7 +557,7 @@ On a review round's attempt, a `halted` divergence entry that cites no LOCKED ro
 - Consequence: a round with one out-of-scope claim lands its other fixes, a round that declines everything still escalates, and a claim that collides with a LOCKED row still reaches the owner before the round lands
 - Check: `uv run pytest -q tests/test_session.py -k "halted_claim or locked_halt"` (shadow; runs as `decision:S-0127/D-8`)
 
-### S-0127/D-9 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-9 — `ASSUMED` (A verdict comes from what ran)
 
 Under `review.mode: critic` a unit's notional-spend cap and its clock are its class's, from `selection.UNIT_BUDGETS`: S $1.50 and 45 minutes, M $3 and 90 minutes, L $6 and 180 minutes; the class is `selection.unit_class` over the contract against the repository root's tree, with the `escalated` flag `_width` reads and without the revision flag, so every attempt of a run reads the same one, and a contract naming `budget.wallclock_minutes` keeps its own clock
 
@@ -565,7 +565,7 @@ Under `review.mode: critic` a unit's notional-spend cap and its clock are its cl
 - Consequence: an L unit can afford a second attempt's gates and an S unit stops sooner than today, while an M unit's bounds are unchanged
 - Check: `uv run pytest -q tests/test_selection.py tests/test_runner.py -k class_budget` (shadow; runs as `decision:S-0127/D-9`)
 
-### S-0127/D-10 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-10 — `ASSUMED` (A verdict comes from what ran)
 
 `runner.reproduce(run, state, commands, probes)` runs each command in a fresh gates sandbox (`_gates_spec`: the battery's image and cache) over a fresh judge checkout of the candidate, with each probe's text written at its path first, but only at a path that is new to the checkout — no file there, tracked or not — and lies under the review's probe directory with no component a link, a probe at any other path, or one a finding names that the critic's copy did not keep (missing, a link, outside the copy or over the cap), refusing the whole repro so its finding is advisory; once the probes are written the checkout is mounted read-only (`workspace_read_only`), with the project environment, bytecode and the common tool caches pointed under the sandbox's own temporary directory (`UV_PROJECT_ENVIRONMENT`, `PYTHONPYCACHEPREFIX`, `PYTEST_ADDOPTS=-p no:cacheprovider`, `MYPY_CACHE_DIR`, `RUFF_CACHE_DIR`), so no command can change the candidate at any point of its run, and a command whose output reports `Read-only file system` runs once more over the checkout mounted writable, that run's exit the one recorded unless it changed or removed a file the checkout held, which refuses the repro the same way, so a denied write never blocks and a printed marker alone never refuses; each command is bounded by the timeout of the `acceptance` gate in the attempt's manifest (`run.manifest_file`), or by the runtime's `sandbox_timeout` when the manifest has no such gate, and all of one review's re-runs together by what is left of the unit's clock (D-9), a command the clock leaves no time for not run; it returns one `CommandRun` per command, its exit `None` on a timeout or when it was not run, and the checkout and the sandbox are removed when it returns, whatever happened
 
@@ -573,14 +573,14 @@ Under `review.mode: critic` a unit's notional-spend cap and its clock are its cl
 - Consequence: a re-run is as isolated as the battery and leaves nothing behind, the critic never sees its result, and a failing repro always measures the candidate the gates passed, never a file the critic rewrote
 - Check: `uv run pytest -q tests/test_runner.py -k "reproduce or rerun_bound"` (shadow; runs as `decision:S-0127/D-10`)
 
-### S-0127/D-11 — `OPEN` (A verdict comes from what ran) — implementation: none
+### S-0127/D-11 — `OPEN` (A verdict comes from what ran)
 
 Which deterministic measure over two blocker claims D-4 reads as a match, for example the overlap of their normalised words above a threshold: the phase chooses it, tests it on a new defect cited on the line after an earlier blocker, which must not match, and on the same defect described in other words, which must, and records the choice in its log
 
 - Paths: `src/torve/application/review.py`
 - Consequence: too loose a measure brings T-0804's false re-raise back, and too strict a one lets a repeated defect spend the revision budget again
 
-### S-0127/D-12 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-12 — `ASSUMED` (A verdict comes from what ran)
 
 `threads.rejections(entries, attempt)` also keeps that attempt's `halted` entries that cite no LOCKED row, so the carry (S-0126/D-1, S-0126/D-2) and the reply read a declined claim as they read a contradicted one, and the leg answers a halted entry's thread `Out of scope — <claim>` with its evidence where it answers a contradicted one `Not applied — <claim>`
 
@@ -588,7 +588,7 @@ Which deterministic measure over two blocker claims D-4 reads as a match, for ex
 - Consequence: the bot's thread says the claim was declined and why, the critic's findings on it are carried as on a rejected claim, and a bot that raises it again escalates to a person
 - Check: `uv run pytest -q tests/test_threads.py tests/test_reviewleg.py -k declined` (shadow; runs as `decision:S-0127/D-12`)
 
-### S-0127/D-13 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-13 — `ASSUMED` (A verdict comes from what ran)
 
 The document's pull-request body lists, under each landing, each finding its last task-gated review recorded, by severity, kind, anchor (`path:line`) and, when the engine re-ran it, the re-run's command and exit code, read from the store's `review.recorded` items (D-14) under a heading that names them the critic's advisory findings; no claim or evidence text is listed, and a landed candidate's last review blocked nothing, so every finding listed is advisory
 
@@ -596,7 +596,7 @@ The document's pull-request body lists, under each landing, each finding its las
 - Consequence: a person merging sees where the critic found something and what the engine measured of it, reads the claim in the review record, and the body stays composed from records and bounded by `BODY_LIMIT`
 - Check: `uv run pytest -q tests/test_forge.py -k advisory` (shadow; runs as `decision:S-0127/D-13`)
 
-### S-0127/D-14 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-14 — `ASSUMED` (A verdict comes from what ran)
 
 Each item a critic review's `review.recorded` event carries holds the finding's `kind` (`contract` for a violated row) and, when the engine re-ran its repro, the command and exit code, as `ReviewItem` fields with defaults (`kind` empty, `rerun_command` empty, `rerun_exit` none), so a review recorded before them reads with none and every other field keeps its meaning
 

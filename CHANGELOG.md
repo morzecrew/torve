@@ -19,24 +19,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   always runs one candidate.
 
 - `review.revision: session` makes a critic revision round continue the selected candidate
-  in its own open session, on that candidate's tier, with the blocking findings. `fresh`,
-  the default, keeps a new attempt, and a seat whose harness keeps no session falls back to it.
+  in its own open session, on that candidate's tier, with the blocking findings. A seat whose
+  harness keeps no session falls back to `fresh`, a new attempt on the `revision_variant` tier.
+
+- A document's pull request now lists the critic's advisory findings under each landing, by
+  severity, kind, location and the engine's re-run command with its exit code. Claims and
+  evidence stay in the review record.
 
 ### Changed
 
-- Under `review.mode: critic` a unit's candidates now run side by side, so a unit takes
-  about its slowest candidate's time rather than the sum. From the first green candidate's
-  finish, a candidate whose turn runs past `straggler_clock` of that time is cancelled and
-  recorded red.
+- A critic finding now blocks a unit only when the engine re-runs its repro command against
+  the candidate, in a read-only sandbox, and the command fails. Other findings, `weak_test`
+  ones always, are recorded as advisory. Integrity findings and breaches of LOCKED rows still
+  block on their located evidence.
 
-- A revision after a critic block now runs one candidate, on the `revision_variant` tier. A
-  surviving blocker gets `review.blocker_revisions` rounds, 2 by default, and classic mode
-  keeps 1. A revision whose blocker lies near the one it was asked to fix escalates
-  `blocker_finding` at once.
+- Under `review.mode: critic` a unit's candidates now run side by side, and the first to
+  finish green wins: the others are cut and recorded red, and the critic reads only the
+  winner. A unit takes about its fastest green candidate's time rather than the sum.
+
+- A critic block now sends the unit to one fresh attempt on its own seat by default, and a
+  blocker that survives it escalates `blocker_finding`. `review.revision: fresh` or `session`
+  restores the `revision_variant` tier and 2 rounds. A re-raise must repeat the earlier
+  blocker's row, or its kind, span and claim.
+
+- After red gates the next attempt is now a new session from the tree the red attempt started
+  from. The red session gets no follow-up turn, and its tree is no longer committed.
+
+- An attempt is now shown the cheap blocking checks it will be judged by, such as lint, format
+  and type checks of two minutes or less, beside its contract's own acceptance commands.
 
 - Every candidate of an attempt now runs on the tier the attempt resolved before they
-  started. The unit's $3 bound is checked before candidates launch, before each critic call
-  and before a revision turn, so work already launched may finish above it.
+  started. A unit's cost cap and clock follow its size: $1.50 and 45 minutes, $3 and 90, or
+  $6 and 180. The cap is checked before candidates launch, before each critic call and before
+  a revision turn.
+
+- Evidence now locates by a `path:line` citation or a backticked command with its output
+  anywhere in it, not only at its start. A divergence entry whose citation follows prose is
+  accepted.
+
+- A review round can now decline one claim as out of scope instead of stopping: the attempt
+  continues, and the claim's thread is answered `Out of scope` with its evidence. A halt that
+  cites a LOCKED row still escalates.
 
 - `unit.closed` is now written for every critic-mode attempt, with each candidate's tier,
   model and notional spend, and a `revision` block on a revision round.

@@ -928,7 +928,7 @@ def test_revision_record_feeds_the_agent_never_the_gates(rig, monkeypatch):
     class PeekingAgent:
         def run(self, ctx):
             seen["during_attempt"] = (ctx.workspace / ".torve" / "feedback.md").is_file()
-            # A gate pass inside the session (a candidate's repair turn) commits
+            # A gate pass inside the session (a session revision, S-0124/D-8) commits
             # the tree while the record is still there, so git must not see it;
             # test_session proves the exclude is live in a linked worktree.
             git_dir = subprocess.run(

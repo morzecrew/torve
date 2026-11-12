@@ -92,7 +92,7 @@ A document is complete when its landings cover every phase the root's phasing or
 - Consequence: a phase added on the branch keeps the document a draft until it lands, and the root's phases still count when the branch was cut before an amendment
 - Check: `uv run pytest -q tests/test_lane.py tests/test_forge.py -k phasing_union` (shadow; runs as `decision:S-0124/D-10`)
 
-### S-0127/D-13 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+### S-0127/D-13 — `ASSUMED` (A verdict comes from what ran)
 
 The document's pull-request body lists, under each landing, each finding its last task-gated review recorded, by severity, kind, anchor (`path:line`) and, when the engine re-ran it, the re-run's command and exit code, read from the store's `review.recorded` items (D-14) under a heading that names them the critic's advisory findings; no claim or evidence text is listed, and a landed candidate's last review blocked nothing, so every finding listed is advisory
 
