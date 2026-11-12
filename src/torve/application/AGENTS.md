@@ -604,4 +604,12 @@ Each item a critic review's `review.recorded` event carries holds the finding's 
 - Consequence: any host reads what a finding was and what the engine measured of it from the record, without the review record on the host that ran the critic
 - Check: `uv run pytest -q tests/test_review_run.py tests/test_events.py -k rerun_item` (shadow; runs as `decision:S-0127/D-14`)
 
+### S-0127/D-15 — `ASSUMED` (A verdict comes from what ran)
+
+`build_critic_prompt` lists, under the rows the critic judges, the rows of the candidate's own document that other units deliver, asks for no verdict on them, and says that behaviour one of them orders is never a regression or a defect, doing that work early being at most `scope`; a row of another document, and a unit given every row of its document, add nothing
+
+- Paths: `src/torve/application/critic.py`
+- Consequence: a unit that builds a later unit's rule early is not blocked for breaking an earlier row that rule replaces; the critic still judges only the rows the unit delivers
+- Check: `uv run pytest -q tests/test_critic.py -k documents_other_rows` (shadow; runs as `decision:S-0127/D-15`)
+
 <!-- /torve:managed -->
