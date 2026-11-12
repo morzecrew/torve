@@ -1108,8 +1108,9 @@ def reproduce_over(
     Each run is bounded by *timeout* and, given a *deadline* on
     `time.monotonic()`, by what is left before it, the writable run's bound
     read again once the read-only run has spent its share; a command the
-    clock leaves no time for is not run. The sandboxes are removed when this
-    returns, whatever happened."""
+    clock leaves no time for is not run. The read-only sandbox is closed
+    before a writable run opens, so no two are ever up at once, and every
+    sandbox is removed when this returns, whatever happened."""
 
     def refused(why: str) -> list[CommandRun]:
         return [
@@ -1172,8 +1173,11 @@ def reproduce_over(
                     continue
 
                 held = _held_files(checkout)
-                # A name of its own: the read-only sandbox is still up, and a
-                # runtime holds one live sandbox per name.
+                # The read-only sandbox goes first, so the two never overlap —
+                # a nested daemon's state volume is one per slot — and the next
+                # command opens a fresh one. The retry still takes a name of
+                # its own, a runtime holding one sandbox per name.
+                executor.close()
                 writable = SandboxExecutor(
                     runtime,
                     replace(spec, name=f"{spec.name}-rw", workspace_read_only=False),

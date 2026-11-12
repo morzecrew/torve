@@ -5798,7 +5798,7 @@ class _ReproRuntime:
     held when it was, and what ran in it. An outcome may differ by mount —
     `{"ro": ..., "rw": ...}` — and *writes* names the files a command writes
     when its mount lets it. Like docker, it refuses a second live sandbox
-    under one name."""
+    under one name, and `peak` is the most sandboxes it ever held up at once."""
 
     def __init__(
         self,
@@ -5813,6 +5813,7 @@ class _ReproRuntime:
         self.mounted: list[str] = []
         self.ran: list[tuple[str, float]] = []
         self.destroyed: list[str] = []
+        self.peak = 0
         self._opened: dict[str, tuple] = {}
 
     def create(self, spec, workspace):
@@ -5829,6 +5830,7 @@ class _ReproRuntime:
         )
         handle = SandboxHandle(id=f"repro-{len(self.specs)}", name=spec.name)
         self._opened[handle.id] = (spec, workspace)
+        self.peak = max(self.peak, len(self._opened))
         return handle
 
     def exec(self, handle, command, timeout_s):
@@ -6034,7 +6036,7 @@ def test_reproduce_a_denied_write_is_measured_over_a_writable_mount(tmp_path):
     runs = reproduce(run, state, ["uv run pytest -q", "uv run tool", "true"], {})
 
     assert [(one.exit_code, one.tail) for one in runs] == [(1, "1 failed"), (0, "ok"), (0, "ok")]
-    assert [spec.workspace_read_only for spec in runtime.specs] == [True, False, False]
+    assert [spec.workspace_read_only for spec in runtime.specs] == [True, False, True, False, True]
     assert [command for command, _ in runtime.ran] == [
         "uv run pytest -q",
         "uv run pytest -q",
@@ -6042,27 +6044,30 @@ def test_reproduce_a_denied_write_is_measured_over_a_writable_mount(tmp_path):
         "uv run tool",
         "true",
     ]
-    assert sorted(runtime.destroyed) == ["repro-1", "repro-2", "repro-3"]
+    assert sorted(runtime.destroyed) == [f"repro-{n}" for n in range(1, 6)]
     assert opener.removed == [TASK_ID]
 
 
 def test_reproduce_the_writable_run_is_a_sandbox_of_its_own(tmp_path):
-    """S-0127/D-10: the writable run opens while the read-only sandbox is
-    still up, so it takes a name of its own — a runtime that holds one live
-    sandbox per name, as docker does, would refuse the read-only one's — and
-    both are removed when the repro returns."""
+    """S-0127/D-10: the read-only sandbox is closed before the writable run
+    opens, so no two sandboxes are ever up at once — a nested daemon's state
+    volume is one per slot — and the next command opens a fresh read-only
+    one. The writable run still takes a name of its own, and every sandbox
+    is removed when the repro returns."""
 
     from torve.application.runner import _gates_spec, reproduce
 
     runtime = _ReproRuntime({"uv run pytest -q": {"ro": (1, DENIED), "rw": (1, "1 failed")}})
     run, state, opener = _repro_run(tmp_path, runtime)
 
-    [one] = reproduce(run, state, ["uv run pytest -q"], {})
+    runs = reproduce(run, state, ["uv run pytest -q", "true"], {})
 
-    assert (one.exit_code, one.tail) == (1, "1 failed")
+    assert [(one.exit_code, one.tail) for one in runs] == [(1, "1 failed"), (0, "ok")]
     name = _gates_spec(run, state).name
-    assert [spec.name for spec in runtime.specs] == [name, f"{name}-rw"]
-    assert sorted(runtime.destroyed) == ["repro-1", "repro-2"]
+    assert [spec.name for spec in runtime.specs] == [name, f"{name}-rw", name]
+    assert [spec.workspace_read_only for spec in runtime.specs] == [True, False, True]
+    assert runtime.peak == 1
+    assert sorted(runtime.destroyed) == ["repro-1", "repro-2", "repro-3"]
     assert opener.removed == [TASK_ID]
 
 
