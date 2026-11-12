@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import subprocess
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -188,12 +189,31 @@ def test_the_pin_is_derived_from_the_worktree(worktree):
     assert len(document["base"]) == 40
 
 
-def test_a_pin_that_cannot_be_derived_is_refused_at_write_time(repo):
+def test_a_repository_with_no_remote_is_pinned_by_its_checkout_name(repo, tmp_path):
+    """A local repository has no remote to name it: the pin names the main
+    checkout, from a linked worktree too, where the engine seeds it, so an
+    agent's log in such a repository is not refused for want of a name."""
+
     repo.seed()  # no remote configured
     repo.task(base_task(allow=["src/**"], decisions=LOCKED_D1), None)
+    _, document, _ = one_entry(repo)
+    repo.git("worktree", "add", "-q", "-b", "wt", str(tmp_path / "wt"))
+    seed(tmp_path / "wt", TASK_ID, base="0" * 40)
+
+    pinned = json.loads((tmp_path / "wt" / ".torve" / "tmp" / "pin.json").read_text())
+
+    assert document["repo"] == repo.root.name
+    assert pinned["repo"] == repo.root.name
+
+
+def test_a_pin_that_cannot_be_derived_is_refused_at_write_time(tmp_path):
+    (tmp_path / ".torve" / "tasks" / TASK_ID).mkdir(parents=True)
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "app.py").write_text("print('hello')\n")
+    seed(tmp_path, TASK_ID, base="a" * 40)  # no git, so nothing names the repository
 
     with pytest.raises(IntakeRefused) as refused:
-        one_entry(repo)
+        one_entry(SimpleNamespace(root=tmp_path))
 
     assert "carries no repo" in str(refused.value)
 
