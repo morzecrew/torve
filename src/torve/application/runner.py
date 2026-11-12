@@ -1118,20 +1118,21 @@ def reproduce_over(
             for command in commands
         ]
 
-    def bound() -> float | None:
-        """The next run's timeout, or None when the unit's clock is spent."""
+    def bound(started: float | None = None) -> float | None:
+        """The next run's timeout, or None when no time is left for it: the
+        command's own timeout, less what its read-only run took when *started*
+        is that run's start, within what is left of the unit's clock."""
 
-        if deadline is None:
-            return timeout
+        now = time.monotonic()
+        limit = timeout if started is None else timeout - (now - started)
 
-        left = deadline - time.monotonic()
+        if deadline is not None:
+            limit = min(limit, deadline - now)
 
-        return min(timeout, left) if left > 0 else None
+        return limit if limit > 0 else None
 
-    def unrun(command: str) -> CommandRun:
-        return CommandRun(
-            command=command, exit_code=None, tail="not run: the unit's clock is spent"
-        )
+    def unrun(command: str, why: str = "the unit's clock is spent") -> CommandRun:
+        return CommandRun(command=command, exit_code=None, tail=f"not run: {why}")
 
     for name, text in probes.items():
         if text is None:
@@ -1163,13 +1164,22 @@ def reproduce_over(
                 runs.append(unrun(command))
                 continue
 
+            started = time.monotonic()
             code, output = executor(command, limit)
 
             if _READ_ONLY in output:
-                limit = bound()
+                # The retry is the same command, so it shares the command's
+                # timeout with the read-only run, as it shares the unit's clock.
+                limit = bound(started)
 
                 if limit is None:
-                    runs.append(unrun(command))
+                    spent = deadline is not None and deadline <= time.monotonic()
+                    runs.append(
+                        unrun(
+                            command,
+                            "the unit's clock is spent" if spent else "its timeout is spent",
+                        )
+                    )
                     continue
 
                 held = _held_files(checkout)

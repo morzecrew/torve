@@ -6217,6 +6217,42 @@ def test_rerun_bound_the_writable_run_gets_what_the_read_only_run_left(tmp_path,
     assert opener.removed == [TASK_ID]
 
 
+def test_rerun_bound_the_writable_run_shares_the_command_s_timeout(tmp_path, monkeypatch):
+    """S-0127/D-10: the writable run is the same command, so it gets what is
+    left of the command's own timeout once the read-only run has taken its
+    share, and does not start when the read-only run took it all."""
+
+    from types import SimpleNamespace
+
+    from torve.application.runner import reproduce
+
+    now = [1000.0]
+    monkeypatch.setattr(run_module, "time", SimpleNamespace(monotonic=lambda: now[0]))
+    denied = {"ro": (1, DENIED), "rw": (1, "1 failed")}
+
+    # No unit clock, a 120s command timeout: the read-only run takes 70 of it
+    # and the writable one gets the 50 left.
+    runtime = _ReproRuntime({"first": denied}, clock=now)
+    gates = [{**ACCEPTANCE_GATE, "timeout": 120}]
+    run, state, _ = _repro_run(tmp_path / "left", runtime, gates=gates)
+
+    [one] = reproduce(run, state, ["first"], {})
+
+    assert runtime.ran == [("first", 120.0), ("first", 50.0)]
+    assert one.exit_code == 1
+
+    # A 60s timeout the read-only run outlasted: no writable run starts.
+    now[0] = 1000.0
+    spent = _ReproRuntime({"first": denied}, clock=now)
+    gates = [{**ACCEPTANCE_GATE, "timeout": 60}]
+    run, state, _ = _repro_run(tmp_path / "spent", spent, gates=gates)
+
+    [one] = reproduce(run, state, ["first"], {})
+
+    assert spent.ran == [("first", 60.0)]
+    assert (one.exit_code, one.tail) == (None, "not run: its timeout is spent")
+
+
 def test_rerun_bound_under_the_critic_is_the_class_s_clock(tmp_path, monkeypatch):
     """S-0127/D-9, D-10: a contract naming no clock re-runs under its class's
     — an S unit's 45 minutes — so 46 minutes in nothing is run and no sandbox
