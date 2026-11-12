@@ -262,13 +262,13 @@ design:
       (S-0121/D-34).
   - key: the-amendments
     md: |
-      S-0122/D-1 (LOCKED) blocks on any located finding at or above `blocks_at` and on any
-      `violated` row with located evidence. D-1 and D-2 contradict it, so the owner amends it
-      before accepting this document (Q-1). S-0121/D-34 (LOCKED) stands unamended: D-13
-      lists no claim text (Q-2). The ASSUMED rows of accepted documents that describe what
-      this one replaces are amended to cite S-0127 in the pull request that accepts it
-      (Q-6). This draft amends none of them: an amendment of another document's row is the
-      owner's act.
+      S-0122/D-1 (LOCKED) blocked on any located finding at or above `blocks_at` and on any
+      `violated` row with located evidence. D-1 and D-2 contradicted it, so the owner amended
+      it before accepting this document (Q-1, S-0122/A-5): a finding now blocks on a failing
+      repro, and `gaming` and a LOCKED row's breach on located evidence. S-0121/D-34 (LOCKED)
+      stands unamended: D-13 lists no claim text (Q-2). The ASSUMED rows of accepted
+      documents that describe what this one replaces are amended to cite S-0127 in the pull
+      request that accepts it (Q-6).
 tests: |
   Each phase writes the tests its intent names, beside the module it changes, and keeps the
   suite green. Each test's own docstring cites the row it proves.
@@ -397,8 +397,11 @@ questions:
       against the candidate in a gates sandbox, a `violated` row only when its evidence's
       command fails so, a `gaming` finding and a LOCKED row's `violated` verdict on located
       evidence as today, and every other finding and row is recorded advisory? And does
-      S-0127/D-1 become LOCKED once the bed has measured it? The draft leaves it ASSUMED.
-    status: open
+      S-0127/D-1 become LOCKED once the bed has measured it? Yes to both (owner,
+      2026-11-12): S-0122/A-5 amends S-0122/D-1 as proposed, and D-1 is LOCKED now,
+      not after the bed has measured it.
+    status: settled
+    settled_by: S-0122/A-5
   - id: Q-2
     text: >-
       Should D-13 quote the critic's claims in the document's pull-request body, given

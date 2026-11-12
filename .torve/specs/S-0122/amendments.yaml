@@ -137,3 +137,53 @@ amendments:
       locations alone: a finding counts as one on the rejected claim only when every
       `path:line` it cites locates near that claim. The reply puts the rejection on the
       bot's thread, and a re-raise escalates to a person.
+  - id: A-5
+    at: '2026-11-12T02:21:04Z'
+    title: >-
+      A finding blocks on a failing repro, not on a reading (S-0127/D-1)
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          The engine, not a model, turns a critic's findings into block or pass: a
+          candidate is blocked when a finding that survives the location filter is
+          at or above `review.blocks_at`, or when an owned row is `violated` with
+          located evidence, and an `unknown` row never blocks; on a revision attempt
+          such a finding counts only when it also locates within `threads.WINDOW`
+          lines of a line the revision changed or of an earlier round's blocker, and
+          every other is recorded non-blocking; on a review round's attempt, a finding
+          or `violated` row whose every cited `path:line` locates within `threads.WINDOW`
+          lines of a claim that attempt rejected (S-0126/D-2) is recorded non-blocking,
+          and a re-raise of the claim escalates (S-0121/D-29)
+        after: >-
+          The engine, not a model, turns a critic's findings into block or pass: a
+          candidate is blocked when a finding that survives the location filter is
+          at or above `review.blocks_at`, is not `weak_test`, and its repro exits
+          non-zero when the engine re-runs it against the candidate in a gates sandbox,
+          or when an owned row is `violated` and its evidence's command fails so;
+          a `gaming` finding at or above `review.blocks_at` and a `violated` verdict
+          on a LOCKED row block on located evidence alone; every other finding and
+          row is recorded advisory, and an `unknown` row never blocks (S-0127/D-1,
+          S-0127/D-2); on a revision attempt such a finding counts only when it also
+          locates within `threads.WINDOW` lines of a line the revision changed or
+          of an earlier round's blocker, and every other is recorded non-blocking;
+          on a review round's attempt, a finding or `violated` row whose every cited
+          `path:line` locates within `threads.WINDOW` lines of a claim that attempt
+          rejected (S-0126/D-2) is recorded non-blocking, and a re-raise of the claim
+          escalates (S-0121/D-29)
+      - subject: D-1
+        field: fingerprint
+        before: 6d4a467c5b2ab2fc/03a530a15ac3f0d0
+        after: cb753d5a384ba039/03a530a15ac3f0d0
+    md: |
+      The owner amended this LOCKED row in session on 2026-11-12, for S-0127/D-1
+      and D-2 (S-0127/Q-1). A measurement of the engine against single sessions
+      found the critic accurate but its blocks a coin flip against the units'
+      hidden checks: precision 5 of 8, recall 5 of 11, and 11 of 25 blocking
+      findings were weak-test complaints. A severity the critic writes is a
+      reading; an exit code the engine measures is a fact. So a defect finding
+      blocks only when its repro fails on the candidate, a weak-test finding never
+      blocks, and integrity (`gaming`) and the owner's own LOCKED rows still block
+      on located evidence, because they rarely reproduce by a command. Every
+      finding that no longer blocks stays in the review record as advisory, and
+      the document's pull request lists it.

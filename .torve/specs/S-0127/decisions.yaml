@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../schemas/decisions.json
 decisions:
   - id: D-1
-    grade: ASSUMED
+    grade: LOCKED
     text: >-
       Under `review.mode: critic`, a kept finding at or above `review.blocks_at` and
       a `violated` row with located evidence block only when their repro fails on
