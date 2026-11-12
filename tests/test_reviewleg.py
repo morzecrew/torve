@@ -1972,6 +1972,51 @@ def test_names_spot_a_shared_basename_rejection_answers_its_two_threads(seeded):
     assert bodies[2] == f"Fixed in {work}."
 
 
+def test_declined_claim_is_answered_out_of_scope_with_its_evidence(seeded):
+    """S-0127/D-12: a landed round's halt citing no LOCKED row answers the
+    thread its claim names `Out of scope — <claim>` with its evidence, a
+    contradicted claim's thread still reads `Not applied`, and the round's
+    fixed finding reads "Fixed in"."""
+
+    task_id = "T-0905"
+    seeded.write("src/app.py", "print('changed')\n")
+    seeded.commit("the work")
+    work = head(seeded.root)
+    seeded.write(
+        f".torve/specs/S-0084/execution/{task_id}-1-20260919T000000Z.yaml",
+        f"task: {task_id}\n"
+        "at: '2026-09-19T00:00:00Z'\n"
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    grade: UNLISTED\n"
+        "    kind: blocked\n"
+        "    action: halted\n"
+        "    attempt: 1\n"
+        "    claim: schema.py:3 asks for a migration outside this round\n"
+        "    evidence: src/schema.py:1 — the schema is another phase's\n"
+        "  - decision: unlisted\n"
+        "    grade: UNLISTED\n"
+        "    kind: contradicted\n"
+        "    action: departed\n"
+        "    attempt: 1\n"
+        "    claim: other.py:12 does not dereference\n"
+        "    evidence: src/other.py:11 — the guard\n",
+    )
+    seeded.commit(f"torve({task_id}): landing of attempt 1")
+    spots = [("src/schema.py", 3), ("src/other.py", 12), ("src/app.py", 7)]
+
+    declined, contradicted, fixed = (
+        reply_body(seeded.root, landing((task_id, work)), task_id, spot, spots) for spot in spots
+    )
+
+    assert declined == (
+        "Out of scope — schema.py:3 asks for a migration outside this round\n\n"
+        "Evidence: src/schema.py:1 — the schema is another phase's"
+    )
+    assert contradicted.startswith("Not applied — other.py:12 does not dereference")
+    assert fixed == f"Fixed in {work}."
+
+
 def test_a_persisted_non_attempt_does_not_stop_the_reply(seeded):
     """S-0126/D-3: a legacy or hand-edited `attempt` is read like an entry
     written before the pin, so the reply is composed rather than raising and

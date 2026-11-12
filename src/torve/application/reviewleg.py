@@ -2084,12 +2084,13 @@ def _rejections(
 ) -> list[tuple[str, str]]:
     """What the round's landed attempt said about the claims it did not apply
     (S-0084/D-13, S-0126/D-3): the divergence entries under `unlisted` it
-    recorded as contradicted, as their own checked `claim` and `evidence`,
-    each beside the claim it answers. Prose an agent wrote for a reviewer never
-    appears here, because no such field exists. The landing's execution record
-    is read before the root log, and the attempt it names keeps its own
-    rejections; only when no landing record exists does the root log's latest
-    attempt answer."""
+    recorded as contradicted, read `Not applied`, and the halts citing no
+    LOCKED row it went on past, read `Out of scope` (S-0127/D-12), as their
+    own checked `claim` and `evidence`, each beside the claim it answers.
+    Prose an agent wrote for a reviewer never appears here, because no such
+    field exists. The landing's execution record is read before the root log,
+    and the attempt it names keeps its own rejections; only when no landing
+    record exists does the root log's latest attempt answer."""
 
     from torve.application.divergence import open_log
 
@@ -2105,7 +2106,8 @@ def _rejections(
 
     for entry in rejections(entries, attempt):
         claim = str(entry.get("claim", ""))
-        reasons.append((claim, f"Not applied — {claim}\n\nEvidence: {entry.get('evidence', '')}"))
+        said = "Out of scope" if entry.get("action") == "halted" else "Not applied"
+        reasons.append((claim, f"{said} — {claim}\n\nEvidence: {entry.get('evidence', '')}"))
 
     return reasons
 

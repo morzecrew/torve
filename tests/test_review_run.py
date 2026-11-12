@@ -293,8 +293,9 @@ def test_a_blocker_with_budget_left_continues_in_the_same_worktree(review_rig):
 
 
 def test_revision_rounds_are_two_under_a_critic_unless_named(review_rig):
-    """S-0124/D-2: a critic's surviving blocker spends the two rounds S-0122/D-8
-    promises — not the classic one — before the third escalates the target."""
+    """S-0124/D-2: under `review.revision: fresh` (S-0127/D-5) a critic's
+    surviving blocker spends the two rounds S-0122/D-8 promises — not the
+    classic one — before the third escalates the target."""
 
     from test_critic import answer, critic_config, finding
 
@@ -310,7 +311,7 @@ def test_revision_rounds_are_two_under_a_critic_unless_named(review_rig):
         ]
     )
 
-    state = run_task(repo.root, task_for(repo), critic_config(), deps_for(critic))
+    state = run_task(repo.root, task_for(repo), critic_config(revision="fresh"), deps_for(critic))
 
     assert state.state is TaskState.ESCALATED
     assert state.escalation is not None and state.escalation.reason == "blocker_finding"
@@ -487,9 +488,10 @@ def test_revision_inputs_record_the_judged_head_and_read_it_back(repo):
 
 
 def test_a_blocker_that_survives_the_revision_escalates_only_after_the_rung(review_rig):
-    # S-0117/D-1: the first blocker sends the revision to the seat's
-    # revision_variant — same worktree, same critique, stronger agent — and
-    # only the blocker that survives that revision reaches a person.
+    # S-0117/D-1: under `review.revision: fresh` (S-0127/D-5) the first
+    # blocker sends the revision to the seat's revision_variant — same
+    # worktree, same critique, stronger agent — and only the blocker that
+    # survives that revision reaches a person.
     from dataclasses import replace
 
     repo, _runtime, deps_for = review_rig
@@ -516,7 +518,7 @@ def test_a_blocker_that_survives_the_revision_escalates_only_after_the_rung(revi
             "executor": TierConfig(adapter="fake", revision_variant="executor.strong"),
             "executor.strong": TierConfig(adapter="fake"),
         },
-        review=ReviewConfig(on=["task_gated"]),
+        review=ReviewConfig(on=["task_gated"], revision="fresh"),
     )
 
     state = run_task(
@@ -2299,7 +2301,7 @@ def test_reproduced_a_failing_rerun_blocks_and_rides_the_revision_thread(review_
     state = run_task(repo.root, task_for(repo), config, deps_for(critic))
 
     assert state.state is TaskState.READY
-    assert any(h["fact"].startswith("review blocker (revision 1 of 2):") for h in state.history)
+    assert any(h["fact"].startswith("review blocker (revision 1 of 1):") for h in state.history)
     text = feedback_file(repo.root, "T-9001").read_text(encoding="utf-8")
     assert f"the engine re-ran `{REPRO}` on this candidate: exit 1" in text
     assert "1 failed: assert 3 == 4" in text
@@ -2320,7 +2322,7 @@ def test_blocks_on_reading_a_gaming_finding_blocks_whatever_its_rerun(review_rig
 
     assert state.state is TaskState.READY
     assert state.attempts == 2
-    assert any(h["fact"].startswith("review blocker (revision 1 of 2):") for h in state.history)
+    assert any(h["fact"].startswith("review blocker (revision 1 of 1):") for h in state.history)
 
 
 def test_weak_test_finding_lets_the_target_land(review_rig):

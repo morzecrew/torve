@@ -15,7 +15,7 @@ from test_review_run import review_rig  # noqa: F401 — the fixture, by name
 from torve.application.dispatch import Dispatch, RunDeps
 from torve.application.runstate import RunState
 from torve.application.session import advance_tier
-from torve.config.runconfig import RunnerConfig, TierConfig
+from torve.config.runconfig import ReviewConfig, RunnerConfig, TierConfig
 from torve.domain.attempt import GateResult
 from torve.domain.task import Task
 
@@ -74,7 +74,11 @@ def _config() -> RunnerConfig:
     )
 
 
-def _revision_config(revision_variant: str = "executor.strong") -> RunnerConfig:
+def _revision_config(
+    revision_variant: str = "executor.strong", review: ReviewConfig | None = None
+) -> RunnerConfig:
+    # The rung is reached only when a configuration names a revision mode
+    # (S-0127/D-5); `off`, the default, keeps the revision on the seat.
     return RunnerConfig(
         tiers={
             "executor": TierConfig(
@@ -83,7 +87,8 @@ def _revision_config(revision_variant: str = "executor.strong") -> RunnerConfig:
             "executor.strong": TierConfig(
                 adapter="api", provider="p", model="strong", image="strong-image"
             ),
-        }
+        },
+        review=review or ReviewConfig(revision="fresh"),
     )
 
 
@@ -216,8 +221,9 @@ def test_an_advance_is_never_sticky(tmp_path):
 
 
 # ....................... #
-# blocker revisions (S-0117/D-1): the attempt after a surviving blocker's
-# revision resolves the seat's revision_variant, as a gate-red resolves a rung.
+# blocker revisions (S-0117/D-1): under `review.revision: fresh` or `session`
+# the attempt after a surviving blocker's revision resolves the seat's
+# revision_variant, as a gate-red resolves a rung.
 
 
 def _blocker_revision_fact() -> str:
@@ -257,6 +263,26 @@ def test_an_empty_revision_variant_keeps_the_revision_on_the_seat(tmp_path):
 
     assert agent == "seat-agent"
     assert run.tier_name == "executor"
+    assert called == []
+
+
+def test_revision_off_keeps_the_attempt_after_a_blocker_on_the_seat(tmp_path):
+    """S-0127/D-5: under `review.revision: off`, the default, the one fresh
+    attempt a surviving blocker buys runs on the task's own seat even where the
+    seat names a `revision_variant`; no factory call fabricates the rung."""
+
+    called: list[object] = []
+    run = _dispatch(
+        tmp_path,
+        retry_agent=lambda tier: called.append(tier) or "agent-for-rung",
+        config=_revision_config(review=ReviewConfig()),
+    )
+
+    agent = advance_tier(run, _state(_blocker_revision_fact(), "attempt 2 dispatched"))
+
+    assert agent == "seat-agent"
+    assert run.tier_name == "executor"
+    assert run.tier.model == "cheap"
     assert called == []
 
 
@@ -837,6 +863,214 @@ def test_an_earlier_attempt_s_halt_does_not_halt_this_one(tmp_path):
     assert _halt_reason(tmp_path, TASK_ID, 4) is None
 
 
+# ....................... #
+# S-0127/D-8: a review round's attempt that declines one claim goes on to its
+# gates with its other fixes; a LOCKED row's halt still asks the owner.
+
+# T-0894's shape: a round of seven findings, one file each.
+ROUND_FILES = tuple(f"src/part{n}.py" for n in range(1, 8))
+
+
+def _round_task(task_id: str = TASK_ID) -> Task:
+    return Task(
+        id=task_id,
+        decisions=[],
+        round={
+            "branch": "torve/S-0001",
+            "findings": [
+                {"path": path, "line": 3, "threads": [f"thread-{n}"]}
+                for n, path in enumerate(ROUND_FILES, 1)
+            ],
+        },
+    )
+
+
+def _declining(path: str, grade: str = "UNLISTED") -> dict:
+    """A halt on the claim at *path*, as `torve abort` writes it: on no row, or
+    on a LOCKED one (`divergence.halts`)."""
+
+    return {
+        "decision": "S-0001/D-1" if grade == "LOCKED" else "unlisted",
+        "grade": grade,
+        "kind": "contradicted" if grade == "LOCKED" else "blocked",
+        "action": "halted",
+        "attempt": 1,
+        "claim": f"{path}:3 asks for a schema change outside this round",
+        "evidence": "src/schema.py:1 — the schema is another phase's",
+    }
+
+
+class _Notes:
+    def __init__(self, notes: list[dict]) -> None:
+        self.sent = notes
+
+    def notes(self) -> list[dict]:
+        return self.sent
+
+
+@pytest.mark.parametrize(
+    ("halts", "expected"),
+    [
+        # One claim of seven declined: the attempt goes on to its gates.
+        ([_declining(ROUND_FILES[6])], None),
+        # Two declined, five still standing.
+        ([_declining(ROUND_FILES[0]), _declining(ROUND_FILES[6])], None),
+        # Named in the evidence alone.
+        (
+            [
+                {
+                    **_declining(ROUND_FILES[6]),
+                    "claim": "the migration is out of scope",
+                    "evidence": f"{ROUND_FILES[6]}:3 — the column belongs to S-0002",
+                }
+            ],
+            None,
+        ),
+        # A halt naming no finding of the round ends the attempt.
+        (
+            [{**_declining(ROUND_FILES[6]), "claim": "the contract is unclear"}],
+            "underspecified",
+        ),
+        # So does one naming none beside one naming a finding.
+        (
+            [
+                _declining(ROUND_FILES[6]),
+                {**_declining(ROUND_FILES[0]), "claim": "the contract is unclear"},
+            ],
+            "underspecified",
+        ),
+        # Halts naming every finding decline the whole round.
+        ([_declining(path) for path in ROUND_FILES], "underspecified"),
+        # A LOCKED row's halt asks the owner, whatever it names.
+        ([_declining(ROUND_FILES[6], grade="LOCKED")], "locked_conflict"),
+        (
+            [_declining(ROUND_FILES[6]), _declining(ROUND_FILES[0], grade="LOCKED")],
+            "locked_conflict",
+        ),
+    ],
+)
+def test_halted_claim_passes_over_a_declined_claim_while_another_stands(tmp_path, halts, expected):
+    """S-0127/D-8: a halt citing no LOCKED row whose claim or evidence names
+    one of the round's findings ends nothing while some finding is named by no
+    halt; a halt naming none, halts naming all, and a LOCKED row's halt
+    (S-0096/D-1) end the attempt as before."""
+
+    from torve.application.session import halted
+
+    run = _dispatch(tmp_path)
+    run.task = _round_task()
+    _halt_log(tmp_path, *halts)
+
+    assert halted(run, 1) == expected
+
+
+def test_halted_claim_declines_nothing_outside_a_review_round(tmp_path):
+    """S-0127/D-8 reads a round's findings; a task that is no round has none,
+    so the same halt escalates `underspecified` as before."""
+
+    from torve.application.session import halted
+
+    run = _dispatch(tmp_path)
+    _halt_log(tmp_path, _declining(ROUND_FILES[6]))
+
+    assert halted(run, 1) == "underspecified"
+
+
+def test_halted_claim_an_urgent_note_still_stops_the_attempt(tmp_path):
+    """S-0127/D-8 passes over a declined claim, never over the operator: an
+    urgent note sent while the attempt ran still ends it as `killed`."""
+
+    from dataclasses import replace
+
+    from torve.application.session import halted
+
+    run = _dispatch(tmp_path)
+    run.task = _round_task()
+    run.meta.update(started_at="2026-11-12T01:00:00Z", ended_at="2026-11-12T02:00:00Z")
+    run.deps = replace(
+        run.deps,
+        channel=_Notes([{"urgent": True, "at": "2026-11-12T01:30:00Z"}]),  # type: ignore[arg-type]
+    )
+    _halt_log(tmp_path, _declining(ROUND_FILES[6]))
+
+    assert halted(run, 1) == "killed"
+
+
+def _round_run(repo, monkeypatch, halt: dict):
+    """A run of T-0894's round whose agent fixes six claims and halts on the
+    seventh with *halt*, over a gate pass that records that it ran."""
+
+    from test_run_loop import MockRuntime, MockScm, MockVcs, MockWorkspace
+
+    import torve.application.runner as run_module
+    from torve.adapters.store.durable import open_store
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config import layout
+
+    class DecliningAgent:
+        kind = "fake"
+
+        def run(self, ctx):
+            for path in ROUND_FILES[:6]:
+                fixed = ctx.workspace / path
+                fixed.parent.mkdir(parents=True, exist_ok=True)
+                fixed.write_text("FIXED = True\n", encoding="utf-8")
+
+            log = layout.log_file(ctx.workspace, ctx.task.id)
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_text(
+                yaml.safe_dump({"schema_version": 1, "task": ctx.task.id, "entries": [halt]}),
+                encoding="utf-8",
+            )
+
+            return AgentResult(exit_code=0, output="")
+
+    repo.seed()
+    deps = RunDeps(
+        workspace=MockWorkspace(repo.root),
+        runtime=MockRuntime(),  # type: ignore[arg-type]
+        agent=DecliningAgent(),
+        vcs=MockVcs(),  # type: ignore[arg-type]
+        scm=MockScm(),  # type: ignore[arg-type]
+        store=open_store,
+    )
+    judged: list[list[str]] = []
+
+    def gates(run, _state):
+        judged.append(sorted(str(p.relative_to(run.worktree)) for p in run.worktree.glob("src/*")))
+        return 0, "scripted", "cafecafe1234", [], "diff --git a/x b/x"
+
+    monkeypatch.setattr(run_module, "run_gate_pass", gates)
+    state = run_task(repo.root, _round_task("T-9001"), RunnerConfig(), deps)
+
+    return state, judged
+
+
+def test_halted_claim_one_declined_claim_of_seven_reaches_the_gates(repo, monkeypatch):
+    """S-0127/D-8, T-0894: an attempt that halted on one out-of-scope claim of
+    seven goes on to its gates with its six fixes, and lands them."""
+
+    from torve.domain.states import TaskState
+
+    state, judged = _round_run(repo, monkeypatch, _declining(ROUND_FILES[6]))
+
+    assert judged == [sorted(ROUND_FILES[:6])]
+    assert state.escalation is None
+    assert state.state is TaskState.READY
+
+
+def test_locked_halt_on_one_claim_of_seven_escalates_locked_conflict(repo, monkeypatch):
+    """S-0127/D-8, S-0096/D-1: the same halt citing a LOCKED row reaches the
+    owner as `locked_conflict` before the round lands; its gates never run."""
+
+    state, judged = _round_run(repo, monkeypatch, _declining(ROUND_FILES[6], grade="LOCKED"))
+
+    assert judged == []
+    assert state.escalation is not None
+    assert state.escalation.reason == "locked_conflict"
+
+
 def test_the_sandbox_git_is_a_standalone_copy_of_the_attempt_s_head(repo, tmp_path):
     """The worktree's `.git` file points at the host's git directory, which no
     sandbox mounts. The copy the sandbox reads instead answers `status`, `log`
@@ -874,8 +1108,16 @@ def test_the_sandbox_git_is_a_standalone_copy_of_the_attempt_s_head(repo, tmp_pa
 
 
 # ....................... #
-# S-0122/D-8: a red candidate's one repair turn runs in its own session, in
-# the sandbox it ran in, before that sandbox dies.
+# A candidate's session and the sandbox it ran in (S-0124/D-4, S-0124/D-8).
+
+
+class _SessionAgent:
+    kind = "harness"
+
+    def run(self, ctx):
+        from torve.application.ports import AgentResult
+
+        return AgentResult(exit_code=0, output="first", cost_usd=0.1)
 
 
 def test_a_session_ending_leaves_its_sibling_candidates_sandboxes(repo, monkeypatch):
@@ -900,9 +1142,9 @@ def test_a_session_ending_leaves_its_sibling_candidates_sandboxes(repo, monkeypa
     held: list[tuple[list[str], str | None]] = []
     session = run_module.run_agent_session
 
-    async def beside_a_sibling(run, state, own=None):
+    async def beside_a_sibling(run, state):
         state.sandboxes.append("sbx-sibling")
-        result = await session(run, state, own)
+        result = await session(run, state)
         held.append((list(state.sandboxes), state.sandbox_id))
         state.sandboxes.remove("sbx-sibling")
 
@@ -915,118 +1157,6 @@ def test_a_session_ending_leaves_its_sibling_candidates_sandboxes(repo, monkeypa
     run_task(repo.root, task_for(repo), RunnerConfig(), deps)
 
     assert held == [(["sbx-sibling"], "sbx-sibling")]
-
-
-def _repair_loop(repo, monkeypatch, agent, repair, config=None):
-    """A run whose attempt leg is handed *repair*, with a green gate pass
-    that records the meta it judged."""
-
-    from test_run_loop import MockRuntime, MockScm, MockVcs, MockWorkspace, task_for
-
-    import torve.application.runner as run_module
-    from torve.adapters.store.durable import open_store
-    from torve.application.runner import run_task
-
-    repo.seed()
-    runtime = MockRuntime()
-    deps = RunDeps(
-        workspace=MockWorkspace(repo.root),
-        runtime=runtime,  # type: ignore[arg-type]
-        agent=agent,
-        vcs=MockVcs(),  # type: ignore[arg-type]
-        scm=MockScm(),  # type: ignore[arg-type]
-        store=open_store,
-    )
-    judged: list[dict] = []
-
-    def gates(run, _state):
-        judged.append(dict(run.meta))
-        return 0, "scripted", "cafecafe1234", [], ""
-
-    session = run_module.run_agent_session
-    monkeypatch.setattr(run_module, "run_gate_pass", gates)
-    monkeypatch.setattr(
-        run_module, "run_agent_session", lambda run, state, _own=None: session(run, state, repair)
-    )
-    run_task(repo.root, task_for(repo), config or RunnerConfig(), deps)
-
-    return runtime, judged
-
-
-class _SessionAgent:
-    kind = "harness"
-
-    def __init__(self, exit_code: int = 0) -> None:
-        self.exit_code = exit_code
-        self.calls: list[tuple] = []
-        self.clocks: list[float] = []
-
-    def run(self, ctx):
-        from torve.application.ports import AgentResult
-
-        self.calls.append(("run", ctx.handle.id))
-        self.clocks.append(ctx.timeout_s)
-        return AgentResult(exit_code=self.exit_code, output="first", cost_usd=0.1)
-
-    def follow_up(self, ctx, previous, text):
-        from torve.application.ports import AgentResult
-
-        self.calls.append(("follow_up", ctx.handle.id, previous.output, text))
-        self.clocks.append(ctx.timeout_s)
-        return AgentResult(exit_code=0, output="second", cost_usd=0.3)
-
-
-def test_a_repair_turn_continues_the_attempt_in_its_own_sandbox(repo, monkeypatch):
-    agent = _SessionAgent()
-    asked: list[str] = []
-
-    async def repair(result):
-        asked.append(result.output)
-        return "2 tests red: test_a, test_b"
-
-    runtime, judged = _repair_loop(repo, monkeypatch, agent, repair)
-
-    assert asked == ["first"]
-    assert agent.calls == [
-        ("run", "sbx-1"),
-        ("follow_up", "sbx-1", "first", "2 tests red: test_a, test_b"),
-    ]
-    assert runtime.destroyed == ["sbx-1"]
-    # The result is the session's whole: the follow-up's totals count both.
-    assert judged[0]["cost_usd"] == 0.3
-    # The sandbox outlives one agent clock: the turn gets what is left of it.
-    assert 0 < agent.clocks[1] < agent.clocks[0]
-
-
-def test_no_repair_turn_once_the_attempt_s_clock_is_spent(repo, monkeypatch):
-    async def repair(result):
-        return "red"
-
-    agent = _SessionAgent()
-    config = RunnerConfig(
-        tiers={"executor": TierConfig(agent_timeout=0.001), "planner": TierConfig()}
-    )
-    _repair_loop(repo, monkeypatch, agent, repair, config)
-
-    assert all(call[0] == "run" for call in agent.calls)
-
-
-@pytest.mark.parametrize(("exit_code", "bought"), [(0, None), (1, "red")])
-def test_no_repair_turn_unless_bought_after_a_clean_turn(repo, monkeypatch, exit_code, bought):
-    """None buys no turn, and a turn that failed is never offered one: its
-    gates do not run."""
-
-    asked: list[str] = []
-
-    async def repair(result):
-        asked.append(result.output)
-        return bought
-
-    agent = _SessionAgent(exit_code)
-    _repair_loop(repo, monkeypatch, agent, repair)
-
-    assert asked == (["first"] if exit_code == 0 else [])
-    assert all(call[0] == "run" for call in agent.calls)
 
 
 def test_a_seat_that_cannot_follow_up_is_judged_with_its_never_send_files(

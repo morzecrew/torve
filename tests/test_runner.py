@@ -3624,8 +3624,9 @@ BLOCKER_VERDICT = json.dumps(
 
 
 def test_a_blocker_surviving_the_revision_variant_escalates_after_it(repo, monkeypatch):
-    """S-0117/D-1: the first blocker revises on the seat's revision_variant;
-    only the blocker that survives that revision escalates blocker_finding."""
+    """S-0117/D-1: under `review.revision: fresh` (S-0127/D-5) the first
+    blocker revises on the seat's revision_variant; only the blocker that
+    survives that revision escalates blocker_finding."""
 
     from test_run_loop import (
         OK,
@@ -3679,7 +3680,7 @@ def test_a_blocker_surviving_the_revision_variant_escalates_after_it(repo, monke
             "executor": TierConfig(adapter="fake", revision_variant="executor.strong"),
             "executor.strong": TierConfig(adapter="fake", model="strong"),
         },
-        review=ReviewConfig(on=["task_gated"]),
+        review=ReviewConfig(on=["task_gated"], revision="fresh"),
     )
 
     state = run_task(repo.root, task_for(repo), config, deps)
@@ -4799,9 +4800,9 @@ def test_revision_width_is_one_candidate_on_the_revision_tier(
     review_rig,  # noqa: F811
 ):
     """S-0124/D-1: a revision attempt — one whose task has a feedback record at
-    the root — is class S, runs one candidate, and runs it on the seat's
-    `revision_variant`, while the ordinary critic-mode unit it follows ran its
-    full width."""
+    the root — is class S, runs one candidate, and under `review.revision:
+    fresh` (S-0127/D-5) runs it on the seat's `revision_variant`, while the
+    ordinary critic-mode unit it follows ran its full width."""
 
     from test_critic import answer, finding
     from test_review_run import SequencedReviewer
@@ -4852,7 +4853,9 @@ def test_revision_width_is_one_candidate_on_the_revision_tier(
             "executor": TierConfig(adapter="fake", revision_variant="executor.strong"),
             "executor.strong": TierConfig(adapter="fake", model="strong"),
         },
-        review=ReviewConfig(on=["task_gated"], mode="critic", blocker_revisions=1),
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", blocker_revisions=1, revision="fresh"
+        ),
     )
 
     state = run_task(repo.root, task_for(repo), config, deps)
