@@ -212,17 +212,19 @@ decisions:
       `PYTHONPYCACHEPREFIX`, `PYTEST_ADDOPTS=-p no:cacheprovider`, `MYPY_CACHE_DIR`,
       `RUFF_CACHE_DIR`), so no command's read-only run can change the candidate, and
       a command whose output reports `Read-only file system` runs once more over the
-      checkout mounted writable, that run's exit the one recorded unless it changed
-      or removed a file the checkout held, which refuses the repro the same way, an
-      end-state check that a change restored before the command exits passes, so a
-      denied write never blocks, a printed marker alone never refuses, and only a
-      command the read-only mount denied ever runs writable; each command is bounded
-      by the timeout of the `acceptance` gate in the attempt's manifest (`run.manifest_file`),
-      or by the runtime's `sandbox_timeout` when the manifest has no such gate, and
-      all of one review's re-runs together by what is left of the unit's clock (D-9),
-      a command the clock leaves no time for not run; it returns one `CommandRun`
-      per command, its exit `None` on a timeout or when it was not run, and the checkout
-      and the sandbox are removed when it returns, whatever happened
+      checkout mounted writable, in a sandbox of its own that starts only after the
+      read-only one is closed and gets only what is left of the command's timeout
+      and the unit's clock, that run's exit the one recorded unless it changed or
+      removed a file the checkout held, which refuses the repro the same way, an end-state
+      check that a change restored before the command exits passes, so a denied write
+      never blocks, a printed marker alone never refuses, and only a command the read-only
+      mount denied ever runs writable; each command is bounded by the timeout of the
+      `acceptance` gate in the attempt's manifest (`run.manifest_file`), or by the
+      runtime's `sandbox_timeout` when the manifest has no such gate, and all of one
+      review's re-runs together by what is left of the unit's clock (D-9), a command
+      the clock leaves no time for not run; it returns one `CommandRun` per command,
+      its exit `None` on a timeout or when it was not run, and the checkout and the
+      sandbox are removed when it returns, whatever happened
     paths: [src/torve/application/runner.py]
     consequence: >-
       a re-run is as isolated as the battery and leaves nothing behind, the critic
@@ -238,7 +240,7 @@ decisions:
     cites: [S-0122/D-2, S-0122/D-6, S-0114/D-5, D-9]
     check: >-
       uv run pytest -q tests/test_runner.py -k "reproduce or rerun_bound"
-    fingerprint: a07bb2d89f2a5569/14bd8ed0a79735ba
+    fingerprint: abb36f1e777fff0c/14bd8ed0a79735ba
   - id: D-11
     grade: OPEN
     text: >-

@@ -144,3 +144,77 @@ amendments:
       edits a held file and restores it before it exits is measured as it ran. The row
       now says so. The retry runs only for a command the read-only mount denied, so a
       read-only run still cannot change the candidate at any point of it.
+  - id: A-4
+    at: '2026-11-12T05:45:45Z'
+    title: >-
+      The writable retry runs alone, in what is left of the clock
+    changes:
+      - subject: D-10
+        field: text
+        before: >-
+          `runner.reproduce(run, state, commands, probes)` runs each command in a
+          fresh gates sandbox (`_gates_spec`: the battery's image and cache) over
+          a fresh judge checkout of the candidate, with each probe's text written
+          at its path first, but only at a path that is new to the checkout — no file
+          there, tracked or not — and lies under the review's probe directory with
+          no component a link, a probe at any other path, or one a finding names that
+          the critic's copy did not keep (missing, a link, outside the copy or over
+          the cap), refusing the whole repro so its finding is advisory; once the
+          probes are written the checkout is mounted read-only (`workspace_read_only`),
+          with the project environment, bytecode and the common tool caches pointed
+          under the sandbox's own temporary directory (`UV_PROJECT_ENVIRONMENT`, `PYTHONPYCACHEPREFIX`,
+          `PYTEST_ADDOPTS=-p no:cacheprovider`, `MYPY_CACHE_DIR`, `RUFF_CACHE_DIR`),
+          so no command's read-only run can change the candidate, and a command whose
+          output reports `Read-only file system` runs once more over the checkout
+          mounted writable, that run's exit the one recorded unless it changed or
+          removed a file the checkout held, which refuses the repro the same way,
+          an end-state check that a change restored before the command exits passes,
+          so a denied write never blocks, a printed marker alone never refuses, and
+          only a command the read-only mount denied ever runs writable; each command
+          is bounded by the timeout of the `acceptance` gate in the attempt's manifest
+          (`run.manifest_file`), or by the runtime's `sandbox_timeout` when the manifest
+          has no such gate, and all of one review's re-runs together by what is left
+          of the unit's clock (D-9), a command the clock leaves no time for not run;
+          it returns one `CommandRun` per command, its exit `None` on a timeout or
+          when it was not run, and the checkout and the sandbox are removed when it
+          returns, whatever happened
+        after: >-
+          `runner.reproduce(run, state, commands, probes)` runs each command in a
+          fresh gates sandbox (`_gates_spec`: the battery's image and cache) over
+          a fresh judge checkout of the candidate, with each probe's text written
+          at its path first, but only at a path that is new to the checkout — no file
+          there, tracked or not — and lies under the review's probe directory with
+          no component a link, a probe at any other path, or one a finding names that
+          the critic's copy did not keep (missing, a link, outside the copy or over
+          the cap), refusing the whole repro so its finding is advisory; once the
+          probes are written the checkout is mounted read-only (`workspace_read_only`),
+          with the project environment, bytecode and the common tool caches pointed
+          under the sandbox's own temporary directory (`UV_PROJECT_ENVIRONMENT`, `PYTHONPYCACHEPREFIX`,
+          `PYTEST_ADDOPTS=-p no:cacheprovider`, `MYPY_CACHE_DIR`, `RUFF_CACHE_DIR`),
+          so no command's read-only run can change the candidate, and a command whose
+          output reports `Read-only file system` runs once more over the checkout
+          mounted writable, in a sandbox of its own that starts only after the read-only
+          one is closed and gets only what is left of the command's timeout and the
+          unit's clock, that run's exit the one recorded unless it changed or removed
+          a file the checkout held, which refuses the repro the same way, an end-state
+          check that a change restored before the command exits passes, so a denied
+          write never blocks, a printed marker alone never refuses, and only a command
+          the read-only mount denied ever runs writable; each command is bounded by
+          the timeout of the `acceptance` gate in the attempt's manifest (`run.manifest_file`),
+          or by the runtime's `sandbox_timeout` when the manifest has no such gate,
+          and all of one review's re-runs together by what is left of the unit's clock
+          (D-9), a command the clock leaves no time for not run; it returns one `CommandRun`
+          per command, its exit `None` on a timeout or when it was not run, and the
+          checkout and the sandbox are removed when it returns, whatever happened
+      - subject: D-10
+        field: fingerprint
+        before: a07bb2d89f2a5569/14bd8ed0a79735ba
+        after: abb36f1e777fff0c/14bd8ed0a79735ba
+    md: |
+      Review of the built engine found the writable retry reused the read-only sandbox's
+      name while it was still open, so with real docker the retry could never start and a
+      command that needed it never blocked; it also took the timeout computed before the
+      read-only run. The retry now runs in a sandbox of its own, after the read-only one is
+      closed, so a nested gates daemon never shares its state volume with a second one, and
+      it gets only what is left of the timeout and the clock. The corpus replay runs its
+      repros through the same controls over a fresh copy of the candidate.
