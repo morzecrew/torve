@@ -27,7 +27,8 @@ decisions:
       keeps 1
     paths: [src/torve/config/runconfig.py, src/torve/application/review.py]
     consequence: >-
-      a unit gets the two rounds S-0122/D-8 promises before it escalates
+      a unit gets one fresh attempt after a block by default (S-0127/D-5), and the
+      two rounds when a configuration names `fresh` or `session`
     rationale: >-
       S-0122/D-8 says two rounds and the default spent one
     cites: [S-0122/D-8]
@@ -130,8 +131,8 @@ decisions:
       in its own still-open session, on that candidate's tier and not `revision_variant`,
       with the blocking findings, after the same spend and clock checks a fresh attempt
       passes, then judges its gates and asks the critic again, in place of a fresh
-      revision attempt; `fresh` is the default, and a seat whose harness keeps no
-      session falls back to it
+      revision attempt; `off` is the default (S-0127/D-5), under which neither revision
+      mode runs, and a seat whose harness keeps no session falls back to `fresh`
     paths:
       - src/torve/application/runner.py
       - src/torve/application/session.py
@@ -145,6 +146,7 @@ decisions:
     cites: [S-0122/D-8, S-0122/D-9]
     check: >-
       uv run pytest -q tests/test_runner.py tests/test_runconfig.py -k session_revision
+    fingerprint: 14e58ad13fd7649c/e157d702accd77b8
   - id: D-9
     grade: ASSUMED
     text: >-

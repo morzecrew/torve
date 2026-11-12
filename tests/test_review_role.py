@@ -146,17 +146,26 @@ def _insert(prose: list[str], at: int, text: str) -> str:
     return " ".join([*prose[:at], text, *prose[at:]])
 
 
+#: How prose may enclose a citation: bare, quoted as code, or bracketed.
+WRAPS = st.sampled_from(["{}", "`{}`", "({})", '"{}"'])
+
+
 @given(
-    prose=PROSE, at=st.integers(min_value=0, max_value=12), path=st.sampled_from(FILES), span=SPANS
+    prose=PROSE,
+    at=st.integers(min_value=0, max_value=12),
+    path=st.sampled_from(FILES),
+    span=SPANS,
+    wrap=WRAPS,
 )
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-def test_locates_anywhere_a_resolving_citation(tmp_path, prose, at, path, span):
+def test_locates_anywhere_a_resolving_citation(tmp_path, prose, at, path, span, wrap):
     """S-0127/D-3: prose holding a `path:line` or `path:start-end` that
     resolves under the root locates wherever the citation sits, and
-    `citations` reads it whole, a path containing spaces included."""
+    `citations` reads it whole, a path containing spaces included, quoted or
+    bracketed or bare."""
 
     _sources(tmp_path)
-    evidence = _insert(prose, at, _span(path, *span))
+    evidence = _insert(prose, at, wrap.format(_span(path, *span)))
 
     assert locate(evidence, tmp_path) is None
     assert (path, *span) in citations(evidence, tmp_path)
@@ -169,6 +178,16 @@ def test_locates_anywhere_a_command_with_output(tmp_path, prose, at, command):
     wherever it sits in the prose."""
 
     assert locate(_insert(prose, at, command), tmp_path) is None
+
+
+@pytest.mark.parametrize("after", ["", "\n", " \n\t", " — \n"])
+def test_locates_anywhere_a_command_followed_by_whitespace_alone_has_no_output(tmp_path, after):
+    """S-0127/D-3: a backticked command whose rest is whitespace and
+    separators carries no output, a newline included."""
+
+    problem = locate(f"The check was `uv run pytest`{after}", tmp_path)
+
+    assert problem == "evidence is a command with no output — the output is the evidence"
 
 
 @given(prose=PROSE)

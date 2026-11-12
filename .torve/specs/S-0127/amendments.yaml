@@ -11,3 +11,67 @@ amendments:
       owns `critic.py` for one change, the line phase 3 named: `_CITED`,
       `_citations` and `_extend_path` give way to `evidence.citations`. Phase 3
       keeps every other change to `critic.py`.
+  - id: A-2
+    at: '2026-11-12T04:27:28Z'
+    title: A denied write is measured over a writable mount
+    changes:
+      - subject: D-10
+        field: text
+        before: >-
+          `runner.reproduce(run, state, commands, probes)` runs each command in a
+          fresh gates sandbox (`_gates_spec`: the battery's image and cache) over
+          a fresh judge checkout of the candidate, with each probe's text written
+          at its path first, but only at a path that is new to the checkout — no file
+          there, tracked or not — and lies under the review's probe directory with
+          no component a link, a probe at any other path, or one a finding names that
+          the critic's copy did not keep (missing, a link, outside the copy or over
+          the cap), refusing the whole repro so its finding is advisory; once the
+          probes are written the checkout is mounted read-only (`workspace_read_only`),
+          with the project environment, bytecode and the common tool caches pointed
+          under the sandbox's own temporary directory (`UV_PROJECT_ENVIRONMENT`, `PYTHONPYCACHEPREFIX`,
+          `PYTEST_ADDOPTS=-p no:cacheprovider`, `MYPY_CACHE_DIR`, `RUFF_CACHE_DIR`),
+          so no command can change the candidate at any point of its run, and a command
+          whose output reports `Read-only file system` is refused the same way, a
+          denied write never blocking; each command is bounded by the timeout of the
+          `acceptance` gate in the attempt's manifest (`run.manifest_file`), or by
+          the runtime's `sandbox_timeout` when the manifest has no such gate, and
+          all of one review's re-runs together by what is left of the unit's clock
+          (D-9), a command the clock leaves no time for not run; it returns one `CommandRun`
+          per command, its exit `None` on a timeout or when it was not run, and the
+          checkout and the sandbox are removed when it returns, whatever happened
+        after: >-
+          `runner.reproduce(run, state, commands, probes)` runs each command in a
+          fresh gates sandbox (`_gates_spec`: the battery's image and cache) over
+          a fresh judge checkout of the candidate, with each probe's text written
+          at its path first, but only at a path that is new to the checkout — no file
+          there, tracked or not — and lies under the review's probe directory with
+          no component a link, a probe at any other path, or one a finding names that
+          the critic's copy did not keep (missing, a link, outside the copy or over
+          the cap), refusing the whole repro so its finding is advisory; once the
+          probes are written the checkout is mounted read-only (`workspace_read_only`),
+          with the project environment, bytecode and the common tool caches pointed
+          under the sandbox's own temporary directory (`UV_PROJECT_ENVIRONMENT`, `PYTHONPYCACHEPREFIX`,
+          `PYTEST_ADDOPTS=-p no:cacheprovider`, `MYPY_CACHE_DIR`, `RUFF_CACHE_DIR`),
+          so no command can change the candidate at any point of its run, and a command
+          whose output reports `Read-only file system` runs once more over the checkout
+          mounted writable, that run's exit the one recorded unless it changed or
+          removed a file the checkout held, which refuses the repro the same way,
+          so a denied write never blocks and a printed marker alone never refuses;
+          each command is bounded by the timeout of the `acceptance` gate in the attempt's
+          manifest (`run.manifest_file`), or by the runtime's `sandbox_timeout` when
+          the manifest has no such gate, and all of one review's re-runs together
+          by what is left of the unit's clock (D-9), a command the clock leaves no
+          time for not run; it returns one `CommandRun` per command, its exit `None`
+          on a timeout or when it was not run, and the checkout and the sandbox are
+          removed when it returns, whatever happened
+      - subject: D-10
+        field: fingerprint
+        after: 54e2cab3a503d971/14bd8ed0a79735ba
+    md: |
+      Review of phase 2 found that the candidate's own code controls what a re-run prints, so
+      refusing on the marker let a candidate print `Read-only file system` over a real failure
+      and turn a blocking repro advisory. The marker now only sends the command to one run
+      over a writable mount, whose exit stands; that run refuses the repro only when it changed
+      or removed a file the checkout held, read by hashing the files from the disk, not from
+      the checkout's index. A candidate can still make a repro unmeasurable on purpose, as a
+      hang that times out does; that is integrity, and a `gaming` finding still blocks.

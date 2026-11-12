@@ -50,7 +50,9 @@ def locate(evidence: str, root: Path) -> str | None:
     cited = citations(evidence, root)
     backticked = BACKTICKED.search(evidence)
 
-    if backticked and backticked.group("rest").strip(" \t—-:"):
+    # Output is what follows the command once whitespace and the separators
+    # are gone; a newline alone is none.
+    if backticked and backticked.group("rest").strip().strip("—-:").strip():
         return None
 
     if any(_problem(path, start, end, root) is None for path, start, end in cited):
@@ -97,13 +99,15 @@ def _extend_path(evidence: str, match: re.Match[str], start: int, end: int, root
     spaces, which `CITED` finds only from its last word.
 
     The longest run that resolves wins, so prose before the path is not
-    swallowed: only words whose addition makes an existing file are kept."""
+    swallowed: only words whose addition makes an existing file are kept. A
+    quote or bracket opening the run is not the path's, so a quoted
+    `` `src/legacy module.py:12` `` resolves too."""
 
     beginning = match.start("path")
     words = evidence[evidence.rfind("\n", 0, beginning) + 1 : beginning].split()
 
     for index in range(len(words)):
-        candidate = " ".join([*words[index:], match.group("path")])
+        candidate = " ".join([*words[index:], match.group("path")]).lstrip("`'\"([")
 
         if _problem(candidate, start, end, root) is None:
             return candidate

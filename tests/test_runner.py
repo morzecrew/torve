@@ -5792,15 +5792,24 @@ def test_a_fresh_revision_whose_agent_failed_records_failed(review_rig):  # noqa
 
 class _ReproRuntime:
     """A gates sandbox that records how it was opened, what the checkout
-    held when it was, and what ran in it."""
+    held when it was, and what ran in it. An outcome may differ by mount —
+    `{"ro": ..., "rw": ...}` — and *writes* names the files a command writes
+    when its mount lets it."""
 
-    def __init__(self, outputs: dict | None = None, clock: list[float] | None = None) -> None:
+    def __init__(
+        self,
+        outputs: dict | None = None,
+        clock: list[float] | None = None,
+        writes: dict[str, dict[str, str]] | None = None,
+    ) -> None:
         self.outputs = outputs or {}
         self.clock = clock
+        self.writes = writes or {}
         self.specs: list = []
         self.mounted: list[str] = []
         self.ran: list[tuple[str, float]] = []
         self.destroyed: list[str] = []
+        self._opened: dict[str, tuple] = {}
 
     def create(self, spec, workspace):
         from torve.application.ports import SandboxHandle
@@ -5811,17 +5820,27 @@ class _ReproRuntime:
             for path in workspace.rglob("*")
             if path.is_file()
         )
-        return SandboxHandle(id="repro-1", name=spec.name)
+        handle = SandboxHandle(id=f"repro-{len(self.specs)}", name=spec.name)
+        self._opened[handle.id] = (spec, workspace)
+        return handle
 
     def exec(self, handle, command, timeout_s):
         from torve.application.ports import ExecResult
 
         self.ran.append((command, timeout_s))
+        spec, workspace = self._opened[handle.id]
 
         if self.clock is not None:
             self.clock[0] += 70.0
 
+        if not spec.workspace_read_only:
+            for rel, text in self.writes.get(command, {}).items():
+                (workspace / rel).write_text(text, encoding="utf-8")
+
         outcome = self.outputs.get(command, (0, "ok"))
+
+        if isinstance(outcome, dict):
+            outcome = outcome["ro" if spec.workspace_read_only else "rw"]
 
         if isinstance(outcome, BaseException):
             raise outcome
@@ -5985,23 +6004,76 @@ def test_reproduce_refuses_a_probe_under_a_link(tmp_path):
     assert opener.removed == [TASK_ID]
 
 
-def test_reproduce_refuses_a_command_the_read_only_checkout_denied(tmp_path):
-    """S-0127/D-10: a command whose output reports a denied write refuses
-    the repro, so a write the mount denied never reads as a failing repro;
-    no command after it runs."""
+DENIED = "OSError: [Errno 30] Read-only file system: '.cache/x'"
+
+
+def test_reproduce_a_denied_write_is_measured_over_a_writable_mount(tmp_path):
+    """S-0127/D-10: a command whose output reports a denied write runs once
+    more over the checkout mounted writable, and that run's exit is the one
+    recorded — a write the mount denied never reads as a failing repro, and a
+    candidate that prints the marker over a real failure still fails."""
 
     from torve.application.runner import reproduce
 
-    denied = "OSError: [Errno 30] Read-only file system: 'src/app.py'"
-    runtime = _ReproRuntime({"python probes/write.py": (1, denied)})
+    runtime = _ReproRuntime(
+        {
+            "uv run pytest -q": {"ro": (1, DENIED), "rw": (1, "1 failed")},
+            "uv run tool": {"ro": (1, DENIED), "rw": (0, "ok")},
+        }
+    )
     run, state, opener = _repro_run(tmp_path, runtime)
 
-    runs = reproduce(run, state, ["python probes/write.py", "uv run pytest -q"], {})
+    runs = reproduce(run, state, ["uv run pytest -q", "uv run tool", "true"], {})
+
+    assert [(one.exit_code, one.tail) for one in runs] == [(1, "1 failed"), (0, "ok"), (0, "ok")]
+    assert [spec.workspace_read_only for spec in runtime.specs] == [True, False, False]
+    assert [command for command, _ in runtime.ran] == [
+        "uv run pytest -q",
+        "uv run pytest -q",
+        "uv run tool",
+        "uv run tool",
+        "true",
+    ]
+    assert sorted(runtime.destroyed) == ["repro-1", "repro-2", "repro-3"]
+    assert opener.removed == [TASK_ID]
+
+
+def test_reproduce_refuses_a_writable_run_that_changed_a_held_file(tmp_path):
+    """S-0127/D-10: a writable run that changed a file the checkout held
+    refuses the repro, so a command that edits the candidate measures
+    nothing; no command after it runs. A file it only added changes nothing."""
+
+    from torve.application.runner import reproduce
+
+    runtime = _ReproRuntime(
+        {"python probes/edit.py": {"ro": (1, DENIED), "rw": (1, "boom")}},
+        writes={"python probes/edit.py": {"src/app.py": "edited\n", "build.log": "new\n"}},
+    )
+    run, state, opener = _repro_run(tmp_path, runtime)
+
+    runs = reproduce(run, state, ["python probes/edit.py", "uv run pytest -q"], {})
 
     assert [one.exit_code for one in runs] == [None, None]
-    assert all(one.tail.startswith("refused:") for one in runs)
-    assert [command for command, _ in runtime.ran] == ["python probes/write.py"]
-    assert opener.removed == [TASK_ID] and runtime.destroyed == ["repro-1"]
+    assert all("changed src/app.py" in one.tail for one in runs)
+    assert [command for command, _ in runtime.ran] == ["python probes/edit.py"] * 2
+    assert opener.removed == [TASK_ID]
+
+
+def test_reproduce_a_writable_run_that_only_adds_files_stands(tmp_path):
+    """S-0127/D-10: an egg-info or a cache the writable run adds is no change
+    to the candidate, so its exit stands."""
+
+    from torve.application.runner import reproduce
+
+    runtime = _ReproRuntime(
+        {"uv run pytest -q": {"ro": (1, DENIED), "rw": (1, "1 failed")}},
+        writes={"uv run pytest -q": {"app.egg-info": "x\n"}},
+    )
+    run, state, _ = _repro_run(tmp_path, runtime)
+
+    [one] = reproduce(run, state, ["uv run pytest -q"], {})
+
+    assert (one.exit_code, one.tail) == (1, "1 failed")
 
 
 def test_reproduce_removes_its_checkout_and_sandbox_when_a_command_raises(tmp_path):

@@ -137,3 +137,30 @@ amendments:
     md: |
       Amended on 2026-11-12 while building S-0127.
       S-0127/D-9 replaced the flat $3 with the class's cap; when the bound is checked is unchanged. S-0127/Q-6 missed this row, and building S-0127's phase 2 found it.
+  - id: A-8
+    at: '2026-11-12T04:27:41Z'
+    title: '`off` is the default (S-0127/D-5)'
+    changes:
+      - subject: D-8
+        field: text
+        before: >-
+          Under `review.revision: session` a revision round continues the selected
+          candidate in its own still-open session, on that candidate's tier and not
+          `revision_variant`, with the blocking findings, after the same spend and
+          clock checks a fresh attempt passes, then judges its gates and asks the
+          critic again, in place of a fresh revision attempt; `fresh` is the default,
+          and a seat whose harness keeps no session falls back to it
+        after: >-
+          Under `review.revision: session` a revision round continues the selected
+          candidate in its own still-open session, on that candidate's tier and not
+          `revision_variant`, with the blocking findings, after the same spend and
+          clock checks a fresh attempt passes, then judges its gates and asks the
+          critic again, in place of a fresh revision attempt; `off` is the default
+          (S-0127/D-5), under which neither revision mode runs, and a seat whose harness
+          keeps no session falls back to `fresh`
+      - subject: D-8
+        field: fingerprint
+        after: 14e58ad13fd7649c/e157d702accd77b8
+    md: |
+      Amended on 2026-11-12 while building S-0127: the row still named `fresh` the default,
+      which S-0127/D-5 replaced with `off`. CodeRabbit found it on the document's pull request.

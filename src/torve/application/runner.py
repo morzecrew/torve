@@ -21,6 +21,7 @@ the landing and the budget checkpoint. `real_hooks` binds them.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import re
 import shutil
@@ -960,8 +961,9 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
 # `probes/` — and so the one place a re-run writes one.
 PROBE_DIR = "probes"
 
-# What a command prints when the read-only checkout denied it a write: the
-# repro is refused, never read as a failure.
+# What a command prints when the read-only checkout denied it a write. The
+# candidate's code can print it too, so it only sends the command to one run
+# over a writable mount, never refuses a repro by itself.
 _READ_ONLY = "Read-only file system"
 
 # The project environment, bytecode and the common tool caches a re-run
@@ -1015,6 +1017,20 @@ def _probe_refusal(checkout: Path, name: str) -> str | None:
     return None
 
 
+def _held_files(checkout: Path) -> dict[str, str]:
+    """Every file *checkout* holds outside `.git`, by the hash of its bytes,
+    read from the disk rather than the checkout's own index, which a writable
+    run could rewrite."""
+
+    return {
+        path.relative_to(checkout).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(checkout.rglob("*"))
+        if path.relative_to(checkout).parts[0] != ".git"
+        and path.is_file()
+        and not path.is_symlink()
+    }
+
+
 def reproduce(
     run: Dispatch,
     state: RunState,
@@ -1031,9 +1047,11 @@ def reproduce(
     checkout, not under `probes/` or through a link, refuses the whole repro.
     Once the probes are written the checkout is mounted read-only, with the
     environment and caches pointed under the sandbox's own temporary
-    directory, so no command can change the candidate; a command whose output
-    reports a write the mount denied refuses the repro the same way, so a
-    denied write never blocks.
+    directory, so no command can change the candidate. A command whose output
+    reports a write the mount denied runs once more over the checkout mounted
+    writable, and that run's exit stands unless it changed or removed a file
+    the checkout held, which refuses the repro: a denied write never blocks,
+    and a candidate that prints the marker gains nothing by it.
 
     Each command gets the `acceptance` gate's timeout, and all of them
     together what is left of the unit's clock (S-0127/D-9); a command the
@@ -1083,11 +1101,8 @@ def reproduce(
                 return refused(f"probe {name} could not be written: {exc}")
 
         gates = _gates_spec(run, state)
-        executor = SandboxExecutor(
-            run.deps.runtime,
-            replace(gates, env={**gates.env, **REPRO_ENV}, workspace_read_only=True),
-            checkout,
-        )
+        spec = replace(gates, env={**gates.env, **REPRO_ENV}, workspace_read_only=True)
+        executor = SandboxExecutor(run.deps.runtime, spec, checkout)
         runs: list[CommandRun] = []
 
         for command in commands:
@@ -1101,10 +1116,28 @@ def reproduce(
                 )
                 continue
 
-            code, output = executor(command, timeout if left is None else min(timeout, left))
+            bound = timeout if left is None else min(timeout, left)
+            code, output = executor(command, bound)
 
             if _READ_ONLY in output:
-                return refused(f"`{command}` tried to write the read-only checkout")
+                held = _held_files(checkout)
+                writable = SandboxExecutor(
+                    run.deps.runtime, replace(spec, workspace_read_only=False), checkout
+                )
+
+                try:
+                    code, output = writable(command, bound)
+
+                finally:
+                    writable.close()
+
+                now = _held_files(checkout)
+                changed = next(
+                    (path for path, digest in held.items() if now.get(path) != digest), None
+                )
+
+                if changed is not None:
+                    return refused(f"`{command}` changed {changed} in the checkout")
 
             runs.append(CommandRun(command=command, exit_code=code, tail=clip(output, TAIL_BYTES)))
 

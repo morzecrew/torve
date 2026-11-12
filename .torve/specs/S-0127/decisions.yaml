@@ -211,14 +211,17 @@ decisions:
       the common tool caches pointed under the sandbox's own temporary directory (`UV_PROJECT_ENVIRONMENT`,
       `PYTHONPYCACHEPREFIX`, `PYTEST_ADDOPTS=-p no:cacheprovider`, `MYPY_CACHE_DIR`,
       `RUFF_CACHE_DIR`), so no command can change the candidate at any point of its
-      run, and a command whose output reports `Read-only file system` is refused the
-      same way, a denied write never blocking; each command is bounded by the timeout
-      of the `acceptance` gate in the attempt's manifest (`run.manifest_file`), or
-      by the runtime's `sandbox_timeout` when the manifest has no such gate, and all
-      of one review's re-runs together by what is left of the unit's clock (D-9),
-      a command the clock leaves no time for not run; it returns one `CommandRun`
-      per command, its exit `None` on a timeout or when it was not run, and the checkout
-      and the sandbox are removed when it returns, whatever happened
+      run, and a command whose output reports `Read-only file system` runs once more
+      over the checkout mounted writable, that run's exit the one recorded unless
+      it changed or removed a file the checkout held, which refuses the repro the
+      same way, so a denied write never blocks and a printed marker alone never refuses;
+      each command is bounded by the timeout of the `acceptance` gate in the attempt's
+      manifest (`run.manifest_file`), or by the runtime's `sandbox_timeout` when the
+      manifest has no such gate, and all of one review's re-runs together by what
+      is left of the unit's clock (D-9), a command the clock leaves no time for not
+      run; it returns one `CommandRun` per command, its exit `None` on a timeout or
+      when it was not run, and the checkout and the sandbox are removed when it returns,
+      whatever happened
     paths: [src/torve/application/runner.py]
     consequence: >-
       a re-run is as isolated as the battery and leaves nothing behind, the critic
@@ -233,6 +236,7 @@ decisions:
     cites: [S-0122/D-2, S-0122/D-6, S-0114/D-5, D-9]
     check: >-
       uv run pytest -q tests/test_runner.py -k "reproduce or rerun_bound"
+    fingerprint: 54e2cab3a503d971/14bd8ed0a79735ba
   - id: D-11
     grade: OPEN
     text: >-
