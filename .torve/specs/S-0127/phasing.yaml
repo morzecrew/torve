@@ -11,20 +11,19 @@ phasing:
       make it resolve. `locate` accepts evidence holding at least one such citation
       that resolves under the root, or a backticked command followed by output anywhere
       in it, and keeps today's problem messages for evidence holding neither. `log_entry._is_grammar_rejection`
-      mirrors the new branches, and the teaching rejection asks for a `path:line` citation
-      or a backticked command with its output, no longer a leading one. The critic's
-      own copy of the grammar stays until phase 3 reads `evidence.citations` in its
-      place. `critic.py`, `review.py`, `reviewleg.py`, `runner.py`, `divergence.py` and
-      `specquality.py` import from this scope and change in no line here: the first
-      three read `CITATION` or `locate` as before, the last three read `log_entry`'s
-      parsing and `check_entry`, whose refusals only narrow, so the critic, review and
-      log suites are in the acceptance and the suite gate runs the rest. Tests named
-      `locates_anywhere` in `tests/test_review_role.py`
-      (a Hypothesis property: prose with a resolving citation, or a backticked command
-      and output, inserted anywhere locates; prose with neither does not; a citation
-      that does not resolve locates nothing) and in `tests/test_gates.py` (the T-0203
-      cases a citation now satisfies are accepted, a sentence citing nothing keeps
-      its teaching rejection).
+      mirrors the new branches, and the teaching rejection asks for a `path:line`
+      citation or a backticked command with its output, no longer a leading one. The
+      critic's own copy of the grammar stays until phase 3 reads `evidence.citations`
+      in its place. `critic.py`, `review.py`, `reviewleg.py`, `runner.py`, `divergence.py`
+      and `specquality.py` import from this scope and change in no line here: the
+      first three read `CITATION` or `locate` as before, the last three read `log_entry`'s
+      parsing and `check_entry`, whose refusals only narrow, so the critic, review
+      and log suites are in the acceptance and the suite gate runs the rest. Tests
+      named `locates_anywhere` in `tests/test_review_role.py` (a Hypothesis property:
+      prose with a resolving citation, or a backticked command and output, inserted
+      anywhere locates; prose with neither does not; a citation that does not resolve
+      locates nothing) and in `tests/test_gates.py` (the T-0203 cases a citation now
+      satisfies are accepted, a sentence citing nothing keeps its teaching rejection).
     scope:
       - src/torve/gates/evidence.py
       - src/torve/gates/log_entry.py
@@ -39,12 +38,12 @@ phasing:
   - phase: 2
     title: Attempts that stand alone
     intent: >-
-      After a red gate pass `select_attempt` gives the red candidate no follow-up turn,
-      and the next attempt starts a new session from the tree the red one started from:
-      the attempt takes `workspace.snapshot` before its first candidate runs and a later
-      attempt starts from it through `create_candidate` and `promote_candidate`, so
-      no port changes. `_route_repair` still adds the convicting gate's command to
-      the acceptance, and `_commit_convicted_tree` is no longer called. `selection.select`
+      After a red gate pass `select_attempt` gives the red candidate no follow-up
+      turn, and the next attempt starts a new session from the tree the red one started
+      from: the attempt takes `workspace.snapshot` before its first candidate runs
+      and a later attempt starts from it through `create_candidate` and `promote_candidate`,
+      so no port changes. `_route_repair` still adds the convicting gate's command
+      to the acceptance, and `_commit_convicted_tree` is no longer called. `selection.select`
       makes the first candidate to finish green the winner, cuts the others when it
       finishes, and asks the critic about it alone. `open_run` seals `contract_acceptance`
       as the contract's commands followed by each gate of `run.manifest_file` that
@@ -52,25 +51,30 @@ phasing:
       less, each once, and the attempt is prompted from it. `selection.UNIT_BUDGETS`
       maps S, M and L to dollars and minutes, (1.5, 45), (3.0, 90) and (6.0, 180);
       the run reads its class once, `unit_class` over the contract against `run.root`
-      with the `escalated` flag and without the revision flag, and each place that read `UNIT_BUDGET_USD` or `UNIT_MINUTES`
-      reads its class's figure. `runner.reproduce(run, state, commands, probes)` opens
-      a fresh judge checkout and a `SandboxExecutor` on `_gates_spec`, writes each
-      probe at its path, runs each command for at most the manifest's `acceptance`
-      gate timeout and stops starting commands when the unit's clock has no time left,
-      returns `CommandRun`s with exit `None` on a timeout or for a command not run,
-      and removes both whatever happened; nothing calls it until phase 3. Tests named
-      `rerun_bound` in `tests/test_runner.py` (the acceptance gate's timeout reaches
-      the executor, and a spent clock leaves the remaining commands unrun). Tests named `independent_attempt` in `tests/test_runner.py`,
-      `first_green` in `tests/test_selection.py` (a Hypothesis property over finish
-      orders and green sets: the winner is the first green to finish and the critic
-      is asked once), `shown_acceptance` in `tests/test_dispatch.py` and `tests/test_runner.py`,
-      `class_budget` in `tests/test_selection.py` and `tests/test_runner.py`, and `reproduce`
-      in `tests/test_runner.py`. `critic.py`, `review.py` and `session.py`, which later
-      phases own, and `executors.py`, `reaper.py`, `cli/assembly.py`, `cli/review.py`
-      and `cli/run.py` import from this scope and need no change: `select`, `open_run`,
-      `SandboxExecutor` and `UNIT_BUDGET_MARKER` keep their signatures, and `UNIT_BUDGET_USD`
-      and `UNIT_MINUTES` are read only inside this scope. The suites that drive the runner
-      end to end are in the acceptance, and the suite gate runs the rest.
+      with the `escalated` flag and without the revision flag, and each place that
+      read `UNIT_BUDGET_USD` or `UNIT_MINUTES` reads its class's figure. `runner.reproduce(run,
+      state, commands, probes)` opens a fresh judge checkout and a `SandboxExecutor`
+      on `_gates_spec`, writes each probe at its path, runs each command for at most
+      the manifest's `acceptance` gate timeout and stops starting commands when the
+      unit's clock has no time left, returns `CommandRun`s with exit `None` on a timeout
+      or for a command not run, the same `None` for every command of a refused repro
+      (a probe at a path that is not new or not under the probe directory, a named
+      probe the critic's copy did not keep, or a run after which `git status --porcelain`
+      lists a change outside the probe directory and `__pycache__`), and removes both
+      whatever happened; nothing calls it until phase 3. Tests named `rerun_bound`
+      in `tests/test_runner.py` (the acceptance gate's timeout reaches the executor,
+      and a spent clock leaves the remaining commands unrun). Tests named `independent_attempt`
+      in `tests/test_runner.py`, `first_green` in `tests/test_selection.py` (a Hypothesis
+      property over finish orders and green sets: the winner is the first green to
+      finish and the critic is asked once), `shown_acceptance` in `tests/test_dispatch.py`
+      and `tests/test_runner.py`, `class_budget` in `tests/test_selection.py` and
+      `tests/test_runner.py`, and `reproduce` in `tests/test_runner.py`. `critic.py`,
+      `review.py` and `session.py`, which later phases own, and `executors.py`, `reaper.py`,
+      `cli/assembly.py`, `cli/review.py` and `cli/run.py` import from this scope and
+      need no change: `select`, `open_run`, `SandboxExecutor` and `UNIT_BUDGET_MARKER`
+      keep their signatures, and `UNIT_BUDGET_USD` and `UNIT_MINUTES` are read only
+      inside this scope. The suites that drive the runner end to end are in the acceptance,
+      and the suite gate runs the rest.
     scope:
       - src/torve/application/runner.py
       - src/torve/application/selection.py
@@ -89,26 +93,27 @@ phasing:
   - phase: 3
     title: A verdict from what ran
     intent: >-
-      `run_critic` takes `reproduce`, a callable from commands and probe texts to `CommandRun`s.
-      `critic.judge` passes `runner.reproduce` over its run, imported in the function
-      as `replay_case` already imports `SandboxExecutor`, and `replay_case` passes
-      one over its own evidence sandbox on the scratch repository; `run_critic` hands
-      it to `decide(..., reproduce=...)`. `decide` reads the S-0126/D-1 and S-0125/D-1
-      carries first, then calls it with the command of each remaining kept finding at or above `blocks_at`
-      whose kind is not `weak_test` (its `repro.command`, else the first backticked
-      command its evidence carries with output) and of each `violated` row with located
-      evidence, with the probe `repro.file` names. A non-zero exit blocks. Anything
-      else, and every `weak_test` finding, is recorded `advisory: true` with the command,
-      exit code and output tail. A kept `gaming` finding at or above `blocks_at` and
-      a `violated` verdict on a LOCKED row block on located evidence without a re-run,
-      as today. `ReviewItem` gains `kind`, `rerun_command` and `rerun_exit`, each with
-      a default, and `review_step` fills them from a critic verdict's decision when
-      it emits `review.recorded`; `pages/docs/architecture/record.md`, which `scope.derived`
-      pairs with `events.py`, lists event kinds and authority only and does not change. `revision_threads` adds the re-run to each blocker's
+      `run_critic` takes `reproduce`, a callable from commands and probe texts to
+      `CommandRun`s. `critic.judge` passes `runner.reproduce` over its run, imported
+      in the function as `replay_case` already imports `SandboxExecutor`, and `replay_case`
+      passes one over its own evidence sandbox on the scratch repository; `run_critic`
+      hands it to `decide(..., reproduce=...)`. `decide` reads the S-0126/D-1 and
+      S-0125/D-1 carries first, then calls it with the command of each remaining kept
+      finding at or above `blocks_at` whose kind is not `weak_test` (its `repro.command`,
+      else the first backticked command its evidence carries with output) and of each
+      `violated` row with located evidence, with the probe `repro.file` names. A non-zero
+      exit blocks. Anything else, and every `weak_test` finding, is recorded `advisory:
+      true` with the command, exit code and output tail. A kept `gaming` finding at
+      or above `blocks_at` and a `violated` verdict on a LOCKED row block on located
+      evidence without a re-run, as today. `ReviewItem` gains `kind`, `rerun_command`
+      and `rerun_exit`, each with a default, and `review_step` fills them from a critic
+      verdict's decision when it emits `review.recorded`; `pages/docs/architecture/record.md`,
+      which `scope.derived` pairs with `events.py`, lists event kinds and authority
+      only and does not change. `revision_threads` adds the re-run to each blocker's
       thread, and `build_critic_prompt` says only a repro that exits non-zero on the
       candidate can block; the frozen prompt does not change. `_CITED`, `_citations`
-      and `_extend_path` give way to `evidence.citations`, and a finding's anchor in
-      `critic._finding_anchor`, `review._finding_anchor`, `review_items` and `_anchored`
+      and `_extend_path` give way to `evidence.citations`, and a finding's anchor
+      in `critic._finding_anchor`, `review._finding_anchor`, `review_items` and `_anchored`
       is its first citation that resolves. `blocker_fact` records each blocker's `kind`
       and `row`. `decide` computes `reraised` by D-4 through `review.repeats_blocker`
       and `review.claims_match` (D-11), and `review_step` escalates on a critic verdict's
@@ -120,11 +125,11 @@ phasing:
       shape among its examples), `rerun_item` in `tests/test_review_run.py` and `tests/test_events.py`
       (a critic review's items carry kind and re-run, an item written before them
       loads with the defaults), and the corpus cases in `tests/test_review_corpus.py`
-      reading `blocked` from a reproduced finding. Nothing the re-run measures is staged
-      for the critic (S-0122/D-2): it runs after the critic's session has ended. `intake.py`,
-      `lane.py`, `projections.py`, `cli/manager.py`, `cli/review.py`, `session.py`
-      and `threads.py` import from this scope and need no change: `review_items` keeps
-      its keys and `ReviewItem` only gains defaulted fields, which `recorded_review_rows`
+      reading `blocked` from a reproduced finding. Nothing the re-run measures is
+      staged for the critic (S-0122/D-2): it runs after the critic's session has ended.
+      `intake.py`, `lane.py`, `projections.py`, `cli/manager.py`, `cli/review.py`,
+      `session.py` and `threads.py` import from this scope and need no change: `review_items`
+      keeps its keys and `ReviewItem` only gains defaulted fields, which `recorded_review_rows`
       passes through as it passes every item, `CriticVerdict.blocked` and `kept` keep
       their meaning for the corpus command, and `rejected_spots` still reads `threads.rejections`.
       `events.py` is imported by most of the package, no other importer reads `ReviewItem`,
@@ -145,33 +150,37 @@ phasing:
         tests/test_pr_review.py tests/test_tiering.py tests/test_intake.py tests/test_events.py
         tests/test_why_record.py tests/test_docs.py
       - uv run mypy src
-    depends_on: [1, 2]
+    depends_on:
+      - 1
+      - 2
     delivers: [D-1, D-2, D-4, D-11, D-14]
   - phase: 4
-    title: No revision seat, and a round that declines one claim
+    title: >-
+      No revision seat, and a round that declines one claim
     intent: >-
       `ReviewConfig.revision` is `Literal["off", "fresh", "session"]`, default `off`,
       and `resolved_blocker_revisions` returns the named number, else 1 under `off`,
       else 2 under `critic` and 1 under `classic`. `advance_tier` resolves the seat's
-      `revision_variant` after a blocker revision only when `review.revision` is not `off`.
-      `halted(run, attempt)` passes over a `halted` entry that cites no LOCKED row and
-      whose claim or evidence names a finding of `run.task.round` by `threads.names_spot`,
-      while some finding of the round is named by no halt; a halt citing a LOCKED row
-      (`locked_conflict`, S-0096/D-1), a halt naming none, halts naming all, and an
-      urgent note stop the attempt as today. `threads.rejections` keeps the attempt's
-      `halted` entries that cite no LOCKED row beside its contradicted ones, and `reviewleg._rejections` writes `Out
-      of scope — <claim>` for a halted entry and `Not applied — <claim>` for a contradicted
-      one. The tests in `tests/test_runner.py`, `tests/test_review_run.py` and `tests/test_selection.py`
-      that drive a revision on `revision_variant` name `review.revision: fresh`, contingent
-      writes in files phases 2 and 3 own and have landed. Tests named `revision_off`
-      in `tests/test_runconfig.py` and `tests/test_session.py`, `halted_claim` in `tests/test_session.py`
-      (T-0894's shape: one halted claim of seven, the attempt reaches its gates), `locked_halt`
-      in `tests/test_session.py` (the same halt citing a LOCKED row escalates `locked_conflict`), and
-      `declined` in `tests/test_threads.py` and `tests/test_reviewleg.py`. `runconfig.py`
-      is read by most of the package, and this phase changes one field's values and
-      default and one resolver, read by `session.py`, `runner.py` and `review.py`
-      alone, so the other importers stay out of scope and the suite gate runs their
-      tests. The read-only mounts S-0122/D-3 puts in `session.py` are not touched.
+      `revision_variant` after a blocker revision only when `review.revision` is not
+      `off`. `halted(run, attempt)` passes over a `halted` entry that cites no LOCKED
+      row and whose claim or evidence names a finding of `run.task.round` by `threads.names_spot`,
+      while some finding of the round is named by no halt; a halt citing a LOCKED
+      row (`locked_conflict`, S-0096/D-1), a halt naming none, halts naming all, and
+      an urgent note stop the attempt as today. `threads.rejections` keeps the attempt's
+      `halted` entries that cite no LOCKED row beside its contradicted ones, and `reviewleg._rejections`
+      writes `Out of scope — <claim>` for a halted entry and `Not applied — <claim>`
+      for a contradicted one. The tests in `tests/test_runner.py`, `tests/test_review_run.py`
+      and `tests/test_selection.py` that drive a revision on `revision_variant` name
+      `review.revision: fresh`, contingent writes in files phases 2 and 3 own and
+      have landed. Tests named `revision_off` in `tests/test_runconfig.py` and `tests/test_session.py`,
+      `halted_claim` in `tests/test_session.py` (T-0894's shape: one halted claim
+      of seven, the attempt reaches its gates), `locked_halt` in `tests/test_session.py`
+      (the same halt citing a LOCKED row escalates `locked_conflict`), and `declined`
+      in `tests/test_threads.py` and `tests/test_reviewleg.py`. `runconfig.py` is
+      read by most of the package, and this phase changes one field's values and default
+      and one resolver, read by `session.py`, `runner.py` and `review.py` alone, so
+      the other importers stay out of scope and the suite gate runs their tests. The
+      read-only mounts S-0122/D-3 puts in `session.py` are not touched.
     scope:
       - src/torve/application/session.py
       - src/torve/config/runconfig.py
@@ -187,30 +196,34 @@ phasing:
         tests/test_reviewleg.py tests/test_critic.py tests/test_runner.py tests/test_review_run.py
         tests/test_selection.py
       - uv run mypy src
-    depends_on: [3]
+    depends_on:
+      - 3
     delivers: [D-5, D-8, D-12]
   - phase: 5
     title: Advisory findings in the pull request
     intent: >-
-      `DocumentLanding` gains `advisory`, the items of its task's last task-gated review,
-      and `_document_pr_text` fills it from `projections.recorded_review_rows` over
-      the records it already holds. `compose_document_pr` renders, under each landing
-      that has any, a list headed as the critic's advisory findings, each by severity,
-      kind, `path:line` when it has one, and the re-run's command and exit code when
-      it has one, inside `_bounded`'s limit; no item's claim or evidence reaches the
-      body, so its footer stays true and S-0121/D-34 (LOCKED) holds unamended. Tests
-      named `advisory` in `tests/test_forge.py` (a landing with two advisory findings
-      lists both under its own task with no claim text, a landing with none lists nothing,
-      and the body stays under `BODY_LIMIT` with many). The new field has a default,
-      so `lane.py`, `cli/main.py`, `cli/manager.py`, `cli/spec.py` and `runner.py`,
-      which import from this scope, construct and read `DocumentLanding` as before.
+      `DocumentLanding` gains `advisory`, the items of its task's last task-gated
+      review, and `_document_pr_text` fills it from `projections.recorded_review_rows`
+      over the records it already holds. `compose_document_pr` renders, under each
+      landing that has any, a list headed as the critic's advisory findings, each
+      by severity, kind, `path:line` when it has one, and the re-run's command and
+      exit code when it has one, inside `_bounded`'s limit; no item's claim or evidence
+      reaches the body, so its footer stays true and S-0121/D-34 (LOCKED) holds unamended.
+      Tests named `advisory` in `tests/test_forge.py` (a landing with two advisory
+      findings lists both under its own task with no claim text, a landing with none
+      lists nothing, and the body stays under `BODY_LIMIT` with many). The new field
+      has a default, so `lane.py`, `cli/main.py`, `cli/manager.py`, `cli/spec.py`
+      and `runner.py`, which import from this scope, construct and read `DocumentLanding`
+      as before.
     scope:
       - src/torve/application/forge.py
       - src/torve/cli/merge.py
       - tests/test_forge.py
     acceptance:
       - >-
-        uv run pytest -q tests/test_forge.py tests/test_lane.py tests/test_cli.py tests/test_plan.py
+        uv run pytest -q tests/test_forge.py tests/test_lane.py tests/test_cli.py
+        tests/test_plan.py
       - uv run mypy src
-    depends_on: [3]
+    depends_on:
+      - 3
     delivers: [D-13]

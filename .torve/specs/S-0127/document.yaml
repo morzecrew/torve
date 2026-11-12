@@ -365,8 +365,8 @@ alternatives:
   - option: >-
       A second, wider locator for findings only, leaving the log's leading grammar
     rejected_because: >-
-      one locator with two consumers is what keeps them from drifting (S-0005/D-4); a
-      citation that resolves locates the same in a log entry as in a finding
+      one locator with two consumers is what keeps them from drifting (S-0005/D-4);
+      a citation that resolves locates the same in a log entry as in a finding
     cites: [S-0005/D-4]
   - option: >-
       Drop the re-raise escalation and let every blocker spend the budget
@@ -390,63 +390,64 @@ alternatives:
 questions:
   - id: Q-1
     text: >-
-      D-1 and D-2 contradict S-0122/D-1 (LOCKED), which blocks on any located finding at
-      or above `blocks_at` and any `violated` row with located evidence. Does the owner
-      amend it before accepting this document, to say that such a finding blocks only
-      when it is not `weak_test` and its repro exits non-zero when the engine re-runs it
-      against the candidate in a gates sandbox, a `violated` row only when its evidence's
-      command fails so, a `gaming` finding and a LOCKED row's `violated` verdict on located
-      evidence as today, and every other finding and row is recorded advisory? And does
-      S-0127/D-1 become LOCKED once the bed has measured it? Yes to both (owner,
-      2026-11-12): S-0122/A-5 amends S-0122/D-1 as proposed, and D-1 is LOCKED now,
-      not after the bed has measured it.
+      D-1 and D-2 contradict S-0122/D-1 (LOCKED), which blocks on any located finding
+      at or above `blocks_at` and any `violated` row with located evidence. Does the
+      owner amend it before accepting this document, to say that such a finding blocks
+      only when it is not `weak_test` and its repro exits non-zero when the engine
+      re-runs it against the candidate in a gates sandbox, a `violated` row only when
+      its evidence's command fails so, a `gaming` finding and a LOCKED row's `violated`
+      verdict on located evidence as today, and every other finding and row is recorded
+      advisory? And does S-0127/D-1 become LOCKED once the bed has measured it? Yes
+      to both (owner, 2026-11-12): S-0122/A-5 amends S-0122/D-1 as proposed, and D-1
+      is LOCKED now, not after the bed has measured it.
     status: settled
     settled_by: S-0122/A-5
   - id: Q-2
     text: >-
       Should D-13 quote the critic's claims in the document's pull-request body, given
-      S-0121/D-34 (LOCKED) composes bodies from records and never from agent prose? No
-      (coordinator, 2026-11-11): D-13 lists, per advisory finding, only its severity, kind,
-      anchor and the re-run's command and exit code, and S-0121/D-34 stands unamended.
+      S-0121/D-34 (LOCKED) composes bodies from records and never from agent prose?
+      No (coordinator, 2026-11-11): D-13 lists, per advisory finding, only its severity,
+      kind, anchor and the re-run's command and exit code, and S-0121/D-34 stands
+      unamended.
     status: settled
     settled_by: D-13
   - id: Q-3
     text: >-
-      Should a `gaming` finding, or a `violated` verdict on a LOCKED row, keep blocking on
-      located evidence alone? Yes (coordinator, 2026-11-11): integrity and the owner's rules
-      rarely reproduce by a command; every other finding and row follows D-1's repro rule.
+      Should a `gaming` finding, or a `violated` verdict on a LOCKED row, keep blocking
+      on located evidence alone? Yes (coordinator, 2026-11-11): integrity and the
+      owner's rules rarely reproduce by a command; every other finding and row follows
+      D-1's repro rule.
     status: settled
     settled_by: D-1
   - id: Q-4
     text: >-
-      D-9's figures (S $1.50 and 45 minutes, M $3 and 90, today's, L $6 and 180) are a
-      starting point set from today's cap, not from a measurement. The evaluation bed
-      measures each class's spend and wall time under them before they are graded; what
-      figures does the owner grade once it has?
-    status: open
+      D-9's figures (S $1.50 and 45 minutes, M $3 and 90, today's, L $6 and 180) are
+      a starting point set from today's cap, not from a measurement. The evaluation
+      bed measures each class's spend and wall time under them before they are graded;
+      what figures does the owner grade once it has?
   - id: Q-5
     text: >-
       Should a round's one-claim halt that cites a LOCKED row be declined on its thread
-      like any other? No (coordinator, 2026-11-11): it escalates `locked_conflict` as
-      S-0096/D-1 says, and D-8 applies only to halts that cite no LOCKED row.
+      like any other? No (coordinator, 2026-11-11): it escalates `locked_conflict`
+      as S-0096/D-1 says, and D-8 applies only to halts that cite no LOCKED row.
     status: settled
     settled_by: D-8
   - id: Q-6
     text: >-
       This document replaces what several ASSUMED rows of accepted documents say:
-      S-0122/D-7 (the critic chooses between greens) and S-0122/D-8 (follow-up turn, Opus
-      revision, $3 and 90 minutes); S-0123/D-1 and S-0123/D-2 (the flat cap and clock);
-      S-0124/D-1 and S-0124/D-2 (revision on `revision_variant`, two rounds); S-0124/D-3
-      (re-raise by distance); S-0126/D-3 (rejections are contradicted entries only). Are
-      they amended, and when? Yes (coordinator, 2026-11-11): each is amended to cite S-0127
-      in the pull request that accepts S-0127, not in this draft.
+      S-0122/D-7 (the critic chooses between greens) and S-0122/D-8 (follow-up turn,
+      Opus revision, $3 and 90 minutes); S-0123/D-1 and S-0123/D-2 (the flat cap and
+      clock); S-0124/D-1 and S-0124/D-2 (revision on `revision_variant`, two rounds);
+      S-0124/D-3 (re-raise by distance); S-0126/D-3 (rejections are contradicted entries
+      only). Are they amended, and when? Yes (coordinator, 2026-11-11): each is amended
+      to cite S-0127 in the pull request that accepts S-0127, not in this draft.
     status: settled
   - id: Q-7
     text: >-
-      What bounds a re-run, given S-0122/D-6's 300 seconds is enforced by no code and was
-      never measured? Settled (coordinator, 2026-11-11): each command gets the timeout of
-      the battery's own `acceptance` gate in the task's manifest, because a repro is a test
-      command, and all of one review's re-runs together get what is left of the unit's
-      clock (D-9); no new constant.
+      What bounds a re-run, given S-0122/D-6's 300 seconds is enforced by no code
+      and was never measured? Settled (coordinator, 2026-11-11): each command gets
+      the timeout of the battery's own `acceptance` gate in the task's manifest, because
+      a repro is a test command, and all of one review's re-runs together get what
+      is left of the unit's clock (D-9); no new constant.
     status: settled
     settled_by: D-10
