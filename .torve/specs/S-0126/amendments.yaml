@@ -39,3 +39,38 @@ amendments:
       `names_spot` itself names every finding that shares the name and line, so the reply and
       the carry keep one rule. A full `path:line` still names only its own finding. The owner
       agreed in session. The row's consequence changes with its text.
+  - id: A-2
+    at: '2026-11-12T02:44:45Z'
+    title: >-
+      A declined claim is a rejection too (S-0127/D-12)
+    changes:
+      - subject: D-3
+        field: text
+        before: >-
+          The reply and the carry read rejections by one rule: `threads.rejections(entries,
+          attempt)` keeps the `unlisted` entries with `kind: contradicted` that one
+          attempt recorded, counting an entry with no `attempt` for every attempt
+          and identical entries once, and `threads.names_spot` matches a claim to
+          a round finding by its full `path:line`, or by the file's name and line,
+          which names every finding of the round that shares both; `reply_body` reads
+          the landing's execution record before the root log and keeps the landed
+          attempt's rejections, and the round's instructions ask each attempt to record
+          again every claim it still rejects
+        after: >-
+          The reply and the carry read rejections by one rule: `threads.rejections(entries,
+          attempt)` keeps the `unlisted` entries with `kind: contradicted`, and the
+          `halted` entries that cite no LOCKED row (S-0127/D-12), that one attempt
+          recorded, counting an entry with no `attempt` for every attempt and identical
+          entries once, and `threads.names_spot` matches a claim to a round finding
+          by its full `path:line`, or by the file's name and line, which names every
+          finding of the round that shares both; `reply_body` reads the landing's
+          execution record before the root log and keeps the landed attempt's rejections,
+          and the round's instructions ask each attempt to record again every claim
+          it still rejects
+      - subject: D-3
+        field: fingerprint
+        before: 4c9e230fd68b2b49/996ef338e74dd1b8
+        after: 0043924023bf4fb1/996ef338e74dd1b8
+    md: |
+      Amended on 2026-11-12 in the pull request that accepts S-0127 (S-0127/Q-6).
+      S-0127/D-8 lets a round decline one claim instead of ending, and S-0127/D-12 makes the carry and the reply read that declined claim as they read a contradicted one.

@@ -79,4 +79,12 @@ Evals and arms, shadow arms, fleet, standing work, notify, the opensandbox runti
 
 - Paths: `src/torve/application/evals.py` `src/torve/application/shadow.py` `src/torve/application/fleet.py` `src/torve/application/standing.py` `src/torve/application/notify.py` `src/torve/application/survey.py` `src/torve/application/evidence_matrix.py` `src/torve/gates/mutation.py` `src/torve/gates/held_out.py` `src/torve/gates/verify_tests.py` `src/torve/gates/decisions_reported.py` `src/torve/gates/red_on_base.py` `src/torve/gates/row_evidence.py` `web/**` `sandboxes/mimo/**`
 
+### S-0127/D-3 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+
+`locate` accepts evidence that carries, anywhere in its text, a `path:line` or `path:start-end` citation that resolves under the root, as `evidence.citations` reads them with the grammar `critic._citations` uses today, or a backticked command followed by output; evidence holding neither is refused with today's messages, and `filter_findings` and the execution log's evidence check, which share `locate`, both accept a citation that follows prose
+
+- Paths: `src/torve/gates/evidence.py` `src/torve/gates/log_entry.py`
+- Consequence: a probe or mutation sentence citing the line it changed survives the location filter; a divergence entry whose citation follows prose is accepted too, and the log's teaching rejection no longer asks for a leading citation
+- Check: `uv run pytest -q tests/test_review_role.py tests/test_gates.py -k locates_anywhere` (shadow; runs as `decision:S-0127/D-3`)
+
 <!-- /torve:managed -->

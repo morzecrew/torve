@@ -92,6 +92,14 @@ A document is complete when its landings cover every phase the root's phasing or
 - Consequence: a phase added on the branch keeps the document a draft until it lands, and the root's phases still count when the branch was cut before an amendment
 - Check: `uv run pytest -q tests/test_lane.py tests/test_forge.py -k phasing_union` (shadow; runs as `decision:S-0124/D-10`)
 
+### S-0127/D-13 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+
+The document's pull-request body lists, under each landing, each finding its last task-gated review recorded, by severity, kind, anchor (`path:line`) and, when the engine re-ran it, the re-run's command and exit code, read from the store's `review.recorded` items (D-14) under a heading that names them the critic's advisory findings; no claim or evidence text is listed, and a landed candidate's last review blocked nothing, so every finding listed is advisory
+
+- Paths: `src/torve/application/forge.py` `src/torve/cli/merge.py`
+- Consequence: a person merging sees where the critic found something and what the engine measured of it, reads the claim in the review record, and the body stays composed from records and bounded by `BODY_LIMIT`
+- Check: `uv run pytest -q tests/test_forge.py -k advisory` (shadow; runs as `decision:S-0127/D-13`)
+
 <!-- /torve:managed -->
 
 ## The night verb, beside the manager's

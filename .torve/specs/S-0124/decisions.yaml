@@ -4,7 +4,9 @@ decisions:
     grade: ASSUMED
     text: >-
       A revision attempt, one whose task has a feedback record at the root, is class
-      S and runs one candidate, on the tier `revision_variant` names
+      S and runs one candidate, on the task's own seat under `review.revision: off`,
+      the default, and on the tier `revision_variant` names only when a configuration
+      names `fresh` or `session` (S-0127/D-5)
     paths: [src/torve/application/runner.py]
     consequence: >-
       a revision costs one session on the revision seat, not a full-width unit split
@@ -15,12 +17,14 @@ decisions:
     cites: [S-0122/D-7, S-0122/D-8]
     check: >-
       uv run pytest -q tests/test_runner.py -k revision_width
+    fingerprint: 6082ef6597dc8b06/14bd8ed0a79735ba
   - id: D-2
     grade: ASSUMED
     text: >-
       Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions`
-      revision rounds when the configuration names it, else 2; classic mode keeps
-      1
+      revision rounds when the configuration names it, else 1 under `review.revision:
+      off`, the default (S-0127/D-5), and 2 under `fresh` or `session`; classic mode
+      keeps 1
     paths: [src/torve/config/runconfig.py, src/torve/application/review.py]
     consequence: >-
       a unit gets the two rounds S-0122/D-8 promises before it escalates
@@ -29,14 +33,16 @@ decisions:
     cites: [S-0122/D-8]
     check: >-
       uv run pytest -q tests/test_runconfig.py tests/test_review_run.py -k revision_rounds
+    fingerprint: e279a2361f1bc149/0a34d1913148e82b
   - id: D-3
     grade: ASSUMED
     text: >-
-      Each revision round records its blocking findings' anchors in the run's history;
-      a blocking finding anchored in the same file within `threads.WINDOW` lines of
-      one the previous round recorded, or in the same file when either has no line,
-      is re-raised, and the run escalates `blocker_finding` naming it instead of spending
-      another round
+      Each revision round records its blocking findings' anchors, kinds and rows in
+      the run's history; a blocking finding is re-raised only when it repeats an earlier
+      round's blocker, by naming the same row, or by having the same `kind`, a citation
+      whose span overlaps the earlier blocker's span as mapped into the current tree,
+      and a matching claim (S-0127/D-4), and the run escalates `blocker_finding` naming
+      it instead of spending another round
     paths: [src/torve/application/review.py]
     consequence: >-
       a revision that did not fix what the critic named stops at once
@@ -47,6 +53,7 @@ decisions:
     cites: [S-0122/D-8]
     check: >-
       uv run pytest -q tests/test_review_run.py -k reraised_blocker
+    fingerprint: 26c0ca66e1890242/85d1b94f6e0dc6fb
   - id: D-4
     grade: ASSUMED
     text: >-

@@ -76,4 +76,12 @@ The divergence log keeps `halted`, written by `torve abort`, and `departed` with
 
 - Paths: `src/torve/application/divergence.py` `src/torve/cli/log.py` `src/torve/domain/spec.py`
 
+### S-0127/D-14 — `ASSUMED` (A verdict comes from what ran) — implementation: none
+
+Each item a critic review's `review.recorded` event carries holds the finding's `kind` (`contract` for a violated row) and, when the engine re-ran its repro, the command and exit code, as `ReviewItem` fields with defaults (`kind` empty, `rerun_command` empty, `rerun_exit` none), so a review recorded before them reads with none and every other field keeps its meaning
+
+- Paths: `src/torve/domain/events.py` `src/torve/application/review.py`
+- Consequence: any host reads what a finding was and what the engine measured of it from the record, without the review record on the host that ran the critic
+- Check: `uv run pytest -q tests/test_review_run.py tests/test_events.py -k rerun_item` (shadow; runs as `decision:S-0127/D-14`)
+
 <!-- /torve:managed -->

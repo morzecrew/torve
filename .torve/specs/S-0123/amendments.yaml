@@ -1,0 +1,47 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-11-12T02:44:10Z'
+    title: The spend cap is the class's (S-0127/D-9)
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          Under `review.mode: critic` a unit stops before its next candidate or critic
+          call once its notional spend across its attempts reaches $3, and the run
+          escalates `budget_exhausted` naming the spend; notional spend is each candidate's
+          and critic call's reported `cost_usd`, else its tokens at its model's `list_price`,
+          else nothing
+        after: >-
+          Under `review.mode: critic` a unit stops before its next candidate or critic
+          call once its notional spend across its attempts reaches its class's cap
+          (S-0127/D-9: S $1.50, M $3, L $6), and the run escalates `budget_exhausted`
+          naming the spend; notional spend is each candidate's and critic call's reported
+          `cost_usd`, else its tokens at its model's `list_price`, else nothing
+      - subject: D-1
+        field: fingerprint
+        after: 9ef11050f2c62f42/1e6ac5b24cb20fae
+    md: |
+      Amended on 2026-11-12 in the pull request that accepts S-0127 (S-0127/Q-6).
+      S-0127/D-9 scales the cap with the unit's size class. The figures are a starting point the evaluation bed measures before they are graded (S-0127/Q-4); how notional spend is counted is unchanged.
+  - id: A-2
+    at: '2026-11-12T02:44:20Z'
+    title: The clock is the class's (S-0127/D-9)
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          Under `review.mode: critic` a task whose contract names no `budget.wallclock_minutes`
+          runs under 90, so the run escalates `budget_exhausted` before an attempt
+          that would start past 90 minutes; a contract that names a bound keeps it
+        after: >-
+          Under `review.mode: critic` a task whose contract names no `budget.wallclock_minutes`
+          runs under its class's clock (S-0127/D-9: S 45, M 90, L 180 minutes), so
+          the run escalates `budget_exhausted` before an attempt that would start
+          past it; a contract that names a bound keeps it
+      - subject: D-2
+        field: fingerprint
+        after: e0587dd5b37470e4/14bd8ed0a79735ba
+    md: |
+      Amended on 2026-11-12 in the pull request that accepts S-0127 (S-0127/Q-6).
+      S-0127/D-9 scales the clock with the unit's size class, as it does the spend cap; a contract's own bound still wins.

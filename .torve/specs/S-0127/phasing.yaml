@@ -59,22 +59,23 @@ phasing:
       unit's clock has no time left, returns `CommandRun`s with exit `None` on a timeout
       or for a command not run, the same `None` for every command of a refused repro
       (a probe at a path that is not new or not under the probe directory, a named
-      probe the critic's copy did not keep, or a run after which `git status --porcelain`
-      lists a change outside the probe directory and `__pycache__`), and removes both
-      whatever happened; nothing calls it until phase 3. Tests named `rerun_bound`
-      in `tests/test_runner.py` (the acceptance gate's timeout reaches the executor,
-      and a spent clock leaves the remaining commands unrun). Tests named `independent_attempt`
-      in `tests/test_runner.py`, `first_green` in `tests/test_selection.py` (a Hypothesis
-      property over finish orders and green sets: the winner is the first green to
-      finish and the critic is asked once), `shown_acceptance` in `tests/test_dispatch.py`
-      and `tests/test_runner.py`, `class_budget` in `tests/test_selection.py` and
-      `tests/test_runner.py`, and `reproduce` in `tests/test_runner.py`. `critic.py`,
-      `review.py` and `session.py`, which later phases own, and `executors.py`, `reaper.py`,
-      `cli/assembly.py`, `cli/review.py` and `cli/run.py` import from this scope and
-      need no change: `select`, `open_run`, `SandboxExecutor` and `UNIT_BUDGET_MARKER`
-      keep their signatures, and `UNIT_BUDGET_USD` and `UNIT_MINUTES` are read only
-      inside this scope. The suites that drive the runner end to end are in the acceptance,
-      and the suite gate runs the rest.
+      probe the critic's copy did not keep, or a run whose output reports `Read-only
+      file system`), mounts the checkout read-only once the probes are written, with
+      the environment and caches pointed outside it, and removes both whatever happened;
+      nothing calls it until phase 3. Tests named `rerun_bound` in `tests/test_runner.py`
+      (the acceptance gate's timeout reaches the executor, and a spent clock leaves
+      the remaining commands unrun). Tests named `independent_attempt` in `tests/test_runner.py`,
+      `first_green` in `tests/test_selection.py` (a Hypothesis property over finish
+      orders and green sets: the winner is the first green to finish and the critic
+      is asked once), `shown_acceptance` in `tests/test_dispatch.py` and `tests/test_runner.py`,
+      `class_budget` in `tests/test_selection.py` and `tests/test_runner.py`, and
+      `reproduce` in `tests/test_runner.py`. `critic.py`, `review.py` and `session.py`,
+      which later phases own, and `executors.py`, `reaper.py`, `cli/assembly.py`,
+      `cli/review.py` and `cli/run.py` import from this scope and need no change:
+      `select`, `open_run`, `SandboxExecutor` and `UNIT_BUDGET_MARKER` keep their
+      signatures, and `UNIT_BUDGET_USD` and `UNIT_MINUTES` are read only inside this
+      scope. The suites that drive the runner end to end are in the acceptance, and
+      the suite gate runs the rest.
     scope:
       - src/torve/application/runner.py
       - src/torve/application/selection.py

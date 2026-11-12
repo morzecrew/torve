@@ -206,17 +206,19 @@ decisions:
       — and lies under the review's probe directory with no component a link, a probe
       at any other path, or one a finding names that the critic's copy did not keep
       (missing, a link, outside the copy or over the cap), refusing the whole repro
-      so its finding is advisory; a command after which the checkout's `git status
-      --porcelain` lists a change outside the probe directory and `__pycache__` directories,
-      a tracked file changed or removed or a file git does not ignore added, is refused
-      the same way, so a command that edits the candidate before it fails measures
-      nothing; each command is bounded by the timeout of the `acceptance` gate in
-      the attempt's manifest (`run.manifest_file`), or by the runtime's `sandbox_timeout`
-      when the manifest has no such gate, and all of one review's re-runs together
-      by what is left of the unit's clock (D-9), a command the clock leaves no time
-      for not run; it returns one `CommandRun` per command, its exit `None` on a timeout
-      or when it was not run, and the checkout and the sandbox are removed when it
-      returns, whatever happened
+      so its finding is advisory; once the probes are written the checkout is mounted
+      read-only (`workspace_read_only`), with the project environment, bytecode and
+      the common tool caches pointed under the sandbox's own temporary directory (`UV_PROJECT_ENVIRONMENT`,
+      `PYTHONPYCACHEPREFIX`, `PYTEST_ADDOPTS=-p no:cacheprovider`, `MYPY_CACHE_DIR`,
+      `RUFF_CACHE_DIR`), so no command can change the candidate at any point of its
+      run, and a command whose output reports `Read-only file system` is refused the
+      same way, a denied write never blocking; each command is bounded by the timeout
+      of the `acceptance` gate in the attempt's manifest (`run.manifest_file`), or
+      by the runtime's `sandbox_timeout` when the manifest has no such gate, and all
+      of one review's re-runs together by what is left of the unit's clock (D-9),
+      a command the clock leaves no time for not run; it returns one `CommandRun`
+      per command, its exit `None` on a timeout or when it was not run, and the checkout
+      and the sandbox are removed when it returns, whatever happened
     paths: [src/torve/application/runner.py]
     consequence: >-
       a re-run is as isolated as the battery and leaves nothing behind, the critic

@@ -5,7 +5,7 @@ kind: design
 change:
   type: feat
   scope: engine
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0122, S-0125, S-0126]
 informed_by: [S-0121, S-0123, S-0124]

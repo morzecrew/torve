@@ -94,22 +94,23 @@ decisions:
   - id: D-7
     grade: ASSUMED
     text: >-
-      A unit's class sets its width (S one candidate, M two, L three, never more),
-      stragglers are cut at 1.5 times the first green finisher's wall time capped
-      at 15 minutes, identical normalised diffs collapse, and a deterministic pre-rank
-      orders the rest before any critic call
+      A unit's class sets its width (S one candidate, M two, L three, never more);
+      among one attempt's candidates the first to finish green wins, the others are
+      cut when it does, and the critic reads only it (S-0127/D-6)
     paths: [src/torve/application/selection.py, src/torve/config/runconfig.py]
     rationale: >-
       The executor is cheap and the critic dominates cost; width buys wall time and
       fewer revisions, and gains flatten past three
+    fingerprint: 88a1205946019fb1/f14ab6f1332bea73
   - id: D-8
     grade: ASSUMED
     text: >-
-      A gate-red candidate with three or fewer convicted tests, or only mypy errors,
-      gets one follow-up turn in its own session with the gate output and no critic
-      call; a critic block goes to a fresh Opus session on the selected tree with
-      the blocking findings and repros, at most two rounds; a re-raised finding escalates;
-      a unit stops at five critic calls, $3 notional spend or 90 minutes
+      A gate-red candidate gets no follow-up turn: the next attempt is an independent
+      fresh session from the tree the red attempt started from (S-0127/D-6); a critic
+      block sends the unit to one fresh attempt on the task's own seat under `review.revision:
+      off`, the default, or to the revision a configuration names with `fresh` or
+      `session` (S-0127/D-5); a re-raised finding escalates (S-0127/D-4); a unit stops
+      at five critic calls or at its class's notional spend and clock (S-0127/D-9)
     paths:
       - src/torve/application/runner.py
       - src/torve/application/session.py
@@ -117,6 +118,7 @@ decisions:
     rationale: >-
       Opus revisions cleared re-review 5 of 6 times against 18 of 41 for DeepSeek;
       mechanical reds need no judge
+    fingerprint: 7e463b5c9e30cf03/c9ee6598052a783c
   - id: D-9
     grade: OPEN
     text: >-
