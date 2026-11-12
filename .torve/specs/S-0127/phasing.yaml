@@ -12,11 +12,13 @@ phasing:
       that resolves under the root, or a backticked command followed by output anywhere
       in it, and keeps today's problem messages for evidence holding neither. `log_entry._is_grammar_rejection`
       mirrors the new branches, and the teaching rejection asks for a `path:line`
-      citation or a backticked command with its output, no longer a leading one. The
-      critic's own copy of the grammar stays until phase 3 reads `evidence.citations`
-      in its place. `critic.py`, `review.py`, `reviewleg.py`, `runner.py`, `divergence.py`
+      citation or a backticked command with its output, no longer a leading one. `critic._CITED`,
+      `_citations` and `_extend_path` give way to `evidence.citations` here, not in
+      phase 3: `_extend_path` told a path from the prose before it by asking `locate`
+      to refuse that prose, which the new `locate` accepts, so the S-0126/D-1 carry
+      would read prose into the path. `review.py`, `reviewleg.py`, `runner.py`, `divergence.py`
       and `specquality.py` import from this scope and change in no line here: the
-      first three read `CITATION` or `locate` as before, the last three read `log_entry`'s
+      first two read `CITATION` or `locate` as before, the last three read `log_entry`'s
       parsing and `check_entry`, whose refusals only narrow, so the critic, review
       and log suites are in the acceptance and the suite gate runs the rest. Tests
       named `locates_anywhere` in `tests/test_review_role.py` (a Hypothesis property:
@@ -27,6 +29,7 @@ phasing:
     scope:
       - src/torve/gates/evidence.py
       - src/torve/gates/log_entry.py
+      - src/torve/application/critic.py
       - tests/test_review_role.py
       - tests/test_gates.py
     acceptance:
@@ -112,9 +115,8 @@ phasing:
       which `scope.derived` pairs with `events.py`, lists event kinds and authority
       only and does not change. `revision_threads` adds the re-run to each blocker's
       thread, and `build_critic_prompt` says only a repro that exits non-zero on the
-      candidate can block; the frozen prompt does not change. `_CITED`, `_citations`
-      and `_extend_path` give way to `evidence.citations`, and a finding's anchor
-      in `critic._finding_anchor`, `review._finding_anchor`, `review_items` and `_anchored`
+      candidate can block; the frozen prompt does not change. A finding's anchor in
+      `critic._finding_anchor`, `review._finding_anchor`, `review_items` and `_anchored`
       is its first citation that resolves. `blocker_fact` records each blocker's `kind`
       and `row`. `decide` computes `reraised` by D-4 through `review.repeats_blocker`
       and `review.claims_match` (D-11), and `review_step` escalates on a critic verdict's

@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-11-12T03:10:48Z'
+    title: Phase 1 owns the critic's citation grammar
+    md: |
+      Building phase 1 showed its scope too narrow. `critic._extend_path` told a
+      path containing spaces from the prose before it by asking `locate` to refuse
+      that prose, and D-3 makes `locate` accept exactly that shape, so the
+      S-0126/D-1 carry would have read the prose into the path. Phase 1 therefore
+      owns `critic.py` for one change, the line phase 3 named: `_CITED`,
+      `_citations` and `_extend_path` give way to `evidence.citations`. Phase 3
+      keeps every other change to `critic.py`.
