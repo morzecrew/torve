@@ -84,13 +84,35 @@ class MockWorkspace:
         return []
 
     # S-0122/D-7: a candidate beside the task's worktree, and the one chosen
-    # moved into its place.
+    # moved into its place. A snapshot is a copy of the task's tree as it
+    # stands, and a candidate starts from that copy, as a worktree cut at a
+    # snapshot commit does: every candidate of a unit, and the attempt after a
+    # red one (S-0127/D-6), holds the files its attempt started from.
     def snapshot(self, task_id):
-        return ""
+        import shutil
+        import tempfile
+
+        own = self.root / ".wt" / task_id
+        kept = Path(tempfile.mkdtemp(prefix="snapshot-", dir=self.root.parent)) / "tree"
+
+        if own.is_dir():
+            shutil.copytree(own, kept, symlinks=True)
+        else:
+            kept.mkdir()
+
+        return str(kept)
 
     def create_candidate(self, task_id, index, base):
+        import shutil
+
         path = self.root / ".wt" / f"{task_id}~{index}"
-        path.mkdir(parents=True, exist_ok=True)
+        shutil.rmtree(path, ignore_errors=True)
+
+        if base and Path(base).is_dir():
+            shutil.copytree(base, path, symlinks=True)
+        else:
+            path.mkdir(parents=True, exist_ok=True)
+
         return path
 
     def promote_candidate(self, task_id, index):

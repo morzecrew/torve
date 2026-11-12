@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from torve.application.ports import (
     Agent,
     AttemptFact,
@@ -201,13 +203,20 @@ class Dispatch:
 
     # The repair routing's own facts (S-0069/D-3, D-6), restamped by the gate
     # leg every red pass like `convictions`: `contract_acceptance` is what the
-    # contract declared — sealed at open, the base a repair's acceptance is
-    # extended from and an ordinary routing returns to, so no addition leaks
-    # into an attempt that was not routed as one. `repaired_gates` is the once
-    # bound: a second conviction on a gate already in it routes exactly where
-    # it routes today.
+    # attempt is shown (S-0127/D-7) — the contract's commands and the
+    # manifest's cheap blocking shell gates, sealed at open — the base a
+    # repair's acceptance is extended from and an ordinary routing returns
+    # to, so no addition leaks into an attempt that was not routed as one.
+    # `repaired_gates` is the once bound: a second conviction on a gate
+    # already in it routes exactly where it routes today.
     contract_acceptance: tuple[str, ...] = ()
     repaired_gates: set[str] = field(default_factory=set)
+    # What the contract itself names (S-0127/D-7): a store-held contract is
+    # projected into the judge checkout with it, so the battery's
+    # `acceptance` gate runs what the contract on disk would and no command
+    # the attempt is only shown. None, a dispatch built by hand, projects the
+    # task as it stands.
+    declared_acceptance: tuple[str, ...] | None = None
 
     # Which arm is running (S-0082/D-1). Both removals are read from this one
     # name, so the leg that composes the prompt and the leg that runs the
@@ -239,6 +248,15 @@ class Dispatch:
     # session module imports this one; `OpenSession` is resolved where it is
     # read, and None is a session that was torn down as usual.
     open_session: Any = None
+
+    # S-0127/D-6: the tree the attempt that just ended red started from, the
+    # tree the next attempt starts from in place of the red one's; None after
+    # an attempt whose candidate went green, whose tree the next continues.
+    start_tree: str | None = None
+    # S-0127/D-9: the unit's class, read once per run from the repository
+    # root's tree; its figures bound the unit's spend and clock under the
+    # critic. Empty until read.
+    unit_size: str = ""
 
     # ....................... #
 
@@ -500,7 +518,7 @@ def open_dispatch(
     # roster (phase 2).
     priced, price = _seat_price(config, tier) if real else (False, None)
 
-    return Dispatch(
+    run = Dispatch(
         root=root,
         task=task,
         config=config,
@@ -511,7 +529,7 @@ def open_dispatch(
         resume=resume,
         arm=arm,
         judge=judge,
-        contract_acceptance=tuple(task.acceptance),
+        declared_acceptance=tuple(task.acceptance),
         tier_name=tier_name,
         tier=tier,
         image=image,
@@ -548,6 +566,49 @@ def open_dispatch(
             "skills": None,
         },
     )
+
+    # S-0127/D-7: the attempt is prompted from what it is shown, the
+    # contract's commands and the cheap gates that will judge it; the
+    # contract itself is unchanged.
+    run.contract_acceptance = shown_acceptance(task.acceptance, run.manifest_file)
+    run.task = task.model_copy(update={"acceptance": list(run.contract_acceptance)})
+
+    return run
+
+
+# ....................... #
+
+
+# The longest a blocking shell gate may declare and still be shown to the
+# attempt as a command to run before it finishes (S-0127/D-7): this
+# repository's lint, layering and mypy gates, never the suite.
+SHOWN_GATE_TIMEOUT_S = 120.0
+
+
+def shown_acceptance(commands: Iterable[str], manifest_file: Path) -> tuple[str, ...]:
+    """The acceptance an attempt is shown (S-0127/D-7): *commands*, the
+    contract's, followed by the command of every gate the manifest runs
+    `blocking` as a shell command, not a `@` builtin, with a declared timeout
+    of `SHOWN_GATE_TIMEOUT_S` or less, each command once. A manifest that is
+    missing or unreadable shows no gate: the battery fails closed on it
+    anyway."""
+
+    try:
+        gates = load_manifest(manifest_file).gates if manifest_file.is_file() else []
+
+    except (OSError, ValueError, yaml.YAMLError):
+        gates = []
+
+    cheap = [
+        gate.run
+        for gate in gates
+        if gate.state == "blocking"
+        and not gate.run.startswith("@")
+        and gate.timeout is not None
+        and gate.timeout <= SHOWN_GATE_TIMEOUT_S
+    ]
+
+    return tuple(dict.fromkeys([*commands, *cheap]))
 
 
 # ....................... #

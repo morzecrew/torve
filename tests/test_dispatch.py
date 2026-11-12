@@ -10,6 +10,7 @@ so each of them is now a test with no runtime, no agent and no store in it.
 import json
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from torve.application.dispatch import (
@@ -177,6 +178,62 @@ def test_dispatch_seals_the_contract_acceptance_and_holds_the_once_bound(tmp_pat
 
     assert run.contract_acceptance == ("uv run pytest",)
     assert run.repaired_gates == set()
+
+
+def test_shown_acceptance_is_the_contract_then_the_cheap_blocking_shell_gates(tmp_path):
+    """S-0127/D-7: the attempt is shown the contract's commands followed by
+    every gate the manifest runs `blocking` as a shell command with a declared
+    timeout of 120 seconds or less, each command once. A builtin, a shadow
+    gate, a gate past 120 seconds and one declaring no timeout are not shown,
+    and the contract itself is unchanged."""
+
+    def gate(name: str, run: str, timeout: float | None, state: str = "blocking") -> dict:
+        declared = {"name": name, "run": run, "state": state, "origin": "structural"}
+        return declared if timeout is None else {**declared, "timeout": timeout}
+
+    manifest = tmp_path / ".torve" / "gates.yaml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(
+        yaml.safe_dump(
+            {
+                "schema_version": 1,
+                "gates": [
+                    gate("scope", "@scope", 6),
+                    gate("lint", "uv run ruff check .", 120),
+                    gate("types", "uv run mypy src", 120),
+                    gate("advisory", "echo shadow", 5, state="shadow"),
+                    gate("suite", "uv run pytest -q", 600),
+                    gate("undeclared", "echo slow", None),
+                    gate("acceptance", "@task.acceptance", 900),
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    task = Task(
+        id=TASK_ID, decisions=[], acceptance=["uv run pytest -q tests/x", "uv run mypy src"]
+    )
+
+    run = open_dispatch(tmp_path, task, RunnerConfig(), _deps(), tmp_path / "wt")
+
+    shown = ("uv run pytest -q tests/x", "uv run mypy src", "uv run ruff check .")
+    assert run.contract_acceptance == shown
+    assert run.task.acceptance == list(shown)
+    # The contract is what it was: the battery's `acceptance` gate runs it alone.
+    assert run.declared_acceptance == tuple(task.acceptance)
+    assert task.acceptance == ["uv run pytest -q tests/x", "uv run mypy src"]
+
+
+def test_shown_acceptance_of_a_missing_or_unreadable_manifest_is_the_contract(tmp_path):
+    from torve.application.dispatch import shown_acceptance
+
+    manifest = tmp_path / "gates.yaml"
+
+    assert shown_acceptance(["a", "a", "b"], manifest) == ("a", "b")
+
+    manifest.write_text("gates: [", encoding="utf-8")
+
+    assert shown_acceptance(["a"], manifest) == ("a",)
 
 
 # ....................... #

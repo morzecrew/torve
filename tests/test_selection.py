@@ -1,15 +1,18 @@
-"""Several candidates for one unit (S-0122/D-7, D-8): the class that sets the
-width, the straggler clock, the repair turn's qualification, the collapse and
-the pre-rank, the critic reading in rank order, and the runner leaving the
-chosen candidate in the task's worktree with its pass and verdict."""
+"""Several candidates for one unit (S-0122/D-7, S-0127/D-6): the class that
+sets the width, the first green that wins and cuts the others, the critic
+reading it alone, the class's budget, and the runner leaving the chosen
+candidate in the task's worktree with its pass and verdict."""
 
 from __future__ import annotations
 
 import asyncio
 import json
 import subprocess
+import threading
 from pathlib import Path
 
+from hypothesis import given
+from hypothesis import strategies as st
 from test_review_run import review_rig  # noqa: F401 — the fixture, by name
 from test_run_loop import ScriptedAgent, task_for
 
@@ -19,7 +22,6 @@ from torve.application import selection
 from torve.application.ports import AgentResult
 from torve.application.runner import run_task
 from torve.config.runconfig import ReviewConfig, RunnerConfig
-from torve.domain.attempt import GateResult
 from torve.domain.states import TaskState
 from torve.domain.task import Scope, Task
 
@@ -108,87 +110,39 @@ def test_the_width_is_capped_by_the_configuration_and_a_round_runs_one(tmp_path:
     assert width(None, round_task) == (1, "L")
 
 
-def test_a_straggler_gets_half_again_the_first_green_time_capped() -> None:
-    assert selection.straggler_clock(100, 1200) == 150
-    assert selection.straggler_clock(3000, 5000) == 3000 + selection.STRAGGLER_CAP_S
-    assert selection.straggler_clock(1000, 1200) == 1200
+def _candidate(index: int, *, green: bool = True, patch: str = ""):
+    return selection.Candidate(index=index, result=None, green=green, patch=patch or f"+{index}")
 
 
-def _gate(name: str, outcome: str = "fail", output: str = "") -> GateResult:
-    return GateResult(name=name, outcome=outcome, state="blocking", output=output)
+def test_first_green_is_read_by_the_critic_alone() -> None:
+    """S-0127/D-6: candidates finishing together are read in index order, so
+    the lower green one wins; the critic reads it and no other, and a block
+    leaves no winner — the blocked candidate goes on to the next attempt,
+    never a sibling."""
 
-
-def _suite(*tests: str) -> GateResult:
-    return _gate(
-        "suite",
-        output=f"the change broke {len(tests)} test(s) the base tree passes "
-        f"(or cannot run): {', '.join(tests)}",
-    )
-
-
-def test_only_a_mechanical_red_buys_a_repair_turn() -> None:
-    assert selection.repairable([_suite("t::a", "t::b", "t::c")])
-    assert selection.repairable([_gate("mypy"), _gate("scope", "pass")])
-    assert not selection.repairable([_suite("t::a", "t::b", "t::c", "t::d")])
-    assert not selection.repairable([_gate("mypy"), _gate("scope")])
-    assert not selection.repairable([_gate("suite", "pass")])
-
-
-def _candidate(index: int, *, green: bool = True, patch: str = "", lines: int = 0):
-    return selection.Candidate(
-        index=index, result=None, green=green, patch=patch or f"+{index}", lines=lines
-    )
-
-
-def test_the_same_diff_collapses_and_the_rank_is_deterministic() -> None:
-    one, two, three = (
-        _candidate(1, patch="+a\n"),
-        _candidate(2, patch="+b"),
-        _candidate(3, patch="+a"),
-    )
-
-    kept = selection.collapse([one, two, three])
-
-    assert kept == [one, two] and three.collapsed_into == 1
-
-    small, large = _candidate(1, lines=40), _candidate(2, lines=4)
-
-    assert [c.index for c in selection.prerank([small, large], "T-0001")] == [2, 1]
-    assert (large.rank, small.rank) == (1, 2)
-
-
-def test_the_same_edit_to_another_file_is_another_candidate() -> None:
-    one = _candidate(1, patch="diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n+fix")
-    two = _candidate(2, patch="diff --git a/y.py b/y.py\n--- a/y.py\n+++ b/y.py\n+fix")
-
-    assert selection.collapse([one, two]) == [one, two]
-
-
-def test_the_critic_reads_in_rank_order_until_one_is_clean() -> None:
-    plans = {1: (False, 0), 2: (True, 50), 3: (True, 10)}
+    plans = {1: False, 2: True, 3: True}
     clocks: list[float] = []
     read: list[int] = []
 
     async def launch(index: int, clock: float) -> selection.Candidate:
         clocks.append(clock)
-        green, lines = plans[index]
-        candidate = _candidate(index, green=green, lines=lines)
+        candidate = _candidate(index, green=plans[index])
         candidate.wall_s = 100.0
 
         return candidate
 
     async def review(candidate: selection.Candidate) -> bool:
         read.append(candidate.index)
-        return candidate.index == 2
+        return False
 
     chosen = asyncio.run(selection.select(3, launch, review, agent_clock=1200, seed="T-0001"))
 
-    assert read == [3, 2]
-    assert chosen.winner is not None and chosen.winner.index == 2
-    assert chosen.critic_calls == 2 and chosen.outcome == "selected"
+    assert read == [2]
+    assert chosen.first_green is not None and chosen.first_green.index == 2
+    assert chosen.winner is None and chosen.chosen.index == 2
+    assert chosen.critic_calls == 1 and chosen.outcome == "blocked"
     # The candidates start together (S-0124/D-4), so each is handed the seat's
-    # own clock; the straggler cut is the deadline selection sets, not a
-    # shorter clock on a later launch.
+    # own clock.
     assert clocks == [1200, 1200, 1200]
 
     record = selection.unit_record(
@@ -196,23 +150,84 @@ def test_the_critic_reads_in_rank_order_until_one_is_clean() -> None:
     )
 
     assert (record["kind"], record["schema_version"], record["selected"]) == ("unit.closed", 2, 2)
-    assert [c["verdict"] for c in record["candidates"]] == [None, "clean", "blocked"]
+    assert [c["verdict"] for c in record["candidates"]] == [None, "blocked", None]
 
 
-def test_the_critic_budget_ends_the_reading_and_hands_on_the_best_ranked() -> None:
+def test_first_green_with_no_critic_call_left_is_handed_on_unread() -> None:
     async def launch(index: int, _clock: float) -> selection.Candidate:
-        return _candidate(index, lines=index)
+        return _candidate(index)
 
     async def review(_candidate: selection.Candidate) -> bool:
-        return False
+        raise AssertionError("no critic call is left")
 
     chosen = asyncio.run(
-        selection.select(3, launch, review, agent_clock=60, seed="T-0001", critic_budget=1)
+        selection.select(3, launch, review, agent_clock=60, seed="T-0001", critic_budget=0)
     )
 
-    assert chosen.critic_calls == 1
+    assert chosen.critic_calls == 0
     assert chosen.winner is None and chosen.chosen.index == 1
     assert chosen.outcome == "blocked"
+
+
+def test_first_green_wins_with_no_critic() -> None:
+    async def launch(index: int, _clock: float) -> selection.Candidate:
+        return _candidate(index, green=index == 2)
+
+    chosen = asyncio.run(selection.select(2, launch, None, agent_clock=60, seed="T-0001"))
+
+    assert chosen.winner is not None and chosen.winner.index == 2
+    assert chosen.outcome == "selected" and chosen.critic_calls == 0
+
+
+@given(
+    st.integers(min_value=1, max_value=3).flatmap(
+        lambda width: st.tuples(
+            st.permutations(range(1, width + 1)),
+            st.sets(st.integers(min_value=1, max_value=width)),
+            st.booleans(),
+        )
+    )
+)
+def test_first_green_over_finish_orders_and_green_sets(case) -> None:
+    """S-0127/D-6 as a rule over inputs: whatever order the candidates finish
+    in and whichever of them are green, the winner is the first green one to
+    finish, every candidate still running then is cut, and the critic is
+    asked once — about it — or never, when none is green."""
+
+    order, greens, clean = case
+    width = len(order)
+    read: list[int] = []
+
+    async def launch(index: int, _clock: float) -> selection.Candidate:
+        # A candidate's place in the finish order is how many turns of the
+        # event loop it waits; ten turns apart leaves selection time to read
+        # one finish and cut the rest before the next lands.
+        for _ in range(order.index(index) * 10):
+            await asyncio.sleep(0)
+
+        return _candidate(index, green=index in greens)
+
+    async def review(candidate: selection.Candidate) -> bool:
+        read.append(candidate.index)
+        return clean
+
+    chosen = asyncio.run(selection.select(width, launch, review, agent_clock=60, seed="T-0001"))
+    first = next((index for index in order if index in greens), None)
+
+    assert [c.index for c in chosen.candidates] == list(range(1, width + 1))
+
+    if first is None:
+        assert read == [] and chosen.critic_calls == 0
+        assert chosen.winner is None and chosen.outcome == "red"
+        assert not any(c.cut for c in chosen.candidates)
+        return
+
+    after = set(order[order.index(first) + 1 :])
+
+    assert read == [first] and chosen.critic_calls == 1
+    assert chosen.chosen.index == first
+    assert (chosen.winner is not None) is clean
+    assert {c.index for c in chosen.candidates if c.cut} == after
 
 
 def test_with_no_green_candidate_the_first_is_handed_on() -> None:
@@ -269,14 +284,16 @@ def test_unit_budget_stops_before_the_batch() -> None:
     assert at_bound.candidates == [] and at_bound.exhausted
 
 
-def test_unit_budget_stops_before_the_next_critic_call() -> None:
-    """The critic call counts as the candidate does: once adding one would
-    reach the bound, the next candidate is never read."""
+def test_unit_budget_stops_before_the_critic_call() -> None:
+    """S-0124/D-7: the bound is checked again before the critic call. The
+    batch it launched under finished at the bound, so the first green one is
+    never read, and the round says the bound stopped a call it still needed;
+    under it the call is made and its own spend counted."""
 
     read: list[int] = []
 
     async def launch(index: int, _clock: float) -> selection.Candidate:
-        candidate = _candidate(index, lines=index)
+        candidate = _candidate(index)
         candidate.spend = 0.25
         candidate.critic_spend = 1.5
 
@@ -284,16 +301,53 @@ def test_unit_budget_stops_before_the_next_critic_call() -> None:
 
     async def review(candidate: selection.Candidate) -> bool:
         read.append(candidate.index)
-        return False
+        return True
 
-    chosen = asyncio.run(
+    stopped = asyncio.run(
+        selection.select(
+            3, launch, review, agent_clock=60, seed="T-0001", spent=2.5, budget_usd=3.0
+        )
+    )
+
+    assert read == []
+    assert stopped.spent_usd == 3.25 and stopped.exhausted
+    assert stopped.winner is None and stopped.outcome == "blocked"
+
+    passed = asyncio.run(
         selection.select(3, launch, review, agent_clock=60, seed="T-0001", budget_usd=3.0)
     )
 
-    assert read == [1, 2]
-    assert chosen.critic_calls == 2
-    assert chosen.spent_usd == 3.75 and chosen.exhausted
-    assert chosen.winner is None
+    assert read == [1]
+    assert passed.spent_usd == 2.25 and not passed.exhausted
+    assert passed.winner is not None and passed.winner.index == 1
+
+
+def test_class_budget_is_the_class_s_dollars_and_minutes() -> None:
+    """S-0127/D-9: S $1.50 and 45 minutes, M $3 and 90, L $6 and 180. M keeps
+    the flat bound every class had, and is the bound `select` stops at when
+    its caller names none; an L unit's $6 lets a batch launch past $3."""
+
+    assert selection.UNIT_BUDGETS == {"S": (1.5, 45), "M": (3.0, 90), "L": (6.0, 180)}
+
+    started: list[int] = []
+
+    async def launch(index: int, _clock: float) -> selection.Candidate:
+        started.append(index)
+        return _candidate(index)
+
+    at_m = asyncio.run(selection.select(1, launch, None, agent_clock=60, seed="T-0001", spent=3.0))
+
+    assert at_m.exhausted and started == []
+
+    large = selection.UNIT_BUDGETS["L"][0]
+    under_l = asyncio.run(
+        selection.select(
+            1, launch, None, agent_clock=60, seed="T-0001", spent=3.0, budget_usd=large
+        )
+    )
+
+    assert not under_l.exhausted and started == [1]
+    assert under_l.winner is not None and under_l.winner.index == 1
 
 
 def test_unit_budget_prices_a_call_from_its_cost_else_its_list_price() -> None:
@@ -326,10 +380,10 @@ def test_unit_budget_prices_a_call_from_its_cost_else_its_list_price() -> None:
 # The candidates run side by side (S-0124/D-4).
 
 
-def test_candidates_run_side_by_side_and_the_straggler_is_cut() -> None:
+def test_candidates_run_side_by_side_and_the_first_green_cuts_the_others() -> None:
     """Every launch starts before any finishes; the first green one's finish
-    sets the straggler deadline, the candidate still in its agent turn is
-    cancelled and recorded red with its elapsed time, and the candidates are
+    cuts the candidate still in its agent turn, which is cancelled and
+    recorded red with its elapsed time (S-0127/D-6), and the candidates are
     ordered by index however they completed."""
 
     started: set[int] = set()
@@ -354,7 +408,7 @@ def test_candidates_run_side_by_side_and_the_straggler_is_cut() -> None:
                 cancelled.append(index)
                 raise
 
-        candidate = _candidate(index, green=index != 2)
+        candidate = _candidate(index, green=index == 3)
         candidate.wall_s = 0.05
 
         return candidate
@@ -371,41 +425,20 @@ def test_candidates_run_side_by_side_and_the_straggler_is_cut() -> None:
     # Sorted by index, never by completion.
     assert [c.index for c in chosen.candidates] == [1, 2, 3]
     cut = chosen.candidates[1]
-    assert cut.result is None and not cut.green and cut.wall_s >= 0.02
+    assert cut.cut and cut.result is None and not cut.green
+    assert not chosen.candidates[0].cut and not chosen.candidates[0].green
     assert chosen.winner is not None and chosen.winner.index == 3
 
 
-def test_side_by_side_cut_lands_at_the_straggler_clock(monkeypatch) -> None:
-    """S-0124/D-4: the deadline is `straggler_clock` of the first green
-    candidate's wall time, measured from that candidate's finish. A fixed
-    deadline, or one that ignores the clock, cuts somewhere else. Selection
-    reads the test's own clock, so a worker scheduled late moves nothing."""
+def test_side_by_side_cut_lands_at_the_first_green_finish(monkeypatch) -> None:
+    """S-0127/D-6: the others are cut when the first green one finishes, not
+    at a deadline after it. Selection reads the test's own clock, so the cut
+    candidate's wall time is the winner's: 0.05s into the round."""
 
     from types import SimpleNamespace
 
-    calls: list[tuple[float, float]] = []
-    timeouts: list[float | None] = []
     now = [100.0]
-    wait = asyncio.wait
-
-    def clock(first_green_s: float, agent_clock: float) -> float:
-        calls.append((first_green_s, agent_clock))
-        return first_green_s + 0.3
-
-    async def waited(tasks, **kwargs):
-        # A wait with a deadline lets the test's clock reach it at once.
-        timeouts.append(kwargs["timeout"])
-
-        if kwargs["timeout"] is not None:
-            now[0] += kwargs["timeout"]
-            kwargs["timeout"] = 0
-
-        return await wait(tasks, **kwargs)
-
-    monkeypatch.setattr(selection, "straggler_clock", clock)
     monkeypatch.setattr(selection, "time", SimpleNamespace(monotonic=lambda: now[0]))
-    # `selection.asyncio` is the asyncio module: undone when the test ends.
-    monkeypatch.setattr(asyncio, "wait", waited)
 
     async def launch(index: int, _clock: float) -> selection.Candidate:
         if index == 2:
@@ -422,18 +455,16 @@ def test_side_by_side_cut_lands_at_the_straggler_clock(monkeypatch) -> None:
 
     chosen = asyncio.run(selection.select(2, launch, review, agent_clock=60, seed="T-0001"))
 
-    assert calls == [(0.05, 60)]
-    assert timeouts[0] is None and round(timeouts[1], 6) == 0.3
     cut = chosen.candidates[1]
     assert cut.cut and cut.result is None
-    # Cut 0.3s after candidate 1 finished, 0.05s into the round.
-    assert round(cut.wall_s, 6) == 0.35
+    assert round(cut.wall_s, 6) == 0.05
+    assert chosen.winner is not None and chosen.winner.index == 1
 
 
 def test_side_by_side_cut_carries_its_siblings_seat() -> None:
     """S-0124/D-6, D-9: every candidate of an attempt runs on one seat, so the
-    one cut at the straggler deadline, which returned no record of its own,
-    is recorded on that seat and not on none."""
+    one the first green finish cut, which returned no record of its own, is
+    recorded on that seat and not on none."""
 
     async def launch(index: int, _clock: float) -> selection.Candidate:
         if index == 2:
@@ -566,9 +597,9 @@ def test_stop_cancels_the_others_and_asks_no_critic() -> None:
 
 
 def test_unit_budget_counts_a_cancelled_candidate_s_finished_spend() -> None:
-    """S-0124/D-7: a candidate cut at the straggler deadline keeps what its
-    finished turns spent — in the bound before the next critic call, and in
-    the unit's record."""
+    """S-0124/D-7: a candidate the first green finish cut keeps what its
+    finished turns spent — in the bound before the critic call, and in the
+    unit's record."""
 
     started: set[int] = set()
     all_started = asyncio.Event()
@@ -646,7 +677,7 @@ def test_unit_record_carries_tier_model_spend_and_the_revision_round():
         spend_usd=0.2,
         wall_s=12.5,
     )
-    chosen = selection.Selection([one], [one], spent_usd=0.9, revision=round_)
+    chosen = selection.Selection([one], one, spent_usd=0.9, revision=round_)
 
     record = selection.unit_record(
         chosen, task_id="T-0001", attempt=1, width=1, size="S", at="2026-11-05T00:00:00Z"
@@ -686,7 +717,7 @@ def test_unit_record_carries_tier_model_spend_and_the_revision_round():
     }
 
     none = selection.unit_record(
-        selection.Selection([one], [one]), task_id="T-0001", attempt=3, width=1, size="S", at="x"
+        selection.Selection([one], one), task_id="T-0001", attempt=3, width=1, size="S", at="x"
     )
     assert "revision" not in none
 
@@ -707,24 +738,33 @@ def test_the_runner_leaves_the_chosen_candidate_in_the_task_s_worktree(
 
     repo, _runtime, deps_for = review_rig
     passes: list[int] = []
+    # Candidate 2 goes green only once candidate 1's pass is under way, so the
+    # cut its finish makes leaves that shielded pass to finish (S-0124/D-4).
+    judging = threading.Event()
 
     def gate_pass(run, _state):
         passes.append(run.candidate or 1)
-        red = run.candidate <= 1
-        return (1 if red else 0), "scripted", "cafecafe1234", [], "diff --git a/x b/x"
+
+        if run.candidate <= 1:
+            # What candidate 1 left in the task's worktree, which the winner's
+            # tree replaces.
+            (run.worktree / "own.txt").write_text("1\n", encoding="utf-8")
+            judging.set()
+            return 1, "scripted", "cafecafe1234", [], "diff --git a/x b/x"
+
+        judging.wait(30)
+        return 0, "scripted", "cafecafe1234", [], "diff --git a/x b/x"
 
     monkeypatch.setattr(run_module, "run_gate_pass", gate_pass)
     critic = ScriptedAgent([AgentResult(exit_code=0, output=answer())])
     config = RunnerConfig(review=ReviewConfig(on=["task_gated"], mode="critic"))
     deps = deps_for(critic)
-    (repo.root / ".wt" / "T-9001").mkdir(parents=True, exist_ok=True)
-    (repo.root / ".wt" / "T-9001" / "own.txt").write_text("1\n", encoding="utf-8")
 
     state = run_task(repo.root, task_for(repo), config, deps)
 
     assert state.state is TaskState.READY
-    # The candidates run together (S-0124/D-4), so the two passes may finish
-    # in either order; both were judged, and the green one won.
+    # The candidates run together (S-0124/D-4); both were judged, and the
+    # green one won.
     assert sorted(passes) == [1, 2]
     assert sum("critic reviewed candidate 2" in h["fact"] for h in state.history) == 1
     assert not (repo.root / ".wt" / "T-9001~2").exists()
@@ -783,8 +823,8 @@ def test_a_candidate_worktree_starts_at_the_task_s_base_and_takes_its_place(
 
 
 def test_a_halted_turn_buys_no_repair_and_runs_no_battery(repo, monkeypatch) -> None:
-    """A turn that halted is judged by nobody: the repair callback runs no
-    gate pass and asks for no second turn (S-0122/D-8)."""
+    """A turn that halted is judged by nobody: no gate pass runs and no
+    second turn is asked for (S-0127/D-6)."""
 
     from test_run_loop import OK, MockRuntime, MockScm, MockVcs, MockWorkspace
 
