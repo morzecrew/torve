@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 import yaml
+from hypothesis import example, given
+from hypothesis import strategies as st
 from test_run_loop import (
     OK,
     MockRuntime,
@@ -52,6 +54,7 @@ from torve.config.runconfig import (
 from torve.domain.attempt import Finding
 from torve.domain.states import TaskState
 from torve.domain.task import InheritedDecision, Scope, Task
+from torve.gates.evidence_package import CommandRun
 from torve.gates.sabotage import BASE_MANIFEST
 
 # The shipped role skills, as a repository's profiles would declare them.
@@ -92,6 +95,18 @@ class SpecRecordingRuntime(MockRuntime):
         return super().create(spec, workspace)
 
 
+def failing_reproduce(run, state, commands, probes):
+    """The rig's re-run (S-0127/D-1): the candidate fails every repro the
+    critic hands the engine, as the defect a finding names would make it, and
+    a probe the critic's copy did not keep refuses the repro, as
+    `runner.reproduce` does. A test that needs a passing re-run says so."""
+
+    if any(text is None for text in probes.values()):
+        return [CommandRun(command, None, "refused: a probe was not kept") for command in commands]
+
+    return [CommandRun(command, 1, "1 failed: assert 3 == 4") for command in commands]
+
+
 @pytest.fixture
 def review_rig(repo, monkeypatch):
     repo.seed()
@@ -101,6 +116,7 @@ def review_rig(repo, monkeypatch):
         return 0, "scripted", "cafecafe1234", [], "diff --git a/x b/x"
 
     monkeypatch.setattr(run_module, "run_gate_pass", scripted_gates)
+    monkeypatch.setattr(run_module, "reproduce", failing_reproduce)
 
     def deps_with_reviewer(review_agent):
         return RunDeps(
@@ -377,7 +393,7 @@ def test_revision_inputs_record_the_judged_head_and_read_it_back(repo):
 
     from types import SimpleNamespace
 
-    from test_critic import _candidate
+    from test_critic import REPRO, Rerun, _candidate
 
     from torve.application.critic import CriticDocument, decide
     from torve.application.review import (
@@ -451,6 +467,7 @@ def test_revision_inputs_record_the_judged_head_and_read_it_back(repo):
                     "evidence": evidence,
                     "verified": "read",
                     "confidence": "high",
+                    "repro": {"command": REPRO},
                 }
                 for number, (claim, evidence) in enumerate(
                     [
@@ -463,7 +480,7 @@ def test_revision_inputs_record_the_judged_head_and_read_it_back(repo):
         }
     )
     (worktree / "src" / "__init__.py").write_text("x\n", encoding="utf-8")
-    decision = decide(document, {}, worktree, "major", revision=revision)
+    decision = decide(document, {}, worktree, "major", revision=revision, reproduce=Rerun())
 
     assert [one.id for one in decision.blockers] == ["F1"]
     assert [one.id for one in decision.carried] == ["F2"]
@@ -1849,6 +1866,7 @@ class StagedReading:
                     "evidence": "src/app.py:1 — the bound",
                     "verified": "read",
                     "confidence": "high",
+                    "repro": {"command": "uv run pytest -q"},
                 }
             ]
             if len(self.calls) == 1
@@ -1962,14 +1980,16 @@ def test_each_rounds_blockers_are_mapped_from_the_head_that_round_judged(repo):
     """S-0125/D-1: a revision that inserts more than `threads.WINDOW` lines
     above an unresolved blocker still meets it, in the round right after and
     two rounds later when a later revision touched another file only; the
-    critic's decide and the escalation check read the same mapped anchors."""
+    critic's decide and the classic escalation check read the same mapped
+    anchors, and a repeat is re-raised where it overlaps one (S-0127/D-4)."""
 
     from types import SimpleNamespace
 
-    from test_critic import _candidate
+    from test_critic import REPRO, Rerun, _candidate
 
     from torve.application.critic import CriticDocument, decide
     from torve.application.review import (
+        JudgedFinding,
         _anchor_reraised,
         blocker_fact,
         mapped_blocker_anchors,
@@ -1982,8 +2002,15 @@ def test_each_rounds_blockers_are_mapped_from_the_head_that_round_judged(repo):
     app.write_text("".join(f"line{number}\n" for number in range(1, 61)), encoding="utf-8")
     state = RunState(task_id=target.id, path=repo.root / "state.json", run_id="run-1")
 
-    def record(round_no: int, evidence: str) -> None:
-        blocker = Finding(severity="major", claim=f"round {round_no}", evidence=evidence)
+    def record(round_no: int, path: str, line: int) -> None:
+        blocker = JudgedFinding(
+            severity="major",
+            claim="the bound is still off by one",
+            evidence=f"{path}:{line} — bad",
+            kind="bug",
+            path=path,
+            line=line,
+        )
         state.history.append(
             {
                 "at": state.heartbeat,
@@ -2000,19 +2027,20 @@ def test_each_rounds_blockers_are_mapped_from_the_head_that_round_judged(repo):
             "id": "F1",
             "severity": "blocker",
             "kind": "bug",
-            "claim": "still bad",
+            "claim": "the bound stays off by one",
             "evidence": evidence,
             "verified": "read",
             "confidence": "high",
+            "repro": {"command": REPRO},
         }
         document = CriticDocument.model_validate({"rows": [], "findings": [finding]})
-        decision = decide(document, {}, worktree, "major", revision=revision)
+        decision = decide(document, {}, worktree, "major", revision=revision, reproduce=Rerun())
         blocker = Finding(severity="blocker", claim="still bad", evidence=evidence)
-        escalates = _anchor_reraised([blocker], mapped_blocker_anchors(worktree, state))
+        escalates = _anchor_reraised([blocker], mapped_blocker_anchors(worktree, state), worktree)
         assert (escalates is not None) == bool(decision.reraised)
         return bool(decision.reraised)
 
-    record(1, "src/app.py:50 — bad")
+    record(1, "src/app.py", 50)
     # Revision 1 inserts twenty lines at the top: the blocker now sits at 70.
     app.write_text(
         "".join(f"new{number}\n" for number in range(20)) + app.read_text(encoding="utf-8"),
@@ -2021,7 +2049,7 @@ def test_each_rounds_blockers_are_mapped_from_the_head_that_round_judged(repo):
     assert reraises("src/app.py:70 — bad")
     assert not reraises("src/app.py:50 — bad")
 
-    record(2, "src/__init__.py:1 — other")
+    record(2, "src/__init__.py", 1)
     # Revision 2 touches another file only; round 1's anchor is still at 70.
     (worktree / "src" / "__init__.py").write_text("x = 1\n", encoding="utf-8")
     assert reraises("src/app.py:70 — bad")
@@ -2065,6 +2093,7 @@ class ReadingStagedInput:
                             "evidence": self.evidence,
                             "verified": "read",
                             "confidence": "high",
+                            "repro": {"command": "uv run pytest -q"},
                         }
                     ],
                 }
@@ -2076,6 +2105,8 @@ def test_rejected_spots_run_critic_reads_the_log_and_stages_nothing(tmp_path):
     """S-0126/D-2: `run_critic` reads the attempt's rejected spots from the
     worktree's task log and passes them to `decide`, and nothing of them is
     staged — the critic's input is unchanged by the rejection."""
+
+    from test_critic import Rerun
 
     from torve.application.critic import run_critic
 
@@ -2114,6 +2145,7 @@ def test_rejected_spots_run_critic_reads_the_log_and_stages_nothing(tmp_path):
     critic = ReadingStagedInput("src/app.py:12 — the bound")
     review = Task(id="T-9005", role="review", targets=[target.id], decisions=[])
 
+    rerun = Rerun()
     verdict = run_critic(
         tmp_path,
         worktree,
@@ -2126,8 +2158,11 @@ def test_rejected_spots_run_critic_reads_the_log_and_stages_nothing(tmp_path):
         None,
         "digest",
         attempt=1,
+        reproduce=rerun,
     )
 
+    # S-0127/D-1: the carried finding is never re-run.
+    assert rerun.calls == []
     assert verdict.decision is not None and verdict.decision.blocked is False
     assert [one.id for one in verdict.decision.rejected] == ["F1"]
     staged_with_rejection = critic.staged
@@ -2150,6 +2185,7 @@ def test_rejected_spots_run_critic_reads_the_log_and_stages_nothing(tmp_path):
         None,
         "digest",
         attempt=1,
+        reproduce=rerun,
     )
 
     assert blocked.decision is not None and blocked.decision.blocked is True
@@ -2188,3 +2224,340 @@ def test_an_earlier_attempts_rejection_does_not_excuse_a_later_empty_diff(tmp_pa
 
     assert not run_module._is_empty_implement_diff(ctx, tmp_path, 1)
     assert run_module._is_empty_implement_diff(ctx, tmp_path, 2)
+
+
+# ....................... #
+# A verdict comes from what ran (S-0127/D-1, D-2, D-4, D-14), through the run
+# loop's review step.
+
+
+def _critic_unit(repo, critic, monkeypatch=None, exit_code: int | None = None, **review):
+    """One critic-mode unit over the rig, its worktree holding `src/app.py`;
+    with *exit_code*, every repro the critic hands the engine exits so."""
+
+    from test_critic import critic_config
+
+    worktree = repo.root / ".wt" / "T-9001"
+    (worktree / "src").mkdir(parents=True, exist_ok=True)
+    (worktree / "src" / "app.py").write_text("x\n" * 50, encoding="utf-8")
+    # The manifest that names where the review record goes.
+    (worktree / ".torve").mkdir(exist_ok=True)
+    (worktree / ".torve" / "gates.yaml").write_text("schema_version: 1\ngates: []\n")
+
+    if monkeypatch is not None:
+        monkeypatch.setattr(
+            run_module,
+            "reproduce",
+            lambda run, state, commands, probes: [
+                CommandRun(command, exit_code, "3 passed") for command in commands
+            ],
+        )
+
+    return critic_config(**review)
+
+
+def test_reproduced_a_finding_whose_rerun_passes_lands_advisory(review_rig, monkeypatch):
+    """S-0127/D-1: a major finding whose repro exits 0 on the candidate blocks
+    nothing; the unit lands and the review record carries the finding
+    `advisory: true` with the re-run's command, exit code and output tail."""
+
+    from test_critic import REPRO, answer, finding
+
+    repo, _runtime, deps_for = review_rig
+    critic = SequencedReviewer([answer(findings=[finding()])])
+    config = _critic_unit(repo, critic, monkeypatch, exit_code=0)
+
+    state = run_task(repo.root, task_for(repo), config, deps_for(critic))
+
+    assert state.state is TaskState.READY
+    assert not any(h["fact"].startswith("review blocker") for h in state.history)
+    records = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    (record,) = [row for row in records if row.get("kind") == "review"]
+    assert record["blocked"] is False
+    assert record["findings"][0]["advisory"] is True
+    assert record["findings"][0]["rerun"] == {
+        "command": REPRO,
+        "exit_code": 0,
+        "tail": "3 passed",
+    }
+
+
+def test_reproduced_a_failing_rerun_blocks_and_rides_the_revision_thread(review_rig):
+    """S-0127/D-1: a finding whose repro fails on the candidate blocks, and the
+    blocker's revision thread carries the command, its exit code and the
+    re-run's output, so the next attempt reads the failure."""
+
+    from test_critic import REPRO, answer, finding
+
+    repo, _runtime, deps_for = review_rig
+    critic = SequencedReviewer([answer(findings=[finding()]), answer()])
+    config = _critic_unit(repo, critic)
+
+    state = run_task(repo.root, task_for(repo), config, deps_for(critic))
+
+    assert state.state is TaskState.READY
+    assert any(h["fact"].startswith("review blocker (revision 1 of 2):") for h in state.history)
+    text = feedback_file(repo.root, "T-9001").read_text(encoding="utf-8")
+    assert f"the engine re-ran `{REPRO}` on this candidate: exit 1" in text
+    assert "1 failed: assert 3 == 4" in text
+
+
+def test_blocks_on_reading_a_gaming_finding_blocks_whatever_its_rerun(review_rig, monkeypatch):
+    """S-0127/D-1: a kept `gaming` finding at or above the bar blocks on its
+    located evidence, even where its repro would pass: integrity rarely
+    reproduces by a command."""
+
+    from test_critic import answer, finding
+
+    repo, _runtime, deps_for = review_rig
+    critic = SequencedReviewer([answer(findings=[finding(kind="gaming")]), answer()])
+    config = _critic_unit(repo, critic, monkeypatch, exit_code=0)
+
+    state = run_task(repo.root, task_for(repo), config, deps_for(critic))
+
+    assert state.state is TaskState.READY
+    assert state.attempts == 2
+    assert any(h["fact"].startswith("review blocker (revision 1 of 2):") for h in state.history)
+
+
+def test_weak_test_finding_lets_the_target_land(review_rig):
+    """S-0127/D-2: a blocker-severity `weak_test` finding whose repro would
+    fail blocks nothing: the unit lands on its first attempt."""
+
+    from test_critic import answer, finding
+
+    repo, _runtime, deps_for = review_rig
+    critic = SequencedReviewer([answer(findings=[finding("blocker", kind="weak_test")])])
+    config = _critic_unit(repo, critic)
+
+    state = run_task(repo.root, task_for(repo), config, deps_for(critic))
+
+    assert state.state is TaskState.READY
+    assert state.attempts == 1
+
+
+def test_rerun_item_a_critic_reviews_items_carry_kind_and_rerun(review_rig):
+    """S-0127/D-14: each item a critic review's `review.recorded` carries holds
+    the finding's kind — `contract` for a violated row — and the re-run's
+    command and exit code, and the event's payload model reads them; a
+    finding the engine never re-ran carries none."""
+
+    from test_critic import LOCATED, OWNED, REPRO, answer, finding
+
+    from torve.domain.events import ReviewRecorded
+
+    repo, _runtime, deps_for = review_rig
+    critic = SequencedReviewer(
+        [
+            answer(
+                rows=[{"row": OWNED, "verdict": "violated", "evidence": "src/app.py:3 — read"}],
+                findings=[
+                    finding(evidence=LOCATED),
+                    finding("minor", "src/app.py:4 — small", id="F2", kind="style"),
+                ],
+            ),
+            answer(),
+        ]
+    )
+    config = _critic_unit(repo, critic)
+    task = task_for(repo)
+    task.decisions = [
+        InheritedDecision(id=OWNED, grade="ASSUMED", text="bound", paths=["src/app.py"])
+    ]
+    deps = deps_for(critic)
+    facts: list = []
+    deps.facts = facts.append
+
+    run_task(repo.root, task, config, deps)
+
+    first = next(fact for fact in facts if fact.kind == "review_recorded")
+    recorded = ReviewRecorded.model_validate(first.payload)
+    assert (recorded.findings, recorded.blockers) == (3, 1)
+    assert [
+        (item.kind, item.path, item.line, item.rerun_command, item.rerun_exit)
+        for item in recorded.items
+    ] == [
+        ("bug", "src/app.py", 2, REPRO, 1),
+        ("style", "src/app.py", 4, "", None),
+        ("contract", "src/app.py", 3, "", None),
+    ]
+
+
+def test_rerun_item_a_classic_reviews_items_carry_no_kind(review_rig):
+    """S-0127/D-14: the classic reviewer's items keep their shape; the fields
+    the critic's items gain stay at their defaults."""
+
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    worktree.mkdir(parents=True, exist_ok=True)
+    (worktree / "app.py").write_text("broken = True\n", encoding="utf-8")
+    reviewer = ScriptedAgent(
+        [
+            AgentResult(
+                exit_code=0,
+                output=reviewer_output(
+                    [{"severity": "minor", "claim": "nit", "evidence": "app.py:1 — the flag"}]
+                ),
+            )
+        ]
+    )
+    deps = deps_for(reviewer)
+    facts: list = []
+    deps.facts = facts.append
+
+    run_task(repo.root, task_for(repo), review_config(), deps)
+
+    first = next(fact for fact in facts if fact.kind == "review_recorded")
+    assert first.payload["items"] == [
+        {
+            "severity": "minor",
+            "path": "app.py",
+            "line": 1,
+            "claim": "nit",
+            "evidence": "app.py:1 — the flag",
+        }
+    ]
+
+
+_SPAN = st.tuples(
+    st.sampled_from(["src/app.py", "./src/app.py", "src/other.py"]),
+    st.integers(min_value=1, max_value=30),
+    st.integers(min_value=0, max_value=4),
+)
+
+
+@given(
+    kind=st.sampled_from(["bug", "regression", "contract"]),
+    earlier_kind=st.sampled_from(["bug", "regression", "contract", None]),
+    row=st.sampled_from([None, "S-0900/D-1", "S-0900/D-2"]),
+    earlier_row=st.sampled_from([None, "S-0900/D-1"]),
+    spans=st.lists(_SPAN, max_size=3),
+    line=st.integers(min_value=1, max_value=30),
+    same_claim=st.booleans(),
+)
+@example(
+    # T-0804's shape: the same kind, cited on the line after the earlier
+    # blocker, about another defect.
+    kind="bug",
+    earlier_kind="bug",
+    row=None,
+    earlier_row=None,
+    spans=[("src/app.py", 13, 0)],
+    line=12,
+    same_claim=False,
+)
+@example(
+    # The same, with a claim the measure reads as the earlier one's.
+    kind="bug",
+    earlier_kind="bug",
+    row=None,
+    earlier_row=None,
+    spans=[("src/app.py", 13, 0)],
+    line=12,
+    same_claim=True,
+)
+def test_repeats_a_blocker_by_its_row_or_by_kind_span_and_claim(
+    kind, earlier_kind, row, earlier_row, spans, line, same_claim
+):
+    """S-0127/D-4: a revision's blocker repeats an earlier one exactly when it
+    names the same row, or it has the same kind, a citation whose span holds
+    the earlier anchor in the same file, and a claim the measure matches —
+    here a stub that answers *same_claim*. Nearness alone is no repeat."""
+
+    from torve.application.review import repeats_blocker
+
+    cited = [(path, start, start + width) for path, start, width in spans]
+    earlier = [
+        {
+            "claim": "the earlier claim",
+            "path": "src/app.py",
+            "line": line,
+            **({"kind": earlier_kind} if earlier_kind else {}),
+            **({"row": earlier_row} if earlier_row else {}),
+        }
+    ]
+    overlaps = any(
+        path.removeprefix("./") == "src/app.py" and start <= line <= end
+        for path, start, end in cited
+    )
+    expected = (row is not None and row == earlier_row) or (
+        kind == earlier_kind and overlaps and same_claim
+    )
+
+    repeated = repeats_blocker(
+        kind, row, cited, "a claim", earlier, match=lambda claim, other: same_claim
+    )
+
+    assert repeated is expected
+
+
+@pytest.mark.parametrize(
+    ("claim", "earlier", "matches"),
+    [
+        # T-0804's shape: a new defect on the next line shares no words.
+        (
+            "the escalation message names the wrong configuration key",
+            "the cap is never enforced when a file has more findings than the cap",
+            False,
+        ),
+        # The same defect, described in other words.
+        (
+            "a file holding more findings than the cap is never split, so the cap is not enforced",
+            "the cap is never enforced when a file has more findings than the cap",
+            True,
+        ),
+        ("bound returns n - 1, one short: an off-by-one", "the bound is off by one", True),
+        # One shared identifier names no defect.
+        ("`_width` ignores review.max_width for a round", "`_width` returns 1 for class L", False),
+        ("crash", "crash", True),
+        ("", "the bound is off by one", False),
+    ],
+)
+def test_repeats_a_blocker_claims_match_reads_one_defect_in_other_words(claim, earlier, matches):
+    """S-0127/D-11: the measure reads two descriptions of one defect alike
+    and a new defect's claim apart, deterministically."""
+
+    from torve.application.review import claims_match
+
+    assert claims_match(claim, earlier) is matches
+    assert claims_match(earlier, claim) is matches
+
+
+def test_repeats_a_blocker_escalates_a_repeat_and_spends_on_a_new_defect(review_rig):
+    """S-0127/D-4: T-0804's shape through the loop. The revision's blocker is a
+    new defect on the line after the first round's, so it spends the next
+    round; the round after repeats it, and `review_step` escalates on the
+    critic's re-raise, naming where."""
+
+    from test_critic import answer, finding
+
+    repo, _runtime, deps_for = review_rig
+    first = finding(evidence="src/app.py:12 — the cap", claim="the cap is never enforced")
+    new = finding(
+        evidence="src/app.py:13 — the message",
+        claim="the escalation message names the wrong configuration key",
+    )
+    again = finding(
+        evidence="src/app.py:13 — the message again",
+        claim="the message names the wrong key in the configuration",
+    )
+    critic = SequencedReviewer(
+        [answer(findings=[first]), answer(findings=[new]), answer(findings=[again])]
+    )
+    config = _critic_unit(repo, critic, blocker_revisions=3)
+
+    state = run_task(repo.root, task_for(repo), config, deps_for(critic))
+
+    assert state.state is TaskState.ESCALATED
+    assert state.escalation is not None and state.escalation.reason == "blocker_finding"
+    assert "re-raised at src/app.py:13" in state.escalation.detail
+    assert state.attempts == 3
+    revisions = [
+        h["fact"] for h in state.history if h["fact"].startswith("review blocker (revision")
+    ]
+    assert len(revisions) == 2
+    # Each round records its blockers' kind beside claim and anchor.
+    assert '"kind":"bug"' in revisions[0] and '"kind":"bug"' in revisions[1]

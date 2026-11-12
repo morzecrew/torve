@@ -2094,19 +2094,15 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             crun.open_session = None
 
     def revision_reraised(member: selection.Candidate) -> bool:
-        """Whether the critic repeated a finding the previous round recorded
-        (S-0124/D-3), read from the same anchors `review_step` reads."""
+        """Whether the critic repeated a blocker an earlier round recorded
+        (S-0127/D-4), read from the decision `review_step` reads."""
 
         verdict = member.verdict
 
         if verdict is None or not verdict.blockers:
             return False
 
-        from torve.application.review import _anchor_reraised, mapped_blocker_anchors
-
-        anchors = mapped_blocker_anchors(member.run.worktree, state)
-
-        return _anchor_reraised(verdict.blockers, anchors) is not None
+        return verdict.decision is not None and bool(verdict.decision.reraised)
 
     try:
         # S-0124/D-4, S-0127/D-6: every worktree is cut before any candidate

@@ -124,6 +124,40 @@ def test_decision_recorded_carries_consequence_and_check_and_defaults_them():
     assert new.consequence == "why" and new.check == "true"
 
 
+def test_rerun_item_written_before_kind_and_rerun_loads_with_the_defaults():
+    """S-0127/D-14: a review item gains the finding's kind and the re-run's
+    command and exit code, each with a default, so an item recorded before
+    them loads as one the engine never re-ran and every other field keeps its
+    meaning."""
+
+    item = {
+        "severity": "major",
+        "path": "src/app.py",
+        "line": 2,
+        "claim": "the bound is off by one",
+        "evidence": "src/app.py:2 — the bound",
+    }
+
+    old = validate_payload(EventKind.REVIEW_RECORDED, {"review_id": "T-0901", "items": [item]})
+    new = validate_payload(
+        EventKind.REVIEW_RECORDED,
+        {
+            "review_id": "T-0901",
+            "items": [{**item, "kind": "bug", "rerun_command": "pytest -q", "rerun_exit": 1}],
+        },
+    )
+
+    assert old.model_dump()["items"] == [
+        {**item, "kind": "", "rerun_command": "", "rerun_exit": None}
+    ]
+    assert new.model_dump()["items"][0] == {
+        **item,
+        "kind": "bug",
+        "rerun_command": "pytest -q",
+        "rerun_exit": 1,
+    }
+
+
 def test_night_opened_carries_the_terms_whole():
     """S-0079/D-2: the queue as it stood, the width, both budget axes, the
     stop conditions, the lease and the resolved knobs — nothing else."""

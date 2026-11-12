@@ -25,7 +25,7 @@ import shutil
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Generic, TypeVar, cast
@@ -67,7 +67,7 @@ from torve.domain.attempt import Finding, GateResult
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import CONTRACT_SCHEMA_VERSION, Budget, InheritedDecision, Task
 from torve.gates.context import NO_HOOKS, GitError, git
-from torve.gates.evidence import CITATION, filter_findings
+from torve.gates.evidence import CITATION, CITED, citations, filter_findings, locate
 
 # ----------------------- #
 
@@ -816,6 +816,29 @@ class ReviewOutcome:
     head: str = ""
 
 
+class JudgedFinding(Finding):
+    """A critic's finding or violated row in the classic shape, with what the
+    engine read of it (S-0127/D-4, S-0127/D-14). The record's items and the
+    revision fact read these fields rather than the evidence, so a fact
+    written where no tree is at hand still names each blocker's kind, row and
+    anchor."""
+
+    kind: str = ""
+    """The finding's kind as the critic gave it; `contract` for a violated row."""
+    row: str | None = None
+    """The row the finding names, or the violated row itself."""
+    path: str = ""
+    """The anchor's path, normalised: the first citation that resolves in the
+    tree the critic judged; empty when none does."""
+    line: int | None = None
+    """The anchor's first line."""
+    rerun_command: str = ""
+    """The command the engine re-ran (S-0127/D-1); empty when it re-ran none."""
+    rerun_exit: int | None = None
+    """The re-run's exit code; None for a timeout, a repro refused or not run,
+    and a finding never re-run."""
+
+
 # ....................... #
 
 
@@ -865,27 +888,35 @@ def blocker_threads(blockers: list[Finding], review_id: str) -> list[dict[str, A
 # ....................... #
 
 
-def review_items(findings: list[Finding]) -> list[dict[str, Any]]:
+def review_items(findings: list[Finding], root: Path | None = None) -> list[dict[str, Any]]:
     """The review's findings as the record carries them (S-0101/D-4): severity,
-    claim and evidence as the reviewer gave them, beside the path and line the
-    evidence's leading citation names — empty for evidence that is a backticked
-    command. The citation is read by the same expression the gates and the
-    review leg read it with, so the three cannot disagree about where a finding
-    is anchored."""
+    claim and evidence as the reviewer gave them, beside the finding's anchor
+    (`_finding_anchor` under *root*) — empty for evidence that cites no line,
+    a backticked command with its output.
+
+    A critic's finding also carries its kind and, when the engine re-ran its
+    repro, the command and its exit code (S-0127/D-14)."""
 
     items: list[dict[str, Any]] = []
 
     for finding in findings:
-        citation = CITATION.match(finding.evidence.split(" — ")[0].split(" - ")[0].strip())
-        items.append(
-            {
-                "severity": finding.severity,
-                "path": citation.group("path") if citation else "",
-                "line": int(citation.group("start")) if citation else None,
-                "claim": finding.claim,
-                "evidence": finding.evidence,
-            }
-        )
+        anchor = _finding_anchor(finding, root)
+        item: dict[str, Any] = {
+            "severity": finding.severity,
+            "path": anchor["path"] if anchor else "",
+            "line": anchor["line"] if anchor else None,
+            "claim": finding.claim,
+            "evidence": finding.evidence,
+        }
+
+        if isinstance(finding, JudgedFinding):
+            item.update(
+                kind=finding.kind,
+                rerun_command=finding.rerun_command,
+                rerun_exit=finding.rerun_exit,
+            )
+
+        items.append(item)
 
     return items
 
@@ -1659,28 +1690,63 @@ def _blocker_revisions_spent(state: RunState) -> int:
 BLOCKER_ANCHORS_MARKER = " anchors="
 
 
-def _finding_anchor(finding: Finding) -> dict[str, Any] | None:
-    """The `path`/`line` a finding's evidence cites, or None when it cites no
-    filesystem coordinate (a backticked command with its output). The path is
-    normalised the way `locate` resolves it, so `./src/app.py:12` and
-    `src/app.py:12` name the same anchor a previous round recorded
-    (S-0124/D-3)."""
+def _citation_locates(path: str, start: int, end: int, root: Path) -> bool:
+    """Whether one citation is a line or range `locate` accepts under *root*.
 
-    citation = CITATION.match(finding.evidence.split(" — ")[0].split(" - ")[0].strip())
+    The whole *path* must be read: `locate` splits a span at ` — ` or ` - ` and
+    would accept a prefix, which is not the path the evidence cited."""
 
-    if citation is None:
-        return None
+    span = f"{path}:{start}" if end == start else f"{path}:{start}-{end}"
 
-    return {
-        "path": posixpath.normpath(citation.group("path")),
-        "line": int(citation.group("start")),
-    }
+    if span.startswith("`") or span.split(" — ")[0].split(" - ")[0].strip() != span:
+        return False
+
+    return locate(span, root) is None
 
 
-def _blocker_anchors(blockers: list[Finding]) -> list[dict[str, Any]]:
+def located_spans(evidence: str, root: Path) -> list[tuple[str, int, int]]:
+    """Every citation in *evidence* that resolves under *root*, in order, each
+    path normalised the way `locate` resolves it, so `./src/app.py:12` and
+    `src/app.py:12` name one file (S-0127/D-4). The first is the finding's
+    anchor; all of them are the spans a re-raise compares."""
+
+    return [
+        (posixpath.normpath(path), start, end)
+        for path, start, end in citations(evidence, root)
+        if _citation_locates(path, start, end, root)
+    ]
+
+
+def _finding_anchor(finding: Finding, root: Path | None = None) -> dict[str, Any] | None:
+    """The `path`/`line` a finding is anchored at (S-0127/D-4): the first
+    citation in its evidence that resolves under *root*, wherever it sits, or
+    None when none does (a backticked command with its output).
+
+    A critic's finding carries the anchor its own tree gave it. With no tree
+    to resolve in, the first citation the evidence makes stands in."""
+
+    if isinstance(finding, JudgedFinding):
+        return {"path": finding.path, "line": finding.line} if finding.path else None
+
+    if root is None:
+        cited = CITED.search(finding.evidence)
+
+        if cited is None:
+            return None
+
+        return {"path": posixpath.normpath(cited.group("path")), "line": int(cited.group("start"))}
+
+    spans = located_spans(finding.evidence, root)
+
+    return {"path": spans[0][0], "line": spans[0][1]} if spans else None
+
+
+def _blocker_anchors(blockers: list[Finding], root: Path | None) -> list[dict[str, Any]]:
     """The anchors a revision round records for the findings it revises."""
 
-    return [anchor for finding in blockers if (anchor := _finding_anchor(finding)) is not None]
+    return [
+        anchor for finding in blockers if (anchor := _finding_anchor(finding, root)) is not None
+    ]
 
 
 def _anchors_suffix(anchors: list[dict[str, Any]]) -> str:
@@ -1701,7 +1767,7 @@ def _head_suffix(head: str) -> str:
     return f"{BLOCKER_HEAD_MARKER}{judged}" if judged else ""
 
 
-def _claims_suffix(blockers: list[Finding]) -> str:
+def _claims_suffix(blockers: list[Finding], root: Path | None) -> str:
     if not blockers:
         return ""
 
@@ -1709,7 +1775,17 @@ def _claims_suffix(blockers: list[Finding]) -> str:
 
     for finding in blockers:
         one: dict[str, Any] = {"claim": finding.claim}
-        anchor = _finding_anchor(finding)
+
+        # S-0127/D-4: a critic's blocker records its kind and row, which the
+        # next round's re-raise reads.
+        if isinstance(finding, JudgedFinding):
+            if finding.kind:
+                one["kind"] = finding.kind
+
+            if finding.row:
+                one["row"] = finding.row
+
+        anchor = _finding_anchor(finding, root)
 
         if anchor is not None:
             one.update(anchor)
@@ -1725,10 +1801,13 @@ def blocker_fact(
     budget: int,
     blockers: list[Finding],
     head: str = "",
+    root: Path | None = None,
 ) -> str:
-    """The `review blocker (revision k of n)` fact: its claims, the head this
-    review judged and its anchors, from which the next round reads both its
-    `revision.diff` base and `blockers.yaml` (S-0125/D-2)."""
+    """The `review blocker (revision k of n)` fact: its claims, each critic
+    blocker's kind and row (S-0127/D-4), the head this review judged and its
+    anchors, from which the next round reads both its `revision.diff` base
+    and `blockers.yaml` (S-0125/D-2). *root* is the tree the blockers'
+    citations resolve in."""
 
     detail = "; ".join(f.claim for f in blockers)
 
@@ -1736,8 +1815,8 @@ def blocker_fact(
         f"{BLOCKER_REVISION_MARKER}{round_no} of {budget}): "
         f"{review_id}: {detail[:300]}"
         f"{_head_suffix(head)}"
-        f"{_claims_suffix(blockers)}"
-        f"{_anchors_suffix(_blocker_anchors(blockers))}"
+        f"{_claims_suffix(blockers, root)}"
+        f"{_anchors_suffix(_blocker_anchors(blockers, root))}"
     )
 
 
@@ -1985,30 +2064,29 @@ def _mapped_rounds(
 
 
 def mapped_blocker_anchors(worktree: Path, state: RunState) -> list[dict[str, Any]]:
-    """Every earlier round's blocker anchors in the coordinates of the tree
-    *worktree* holds now, what a revision's findings re-raise against
-    (S-0124/D-3)."""
+    """Every earlier round's blockers, their anchors in the coordinates of the
+    tree *worktree* holds now, what a revision's findings re-raise against
+    (S-0124/D-3, S-0127/D-4). A blocker with no anchor is kept, since its row
+    alone can be repeated."""
 
-    return [
-        one
-        for one in _mapped_rounds(worktree, _blocker_rounds(state), tree_snapshot(worktree))
-        if isinstance(one.get("path"), str)
-    ]
+    return _mapped_rounds(worktree, _blocker_rounds(state), tree_snapshot(worktree))
 
 
 def _anchor_reraised(
-    blockers: list[Finding], previous: list[dict[str, Any]]
+    blockers: list[Finding], previous: list[dict[str, Any]], root: Path | None = None
 ) -> tuple[str, int | None] | None:
-    """The finding this round re-raises (S-0124/D-3): one anchored in the same
-    file within `threads.WINDOW` lines of an anchor the previous round
-    recorded, or in the same file when either has no line. A re-raise stops
-    the run instead of buying another round.
+    """The finding the classic reviewer's round re-raises (S-0124/D-3): one
+    anchored in the same file within `threads.WINDOW` lines of an anchor the
+    previous round recorded, or in the same file when either has no line. A
+    re-raise stops the run instead of buying another round. A critic's
+    re-raise is `decide`'s, by `repeats_blocker` (S-0127/D-4).
 
     *previous* is in the current tree's coordinates when a revision's
-    anchors were mapped there (`mapped_blocker_anchors`)."""
+    anchors were mapped there (`mapped_blocker_anchors`); *root* is the tree
+    the findings' citations resolve in."""
 
     for finding in blockers:
-        anchor = _finding_anchor(finding)
+        anchor = _finding_anchor(finding, root)
 
         if anchor is None:
             continue
@@ -2034,6 +2112,130 @@ def _anchor_reraised(
                 return path, line
 
     return None
+
+
+# S-0127/D-11: the words a claim is compared by. Function words say nothing
+# about which defect a claim names.
+_CLAIM_WORD = re.compile(r"[a-z0-9_]+")
+_FUNCTION_WORDS = frozenset(
+    {
+        "a", "an", "and", "are", "as", "at", "be", "but", "by", "can", "could", "does", "for",
+        "from", "has", "have", "in", "into", "is", "it", "its", "not", "of", "on", "or", "so",
+        "than", "that", "the", "then", "there", "this", "to", "was", "when", "where", "which",
+        "while", "with",
+    }
+)  # fmt: skip
+
+
+def _claim_stems(claim: str) -> set[str]:
+    """The stems a claim names: each word of three letters or more that is no
+    function word, a plural `s` dropped, cut to its first five letters, so
+    `counts`, `counter` and `count` read alike."""
+
+    stems: set[str] = set()
+
+    for word in _CLAIM_WORD.findall(claim.lower()):
+        if word in _FUNCTION_WORDS:
+            continue
+
+        stem = word[:-1] if len(word) > 3 and word.endswith("s") else word
+
+        if len(stem) >= 3:
+            stems.add(stem[:5])
+
+    return stems
+
+
+def claims_match(claim: str, earlier: str) -> bool:
+    """Whether *claim* names the defect *earlier* named (S-0127/D-11): the two
+    claims' stems are the same set, or they share at least two stems and at
+    least half the stems of the shorter one.
+
+    S-0127/D-11 left the measure to the phase that builds it, and this is the
+    choice: word overlap, so the engine and no model decides what repeats
+    (S-0122/D-1), taken against the shorter claim, so a terse claim and a
+    wordy one about the same bound and the same branch still match, and
+    needing two shared stems, so two claims that share one identifier — a new
+    defect cited on the line after an earlier one, T-0804's shape — do not.
+    Too loose a measure brings that false re-raise back; too strict a one
+    lets a repeated defect spend a revision, which the budget then bounds."""
+
+    ours, theirs = _claim_stems(claim), _claim_stems(earlier)
+
+    if ours and ours == theirs:
+        return True
+
+    shared = len(ours & theirs)
+
+    return shared >= 2 and 2 * shared >= min(len(ours), len(theirs))
+
+
+def repeats_blocker(
+    kind: str,
+    row: str | None,
+    spans: Iterable[tuple[str, int, int]],
+    claim: str,
+    earlier: Iterable[Mapping[str, Any]],
+    match: Callable[[str, str], bool] = claims_match,
+) -> bool:
+    """Whether a revision's blocker repeats one of *earlier* (S-0127/D-4): it
+    names the same row, or it has the same *kind*, a citation in *spans* that
+    overlaps the earlier blocker's anchor as `_mapped_rounds` maps it into the
+    current tree, and a claim *match* reads as the earlier one's (D-11).
+
+    A blocker beside an earlier anchor that repeats neither is a new defect,
+    which spends the revision budget as any blocker does. A blocker recorded
+    before kinds were (no `kind`) is repeated only by its row."""
+
+    cited = [(posixpath.normpath(path), start, end) for path, start, end in spans]
+
+    for one in earlier:
+        if row is not None and one.get("row") == row:
+            return True
+
+        path, line = one.get("path"), one.get("line")
+
+        if one.get("kind") != kind or not isinstance(path, str) or not isinstance(line, int):
+            continue
+
+        recorded = posixpath.normpath(path)
+
+        overlaps = any(
+            cited_path == recorded and start <= line <= end for cited_path, start, end in cited
+        )
+
+        if overlaps and match(claim, str(one.get("claim", ""))):
+            return True
+
+    return False
+
+
+def _reraised_at(outcome: ReviewOutcome, worktree: Path, state: RunState) -> str | None:
+    """Where *outcome* re-raises an earlier round's blocker, or None. A critic
+    verdict's re-raise is the one `decide` read by row, kind, span and claim
+    (S-0127/D-4); the classic reviewer's is still an anchor near an earlier
+    one (S-0124/D-3)."""
+
+    from torve.application.critic import CriticVerdict
+
+    if isinstance(outcome, CriticVerdict):
+        repeated = outcome.decision.reraised if outcome.decision is not None else []
+
+        if not repeated:
+            return None
+
+        spans = located_spans(repeated[0].evidence, worktree)
+
+        return f"{spans[0][0]}:{spans[0][1]}" if spans else str(repeated[0].row)
+
+    found = _anchor_reraised(outcome.blockers, mapped_blocker_anchors(worktree, state), worktree)
+
+    if found is None:
+        return None
+
+    path, line = found
+
+    return path if line is None else f"{path}:{line}"
 
 
 # ....................... #
@@ -2109,7 +2311,7 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
         review_id=outcome.review_id,
         findings=len(outcome.kept),
         blockers=len(outcome.blockers),
-        items=review_items(outcome.kept),
+        items=review_items(outcome.kept, run.worktree),
         trigger="task_gated",
     )
 
@@ -2165,13 +2367,9 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
         budget = run.config.review.resolved_blocker_revisions()
 
         if spent < budget:
-            reraised = _anchor_reraised(
-                outcome.blockers, mapped_blocker_anchors(run.worktree, state)
-            )
+            where = _reraised_at(outcome, run.worktree, state)
 
-            if reraised is not None:
-                path, line = reraised
-                where = path if line is None else f"{path}:{line}"
+            if where is not None:
                 state.escalate(
                     EscalationReason.BLOCKER_FINDING,
                     f"{outcome.review_id}: blocker re-raised at {where}: {detail[:300]}",
@@ -2206,6 +2404,7 @@ async def review_step(run: Dispatch, state: RunState) -> str | None:
                         budget,
                         outcome.blockers,
                         outcome.head,
+                        run.worktree,
                     ),
                 }
             )

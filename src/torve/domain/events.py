@@ -479,7 +479,10 @@ class ScopePromoted(BaseModel):
 class ReviewItem(BaseModel):
     """One finding a review recorded (S-0101/D-4): its severity, the anchor
     it cites and the claim and evidence that locate it, so a host that did
-    not run the review reads the finding itself rather than a count of them."""
+    not run the review reads the finding itself rather than a count of them.
+
+    A critic's item also carries the finding's kind and, when the engine
+    re-ran its repro, the command and its exit code (S-0127/D-14)."""
 
     model_config = STRICT
 
@@ -488,6 +491,11 @@ class ReviewItem(BaseModel):
     line: int | None = None
     claim: str
     evidence: str
+    # S-0127/D-14: additive with defaults, as S-0101/D-11 grew this event, so
+    # an item written before them reads as one the engine never re-ran.
+    kind: str = ""
+    rerun_command: str = ""
+    rerun_exit: int | None = None
 
 
 # ....................... #
