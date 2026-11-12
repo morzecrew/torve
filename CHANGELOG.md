@@ -29,9 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - A critic finding now blocks a unit only when the engine re-runs its repro command against
-  the candidate, in a read-only sandbox, and the command fails. Other findings, `weak_test`
-  ones always, are recorded as advisory. Integrity findings and breaches of LOCKED rows still
-  block on their located evidence.
+  the candidate, in a read-only sandbox, and it fails. Other findings, and row breaches
+  unless the row is LOCKED, are recorded as advisory. Integrity findings and LOCKED-row
+  breaches still block on located evidence.
 
 - Under `review.mode: critic` a unit's candidates now run side by side, and the first to
   finish green wins: the others are cut and recorded red, and the critic reads only the

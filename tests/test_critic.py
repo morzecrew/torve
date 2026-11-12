@@ -125,10 +125,10 @@ TABLE = [
     ("blocker past the file's end", [], [finding("blocker", "src/app.py:99 — x")], "major", False),
     ("blocker with prose evidence", [], [finding("blocker", "it is wrong")], "major", False),
     ("command with no output", [], [finding("blocker", "`pytest`")], "major", False),
-    # rows: a LOCKED row's located breach blocks, an owned row's only on its
-    # evidence command's re-run; unknown never does
+    # rows: a LOCKED row's located breach blocks, an owned row's never, its
+    # evidence command unrun (S-0127/A-5); unknown never does
     ("owned row violated, read only", [{"row": OWNED, "verdict": "violated", "evidence": LOCATED}], [], "major", False),
-    ("owned row violated by command", [{"row": OWNED, "verdict": "violated", "evidence": COMMAND}], [], "blocker", True),
+    ("owned row violated by command", [{"row": OWNED, "verdict": "violated", "evidence": COMMAND}], [], "blocker", False),
     ("owned row violated, unlocated", [{"row": OWNED, "verdict": "violated", "evidence": "trust me"}], [], "major", False),
     ("owned row violated, no evidence", [{"row": OWNED, "verdict": "violated"}], [], "major", False),
     ("owned row unknown", [{"row": OWNED, "verdict": "unknown", "evidence": LOCATED}], [], "major", False),
@@ -235,16 +235,20 @@ def test_reproduced_a_finding_with_no_command_is_advisory_and_runs_nothing(tmp_p
     assert critic_module._recorded_findings(decision)[0]["rerun"]["command"] == ""
 
 
-def test_reproduced_the_evidence_command_stands_in_for_a_missing_repro(tmp_path):
-    """S-0127/D-1: with no `repro.command`, the command is the first
-    backticked command the evidence carries with output after it, wherever
-    it sits."""
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        "src/app.py:2 — `cast(column, Numeric)` compiles to an unscaled DECIMAL",
+        "src/app.py:2 — the bound: `uv run pytest -q tests/test_app.py` printed 1 failed",
+    ],
+    ids=["code", "command"],
+)
+def test_reproduced_a_command_shown_only_in_evidence_is_never_run(tmp_path, evidence):
+    """S-0127/D-1 (S-0127/A-5): a finding with no `repro.command` is never
+    re-run, whatever its evidence shows in backticks: code a shell refuses
+    would exit 2 and block on nothing the candidate did. It is advisory."""
 
     _app(tmp_path)
-    evidence = (
-        "src/app.py:2 — the bound: `uv run pytest -q tests/test_app.py` printed 1 failed, "
-        "and `echo` printed nothing"
-    )
     document = CriticDocument.model_validate(
         {"rows": [], "findings": [finding(evidence=evidence, repro=None)]}
     )
@@ -252,8 +256,9 @@ def test_reproduced_the_evidence_command_stands_in_for_a_missing_repro(tmp_path)
 
     decision = decide(document, {}, tmp_path, "major", reproduce=rerun)
 
-    assert rerun.calls == [(["uv run pytest -q tests/test_app.py"], {})]
-    assert decision.blocked is True
+    assert rerun.calls == []
+    assert decision.blocked is False
+    assert decision.advisory == decision.kept
 
 
 def test_reproduced_a_kept_probe_is_handed_and_a_dropped_one_refuses(tmp_path):
@@ -291,6 +296,23 @@ def test_reproduced_a_kept_probe_is_handed_and_a_dropped_one_refuses(tmp_path):
     assert [one.id for one in decision.advisory] == ["F3", "F4"]
 
 
+def test_reproduced_a_probe_its_command_names_is_kept_beside_its_file(tmp_path):
+    """S-0127/D-10: the probes kept from the critic's copy are every one a
+    re-run asks for, the one `repro.file` names and each its command names,
+    so a command running a wrapper around its probe is not refused for want
+    of the wrapper."""
+
+    (tmp_path / "probes").mkdir()
+    (tmp_path / "probes" / "run.sh").write_text('python probes/edge.py "$1"\n')
+    (tmp_path / "probes" / "edge.py").write_text("raise SystemExit(1)\n")
+    repro = {"command": "sh probes/run.sh range", "file": "probes/edge.py"}
+    document = CriticDocument.model_validate({"rows": [], "findings": [finding(repro=repro)]})
+
+    kept = critic_module._keep_probes(tmp_path, document)
+
+    assert sorted(kept) == ["probes/edge.py", "probes/run.sh"]
+
+
 def test_reproduced_a_pytest_selector_names_its_probe_file(tmp_path):
     """S-0127/D-10: a command selecting a test inside a probe names the probe
     file, not the file with its `::` selector, so the kept probe is handed and
@@ -307,24 +329,6 @@ def test_reproduced_a_pytest_selector_names_its_probe_file(tmp_path):
     decision = decide(document, {}, tmp_path, "major", reproduce=rerun, probes=kept)
 
     assert rerun.calls == [([command], kept)]
-    assert decision.blocked is True
-
-
-def test_reproduced_a_backticked_citation_is_not_the_evidence_command(tmp_path):
-    """S-0127/D-1: with no `repro.command`, a backticked span that is only a
-    `path:line` or `path:start-end` citation is passed over for the command
-    after it."""
-
-    _app(tmp_path)
-    evidence = "At `src/app.py:2` and `src/app.py:1-3`, `uv run pytest -q` printed 1 failed"
-    document = CriticDocument.model_validate(
-        {"rows": [], "findings": [finding(evidence=evidence, repro=None)]}
-    )
-    rerun = Rerun()
-
-    decision = decide(document, {}, tmp_path, "major", reproduce=rerun)
-
-    assert rerun.calls == [(["uv run pytest -q"], {})]
     assert decision.blocked is True
 
 
@@ -389,60 +393,39 @@ def test_reproduced_a_rerun_that_could_not_happen_is_advisory(tmp_path, reproduc
         assert "the judge checkout would not open" in recorded["rerun"]["tail"]
 
 
-@pytest.mark.parametrize(("exit_code", "blocks"), [(1, True), (0, False)])
-def test_reproduced_an_owned_row_blocks_on_its_evidence_command(tmp_path, exit_code, blocks):
-    """S-0127/D-1: an owned row's located `violated` verdict re-runs the
-    command its evidence carries with output; a failing one blocks, a
-    passing one is recorded advisory with its re-run."""
+@pytest.mark.parametrize("evidence", [LOCATED, COMMAND], ids=["citation", "command"])
+def test_reproduced_an_owned_rows_breach_blocks_only_through_a_finding(tmp_path, evidence):
+    """S-0127/D-1 (S-0127/A-5): a row carries no repro, so an owned row's
+    located `violated` verdict is advisory and nothing is re-run for it,
+    whatever its evidence shows; the breach blocks through a finding that
+    names the row and whose repro fails."""
 
     _app(tmp_path)
-    document = CriticDocument.model_validate(
-        {"rows": [{"row": OWNED, "verdict": "violated", "evidence": COMMAND}], "findings": []}
-    )
-    rerun = Rerun(default=exit_code)
+    breach = {"row": OWNED, "verdict": "violated", "evidence": evidence}
+    alone = CriticDocument.model_validate({"rows": [breach], "findings": []})
+    named = CriticDocument.model_validate({"rows": [breach], "findings": [finding(row=OWNED)]})
+    rerun = Rerun()
 
-    decision = decide(document, {OWNED: True}, tmp_path, "major", reproduce=rerun)
+    advisory = decide(alone, {OWNED: True}, tmp_path, "major", reproduce=rerun)
+    unrun = list(rerun.calls)
+    blocked = decide(named, {OWNED: True}, tmp_path, "major", reproduce=rerun)
 
-    command = "uv run pytest -q tests/test_app.py"
-    assert rerun.calls == [([command], {})]
-    assert decision.blocked is blocks
-    assert [row.row for row in decision.advisory_rows] == ([] if blocks else [OWNED])
-    assert decision.rows == [
+    assert unrun == []
+    assert advisory.blocked is False
+    assert [row.row for row in advisory.advisory_rows] == [OWNED]
+    assert advisory.rows == [
         {
             "row": OWNED,
             "owned": True,
             "verdict": "violated",
             "located": True,
-            "blocks": blocks,
-            **({} if blocks else {"advisory": True}),
-            "rerun": {"command": command, "exit_code": exit_code, "tail": f"{command}: 1 failed"},
+            "blocks": False,
+            "advisory": True,
         }
     ]
-
-
-@pytest.mark.parametrize("first", ["command", "citation"])
-def test_reproduced_a_row_violated_twice_blocks_on_either_failing_rerun(tmp_path, first):
-    """S-0127/D-1: two located `violated` answers for one owned row are each
-    re-run, and the row blocks when either re-run fails, whichever came
-    first: an answer citing only a line never hides one whose command
-    fails."""
-
-    _app(tmp_path)
-    answers = {
-        "command": {"row": OWNED, "verdict": "violated", "evidence": COMMAND},
-        "citation": {"row": OWNED, "verdict": "violated", "evidence": LOCATED},
-    }
-    order = [answers[first], *(one for key, one in answers.items() if key != first)]
-    document = CriticDocument.model_validate({"rows": order, "findings": []})
-
-    decision = decide(document, {OWNED: True}, tmp_path, "major", reproduce=Rerun())
-
-    command = "uv run pytest -q tests/test_app.py"
-    assert decision.blocked is True
-    assert [row.evidence for row in decision.violated] == [COMMAND]
-    assert decision.advisory_rows == []
-    [recorded] = decision.rows
-    assert (recorded["blocks"], recorded["rerun"]["command"]) == (True, command)
+    assert rerun.calls == [([REPRO], {})]
+    assert blocked.blocked is True
+    assert [one.row for one in blocked.blockers] == [OWNED]
 
 
 def test_reproduced_the_per_call_prompt_says_only_a_failing_repro_blocks():
@@ -1394,7 +1377,6 @@ def test_one_call_stages_the_evidence_scrubs_the_author_and_keeps_named_probes(r
             "located": True,
             "blocks": False,
             "advisory": True,
-            "rerun": {"command": "", "exit_code": None, "tail": "not run: no command to re-run"},
         }
     ]
     assert [(f["kind"], f["severity"], f["verified"]) for f in record["findings"]] == [

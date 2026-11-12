@@ -78,7 +78,7 @@ from torve.domain.attempt import Finding
 from torve.domain.task import InheritedDecision, Task
 from torve.domain.vocabulary import FindingSeverity
 from torve.gates.context import NO_HOOKS, build_context
-from torve.gates.evidence import BACKTICKED, CITATION, CITED, citations, filter_findings, locate
+from torve.gates.evidence import CITATION, citations, filter_findings, locate
 from torve.gates.evidence_package import (
     CommandRun,
     EvidencePackage,
@@ -295,8 +295,9 @@ class Decision:
 
     `advisory` is every kept `weak_test` finding and every kept finding whose
     re-run did not fail, and `advisory_rows` every located `violated` row
-    whose re-run did not (S-0127/D-1, S-0127/D-2); `reruns` is each re-run the
-    engine made, beside the finding or row it measured."""
+    other than a LOCKED one, which has no repro to re-run (S-0127/D-1,
+    S-0127/A-5, S-0127/D-2); `reruns` is each re-run the engine made, beside
+    the finding it measured."""
 
     blocked: bool
     blockers: list[CriticFinding]
@@ -309,7 +310,7 @@ class Decision:
     rejected: list[CriticFinding] = field(default_factory=list)
     advisory: list[CriticFinding] = field(default_factory=list)
     advisory_rows: list[RowVerdict] = field(default_factory=list)
-    reruns: list[tuple[CriticFinding | RowVerdict, CommandRun]] = field(default_factory=list)
+    reruns: list[tuple[CriticFinding, CommandRun]] = field(default_factory=list)
 
     def rerun(self, one: CriticFinding | RowVerdict) -> CommandRun | None:
         """The engine's re-run of *one*, or None when it made none."""
@@ -374,30 +375,13 @@ def _anchor_near(anchor: tuple[str, int], previous: list[dict[str, Any]]) -> boo
     return False
 
 
-def _evidence_command(evidence: str) -> str:
-    """The first backticked command *evidence* carries with output after it
-    (S-0127/D-1), read as `locate` reads one, past any backticked span that
-    is only a `path:line` or `path:start-end` citation; empty when it
-    carries none."""
-
-    found = BACKTICKED.search(evidence)
-
-    while found is not None and CITED.fullmatch(found.group("command").strip()):
-        found = BACKTICKED.search(evidence, found.end("command") + 1)
-
-    if found is None or not found.group("rest").strip(" \t—-:"):
-        return ""
-
-    return found.group("command").strip()
-
-
 def _repro_command(finding: CriticFinding) -> str:
-    """The command a finding's re-run runs (S-0127/D-1): its `repro.command`,
-    else the first backticked command its evidence carries with output."""
+    """The command a finding's re-run runs (S-0127/D-1, S-0127/A-5): its
+    `repro.command` alone. A command its evidence shows is never run: a
+    backticked span may as well be code, which a shell refuses with an exit
+    that would block."""
 
-    command = finding.repro.command.strip() if finding.repro is not None else ""
-
-    return command or _evidence_command(finding.evidence)
+    return finding.repro.command.strip() if finding.repro is not None else ""
 
 
 def _probe_names(command: str, named: str | None) -> list[str]:
@@ -569,14 +553,14 @@ def decide(
     What is left blocks by what ran (S-0127/D-1, S-0127/D-2). A `gaming`
     finding at or above *blocks_at*, and a LOCKED row `violated` with evidence
     that locates, block on that evidence alone. A `weak_test` finding never
-    blocks and is never re-run. Any other finding at or above *blocks_at*,
-    and any other `violated` row whose evidence locates, blocks only when
-    *reproduce* re-runs its command against the candidate — the finding's
-    `repro.command`, else the first backticked command its evidence carries
-    with output — with the probes *probes* kept for it, and the command exits
+    blocks and is never re-run. Any other finding at or above *blocks_at*
+    blocks only when *reproduce* re-runs its `repro.command` against the
+    candidate, with the probes *probes* kept for it, and the command exits
     non-zero. An exit of 0, 126 or 127, a timeout, a refused repro, a re-run
-    that could not happen and no command are recorded advisory; with no
-    *reproduce*, nothing is re-run and all of them are.
+    that could not happen and no `repro` are recorded advisory; with no
+    *reproduce*, nothing is re-run and all of them are. Any other `violated`
+    row whose evidence locates is recorded advisory: a row carries no repro,
+    so its breach blocks through a finding that names it (S-0127/A-5).
 
     A blocker or a blocking row is re-raised when it repeats an earlier
     round's blocker (`repeats_blocker`, S-0127/D-4): one of *earlier*, every
@@ -590,11 +574,11 @@ def decide(
     lock = set(locked)
     carried: list[CriticFinding] = []
     rejected_findings: list[CriticFinding] = []
-    reruns: list[tuple[CriticFinding | RowVerdict, CommandRun]] = []
+    reruns: list[tuple[CriticFinding, CommandRun]] = []
     # One review re-runs one command over the same probes once.
     measured: dict[tuple[str, frozenset[tuple[str, str | None]]], CommandRun] = {}
 
-    def rerun(one: CriticFinding | RowVerdict, command: str, named: str | None) -> CommandRun:
+    def rerun(one: CriticFinding, command: str, named: str | None) -> CommandRun:
         """*one*'s *command* re-run with the probes it names, and recorded."""
 
         if not command:
@@ -695,25 +679,11 @@ def decide(
             and _near_rejected(verdict.evidence, spots, root)
         )
         breach = verdict.verdict == "violated" and located and not rejected_row
-        run: CommandRun | None = None
-
-        # S-0127/D-1: a LOCKED row's breach blocks on located evidence alone,
-        # the owner's rules rarely reproducing by a command; any other row's
-        # evidence command is re-run, and the breach blocks when that fails.
-        # Each located breach of the row is re-run, so one citing only a line
-        # never hides another whose command fails.
-        if breach and owned and row not in lock:
-            breaches = [
-                (one, rerun(one, _evidence_command(one.evidence), None))
-                for one in document.rows
-                if one.row == row and weight(one) == weight(verdict)
-            ]
-            verdict, run = next(
-                ((one, measured) for one, measured in breaches if _failed(measured)),
-                next((one, measured) for one, measured in breaches if one is verdict),
-            )
-
-        blocks = breach and (run is None or _failed(run))
+        # S-0127/D-1 (S-0127/A-5): a LOCKED row's breach blocks on located
+        # evidence alone, the owner's rules rarely reproducing by a command;
+        # any other row carries no repro to re-run, so its breach is advisory
+        # and blocks only through a finding that names the row and reproduces.
+        blocks = breach and not (owned and row not in lock)
 
         if blocks:
             violated.append(verdict)
@@ -737,9 +707,6 @@ def decide(
 
         if breach and not blocks:
             entry["advisory"] = True
-
-        if run is not None:
-            entry["rerun"] = asdict(run)
 
         recorded.append(entry)
 
@@ -940,7 +907,7 @@ def revision_threads(verdict: CriticVerdict, root: Path) -> list[dict[str, Any]]
         threads.append(_anchored(finding.evidence, verdict.review_id, "\n".join(lines), root))
 
     for row in decision.violated:
-        lines = [_row_claim(row), "", row.evidence, *_rerun_lines(decision.rerun(row))]
+        lines = [_row_claim(row), "", row.evidence]
         threads.append(_anchored(row.evidence, verdict.review_id, "\n".join(lines), root))
 
     return threads
@@ -1040,9 +1007,10 @@ def build_critic_prompt(
 ## What blocks
 
 Only a repro that exits non-zero on the candidate can block. After you answer, the engine
-re-runs each finding's `repro.command`, else the backticked command its evidence shows output
-for, with the probe its `repro.file` names, and a violated row's evidence command the same way.
-A `gaming` finding and a LOCKED row's breach block on located evidence alone.
+re-runs each finding's `repro.command`, with the probes it names; a command shown only in
+evidence is never run. A violated row other than a LOCKED one blocks only through a finding
+that names the row and carries a repro. A `gaming` finding and a LOCKED row's breach block
+on located evidence alone.
 
 ## Inputs
 
@@ -1056,20 +1024,25 @@ A `gaming` finding and a LOCKED row's breach block on located evidence alone.
 
 
 def _keep_probes(copy: Path, document: CriticDocument | None) -> dict[str, str]:
-    """The probe files the critic's findings name as repros, read before the
-    copy dies; a path that leaves the copy, a link or a file over the cap is
-    left there."""
+    """The probe files the critic's findings name as repros, by `repro.file`
+    or in the command, read before the copy dies, so a re-run is handed every
+    probe `_probe_names` asks for; a path that leaves the copy, a link or a
+    file over the cap is left there."""
 
     if document is None:
         return {}
 
     root = copy.resolve()
     kept: dict[str, str] = {}
+    names = [
+        name
+        for finding in document.findings
+        if finding.repro is not None
+        for name in _probe_names(finding.repro.command, finding.repro.file)
+    ]
 
-    for finding in document.findings:
-        name = finding.repro.file if finding.repro is not None else None
-
-        if not name or name in kept:
+    for name in names:
+        if name in kept:
             continue
 
         path = copy / name

@@ -105,29 +105,29 @@ phasing:
       passes one over its own evidence sandbox on the scratch repository; `run_critic`
       hands it to `decide(..., reproduce=...)`. `decide` reads the S-0126/D-1 and
       S-0125/D-1 carries first, then calls it with the command of each remaining kept
-      finding at or above `blocks_at` whose kind is not `weak_test` (its `repro.command`,
-      else the first backticked command its evidence carries with output) and of each
-      `violated` row with located evidence, with the probe `repro.file` names. A non-zero
-      exit blocks. Anything else, and every `weak_test` finding, is recorded `advisory:
-      true` with the command, exit code and output tail. A kept `gaming` finding at
-      or above `blocks_at` and a `violated` verdict on a LOCKED row block on located
-      evidence without a re-run, as today. `ReviewItem` gains `kind`, `rerun_command`
-      and `rerun_exit`, each with a default, and `review_step` fills them from a critic
-      verdict's decision when it emits `review.recorded`; `pages/docs/architecture/record.md`,
-      which `scope.derived` pairs with `events.py`, lists event kinds and authority
-      only and does not change. `revision_threads` adds the re-run to each blocker's
-      thread, and `build_critic_prompt` says only a repro that exits non-zero on the
-      candidate can block; the frozen prompt does not change. A finding's anchor in
-      `critic._finding_anchor`, `review._finding_anchor`, `review_items` and `_anchored`
-      is its first citation that resolves. `blocker_fact` records each blocker's `kind`
-      and `row`. `decide` computes `reraised` by D-4 through `review.repeats_blocker`
-      and `review.claims_match` (D-11), and `review_step` escalates on a critic verdict's
-      `reraised` in place of `_anchor_reraised`, which stays for the classic reviewer;
-      the session-mode `revision_reraised` in `runner.py`, landed by phase 2, reads
-      the same through a one-line contingent write. Tests named `reproduced`, `blocks_on_reading`,
-      `weak_test` and `repeats_a_blocker` in `tests/test_critic.py` and `tests/test_review_run.py`
-      (`repeats_a_blocker` a Hypothesis property over spans, kinds and rows with T-0804's
-      shape among its examples), `rerun_item` in `tests/test_review_run.py` and `tests/test_events.py`
+      finding at or above `blocks_at` whose kind is not `weak_test` (its `repro.command`
+      alone, S-0127/A-5), with the probes it names; a `violated` row other than a
+      LOCKED one is advisory. A non-zero exit blocks. Anything else, and every `weak_test`
+      finding, is recorded `advisory: true` with the command, exit code and output
+      tail. A kept `gaming` finding at or above `blocks_at` and a `violated` verdict
+      on a LOCKED row block on located evidence without a re-run, as today. `ReviewItem`
+      gains `kind`, `rerun_command` and `rerun_exit`, each with a default, and `review_step`
+      fills them from a critic verdict's decision when it emits `review.recorded`;
+      `pages/docs/architecture/record.md`, which `scope.derived` pairs with `events.py`,
+      lists event kinds and authority only and does not change. `revision_threads`
+      adds the re-run to each blocker's thread, and `build_critic_prompt` says only
+      a repro that exits non-zero on the candidate can block; the frozen prompt does
+      not change. A finding's anchor in `critic._finding_anchor`, `review._finding_anchor`,
+      `review_items` and `_anchored` is its first citation that resolves. `blocker_fact`
+      records each blocker's `kind` and `row`. `decide` computes `reraised` by D-4
+      through `review.repeats_blocker` and `review.claims_match` (D-11), and `review_step`
+      escalates on a critic verdict's `reraised` in place of `_anchor_reraised`, which
+      stays for the classic reviewer; the session-mode `revision_reraised` in `runner.py`,
+      landed by phase 2, reads the same through a one-line contingent write. Tests
+      named `reproduced`, `blocks_on_reading`, `weak_test` and `repeats_a_blocker`
+      in `tests/test_critic.py` and `tests/test_review_run.py` (`repeats_a_blocker`
+      a Hypothesis property over spans, kinds and rows with T-0804's shape among its
+      examples), `rerun_item` in `tests/test_review_run.py` and `tests/test_events.py`
       (a critic review's items carry kind and re-run, an item written before them
       loads with the defaults), and the corpus cases in `tests/test_review_corpus.py`
       reading `blocked` from a reproduced finding. Nothing the re-run measures is

@@ -124,13 +124,13 @@ design:
     md: |
       After the critic answers, `decide` reads the carries S-0126/D-1 and S-0125/D-1 already
       make. It then asks for a re-run of each remaining kept finding at or above `blocks_at`
-      whose kind is not `weak_test`, and of each `violated` row with located evidence. The
-      command is the finding's `repro.command`, or else the first backticked command its
-      evidence carries with output after it. A row has no `repro`, so its evidence alone
-      names the command.
+      whose kind is not `weak_test`. The command is the finding's `repro.command` alone: a
+      command its evidence shows is never run, since a backticked span may be code a shell
+      refuses (S-0127/A-5). A row has no `repro`, so a `violated` row other than a LOCKED
+      one is advisory, and its breach blocks through a finding that names the row.
 
       `runner.reproduce(run, state, commands, probes)` runs them in a fresh gates sandbox
-      over a fresh judge checkout of the candidate. Each probe `repro.file` names is written
+      over a fresh judge checkout of the candidate. Each probe `repro.file` or the command names is written
       at its path first, from the text `_keep_probes` kept. A repro is a test command, so
       each command gets the timeout of the battery's own `acceptance` gate in the task's
       manifest (900 seconds in this repository), and all of one review's re-runs together

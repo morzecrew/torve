@@ -218,3 +218,56 @@ amendments:
       closed, so a nested gates daemon never shares its state volume with a second one, and
       it gets only what is left of the timeout and the clock. The corpus replay runs its
       repros through the same controls over a fresh copy of the candidate.
+  - id: A-5
+    at: '2026-11-12T20:18:35Z'
+    title: Only a repro is re-run
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          Under `review.mode: critic`, a kept finding at or above `review.blocks_at`
+          and a `violated` row with located evidence block only when their repro fails
+          on re-run, except that a kept `gaming` finding at or above `review.blocks_at`
+          and a `violated` verdict on a LOCKED row still block on located evidence
+          alone: the command is the finding's `repro.command`, else the first backticked
+          command its evidence carries with output after it, and the engine re-runs
+          it against the candidate through `runner.reproduce` (D-10); a non-zero exit
+          blocks, while a zero exit, an exit of 126 or 127, a timeout or no command
+          records the finding or row `advisory: true` in the review record with the
+          command, its exit code and its output tail, never blocking; the S-0125/D-1
+          and S-0126/D-1 carries are read first and a carried finding is not re-run,
+          `build_critic_prompt` says that only a repro exiting non-zero on the candidate
+          can block, and a blocker's revision thread carries the command, its exit
+          code and the re-run's output
+        after: >-
+          Under `review.mode: critic`, a kept finding at or above `review.blocks_at`
+          blocks only when its repro fails on re-run, except that a kept `gaming`
+          finding at or above `review.blocks_at` and a `violated` verdict on a LOCKED
+          row block on located evidence alone: the command is the finding's `repro.command`
+          alone, never a command its evidence shows, and the engine re-runs it against
+          the candidate through `runner.reproduce` (D-10); a non-zero exit blocks,
+          while a zero exit, an exit of 126 or 127, a timeout or no `repro` records
+          the finding `advisory: true` in the review record with the command, its
+          exit code and its output tail, never blocking; a `violated` verdict with
+          located evidence on any other row is recorded `advisory: true`, since a
+          row carries no repro, and that breach blocks through a finding that names
+          the row; the S-0125/D-1 and S-0126/D-1 carries are read first and a carried
+          finding is not re-run, `build_critic_prompt` says that only a repro exiting
+          non-zero on the candidate can block and that a command shown only in evidence
+          is never run, and a blocker's revision thread carries the command, its exit
+          code and the re-run's output
+      - subject: D-1
+        field: fingerprint
+        after: eab62c14b18198eb/76af072f74b74d68
+    md: |
+      Settled by the owner on 2026-11-12, choosing to re-run only a repro. The fallback to the
+      first backticked command in a finding's evidence ran code as well as commands: in the
+      bed, 50 kept findings at or above the bar carried 44 repros, 4 nothing, and 2 a
+      backticked span the fallback would run, both code (`cast(column, Numeric)`, an `if`
+      statement). One of them ran in the S-0127 engine's own bed run, where the shell refused
+      it with exit 2 and blocked a unit on nothing the candidate did. A row has no `repro`, so
+      a row's evidence fed the same fallback; in the bed every one of 20 `violated` rows also
+      had a finding naming the row with its own repro, so a row's breach now blocks through
+      that finding, and a LOCKED row's on located evidence as before. Building this also
+      found `_keep_probes` kept only the probe `repro.file` names, so a command running a
+      wrapper probe was refused; it now keeps every probe a re-run asks for (D-10).
