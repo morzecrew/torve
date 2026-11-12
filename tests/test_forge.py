@@ -13,6 +13,7 @@ import torve.adapters.vcs.git as git_module
 from torve.adapters.vcs.git import GhScm, GitVcs
 from torve.application.forge import DocumentLanding, compose_document_pr, compose_pr
 from torve.domain.attempt import GateResult
+from torve.domain.events import EventRecord, ReviewItem
 from torve.domain.task import InheritedDecision, Scope, Task
 
 
@@ -836,6 +837,234 @@ def test_a_phase_whose_landing_file_rides_in_the_branch_counts_as_landed(tmp_pat
     assert complete
     assert title == "S-0090: Landing by document · 2/2 phases"
     assert "## T-8401 · phase 1" in body
+
+
+# ....................... #
+# The critic's advisory findings in the document's pull request (S-0127/D-13):
+# listed by what the engine recorded of them, never by what the critic said.
+
+HEADING = "**The critic's advisory findings**"
+
+
+def advisory_item(**fields: object) -> ReviewItem:
+    """One finding as a critic review's `review.recorded` item carries it
+    (S-0127/D-14), with a claim and evidence no body may repeat."""
+
+    return ReviewItem.model_validate(
+        {
+            "severity": "major",
+            "claim": "the caller passes None and the parser trusts it",
+            "evidence": "src/app.py:12 — `parse(None)` raises TypeError",
+            **fields,
+        }
+    )
+
+
+def review_recorded(
+    target: str,
+    review: str,
+    items: list[ReviewItem],
+    at: str,
+    trigger: str = "task_gated",
+) -> EventRecord:
+    """One review on the board, as the review stage records it (S-0101/D-4)."""
+
+    import uuid
+    from datetime import datetime
+
+    from torve.domain.events import ActorKind, EventKind, SubjectType
+
+    when = datetime.fromisoformat(at)
+
+    return EventRecord(
+        id=uuid.uuid4().hex,
+        rev=1,
+        created_at=when,
+        last_update_at=when,
+        kind=EventKind.REVIEW_RECORDED,
+        partition="torve/torve",
+        subject_type=SubjectType.TASK,
+        subject_id=target,
+        actor_kind=ActorKind.WORKER,
+        actor_id="worker-1",
+        payload={
+            "review_id": review,
+            "trigger": trigger,
+            "findings": len(items),
+            "blockers": 0,
+            "items": [item.model_dump(mode="json") for item in items],
+        },
+    )
+
+
+def test_advisory_findings_are_listed_under_their_own_task_without_their_claims(tmp_path: Path):
+    """S-0127/D-13, S-0121/D-34: each finding the landing's last review
+    recorded is listed under its own task by severity, kind, anchor and the
+    engine's re-run, and no claim or evidence text reaches the body."""
+
+    root = corpus_with_phasing(tmp_path)
+    found = [
+        advisory_item(
+            kind="bug",
+            path="src/app.py",
+            line=12,
+            rerun_command="uv run pytest -q tests/test_app.py",
+            rerun_exit=0,
+        ),
+        advisory_item(
+            severity="minor",
+            kind="weak_test",
+            claim="the test proves nothing about the error",
+            evidence="tests/test_app.py:4 — the test only asserts True",
+        ),
+    ]
+    landings = [
+        DocumentLanding(
+            task=phase_task("T-8401", 1, "one"),
+            results=[GateResult(name="scope", outcome="pass", state="blocking", duration_s=0.2)],
+            advisory=found,
+        ),
+        DocumentLanding(task=phase_task("T-8403", 2, "two")),
+    ]
+
+    _, body = compose_document_pr("S-0090", landings, root)
+    own = body[body.index("## T-8401") : body.index("## T-8403")]
+
+    assert f"- gates: all 1 pass\n\n{HEADING}\n" in own
+    assert (
+        "- major · bug · `src/app.py:12` · re-run `uv run pytest -q tests/test_app.py` exit 0\n"
+        in own
+    )
+    assert "- minor · weak_test\n" in own
+    # The other landing recorded none and lists none.
+    assert body.count(HEADING) == 1
+
+    for item in found:
+        assert item.claim not in body
+        assert item.evidence not in body
+
+
+def test_advisory_a_landing_with_none_lists_nothing(tmp_path: Path):
+    """S-0127/D-13: a landing whose last review recorded no finding, or that
+    no review read, composes the body it composed before."""
+
+    root = corpus_with_phasing(tmp_path)
+    task = phase_task("T-8401", 1, "one")
+
+    _, body = compose_document_pr("S-0090", [DocumentLanding(task=task, advisory=[])], root)
+
+    assert "advisory" not in body
+    assert body == compose_document_pr("S-0090", [DocumentLanding(task=task)], root)[1]
+
+
+def test_advisory_a_re_run_is_one_code_span_and_a_missing_exit_says_so(tmp_path: Path):
+    """S-0127/D-13, S-0121/D-34: a command the critic wrote reaches the body
+    as code, on one line, with no backtick of its own closing the span; a
+    re-run with no exit code says it has none, and a violated row with no
+    anchor is listed by severity and kind."""
+
+    root = corpus_with_phasing(tmp_path)
+    found = [
+        advisory_item(
+            kind="bug",
+            path="src/torve/__init__.py",
+            rerun_command="python -c 'print(`x`)'\n  && true",
+            rerun_exit=None,
+        ),
+        advisory_item(kind="contract", claim="S-0090/D-1 is violated"),
+    ]
+    landing = DocumentLanding(task=phase_task("T-8401", 1, "one"), advisory=found)
+
+    _, body = compose_document_pr("S-0090", [landing], root)
+
+    assert (
+        "- major · bug · `src/torve/__init__.py` · re-run "
+        "``python -c 'print(`x`)' && true`` no exit code\n" in body
+    )
+    assert "- major · contract\n" in body
+    assert "S-0090/D-1 is violated" not in body
+
+
+def test_advisory_findings_keep_the_body_under_the_forges_limit(tmp_path: Path):
+    """S-0127/D-13: many advisory findings are cut with the rest of the body,
+    under the limit the forge refuses past, saying where the record is."""
+    from torve.application.forge import BODY_LIMIT
+
+    root = corpus_with_phasing(tmp_path)
+    many = [
+        advisory_item(
+            kind="bug",
+            path=f"src/module_{n}.py",
+            line=n + 1,
+            rerun_command="uv run pytest -q " + " ".join(f"tests/test_{k}.py" for k in range(20)),
+            rerun_exit=0,
+        )
+        for n in range(100)
+    ]
+    landings = [
+        DocumentLanding(task=phase_task(f"T-{8500 + n}", 1, "one"), advisory=many)
+        for n in range(12)
+    ]
+
+    _, body = compose_document_pr("S-0090", landings, root)
+
+    assert len(body) <= BODY_LIMIT
+    assert body.endswith("under `.torve/specs/S-0090/execution/`.")
+    assert "- major · bug · `src/module_0.py:1` · re-run `uv run pytest -q" in body
+
+
+def test_advisory_findings_are_read_from_each_tasks_last_task_gated_review(tmp_path: Path):
+    """S-0127/D-13, S-0127/D-14: the publisher reads each task's advisory
+    findings from the board's `review.recorded` items, so a host whose stream
+    is empty lists them too. Only the task's last task-gated review counts:
+    an earlier one read an attempt the revision replaced, and a pull-request
+    review stops nothing."""
+    import yaml
+
+    from torve.cli.merge import _document_pr_text
+    from torve.gates.sabotage import Repo
+
+    root = corpus_with_phasing(tmp_path)
+    branch = "torve/S-0090"
+
+    for task in (phase_task("T-8401", 1, "one"), phase_task("T-8403", 2, "two")):
+        contract = root / ".torve" / "tasks" / task.id / "contract.yaml"
+        contract.parent.mkdir(parents=True)
+        contract.write_text(yaml.safe_dump(task.model_dump(mode="json")), encoding="utf-8")
+
+    repo = Repo(root)
+    repo.git("init", "-q", "-b", "main")
+    repo.git("config", "user.name", "T")
+    repo.git("config", "user.email", "t@example.invalid")
+    repo.git("checkout", "-q", "-b", branch)
+    repo.write(
+        ".torve/specs/S-0090/execution/T-8401-1-20261010T000000Z.yaml",
+        f"task: T-8401\ncommit: {'a' * 40}\n",
+    )
+    repo.commit("torve(T-8401): landing of attempt 1")
+
+    replaced = advisory_item(severity="blocker", kind="bug", path="src/old.py", line=3)
+    landed = advisory_item(
+        kind="bug", path="src/app.py", line=12, rerun_command="uv run pytest -q", rerun_exit=0
+    )
+    reported = advisory_item(severity="nit", kind="style", path="src/app.py", line=1)
+    records = [
+        review_recorded("T-8401", "T-8411", [replaced], "2026-10-10T00:00:00+00:00"),
+        review_recorded("T-8401", "T-8412", [landed], "2026-10-10T01:00:00+00:00"),
+        review_recorded(
+            "T-8401", "T-8413", [reported], "2026-10-10T02:00:00+00:00", trigger="pull_request"
+        ),
+        review_recorded("T-8403", "T-8414", [], "2026-10-10T03:00:00+00:00"),
+    ]
+
+    _, body, _ = _document_pr_text(root, "T-8403", branch, tip="c" * 40, records=records)
+    own = body[body.index("## T-8401") : body.index("## T-8403")]
+
+    assert "- major · bug · `src/app.py:12` · re-run `uv run pytest -q` exit 0" in own
+    assert body.count(HEADING) == 1
+    assert "src/old.py" not in body
+    assert "- nit" not in body
+    assert landed.claim not in body
 
 
 # ....................... #
