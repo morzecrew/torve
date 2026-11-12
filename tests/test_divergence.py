@@ -206,6 +206,27 @@ def test_a_repository_with_no_remote_is_pinned_by_its_checkout_name(repo, tmp_pa
     assert pinned["repo"] == repo.root.name
 
 
+def test_a_repository_with_its_metadata_kept_apart_is_pinned_by_that_metadata(tmp_path):
+    """`--separate-git-dir` leaves no `.git` directory to read a checkout's name
+    from, and nothing records the checkout: the metadata's own name stands in."""
+
+    (tmp_path / "meta").mkdir()
+    subprocess.run(
+        [
+            "git",
+            "init",
+            "-q",
+            "--separate-git-dir",
+            str(tmp_path / "meta" / "widget.git"),
+            str(tmp_path / "checkout"),
+        ],
+        check=True,
+    )
+    pin = seed(tmp_path / "checkout", TASK_ID, base="0" * 40)
+
+    assert json.loads(pin.read_text())["repo"] == "widget"
+
+
 def test_a_pin_that_cannot_be_derived_is_refused_at_write_time(tmp_path):
     (tmp_path / ".torve" / "tasks" / TASK_ID).mkdir(parents=True)
     (tmp_path / "src").mkdir()

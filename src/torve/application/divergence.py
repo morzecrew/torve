@@ -135,11 +135,15 @@ def _pin(root: Path) -> dict[str, str]:
         trimmed = remote.removesuffix(".git").rstrip("/")
         parts = trimmed.replace(":", "/").split("/")
         repo = "/".join(parts[-2:]) if len(parts) >= 2 else ""
-    else:
-        # No remote: the checkout's own name, the one the store keys a
-        # repository on without one; a linked worktree's is its main checkout's.
-        common = _git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
-        repo = Path(common).parent.name if common else ""
+    elif common := _git(root, "rev-parse", "--path-format=absolute", "--git-common-dir"):
+        # No remote: the main checkout's name, the one the store keys a
+        # repository on without one, which a linked worktree shares. Metadata
+        # kept apart (`--separate-git-dir`) names nothing beside it, so it is
+        # named after its own directory, `widget.git` as `widget`.
+        metadata = Path(common)
+        repo = (
+            metadata.parent.name if metadata.name == ".git" else metadata.name.removesuffix(".git")
+        )
 
     return {"repo": repo, "base": _git(root, "rev-parse", "HEAD")}
 
