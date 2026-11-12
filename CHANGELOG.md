@@ -62,6 +62,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- An agent's `torve log` in a repository with no remote is no longer refused with "log
+  carries no repo". The log's pin now names the repository by its checkout's directory,
+  as the store already does. An agent in such a repository could not record a divergence
+  at all.
+
 - A review round that rejects a bot's claim with a recorded reason is no longer blocked by
   the critic's findings on that claim. They are recorded as non-blocking. Such a round used
   to be blocked until it escalated at its poison ceiling.
