@@ -67,7 +67,7 @@ from torve.domain.attempt import Finding, GateResult
 from torve.domain.states import EscalationReason, TaskState
 from torve.domain.task import CONTRACT_SCHEMA_VERSION, Budget, InheritedDecision, Task
 from torve.gates.context import NO_HOOKS, GitError, git
-from torve.gates.evidence import CITATION, CITED, citations, filter_findings, locate
+from torve.gates.evidence import CITATION, CITED, citation_problem, citations, filter_findings
 
 # ----------------------- #
 
@@ -1693,15 +1693,11 @@ BLOCKER_ANCHORS_MARKER = " anchors="
 def _citation_locates(path: str, start: int, end: int, root: Path) -> bool:
     """Whether one citation is a line or range `locate` accepts under *root*.
 
-    The whole *path* must be read: `locate` splits a span at ` — ` or ` - ` and
-    would accept a prefix, which is not the path the evidence cited."""
+    The whole *path* and range are read: `locate` splits a span at ` — ` or
+    ` - ` and would accept a prefix, which is not the path the evidence
+    cited, and a filename holding one of them is still the file's name."""
 
-    span = f"{path}:{start}" if end == start else f"{path}:{start}-{end}"
-
-    if span.startswith("`") or span.split(" — ")[0].split(" - ")[0].strip() != span:
-        return False
-
-    return locate(span, root) is None
+    return not path.startswith("`") and citation_problem(path, start, end, root) is None
 
 
 def located_spans(evidence: str, root: Path) -> list[tuple[str, int, int]]:

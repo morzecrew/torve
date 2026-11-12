@@ -210,6 +210,21 @@ def test_revision_off_is_the_default_and_session_revision_is_a_mode(tmp_path: Pa
         ReviewConfig(revision="resume")  # type: ignore[arg-type]
 
 
+def test_revision_off_unquoted_is_off_not_a_yaml_bool(tmp_path: Path):
+    """S-0127/D-5: YAML 1.1 loads an unquoted `revision: off` as False, which
+    is read as the `off` it was written as; any other boolean is still
+    refused by the field's vocabulary."""
+
+    from torve.config.runconfig import ReviewConfig
+
+    config = load(tmp_path, "\n".join(["review:", '  "on": [task_gated]', "  revision: off"]))
+
+    assert config.review.revision == "off"
+
+    with pytest.raises(ValidationError):
+        ReviewConfig(revision=True)  # type: ignore[arg-type]
+
+
 def test_revision_off_spends_one_round_unless_a_number_is_named():
     """S-0127/D-5: under `off`, the default, a surviving blocker buys one fresh
     attempt in either mode, so a second surviving blocker escalates; a

@@ -55,7 +55,7 @@ def locate(evidence: str, root: Path) -> str | None:
     if backticked and backticked.group("rest").strip().strip("—-:").strip():
         return None
 
-    if any(_problem(path, start, end, root) is None for path, start, end in cited):
+    if any(citation_problem(path, start, end, root) is None for path, start, end in cited):
         return None
 
     citation = evidence.split(" — ")[0].split(" - ")[0].strip()
@@ -63,10 +63,10 @@ def locate(evidence: str, root: Path) -> str | None:
 
     if found:
         start = int(found.group("start"))
-        return _problem(found.group("path"), start, int(found.group("end") or start), root)
+        return citation_problem(found.group("path"), start, int(found.group("end") or start), root)
 
     if cited:
-        return _problem(*cited[0], root)
+        return citation_problem(*cited[0], root)
 
     if backticked:
         return "evidence is a command with no output — the output is the evidence"
@@ -109,13 +109,13 @@ def _extend_path(evidence: str, match: re.Match[str], start: int, end: int, root
     for index in range(len(words)):
         candidate = " ".join([*words[index:], match.group("path")]).lstrip("`'\"([")
 
-        if _problem(candidate, start, end, root) is None:
+        if citation_problem(candidate, start, end, root) is None:
             return candidate
 
     return match.group("path")
 
 
-def _problem(path: str, start: int, end: int, root: Path) -> str | None:
+def citation_problem(path: str, start: int, end: int, root: Path) -> str | None:
     """The problem with lines *start* to *end* of *path*, read whole, or None
     when they are real lines of a file under *root*."""
 

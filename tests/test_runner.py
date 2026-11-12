@@ -5797,7 +5797,8 @@ class _ReproRuntime:
     """A gates sandbox that records how it was opened, what the checkout
     held when it was, and what ran in it. An outcome may differ by mount —
     `{"ro": ..., "rw": ...}` — and *writes* names the files a command writes
-    when its mount lets it."""
+    when its mount lets it. Like docker, it refuses a second live sandbox
+    under one name."""
 
     def __init__(
         self,
@@ -5816,6 +5817,9 @@ class _ReproRuntime:
 
     def create(self, spec, workspace):
         from torve.application.ports import SandboxHandle
+
+        if any(live.name == spec.name for live, _ in self._opened.values()):
+            raise RuntimeError(f"Conflict. The container name {spec.name!r} is already in use")
 
         self.specs.append(spec)
         self.mounted = sorted(
@@ -5855,6 +5859,7 @@ class _ReproRuntime:
 
     def destroy(self, handle):
         self.destroyed.append(handle.id)
+        del self._opened[handle.id]
 
     def resolve_image(self, image):
         return None
@@ -6041,6 +6046,26 @@ def test_reproduce_a_denied_write_is_measured_over_a_writable_mount(tmp_path):
     assert opener.removed == [TASK_ID]
 
 
+def test_reproduce_the_writable_run_is_a_sandbox_of_its_own(tmp_path):
+    """S-0127/D-10: the writable run opens while the read-only sandbox is
+    still up, so it takes a name of its own — a runtime that holds one live
+    sandbox per name, as docker does, would refuse the read-only one's — and
+    both are removed when the repro returns."""
+
+    from torve.application.runner import _gates_spec, reproduce
+
+    runtime = _ReproRuntime({"uv run pytest -q": {"ro": (1, DENIED), "rw": (1, "1 failed")}})
+    run, state, opener = _repro_run(tmp_path, runtime)
+
+    [one] = reproduce(run, state, ["uv run pytest -q"], {})
+
+    assert (one.exit_code, one.tail) == (1, "1 failed")
+    name = _gates_spec(run, state).name
+    assert [spec.name for spec in runtime.specs] == [name, f"{name}-rw"]
+    assert sorted(runtime.destroyed) == ["repro-1", "repro-2"]
+    assert opener.removed == [TASK_ID]
+
+
 def test_reproduce_refuses_a_writable_run_that_changed_a_held_file(tmp_path):
     """S-0127/D-10: a writable run that changed a file the checkout held
     refuses the repro, so a command that edits the candidate measures
@@ -6143,6 +6168,47 @@ def test_rerun_bound_a_spent_clock_leaves_the_remaining_commands_unrun(tmp_path,
     assert runtime.ran == [("first", 120.0), ("second", 50.0)]
     assert [one.exit_code for one in runs] == [0, 0, None]
     assert runs[2].tail.startswith("not run")
+    assert opener.removed == [TASK_ID]
+
+
+def test_rerun_bound_the_writable_run_gets_what_the_read_only_run_left(tmp_path, monkeypatch):
+    """S-0127/D-10, D-9: the writable run a denied write earns is bounded by
+    what is left of the unit's clock once the read-only run has taken its
+    share, and it does not start when nothing is left: the command is then
+    recorded not run."""
+
+    from types import SimpleNamespace
+
+    from torve.application.runner import reproduce
+    from torve.domain.task import Budget
+
+    now = [1000.0]
+    monkeypatch.setattr(run_module, "time", SimpleNamespace(monotonic=lambda: now[0]))
+    monkeypatch.setattr(run_module, "_elapsed_minutes", lambda _state: 0.0)
+    denied = {"ro": (1, DENIED), "rw": (1, "1 failed")}
+
+    # Two minutes: the read-only run takes 70s of 120, the writable one gets
+    # the 50 left, and the next command finds none.
+    runtime = _ReproRuntime({"first": denied}, clock=now)
+    task = Task(id=TASK_ID, decisions=[], budget=Budget(wallclock_minutes=2))
+    run, state, _ = _repro_run(tmp_path / "left", runtime, task=task)
+
+    runs = reproduce(run, state, ["first", "second"], {})
+
+    assert runtime.ran == [("first", 120.0), ("first", 50.0)]
+    assert [one.exit_code for one in runs] == [1, None]
+
+    # One minute: the read-only run spends it all, so no writable run starts.
+    now[0] = 1000.0
+    spent = _ReproRuntime({"first": denied}, clock=now)
+    task = Task(id=TASK_ID, decisions=[], budget=Budget(wallclock_minutes=1))
+    run, state, opener = _repro_run(tmp_path / "spent", spent, task=task)
+
+    [one] = reproduce(run, state, ["first"], {})
+
+    assert spent.ran == [("first", 60.0)]
+    assert [spec.workspace_read_only for spec in spent.specs] == [True]
+    assert (one.exit_code, one.tail) == (None, "not run: the unit's clock is spent")
     assert opener.removed == [TASK_ID]
 
 

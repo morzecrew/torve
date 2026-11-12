@@ -71,7 +71,6 @@ from torve.application.review import (
     tree_snapshot,
 )
 from torve.base import naming
-from torve.base.shell import clip
 from torve.config import layout
 from torve.config.manifest import DEFAULT_TEST_RUN, Manifest, TestsConfig, load_manifest
 from torve.config.runconfig import RunnerConfig, image_for, tier_for
@@ -79,9 +78,8 @@ from torve.domain.attempt import Finding
 from torve.domain.task import InheritedDecision, Task
 from torve.domain.vocabulary import FindingSeverity
 from torve.gates.context import NO_HOOKS, build_context
-from torve.gates.evidence import BACKTICKED, CITATION, citations, filter_findings, locate
+from torve.gates.evidence import BACKTICKED, CITATION, CITED, citations, filter_findings, locate
 from torve.gates.evidence_package import (
-    TAIL_BYTES,
     CommandRun,
     EvidencePackage,
     build_evidence,
@@ -91,7 +89,6 @@ from torve.gates.evidence_package import (
 from torve.gates.suite import archive_tree
 
 if TYPE_CHECKING:
-    from torve.application.runner import SandboxExecutor
     from torve.application.runstate import RunState
     from torve.application.threads import TriageDocument
 
@@ -278,8 +275,9 @@ Reproduce = Callable[[Sequence[str], Mapping[str, str | None]], list[CommandRun]
 NOT_RUNNABLE = frozenset({126, 127})
 
 #: A path under the probe directory a command names, which the re-run must
-#: be handed from the critic's copy or refuse (S-0127/D-10).
-_NAMED_PROBE = re.compile(r"(?<![\w./-])(?:\./)?(probes/[^\s'\"`;|&<>()]+)")
+#: be handed from the critic's copy or refuse (S-0127/D-10). It ends at a
+#: colon, so a pytest selector's `::test_bug` is not read into the path.
+_NAMED_PROBE = re.compile(r"(?<![\w./-])(?:\./)?(probes/[^\s'\"`;|&<>():]+)")
 
 
 @dataclass(frozen=True)
@@ -378,9 +376,14 @@ def _anchor_near(anchor: tuple[str, int], previous: list[dict[str, Any]]) -> boo
 
 def _evidence_command(evidence: str) -> str:
     """The first backticked command *evidence* carries with output after it
-    (S-0127/D-1), read as `locate` reads one; empty when it carries none."""
+    (S-0127/D-1), read as `locate` reads one, past any backticked span that
+    is only a `path:line` or `path:start-end` citation; empty when it
+    carries none."""
 
     found = BACKTICKED.search(evidence)
+
+    while found is not None and CITED.fullmatch(found.group("command").strip()):
+        found = BACKTICKED.search(evidence, found.end("command") + 1)
 
     if found is None or not found.group("rest").strip(" \t—-:"):
         return ""
@@ -692,14 +695,24 @@ def decide(
             and _near_rejected(verdict.evidence, spots, root)
         )
         breach = verdict.verdict == "violated" and located and not rejected_row
+        run: CommandRun | None = None
+
         # S-0127/D-1: a LOCKED row's breach blocks on located evidence alone,
         # the owner's rules rarely reproducing by a command; any other row's
         # evidence command is re-run, and the breach blocks when that fails.
-        run = (
-            rerun(verdict, _evidence_command(verdict.evidence), None)
-            if breach and owned and row not in lock
-            else None
-        )
+        # Each located breach of the row is re-run, so one citing only a line
+        # never hides another whose command fails.
+        if breach and owned and row not in lock:
+            breaches = [
+                (one, rerun(one, _evidence_command(one.evidence), None))
+                for one in document.rows
+                if one.row == row and weight(one) == weight(verdict)
+            ]
+            verdict, run = next(
+                ((one, measured) for one, measured in breaches if _failed(measured)),
+                next((one, measured) for one, measured in breaches if one is verdict),
+            )
+
         blocks = breach and (run is None or _failed(run))
 
         if blocks:
@@ -1559,9 +1572,10 @@ def replay_case(
     """One corpus case through the critic: the case is rebuilt as a base and
     a candidate in a scratch repository, its evidence package is measured in
     a sandbox over it as a gate pass would, and the critic judges it, its
-    repros re-run in that same evidence sandbox so a case reads `blocked` the
-    way a night would (S-0127/D-1). The scratch repository is removed
-    afterwards, whatever happened."""
+    repros re-run in sandboxes of that evidence spec, each over a fresh copy
+    of the candidate, so a case reads `blocked` the way a night would
+    (S-0127/D-1). The scratch repository is removed afterwards, whatever
+    happened."""
 
     from torve.application.runner import SandboxExecutor
 
@@ -1608,7 +1622,9 @@ def replay_case(
             "corpus",
             broker=broker,
             broker_handle=broker_handle,
-            reproduce=partial(_replay_reproduce, executor, repo, config.runtime.sandbox_timeout),
+            reproduce=partial(
+                _replay_reproduce, runtime, spec, repo, config.runtime.sandbox_timeout
+            ),
         )
 
     finally:
@@ -1616,53 +1632,31 @@ def replay_case(
 
 
 def _replay_reproduce(
-    executor: SandboxExecutor,
+    runtime: Runtime,
+    spec: SandboxSpec,
     repo: Path,
     timeout: float,
     commands: Sequence[str],
     probes: Mapping[str, str | None],
 ) -> list[CommandRun]:
     """A night's re-run over a corpus case's scratch repository (S-0127/D-1,
-    S-0127/D-10): a probe the critic's copy did not keep, or one at a path
-    that is not new under `probes/`, refuses the repro; otherwise each probe
-    is written, each command runs in a fresh evidence sandbox, and the probes
-    go again, so the next repro finds their paths new."""
+    S-0127/D-10): each repro gets a fresh copy of the candidate *repo*, where
+    `runner.reproduce_over` writes its probes and runs its commands under the
+    live re-run's controls — the same probe refusals, the read-only mount and
+    `REPRO_ENV`, the one writable run a denied write earns — and the copy
+    goes after, so nothing one repro wrote reaches the next."""
 
-    from torve.application.runner import _probe_refusal
+    from torve.application.runner import reproduce_over
 
-    def refused(why: str) -> list[CommandRun]:
-        return [
-            CommandRun(command=command, exit_code=None, tail=f"refused: {why}")
-            for command in commands
-        ]
-
-    written: list[Path] = []
+    copy = Path(tempfile.mkdtemp(prefix="repro-", dir=repo.parent))
 
     try:
-        for name, text in probes.items():
-            if text is None:
-                return refused(f"probe {name} was not kept from the critic's copy")
+        checkout = copy / repo.name
+        # Links stay links, so a probe path through one is refused as a
+        # judge checkout's would be.
+        shutil.copytree(repo, checkout, symlinks=True)
 
-            why = _probe_refusal(repo, name)
-
-            if why is not None:
-                return refused(why)
-
-            path = repo / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, encoding="utf-8")
-            written.append(path)
-
-        runs: list[CommandRun] = []
-
-        for command in commands:
-            code, output = executor(command, timeout)
-            runs.append(CommandRun(command=command, exit_code=code, tail=clip(output, TAIL_BYTES)))
-
-        return runs
+        return reproduce_over(runtime, spec, checkout, commands, probes, timeout)
 
     finally:
-        executor.close()
-
-        for path in written:
-            path.unlink(missing_ok=True)
+        shutil.rmtree(copy, ignore_errors=True)

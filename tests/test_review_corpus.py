@@ -580,6 +580,41 @@ def test_the_corpus_reads_blocked_from_a_reproduced_finding(tmp_path, monkeypatc
     assert sandbox.endswith("-evidence")
 
 
+def test_a_corpus_repro_runs_over_a_fresh_copy_and_leaves_nothing_for_the_next(tmp_path):
+    """S-0127/D-10: each corpus repro runs over a fresh copy of the
+    candidate, mounted read-only under `REPRO_ENV` as a night's re-run is,
+    and the copy goes after it: neither its probe nor a file its writable
+    run added reaches the next repro or the scratch repository."""
+
+    from test_runner import DENIED, _ReproRuntime
+
+    from torve.application.critic import _replay_reproduce
+    from torve.application.ports import SandboxSpec
+    from torve.application.runner import REPRO_ENV
+
+    scratch = tmp_path / "scratch"
+    (scratch / "repo" / "src").mkdir(parents=True)
+    (scratch / "repo" / "src" / "app.py").write_text("x = 1\n", encoding="utf-8")
+    runtime = _ReproRuntime(
+        {"uv run tool": {"ro": (1, DENIED), "rw": (0, "ok")}},
+        writes={"uv run tool": {"build.log": "left behind\n"}},
+    )
+    spec = SandboxSpec(name="corpus-evidence", image="img", labels={}, timeout_s=60.0)
+    probe = {"probes/test_x.py": "def test_x():\n    pass\n"}
+
+    first = _replay_reproduce(runtime, spec, scratch / "repo", 60.0, ["uv run tool"], probe)
+    second = _replay_reproduce(runtime, spec, scratch / "repo", 60.0, ["uv run pytest -q"], probe)
+
+    assert [one.exit_code for one in [*first, *second]] == [0, 0]
+    # The second repro found its probe's path new and nothing the first wrote.
+    assert runtime.mounted == ["probes/test_x.py", "src/app.py"]
+    assert [one.workspace_read_only for one in runtime.specs] == [True, False, True]
+    assert all({name: one.env[name] for name in REPRO_ENV} == REPRO_ENV for one in runtime.specs)
+    assert [
+        path.relative_to(scratch).as_posix() for path in scratch.rglob("*") if path.is_file()
+    ] == ["repo/src/app.py"]
+
+
 def test_the_classic_replay_reports_whether_it_would_block(tmp_path, monkeypatch):
     root = seed_corpus(tmp_path)
     output = json.dumps(

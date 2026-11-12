@@ -2081,12 +2081,15 @@ def _latest_attempt(entries: Sequence[Any]) -> int:
 
 def _rejections(
     root: Path, landed: Callable[[str], str | None], task_id: str
-) -> list[tuple[str, str]]:
+) -> list[tuple[tuple[str, ...], str]]:
     """What the round's landed attempt said about the claims it did not apply
     (S-0084/D-13, S-0126/D-3): the divergence entries under `unlisted` it
     recorded as contradicted, read `Not applied`, and the halts citing no
     LOCKED row it went on past, read `Out of scope` (S-0127/D-12), as their
-    own checked `claim` and `evidence`, each beside the claim it answers.
+    own checked `claim` and `evidence`, each beside the text that names the
+    findings it answers: a contradiction's claim (S-0126/D-3), and a halt's
+    claim and evidence, which is how `session._declined` matched it to its
+    finding (S-0127/D-8).
     Prose an agent wrote for a reviewer never appears here, because no such
     field exists. The landing's execution record is read before the root log,
     and the attempt it names keeps its own rejections; only when no landing
@@ -2102,12 +2105,15 @@ def _rejections(
         entries = open_log(root, task_id).get("entries") or []
         attempt = _latest_attempt(entries)
 
-    reasons: list[tuple[str, str]] = []
+    reasons: list[tuple[tuple[str, ...], str]] = []
 
     for entry in rejections(entries, attempt):
-        claim = str(entry.get("claim", ""))
-        said = "Out of scope" if entry.get("action") == "halted" else "Not applied"
-        reasons.append((claim, f"{said} — {claim}\n\nEvidence: {entry.get('evidence', '')}"))
+        claim, evidence = str(entry.get("claim", "")), str(entry.get("evidence", ""))
+        halt = entry.get("action") == "halted"
+        said = "Out of scope" if halt else "Not applied"
+        reasons.append(
+            ((claim, evidence) if halt else (claim,), f"{said} — {claim}\n\nEvidence: {evidence}")
+        )
 
     return reasons
 
@@ -2127,17 +2133,18 @@ def reply_body(
     or the reason the finding was not applied.
 
     With *spot* it is one thread's reply in a round of the findings at *spots*
-    (S-0097/D-5): a rejection whose claim names some of them answers those
-    alone, so a fixed finding's thread reads "fixed in" beside a rejected one,
-    and a rejection that names none of them answers every thread, as nothing
-    says which finding it rejects."""
+    (S-0097/D-5): a rejection whose claim names some of them — a halt's claim
+    or evidence (S-0127/D-8) — answers those alone, so a fixed finding's
+    thread reads "fixed in" beside a rejected one, and a rejection that names
+    none of them answers every thread, as nothing says which finding it
+    rejects."""
 
     parts: list[str] = []
     sha = _landing_sha(landed, task_id)
     reasons = []
 
-    for claim, reason in _rejections(root, landed, task_id):
-        named = [one for one in spots if names_spot(claim, one)]
+    for texts, reason in _rejections(root, landed, task_id):
+        named = [one for one in spots if any(names_spot(text, one) for text in texts)]
 
         if spot is None or not named or spot in named:
             reasons.append(reason)

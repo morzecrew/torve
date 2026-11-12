@@ -1048,26 +1048,20 @@ def reproduce(
     Once the probes are written the checkout is mounted read-only, with the
     environment and caches pointed under the sandbox's own temporary
     directory, so no command can change the candidate. A command whose output
-    reports a write the mount denied runs once more over the checkout mounted
-    writable, and that run's exit stands unless it changed or removed a file
-    the checkout held, which refuses the repro: a denied write never blocks,
-    and a candidate that prints the marker gains nothing by it.
+    reports a write the mount denied runs once more, in a sandbox of its own,
+    over the checkout mounted writable, and that run's exit stands unless it
+    changed or removed a file the checkout held, which refuses the repro: a
+    denied write never blocks, and a candidate that prints the marker gains
+    nothing by it.
 
-    Each command gets the `acceptance` gate's timeout, and all of them
-    together what is left of the unit's clock (S-0127/D-9); a command the
-    clock leaves no time for is not run. One `CommandRun` per command, its
-    exit None on a timeout, when it was not run, or for every command of a
-    refused repro. The checkout and the sandbox are removed when this
-    returns, whatever happened; a checkout or sandbox that fails to open
-    raises, as the battery's does."""
+    Each run gets the `acceptance` gate's timeout, and all of them together
+    what is left of the unit's clock (S-0127/D-9); a command the clock leaves
+    no time for, its writable run included, is not run. One `CommandRun` per
+    command, its exit None on a timeout, when it was not run, or for every
+    command of a refused repro. The checkout and the sandboxes are removed
+    when this returns, whatever happened; a checkout or sandbox that fails to
+    open raises, as the battery's does."""
 
-    def refused(why: str) -> list[CommandRun]:
-        return [
-            CommandRun(command=command, exit_code=None, tail=f"refused: {why}")
-            for command in commands
-        ]
-
-    timeout = _repro_timeout(run)
     minutes = run.task.budget.wallclock_minutes
 
     if minutes is None and run.config.review.mode == "critic":
@@ -1077,56 +1071,117 @@ def reproduce(
         None if minutes is None else time.monotonic() + (minutes - _elapsed_minutes(state)) * 60.0
     )
     opener = run.judge or run.deps.workspace
-    executor: SandboxExecutor | None = None
 
     try:
         checkout = opener.judge_checkout(run.workspace_key)
 
-        for name, text in probes.items():
-            if text is None:
-                return refused(f"probe {name} was not kept from the critic's copy")
+        return reproduce_over(
+            run.deps.runtime,
+            _gates_spec(run, state),
+            checkout,
+            commands,
+            probes,
+            _repro_timeout(run),
+            deadline,
+        )
 
-            why = _probe_refusal(checkout, name)
+    finally:
+        opener.remove_judge(run.workspace_key)
 
-            if why is not None:
-                return refused(why)
 
-            target = checkout / name
+def reproduce_over(
+    runtime: Runtime,
+    gates: SandboxSpec,
+    checkout: Path,
+    commands: Sequence[str],
+    probes: Mapping[str, str | None],
+    timeout: float,
+    deadline: float | None = None,
+) -> list[CommandRun]:
+    """Each of *commands* re-run over *checkout*, a fresh copy of the
+    candidate its caller removes, in sandboxes of spec *gates* under the
+    controls `reproduce` names (S-0127/D-10): the probe refusals, the
+    read-only mount and `REPRO_ENV`, and the one writable run a denied write
+    earns. The corpus replay reads its repros through this too, so a case
+    measures one as a night would.
 
-            try:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                target.write_text(text, encoding="utf-8")
+    Each run is bounded by *timeout* and, given a *deadline* on
+    `time.monotonic()`, by what is left before it, the writable run's bound
+    read again once the read-only run has spent its share; a command the
+    clock leaves no time for is not run. The sandboxes are removed when this
+    returns, whatever happened."""
 
-            except OSError as exc:
-                return refused(f"probe {name} could not be written: {exc}")
+    def refused(why: str) -> list[CommandRun]:
+        return [
+            CommandRun(command=command, exit_code=None, tail=f"refused: {why}")
+            for command in commands
+        ]
 
-        gates = _gates_spec(run, state)
-        spec = replace(gates, env={**gates.env, **REPRO_ENV}, workspace_read_only=True)
-        executor = SandboxExecutor(run.deps.runtime, spec, checkout)
-        runs: list[CommandRun] = []
+    def bound() -> float | None:
+        """The next run's timeout, or None when the unit's clock is spent."""
 
+        if deadline is None:
+            return timeout
+
+        left = deadline - time.monotonic()
+
+        return min(timeout, left) if left > 0 else None
+
+    def unrun(command: str) -> CommandRun:
+        return CommandRun(
+            command=command, exit_code=None, tail="not run: the unit's clock is spent"
+        )
+
+    for name, text in probes.items():
+        if text is None:
+            return refused(f"probe {name} was not kept from the critic's copy")
+
+        why = _probe_refusal(checkout, name)
+
+        if why is not None:
+            return refused(why)
+
+        target = checkout / name
+
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+
+        except OSError as exc:
+            return refused(f"probe {name} could not be written: {exc}")
+
+    spec = replace(gates, env={**gates.env, **REPRO_ENV}, workspace_read_only=True)
+    executor = SandboxExecutor(runtime, spec, checkout)
+    runs: list[CommandRun] = []
+
+    try:
         for command in commands:
-            left = None if deadline is None else deadline - time.monotonic()
+            limit = bound()
 
-            if left is not None and left <= 0:
-                runs.append(
-                    CommandRun(
-                        command=command, exit_code=None, tail="not run: the unit's clock is spent"
-                    )
-                )
+            if limit is None:
+                runs.append(unrun(command))
                 continue
 
-            bound = timeout if left is None else min(timeout, left)
-            code, output = executor(command, bound)
+            code, output = executor(command, limit)
 
             if _READ_ONLY in output:
+                limit = bound()
+
+                if limit is None:
+                    runs.append(unrun(command))
+                    continue
+
                 held = _held_files(checkout)
+                # A name of its own: the read-only sandbox is still up, and a
+                # runtime holds one live sandbox per name.
                 writable = SandboxExecutor(
-                    run.deps.runtime, replace(spec, workspace_read_only=False), checkout
+                    runtime,
+                    replace(spec, name=f"{spec.name}-rw", workspace_read_only=False),
+                    checkout,
                 )
 
                 try:
-                    code, output = writable(command, bound)
+                    code, output = writable(command, limit)
 
                 finally:
                     writable.close()
@@ -1144,12 +1199,7 @@ def reproduce(
         return runs
 
     finally:
-        try:
-            if executor is not None:
-                executor.close()
-
-        finally:
-            opener.remove_judge(run.workspace_key)
+        executor.close()
 
 
 # ....................... #

@@ -371,6 +371,27 @@ def test_an_anchor_with_no_line_matches_the_same_file():
     assert _anchor_reraised([finding], [{"path": "app.py", "line": None}]) == ("app.py", 7)
 
 
+def test_an_anchor_on_a_filename_holding_a_dash_is_the_whole_path(tmp_path):
+    """S-0127/D-4: a citation of a file whose name holds ` - ` or ` — `
+    resolves whole, so the finding is anchored there instead of losing its
+    anchor to a prose separator inside the name."""
+
+    from torve.application.review import _finding_anchor, located_spans
+
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "design - draft.md").write_text("a\nb\nc\n", encoding="utf-8")
+    (tmp_path / "docs" / "notes — v2.md").write_text("a\nb\n", encoding="utf-8")
+    finding = Finding(
+        severity="major", claim="the rule is stale", evidence="docs/design - draft.md:2 — stale"
+    )
+
+    assert _finding_anchor(finding, tmp_path) == {"path": "docs/design - draft.md", "line": 2}
+    assert located_spans("see docs/notes — v2.md:1-2 for it", tmp_path) == [
+        ("docs/notes — v2.md", 1, 2)
+    ]
+    assert located_spans("`docs/design - draft.md:9` is past its end", tmp_path) == []
+
+
 def test_an_anchor_within_the_window_is_the_same_finding():
     """S-0124/D-3: a finding within `threads.WINDOW` lines of the recorded
     anchor is the same one; past it, the code moved and the round is spent."""

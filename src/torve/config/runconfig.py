@@ -1313,6 +1313,17 @@ class ReviewConfig(BaseModel):
 
     # ....................... #
 
+    @field_validator("revision", mode="before")
+    @classmethod
+    def _unquoted_off_is_a_yaml_bool(cls, value: Any) -> Any:
+        """`revision: off` unquoted (S-0127/D-5): YAML 1.1 loads the word as
+        False, which is read as the `off` it was written as; every other
+        value is the Literal's to accept or refuse."""
+
+        return "off" if value is False else value
+
+    # ....................... #
+
     @model_validator(mode="after")
     def _known_triggers(self) -> ReviewConfig:
         supported = {"task_gated", "pr_opened", "pr_synchronized"}

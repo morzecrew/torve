@@ -291,6 +291,43 @@ def test_reproduced_a_kept_probe_is_handed_and_a_dropped_one_refuses(tmp_path):
     assert [one.id for one in decision.advisory] == ["F3", "F4"]
 
 
+def test_reproduced_a_pytest_selector_names_its_probe_file(tmp_path):
+    """S-0127/D-10: a command selecting a test inside a probe names the probe
+    file, not the file with its `::` selector, so the kept probe is handed and
+    nothing refuses the re-run."""
+
+    _app(tmp_path)
+    command = "uv run pytest probes/test_bug.py::test_bug"
+    kept = {"probes/test_bug.py": "def test_bug():\n    assert False\n"}
+    document = CriticDocument.model_validate(
+        {"rows": [], "findings": [finding(repro={"command": command})]}
+    )
+    rerun = Rerun()
+
+    decision = decide(document, {}, tmp_path, "major", reproduce=rerun, probes=kept)
+
+    assert rerun.calls == [([command], kept)]
+    assert decision.blocked is True
+
+
+def test_reproduced_a_backticked_citation_is_not_the_evidence_command(tmp_path):
+    """S-0127/D-1: with no `repro.command`, a backticked span that is only a
+    `path:line` or `path:start-end` citation is passed over for the command
+    after it."""
+
+    _app(tmp_path)
+    evidence = "At `src/app.py:2` and `src/app.py:1-3`, `uv run pytest -q` printed 1 failed"
+    document = CriticDocument.model_validate(
+        {"rows": [], "findings": [finding(evidence=evidence, repro=None)]}
+    )
+    rerun = Rerun()
+
+    decision = decide(document, {}, tmp_path, "major", reproduce=rerun)
+
+    assert rerun.calls == [(["uv run pytest -q"], {})]
+    assert decision.blocked is True
+
+
 def test_reproduced_a_carried_finding_is_never_rerun(tmp_path):
     """S-0127/D-1: the S-0126/D-1 and S-0125/D-1 carries are read first, and
     a finding either one carries is never re-run; only the finding the
@@ -381,6 +418,31 @@ def test_reproduced_an_owned_row_blocks_on_its_evidence_command(tmp_path, exit_c
             "rerun": {"command": command, "exit_code": exit_code, "tail": f"{command}: 1 failed"},
         }
     ]
+
+
+@pytest.mark.parametrize("first", ["command", "citation"])
+def test_reproduced_a_row_violated_twice_blocks_on_either_failing_rerun(tmp_path, first):
+    """S-0127/D-1: two located `violated` answers for one owned row are each
+    re-run, and the row blocks when either re-run fails, whichever came
+    first: an answer citing only a line never hides one whose command
+    fails."""
+
+    _app(tmp_path)
+    answers = {
+        "command": {"row": OWNED, "verdict": "violated", "evidence": COMMAND},
+        "citation": {"row": OWNED, "verdict": "violated", "evidence": LOCATED},
+    }
+    order = [answers[first], *(one for key, one in answers.items() if key != first)]
+    document = CriticDocument.model_validate({"rows": order, "findings": []})
+
+    decision = decide(document, {OWNED: True}, tmp_path, "major", reproduce=Rerun())
+
+    command = "uv run pytest -q tests/test_app.py"
+    assert decision.blocked is True
+    assert [row.evidence for row in decision.violated] == [COMMAND]
+    assert decision.advisory_rows == []
+    [recorded] = decision.rows
+    assert (recorded["blocks"], recorded["rerun"]["command"]) == (True, command)
 
 
 def test_reproduced_the_per_call_prompt_says_only_a_failing_repro_blocks():

@@ -2017,6 +2017,51 @@ def test_declined_claim_is_answered_out_of_scope_with_its_evidence(seeded):
     assert fixed == f"Fixed in {work}."
 
 
+def test_declined_halt_named_by_its_evidence_answers_that_thread_alone(seeded):
+    """S-0127/D-8, D-12: a halt names its finding by its claim or its
+    evidence, as the attempt read it when it went on, so its `Out of scope`
+    answers only the thread its evidence names and the fixed finding reads
+    "Fixed in"; a contradicted claim still names its threads by the claim
+    alone (S-0126/D-3), whatever its evidence cites."""
+
+    task_id = "T-0906"
+    seeded.write("src/app.py", "print('changed')\n")
+    seeded.commit("the work")
+    work = head(seeded.root)
+    seeded.write(
+        f".torve/specs/S-0084/execution/{task_id}-1-20260919T000000Z.yaml",
+        f"task: {task_id}\n"
+        "at: '2026-09-19T00:00:00Z'\n"
+        "entries:\n"
+        "  - decision: unlisted\n"
+        "    grade: UNLISTED\n"
+        "    kind: blocked\n"
+        "    action: halted\n"
+        "    attempt: 1\n"
+        "    claim: the migration belongs to another round\n"
+        "    evidence: src/schema.py:3 — the schema is another phase's\n"
+        "  - decision: unlisted\n"
+        "    grade: UNLISTED\n"
+        "    kind: contradicted\n"
+        "    action: departed\n"
+        "    attempt: 1\n"
+        "    claim: other.py:12 does not dereference\n"
+        "    evidence: src/app.py:7 — the guard\n",
+    )
+    seeded.commit(f"torve({task_id}): landing of attempt 1")
+    spots = [("src/schema.py", 3), ("src/other.py", 12), ("src/app.py", 7)]
+
+    declined, contradicted, fixed = (
+        reply_body(seeded.root, landing((task_id, work)), task_id, spot, spots) for spot in spots
+    )
+
+    assert declined.startswith("Out of scope — the migration belongs to another round")
+    assert "Not applied" not in declined
+    assert contradicted.startswith("Not applied — other.py:12 does not dereference")
+    assert "Out of scope" not in contradicted
+    assert fixed == f"Fixed in {work}."
+
+
 def test_a_persisted_non_attempt_does_not_stop_the_reply(seeded):
     """S-0126/D-3: a legacy or hand-edited `attempt` is read like an entry
     written before the pin, so the reply is composed rather than raising and
