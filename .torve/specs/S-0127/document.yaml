@@ -1,0 +1,453 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0127
+title: A verdict comes from what ran
+kind: design
+change:
+  type: feat
+  scope: engine
+status: accepted
+implementation: complete
+depends_on: [S-0122, S-0125, S-0126]
+informed_by: [S-0121, S-0123, S-0124]
+supersedes: []
+superseded_by: null
+owner: misery7100
+schema_version: 4
+summary: |
+  A critic finding blocks a unit only when its repro fails on the engine's own re-run, and a
+  unit's attempts become independent samples: no Opus revision by default, a red attempt
+  restarts fresh, and the first green candidate wins. Everything else the critic finds is
+  recorded as advisory, in the review record and the document's pull request. Evidence may
+  cite its line anywhere, a re-raise must repeat the claim, a round can decline one claim,
+  an attempt is shown the cheap gates it will be judged by, and the unit's budget follows its
+  size.
+motivation: |
+  A measured pilot ran the critic and the revision loop on real units and compared each
+  verdict with hidden checks.
+
+  - **Revision did not help.** The critic and Opus revision loop flipped 0 of 6 failing first
+    candidates and broke 0 passing ones, at about $0.92 of Opus and 10 more minutes per unit.
+  - **The critic was right, and its blocks were still a coin flip.** None of 20 sampled
+    findings was wrong: 10 were real defects and 10 were weak-test nitpicks. Against the
+    hidden checks its blocks scored precision 5/8 and recall 5/11.
+  - **Weak tests blocked for nothing.** 11 of the 25 blocking findings were `weak_test`, and
+    none of those blocks changed a hidden-check result.
+  - **The filter read only the first token.** `locate` discarded 5 majors whose evidence
+    was a mutation or probe sentence citing `path:line` mid-text. On revision rounds, 6
+    findings at major or above led by an executed backticked probe were carried for having
+    no leading anchor, while prose citing `path:line` could block.
+  - **A re-raise was a new defect.** T-0804 escalated as a "re-raised" blocker that was a
+    new defect its revision introduced on the next line, inside `threads.WINDOW` (10).
+  - **One claim sank a round.** T-0894 halted on one out-of-scope claim, which discarded a
+    round carrying six green fixes.
+  - **One flat cap.** T-0810, an XL unit, hit the $3 unit cap before its second attempt's
+    gates ran.
+  - **A gate nobody named.** T-0880's acceptance named its tests and `uv run mypy src`, and
+    it went red on the lint gate.
+
+  The literature agrees: post-hoc critic and revision loops add little without execution
+  feedback, and a model's "ready" verdicts are overconfident. What the engine can trust is
+  what it ran.
+current_state: |
+  Verified against main at 11964eaa.
+
+  - **The decision.** `critic.decide` (`critic.py:495`) keeps findings through `filter_findings`
+    (`critic.py:524`). On a first attempt it blocks on every kept finding at or above
+    `blocks_at`, whatever its kind (`critic.py:539-544`). A `violated` row blocks when its
+    evidence locates (`critic.py:588-600`). Nothing is executed: `verified: executed` and
+    `repro` are the critic's own report (`critic.py:172-204`), and the probe a repro names is
+    kept only for the revision to read (`_keep_probes`, `critic.py:833`).
+  - **The filter.** `locate` (`gates/evidence.py:30`) reads only the text before the first
+    ` — ` or ` - `, or a backticked command at the very start (`BACKTICKED`, `evidence.py:24`).
+    The execution log's check shares it (`log_entry.py:251`), and its teaching rejection asks
+    for "a single leading `path:line — one sentence` citation" (`log_entry.py:224-235`).
+    `critic._citations` (`critic.py:347`) already reads citations anywhere, but only for
+    S-0126's carry.
+  - **The anchor.** `critic._finding_anchor` (`critic.py:291`) and `review._finding_anchor`
+    (`review.py:1662`) read the leading citation. Evidence led by a command has no anchor,
+    and on a revision S-0125/D-1 carries it (`critic.py:556-557`).
+  - **Re-raise.** `_anchor_near` (`critic.py:317`) and `review._anchor_reraised`
+    (`review.py:1999`) call a blocker re-raised when its anchor is in the same file within
+    `threads.WINDOW` lines of an earlier one, by distance alone. `blocker_fact`
+    (`review.py:1722`) records each blocker's claim and anchor, not its kind or row.
+    `review_step` escalates a re-raise `blocker_finding` (`review.py:2167-2180`).
+  - **Revision.** `ReviewConfig.revision` is `fresh` or `session`, default `fresh`
+    (`runconfig.py:1238`), and `resolved_blocker_revisions` gives two rounds under `critic`
+    (`runconfig.py:1253-1261`). `advance_tier` sends the attempt after a blocker revision
+    to the seat's `revision_variant` (`session.py:219-225`).
+  - **Red gates.** A red candidate whose conviction `selection.repairable` calls mechanical
+    gets a follow-up turn in its own session (`runner.py:1770-1789`, S-0122/D-8). The next
+    attempt carries the red tree: "the loop carries the worktree into the next attempt
+    either way" (`runner.py:1334-1342`), and `_route_repair` commits the convicted tree for
+    a `layering` or `scope` conviction (`runner.py:1226`, `runner.py:1296-1327`).
+  - **Selection.** `selection.select` (`selection.py:305`) collapses and pre-ranks the green
+    candidates and asks the critic about each in rank order until one is clean
+    (`selection.py:474-493`).
+  - **Acceptance.** The planner mints a phase's acceptance as written (`planner.py:691`).
+    `open_run` seals it as `contract_acceptance` (`dispatch.py:514`), and the prompt lists
+    `task.acceptance` alone (`harness.py:429-430`). This repository's `lint` gate runs
+    `uv run ruff check . && uv run ruff format --check .`, blocking, with a 120-second
+    timeout (`.torve/gates.yaml`).
+  - **Halts.** `halted` (`session.py:1203`) reads any `halted` entry of the attempt
+    (`_halt_reason`, `session.py:1126-1172`). The attempt loop escalates on it before the
+    gates run (`runner.py:347`), in a review round or not. `threads.rejections`
+    (`threads.py:120`) keeps only contradicted entries, so a halted claim gets no reply.
+  - **Budget.** `UNIT_BUDGET_USD = 3.0` and `UNIT_MINUTES = 90` (`selection.py:56-57`) bound
+    every critic-mode unit, whatever `unit_class` (`selection.py:97`) says of its size.
+    `_width` already computes that class per attempt, with a revision attempt as S
+    (`runner.py:1631-1644`).
+  - **The pull request.** `compose_document_pr` (`forge.py:489`) lists each landing's rows,
+    gates and divergences, never a review's findings. The store's `review.recorded` items
+    keep each kept finding's severity, anchor, claim and evidence (`review.py:868`,
+    `domain/events.py:479`).
+goals: |
+  - A unit is blocked only by a command the engine ran against the candidate and saw fail.
+  - What the critic found and could not reproduce is still written down where the person who
+    merges reads it.
+  - A red attempt is followed by an independent one, and a blocked green by one executor
+    attempt that is shown the failing command, never by an Opus revision unless configured.
+  - Evidence locates wherever its citation sits; a re-raise is a repeated claim, not a
+    nearby line.
+  - A round lands what it fixed when it declines one claim, an attempt knows every cheap gate
+    that will judge it, and a large unit can afford its second attempt.
+non_goals: |
+  - Changing the frozen critic prompt. A prompt change is first tested on the labelled corpus
+    (S-0122/D-19); the per-call prompt says what blocks.
+  - Changing what reaches the critic (S-0121/D-28, S-0122/D-2). The re-run's result is the
+    engine's and is never staged for it.
+  - Changing `review.mode: classic`. Its reviewer and `_anchor_reraised` keep today's rules.
+  - Changing the width cap, the five-call critic cap or pull-request triage (S-0122/D-15).
+  - Measuring the change. The bed measures the landed engine; this document does not
+    predict its numbers.
+design:
+  - key: executed-evidence
+    md: |
+      After the critic answers, `decide` reads the carries S-0126/D-1 and S-0125/D-1 already
+      make. It then asks for a re-run of each remaining kept finding at or above `blocks_at`
+      whose kind is not `weak_test`. The command is the finding's `repro.command` alone: a
+      command its evidence shows is never run, since a backticked span may be code a shell
+      refuses (S-0127/A-5). A row has no `repro`, so a `violated` row other than a LOCKED
+      one is advisory, and its breach blocks through a finding that names the row.
+
+      `runner.reproduce(run, state, commands, probes)` runs them in a fresh gates sandbox
+      over a fresh judge checkout of the candidate. Each probe `repro.file` or the command names is written
+      at its path first, from the text `_keep_probes` kept. A repro is a test command, so
+      each command gets the timeout of the battery's own `acceptance` gate in the task's
+      manifest (900 seconds in this repository), and all of one review's re-runs together
+      get what is left of the unit's clock (D-9); a command the clock leaves no time for is
+      not run. No new constant is introduced. The checkout and the sandbox are gone when it
+      returns.
+
+      | Re-run | Effect |
+      |---|---|
+      | exits non-zero | blocks, as today's blocker does |
+      | exits 0 | advisory |
+      | exits 126 or 127 (not runnable) | advisory |
+      | times out | advisory |
+      | no command | advisory, not run |
+
+      An advisory finding or row is recorded `advisory: true` in the review record, with its
+      command, exit code and output tail. `review.recorded`'s `blockers` counts only what
+      blocked, and each of its items carries the finding's `kind` and the re-run's command
+      and exit code (D-14). A `weak_test` finding is advisory without a re-run.
+
+      Two kinds keep today's rule: a kept `gaming` finding at or above `blocks_at`, and a
+      `violated` verdict on a LOCKED row, block on located evidence alone. Integrity and
+      the owner's rules rarely reproduce by a command, and the cost of letting either land
+      unread is higher than a revision's.
+
+      A blocker's revision thread (`revision_threads`) carries the command, its exit code and
+      the re-run's output, so the next attempt reads the failure, not the critic's opinion of
+      it. `build_critic_prompt` tells the critic that only a repro exiting non-zero on the
+      candidate can block. The corpus replay re-runs in its own evidence sandbox, so a case
+      reads `blocked` the way a night would.
+  - key: evidence-anywhere
+    md: |
+      `evidence.citations(evidence, root)` moves the citation grammar from `critic._CITED`
+      and `_extend_path` beside `locate`. `locate` accepts evidence that holds at least one
+      citation that resolves, or a backticked command followed by output, wherever either
+      sits. It refuses evidence holding neither, with today's messages. The execution log's
+      check reads the same `locate` (S-0005/D-4), and its teaching rejection stops asking for
+      a leading citation.
+
+      A finding's anchor is its first citation that resolves. That anchor feeds S-0125/D-1's
+      changed-line rule, the re-raise rule, the store's `review_items` and the revision
+      thread's anchor.
+  - key: re-raise-by-claim
+    md: |
+      `blocker_fact` records each blocker's `kind` and `row` beside its claim and anchor. A
+      revision's reproduced blocker is re-raised only when it repeats an earlier round's
+      blocker:
+
+      - it names the same row; or
+      - it has the same `kind`, a citation whose span overlaps the earlier blocker's span as
+        `_mapped_rounds` maps it into the current tree, and a claim that `review.claims_match`
+        (D-11) matches.
+
+      A blocker near an earlier anchor that repeats neither is new. It spends the revision
+      budget as any blocker does. `decide` computes `reraised` by this rule, since only it
+      holds the critic's `kind` and `row`, and `review_step` escalates on a critic verdict's
+      `reraised`. The classic reviewer's `_anchor_reraised` is unchanged.
+  - key: no-revision-seat
+    md: |
+      `review.revision: off` is the new default. A reproduced blocker sends the unit to one
+      fresh attempt on the task's own seat, never `revision_variant`, on the blocked
+      candidate's tree. Its prompt carries the feedback record, whose threads now hold the
+      failing command and its output. `review.blocker_revisions` resolves to 1 under `off`
+      unless the configuration names a number, so a second surviving blocker escalates
+      `blocker_finding`. `fresh` and `session` stay as opt-ins with today's meaning.
+  - key: independent-attempts
+    md: |
+      When an attempt's gates are red, the next attempt is a new session from the tree the
+      red attempt started from. The attempt snapshots its tree before the first candidate
+      runs, and the next attempt starts from that snapshot through `create_candidate` and
+      `promote_candidate`. The red candidate gets no follow-up turn, and `_route_repair`
+      commits no convicted tree. It still adds the convicting gate's command to the next
+      acceptance. The context pack still names the earlier attempts' convictions
+      (S-0054/D-12), which the engine measured and the session did not write.
+
+      Among one attempt's candidates, the first to finish green wins. The others are cut
+      when it finishes, and the critic reads only the winner. Pre-rank and collapse no
+      longer choose. A blocked winner goes to the one fresh executor attempt above, never to
+      a sibling.
+  - key: shown-acceptance
+    md: |
+      `open_run` seals `contract_acceptance` as the contract's commands followed by each gate
+      of the attempt's manifest that runs `blocking` as a shell command (not a `@` builtin)
+      with a declared timeout of 120 seconds or less, each command once. The prompt lists
+      it, and `_route_repair` extends it as before. The contract on disk is unchanged, and
+      the battery's `acceptance` gate reads the disk, so nothing runs twice. In this
+      repository the attempt is shown `lint`, `layering` and `mypy`.
+  - key: a-round-declines-a-claim
+    md: |
+      On a review round's attempt, `halted` passes over a halt that cites no LOCKED row and
+      whose claim or evidence names one of the round's findings (`threads.names_spot`), as
+      long as some finding of the round is named by no halt. The attempt goes on to its gates
+      with the other fixes. A halt citing a LOCKED row still escalates `locked_conflict`
+      (S-0096/D-1), because a LOCKED row is the owner's to reopen. A halt naming no finding,
+      halts naming every finding, and an urgent note stop the attempt as today.
+
+      `threads.rejections` keeps the attempt's halted entries that cite no LOCKED row beside
+      its contradicted ones.
+      The S-0126 carry therefore covers the critic's findings on a declined claim, and the
+      leg replies `Out of scope — <claim>` with the entry's evidence on its thread.
+  - key: class-budgets
+    md: |
+      `selection.UNIT_BUDGETS` replaces the flat figures:
+
+      | Class | Notional spend | Clock |
+      |---|---|---|
+      | S | $1.50 | 45 minutes |
+      | M | $3 | 90 minutes |
+      | L | $6 | 180 minutes |
+
+      The class is `unit_class` over the contract against the repository root's tree,
+      with the `escalated` flag `_width` reads and without the revision flag. Every attempt of a run therefore reads the same class,
+      while the attempt's own width still uses its own class. M keeps today's figures. A
+      contract naming `budget.wallclock_minutes` keeps its clock (S-0123/D-2).
+  - key: advisory-in-the-pull-request
+    md: |
+      `DocumentLanding` gains the advisory findings of its task's last task-gated review,
+      read from the store's `review.recorded` items through `recorded_review_rows`, which
+      every host reads alike. The landed candidate's last review blocked nothing, so every
+      kept finding of it is advisory. `compose_document_pr` lists them under each landing,
+      under a heading naming them the critic's, inside `_bounded`'s limit, each as:
+
+      ```text
+      - major · bug · src/app.py:12 · re-run `uv run pytest -q tests/test_app.py` exit 0
+      ```
+
+      No claim or evidence text is listed. The claim stays in the review record and the
+      store, so the body is composed from records alone and its footer stays true
+      (S-0121/D-34).
+  - key: the-amendments
+    md: |
+      S-0122/D-1 (LOCKED) blocked on any located finding at or above `blocks_at` and on any
+      `violated` row with located evidence. D-1 and D-2 contradicted it, so the owner amended
+      it before accepting this document (Q-1, S-0122/A-5): a finding now blocks on a failing
+      repro, and `gaming` and a LOCKED row's breach on located evidence. S-0121/D-34 (LOCKED)
+      stands unamended: D-13 lists no claim text (Q-2). The ASSUMED rows of accepted
+      documents that describe what this one replaces are amended to cite S-0127 in the pull
+      request that accepts it (Q-6).
+tests: |
+  Each phase writes the tests its intent names, beside the module it changes, and keeps the
+  suite green. Each test's own docstring cites the row it proves.
+
+  - Hypothesis properties where the row is a rule over inputs: `locate` over generated prose
+    with and without a resolving citation or a command and output (D-3); re-raise over
+    generated spans, kinds and rows with a stub claim measure (D-4); the winner over
+    generated finish orders and green sets (D-6).
+  - Examples where the row is one case: `decide` over a scripted `reproduce` (non-zero blocks;
+    0, 126, 127, a timeout and no command are advisory; a carried finding is never re-run;
+    a `gaming` finding and a LOCKED row's `violated` verdict block with no re-run) (D-1);
+    a critic review's items carrying kind and re-run, and an older item loading with the
+    defaults (D-14); a `weak_test` blocker with a failing repro is advisory (D-2); T-0804's shape, a new
+    defect on the next line with a different claim, spends the budget and is not re-raised
+    (D-4); the `off` default, its budget of 1 and the seat it keeps (D-5); the red attempt's
+    successor starting from the red attempt's start tree with no follow-up turn (D-6); the
+    lint gate's command in the shown acceptance and not in the contract file (D-7); T-0894's
+    shape, one halted claim of seven, reaching the gates, and the same halt citing a LOCKED
+    row escalating `locked_conflict` (D-8); the class table and the class
+    read from the root (D-9); `reproduce` over a mock runtime, removing its checkout on a
+    raise (D-10); the `Out of scope` reply (D-12); the advisory list in the body and its
+    bound (D-13).
+  - Not tested in the suite: whether the critic writes probes that assert, and how many real
+    defects go unreproduced. Both are read from the bed after the document lands. The gates
+    sandbox's isolation is the battery's own, tested where S-0122/D-3 is.
+docs: |
+  The pull request that marks this document complete updates, outside the phases so none
+  spans another module: `skills/torve/references/review.md` (what blocks, what is advisory,
+  where advisory findings are read, `review.revision: off`); `pages/docs/operating.md`'s
+  `blocker_finding` row and its `revision_variant` note; `skills/torve/references/escalations.md`
+  on a blocker under `off`; and the changelog's Changed section.
+
+  The pull request that accepts S-0127 amends, through `torve spec amend`, the ASSUMED rows
+  this document replaces, so each cites S-0127: S-0122/D-7 and S-0122/D-8, S-0123/D-1 and
+  S-0123/D-2, S-0124/D-1, S-0124/D-2 and S-0124/D-3, and S-0126/D-3 (Q-6). This draft
+  amends none of them.
+out_of_scope: |
+  - **A base re-run.** Blocking only on a repro that is red on the head and green on the base
+    would keep a pre-existing defect from blocking, but it doubles the re-run's cost. It
+    waits until the bed shows how many reproduced blocks were pre-existing.
+  - **Advisory findings as review rounds.** The `record` thread source would mint rounds to
+    fix them, which brings the revision loop back through another door. It stays off by
+    default, as now.
+  - **An `advisory` marker on `ReviewItem`.** The pull-request body needs none, because a
+    landed candidate's last review blocked nothing; the review record carries
+    `advisory: true`. D-14 adds only what the body lists, `kind` and the re-run.
+risks: |
+  - **Real defects land when nobody reproduces them.** A bug found by reading, or an ASSUMED
+    row's violation, now blocks only with a failing repro. Gaming and a LOCKED row's breach
+    still block on what locates (Q-3). Each advisory finding is in the review record and,
+    by kind and anchor, in the document's pull request, and the bed's measurement after
+    landing is how we see what got through.
+  - **The pull request names an advisory finding without saying what it is.** D-13 lists
+    severity, kind, anchor and re-run, not the claim (Q-2); a person who wants the claim
+    reads the review record or `torve why`.
+  - **A probe that prints the wrong value and exits 0 is advisory.** The frozen prompt asks
+    for probes but not for asserting ones. `build_critic_prompt` says only a non-zero exit
+    blocks; the bed shows whether the critic listens.
+  - **A pre-existing defect can block a first attempt.** The re-run judges the candidate,
+    not the change. On a revision, S-0125/D-1 still narrows a blocker to the revision's
+    lines.
+  - **A flaky repro blocks once.** The next attempt's re-run reads it again.
+  - **Re-runs execute commands a model wrote.** They run in the gates sandbox, where the
+    candidate's own code already runs, with the battery's image, network and derived cache
+    and never on the host. A command can write into that cache as a candidate's test can.
+  - **An independent attempt throws away a tree that was one lint fix from green.** D-7
+    makes that rarer, and the repair route still names the convicting gate's command.
+  - **The budget figures are guessed.** M keeps today's; S halves and L doubles them (Q-4).
+  - **Re-runs spend the unit's clock.** A review with many slow repros can use up what is
+    left of D-9's clock, and the commands it leaves unrun are advisory (Q-7).
+  - **Misreading.** D-1 does not silence the critic. Every finding is still recorded, and
+    its repro decides; a reader who skims D-1 and D-2 as "the critic no longer matters"
+    misses D-13.
+alternatives:
+  - option: >-
+      Keep blocking on located findings and raise `review.blocks_at` to `blocker`
+    rejected_because: >-
+      the severity is the critic's reading, and in the pilot its blocks were a coin
+      flip against the hidden checks whatever their grade; an exit code is a measurement
+    cites: [S-0122/D-1]
+  - option: >-
+      Let the critic report its own repro's exit code and block on that
+    rejected_because: >-
+      a reading the judge relies on comes from the host or a throwaway gates sandbox
+      (S-0122/D-2); an exit code the critic reports is a claim like any other
+    cites: [S-0122/D-2]
+  - option: >-
+      Keep the Opus revision, for reproduced blockers only
+    rejected_because: >-
+      it flipped 0 of 6 failing candidates at about $0.92 and 10 minutes a unit; an
+      executor attempt shown the failing command is the execution feedback the revision
+      lacked, on the seat that already holds the context
+    cites: [S-0122/D-8, S-0117/D-1]
+  - option: >-
+      A second, wider locator for findings only, leaving the log's leading grammar
+    rejected_because: >-
+      one locator with two consumers is what keeps them from drifting (S-0005/D-4);
+      a citation that resolves locates the same in a log entry as in a finding
+    cites: [S-0005/D-4]
+  - option: >-
+      Drop the re-raise escalation and let every blocker spend the budget
+    rejected_because: >-
+      a defect the revision did not fix would spend every round; under `off` the budget
+      is one attempt, so a repeat must still stop the unit at once
+    cites: [S-0124/D-3]
+  - option: >-
+      Carry the red tree into the next attempt as today
+    rejected_because: >-
+      revising a candidate added nothing in the pilot, and a tree that went red anchors
+      the next session on the approach that failed; the convictions still reach it
+      through the context pack
+    cites: [S-0069/D-4]
+  - option: >-
+      Let the critic choose between green candidates as today
+    rejected_because: >-
+      with precision 5/8 and recall 5/11 against the hidden checks its choice is no
+      better than the first green, and every extra call costs a critic's price
+    cites: [S-0122/D-7]
+questions:
+  - id: Q-1
+    text: >-
+      D-1 and D-2 contradict S-0122/D-1 (LOCKED), which blocks on any located finding
+      at or above `blocks_at` and any `violated` row with located evidence. Does the
+      owner amend it before accepting this document, to say that such a finding blocks
+      only when it is not `weak_test` and its repro exits non-zero when the engine
+      re-runs it against the candidate in a gates sandbox, a `violated` row only when
+      its evidence's command fails so, a `gaming` finding and a LOCKED row's `violated`
+      verdict on located evidence as today, and every other finding and row is recorded
+      advisory? And does S-0127/D-1 become LOCKED once the bed has measured it? Yes
+      to both (owner, 2026-11-12): S-0122/A-5 amends S-0122/D-1 as proposed, and D-1
+      is LOCKED now, not after the bed has measured it.
+    status: settled
+    settled_by: S-0122/A-5
+  - id: Q-2
+    text: >-
+      Should D-13 quote the critic's claims in the document's pull-request body, given
+      S-0121/D-34 (LOCKED) composes bodies from records and never from agent prose?
+      No (coordinator, 2026-11-11): D-13 lists, per advisory finding, only its severity,
+      kind, anchor and the re-run's command and exit code, and S-0121/D-34 stands
+      unamended.
+    status: settled
+    settled_by: D-13
+  - id: Q-3
+    text: >-
+      Should a `gaming` finding, or a `violated` verdict on a LOCKED row, keep blocking
+      on located evidence alone? Yes (coordinator, 2026-11-11): integrity and the
+      owner's rules rarely reproduce by a command; every other finding and row follows
+      D-1's repro rule.
+    status: settled
+    settled_by: D-1
+  - id: Q-4
+    text: >-
+      D-9's figures (S $1.50 and 45 minutes, M $3 and 90, today's, L $6 and 180) are
+      a starting point set from today's cap, not from a measurement. The evaluation
+      bed measures each class's spend and wall time under them before they are graded;
+      what figures does the owner grade once it has?
+  - id: Q-5
+    text: >-
+      Should a round's one-claim halt that cites a LOCKED row be declined on its thread
+      like any other? No (coordinator, 2026-11-11): it escalates `locked_conflict`
+      as S-0096/D-1 says, and D-8 applies only to halts that cite no LOCKED row.
+    status: settled
+    settled_by: D-8
+  - id: Q-6
+    text: >-
+      This document replaces what several ASSUMED rows of accepted documents say:
+      S-0122/D-7 (the critic chooses between greens) and S-0122/D-8 (follow-up turn,
+      Opus revision, $3 and 90 minutes); S-0123/D-1 and S-0123/D-2 (the flat cap and
+      clock); S-0124/D-1 and S-0124/D-2 (revision on `revision_variant`, two rounds);
+      S-0124/D-3 (re-raise by distance); S-0126/D-3 (rejections are contradicted entries
+      only). Are they amended, and when? Yes (coordinator, 2026-11-11): each is amended
+      to cite S-0127 in the pull request that accepts S-0127, not in this draft.
+    status: settled
+  - id: Q-7
+    text: >-
+      What bounds a re-run, given S-0122/D-6's 300 seconds is enforced by no code
+      and was never measured? Settled (coordinator, 2026-11-11): each command gets
+      the timeout of the battery's own `acceptance` gate in the task's manifest, because
+      a repro is a test command, and all of one review's re-runs together get what
+      is left of the unit's clock (D-9); no new constant.
+    status: settled
+    settled_by: D-10

@@ -21,15 +21,16 @@ the landing and the budget checkpoint. `real_hooks` binds them.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import os
 import re
 import shutil
 import time
-from collections.abc import Awaitable, Callable, Iterator, Mapping
+from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import partial
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 import yaml
@@ -98,6 +99,7 @@ from torve.application.telemetry import (
 )
 from torve.base import naming
 from torve.base.clock import parse, stamp
+from torve.base.shell import clip
 from torve.config import layout
 from torve.config.manifest import UNLABELED_AXIS, Gate, Manifest, load_manifest
 from torve.config.providers import Price
@@ -108,7 +110,7 @@ from torve.domain.states import BlockedDispatch, EscalationReason, TaskState
 from torve.domain.task import Task
 from torve.gates.context import GateContext, GitError, build_context, git, resolve_base
 from torve.gates.contract import spec
-from torve.gates.evidence_package import build_evidence, evidence_budget
+from torve.gates.evidence_package import TAIL_BYTES, CommandRun, build_evidence, evidence_budget
 from torve.gates.runner import RunReport, battery, battery_budget, run_gates
 
 # ----------------------- #
@@ -142,6 +144,11 @@ class AttemptHooks:
     # task's branch under the checkpoint trailer, so work the attempt did
     # right is not lost to an escalation that is not a conviction.
     reviewed_tree: Callable[[RunState], None] | None = None
+    # The unit's class (S-0127/D-9), read once per run from the repository
+    # root's tree: under the critic a contract naming no clock runs under its
+    # class's. Absent — the simulation's hooks — reads M, whose clock is the
+    # one every class had before.
+    unit_size: Callable[[RunState], str] | None = None
 
 
 # ....................... #
@@ -240,10 +247,11 @@ async def drive_attempts(
     wallclock_minutes = task.budget.wallclock_minutes
 
     # S-0123/D-2: under the critic a unit's contract may name no clock, and
-    # then the unit gets the 90 minutes S-0122/D-8 gives it. A contract that
-    # names its own bound keeps it.
+    # then the unit gets its class's (S-0127/D-9). A contract that names its
+    # own bound keeps it.
     if wallclock_minutes is None and config.review.mode == "critic":
-        wallclock_minutes = selection.UNIT_MINUTES
+        size = hooks.unit_size(state) if hooks.unit_size is not None else "M"
+        wallclock_minutes = selection.UNIT_BUDGETS[size][1]
 
     try:
         result = await _attempt_loop(state, task, hooks, ceiling, iterations, wallclock_minutes)
@@ -828,7 +836,15 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
                 carried.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy(source, carried)
             else:
-                project_contract(judge, run.task)
+                # S-0127/D-7: with the contract's own acceptance, never what
+                # the attempt is shown besides, so no gate runs twice.
+                declared = run.declared_acceptance
+                project_contract(
+                    judge,
+                    run.task
+                    if declared is None
+                    else run.task.model_copy(update={"acceptance": list(declared)}),
+                )
 
         # The base is resolved on the host and named to the checkout by the sha
         # of its merge base with the attempt (S-0114/D-1): an ancestor of the
@@ -935,6 +951,272 @@ def run_gate_pass(run: Dispatch, state: RunState) -> tuple[int, str, str, list[G
     summary = ", ".join(f"{r.name}={r.outcome}" for r in report.results)
 
     return report.exit_code, summary, digest, report.results, ctx.patch
+
+
+# ....................... #
+# S-0127/D-10: a finding's repro, re-run against the candidate. Nothing calls
+# it until the critic's decision reads its exit codes (S-0127/D-1).
+
+# Where the critic writes the probe a repro names — the frozen prompt's
+# `probes/` — and so the one place a re-run writes one.
+PROBE_DIR = "probes"
+
+# What a command prints when the read-only checkout denied it a write. The
+# candidate's code can print it too, so it only sends the command to one run
+# over a writable mount, never refuses a repro by itself.
+_READ_ONLY = "Read-only file system"
+
+# The project environment, bytecode and the common tool caches a re-run
+# writes, under the sandbox's own temporary directory and never in the
+# checkout it reads.
+_REPRO_TMP = "/tmp/torve-repro"
+REPRO_ENV = {
+    "UV_PROJECT_ENVIRONMENT": f"{_REPRO_TMP}/venv",
+    "PYTHONPYCACHEPREFIX": f"{_REPRO_TMP}/pycache",
+    "PYTEST_ADDOPTS": "-p no:cacheprovider",
+    "MYPY_CACHE_DIR": f"{_REPRO_TMP}/mypy",
+    "RUFF_CACHE_DIR": f"{_REPRO_TMP}/ruff",
+}
+
+
+def _repro_timeout(run: Dispatch) -> float:
+    """What one re-run may take: a repro is a test command, so the timeout of
+    the `acceptance` gate in the attempt's manifest, else the runtime's
+    `sandbox_timeout` when the manifest holds no such gate."""
+
+    try:
+        gates = load_manifest(run.manifest_file).resolved_gates()
+
+    except (OSError, ValueError, yaml.YAMLError):
+        gates = []
+
+    return next(
+        (gate.timeout for gate in gates if gate.name == "acceptance" and gate.timeout is not None),
+        run.config.runtime.sandbox_timeout,
+    )
+
+
+def _probe_refusal(checkout: Path, name: str) -> str | None:
+    """Why probe *name* may not be written into *checkout*, or None: its path
+    leaves `probes/`, a component of it is a link, or a file is already
+    there, tracked or not."""
+
+    path = PurePosixPath(name)
+    parts = path.parts
+
+    if path.is_absolute() or len(parts) < 2 or parts[0] != PROBE_DIR or ".." in parts:
+        return f"probe {name} is not under {PROBE_DIR}/"
+
+    for depth in range(1, len(parts) + 1):
+        if checkout.joinpath(*parts[:depth]).is_symlink():
+            return f"probe {name} passes through a link"
+
+    if checkout.joinpath(*parts).exists():
+        return f"probe {name} is not new to the checkout"
+
+    return None
+
+
+def _held_files(checkout: Path) -> dict[str, str]:
+    """Every file *checkout* holds outside `.git`, by the hash of its bytes,
+    read from the disk rather than the checkout's own index, which a writable
+    run could rewrite."""
+
+    return {
+        path.relative_to(checkout).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in sorted(checkout.rglob("*"))
+        if path.relative_to(checkout).parts[0] != ".git"
+        and path.is_file()
+        and not path.is_symlink()
+    }
+
+
+def reproduce(
+    run: Dispatch,
+    state: RunState,
+    commands: Sequence[str],
+    probes: Mapping[str, str | None],
+) -> list[CommandRun]:
+    """Each of *commands* re-run against the candidate (S-0127/D-10), in a
+    fresh gates sandbox (`_gates_spec`: the battery's image and cache) over a
+    fresh judge checkout, with each of *probes* — the path a finding's repro
+    names, and the text the critic's copy kept of it or None — written at its
+    path first.
+
+    A probe the copy did not keep, or one at a path that is not new to the
+    checkout, not under `probes/` or through a link, refuses the whole repro.
+    Once the probes are written the checkout is mounted read-only, with the
+    environment and caches pointed under the sandbox's own temporary
+    directory, so no command can change the candidate. A command whose output
+    reports a write the mount denied runs once more, in a sandbox of its own,
+    over the checkout mounted writable, and that run's exit stands unless it
+    changed or removed a file the checkout held, which refuses the repro: a
+    denied write never blocks, and a candidate that prints the marker gains
+    nothing by it.
+
+    Each run gets the `acceptance` gate's timeout, and all of them together
+    what is left of the unit's clock (S-0127/D-9); a command the clock leaves
+    no time for, its writable run included, is not run. One `CommandRun` per
+    command, its exit None on a timeout, when it was not run, or for every
+    command of a refused repro. The checkout and the sandboxes are removed
+    when this returns, whatever happened; a checkout or sandbox that fails to
+    open raises, as the battery's does."""
+
+    minutes = run.task.budget.wallclock_minutes
+
+    if minutes is None and run.config.review.mode == "critic":
+        minutes = selection.UNIT_BUDGETS[_unit_class(run, state)][1]
+
+    deadline = (
+        None if minutes is None else time.monotonic() + (minutes - _elapsed_minutes(state)) * 60.0
+    )
+    opener = run.judge or run.deps.workspace
+
+    try:
+        checkout = opener.judge_checkout(run.workspace_key)
+
+        return reproduce_over(
+            run.deps.runtime,
+            _gates_spec(run, state),
+            checkout,
+            commands,
+            probes,
+            _repro_timeout(run),
+            deadline,
+        )
+
+    finally:
+        opener.remove_judge(run.workspace_key)
+
+
+def reproduce_over(
+    runtime: Runtime,
+    gates: SandboxSpec,
+    checkout: Path,
+    commands: Sequence[str],
+    probes: Mapping[str, str | None],
+    timeout: float,
+    deadline: float | None = None,
+) -> list[CommandRun]:
+    """Each of *commands* re-run over *checkout*, a fresh copy of the
+    candidate its caller removes, in sandboxes of spec *gates* under the
+    controls `reproduce` names (S-0127/D-10): the probe refusals, the
+    read-only mount and `REPRO_ENV`, and the one writable run a denied write
+    earns. The corpus replay reads its repros through this too, so a case
+    measures one as a night would.
+
+    Each run is bounded by *timeout* and, given a *deadline* on
+    `time.monotonic()`, by what is left before it, the writable run's bound
+    read again once the read-only run has spent its share; a command the
+    clock leaves no time for is not run. The read-only sandbox is closed
+    before a writable run opens, so no two are ever up at once, and every
+    sandbox is removed when this returns, whatever happened."""
+
+    def refused(why: str) -> list[CommandRun]:
+        return [
+            CommandRun(command=command, exit_code=None, tail=f"refused: {why}")
+            for command in commands
+        ]
+
+    def bound(started: float | None = None) -> float | None:
+        """The next run's timeout, or None when no time is left for it: the
+        command's own timeout, less what its read-only run took when *started*
+        is that run's start, within what is left of the unit's clock."""
+
+        now = time.monotonic()
+        limit = timeout if started is None else timeout - (now - started)
+
+        if deadline is not None:
+            limit = min(limit, deadline - now)
+
+        return limit if limit > 0 else None
+
+    def unrun(command: str, why: str = "the unit's clock is spent") -> CommandRun:
+        return CommandRun(command=command, exit_code=None, tail=f"not run: {why}")
+
+    for name, text in probes.items():
+        if text is None:
+            return refused(f"probe {name} was not kept from the critic's copy")
+
+        why = _probe_refusal(checkout, name)
+
+        if why is not None:
+            return refused(why)
+
+        target = checkout / name
+
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+
+        except OSError as exc:
+            return refused(f"probe {name} could not be written: {exc}")
+
+    spec = replace(gates, env={**gates.env, **REPRO_ENV}, workspace_read_only=True)
+    executor = SandboxExecutor(runtime, spec, checkout)
+    runs: list[CommandRun] = []
+
+    try:
+        for command in commands:
+            limit = bound()
+
+            if limit is None:
+                runs.append(unrun(command))
+                continue
+
+            started = time.monotonic()
+            code, output = executor(command, limit)
+
+            if _READ_ONLY in output:
+                # The retry is the same command, so it shares the command's
+                # timeout with the read-only run, as it shares the unit's clock.
+                limit = bound(started)
+
+                if limit is None:
+                    spent = deadline is not None and deadline <= time.monotonic()
+                    runs.append(
+                        unrun(
+                            command,
+                            "the unit's clock is spent" if spent else "its timeout is spent",
+                        )
+                    )
+                    continue
+
+                held = _held_files(checkout)
+                # The read-only sandbox goes first, so the two never overlap —
+                # a nested daemon's state volume is one per slot — and the next
+                # command opens a fresh one. The retry still takes a name of
+                # its own, a runtime holding one sandbox per name.
+                executor.close()
+                writable = SandboxExecutor(
+                    runtime,
+                    replace(spec, name=f"{spec.name}-rw", workspace_read_only=False),
+                    checkout,
+                )
+
+                try:
+                    code, output = writable(command, limit)
+
+                finally:
+                    writable.close()
+
+                now = _held_files(checkout)
+                changed = next(
+                    (path for path, digest in held.items() if now.get(path) != digest), None
+                )
+
+                if changed is not None:
+                    return refused(f"`{command}` changed {changed} in the checkout")
+
+            runs.append(CommandRun(command=command, exit_code=code, tail=clip(output, TAIL_BYTES)))
+
+        return runs
+
+    finally:
+        executor.close()
+
+
+# ....................... #
 
 
 def _critic_reads(run: Dispatch) -> bool:
@@ -1214,8 +1496,9 @@ async def _bare_gates(run: Dispatch, _state: RunState) -> tuple[int, str, str]:
 # gate convicted the next attempt of the same task 196 times across 28 tasks:
 # `acceptance` 52, `layering` 41, `user-facing-text` 39, `decisions-reported`
 # 26, `scope` 14. The gates here are those checks still in the battery: a red
-# from one names a property of the tree, not a verdict on the approach, and the
-# tree a mechanical conviction names is repaired rather than rebuilt.
+# from one names a property of the tree, not a verdict on the approach, so the
+# next attempt is told the gate's own command (S-0127/D-6 starts it from the
+# tree the convicted one started from).
 # `acceptance` — the largest class — stays deliberately outside the set: a
 # suite that fails twice may be a tree worth keeping or an approach worth
 # abandoning, and only the ledger's per-gate repeat counts can tell those
@@ -1295,12 +1578,13 @@ def _repair_gate(run: Dispatch) -> tuple[str, str] | None:
 
 def _route_repair(run: Dispatch, state: RunState) -> None:
     """A conviction on a qualifying gate routes the next attempt as a repair
-    (S-0069/D-3, D-4, D-6): the tree it starts from is the convicted one, its
-    acceptance is the gate's own command beside everything the contract
-    already declared, and one gate earns one repair per dispatch. Every other
-    red routes where it routed before: the contract's own acceptance, and the
-    ladder untouched — what tier runs next stays outcome and axis alone
-    (S-0054/D-12).
+    (S-0069/D-3, D-6): its acceptance is the gate's own command beside
+    everything the attempt is shown, and one gate earns one repair per
+    dispatch. Every other red routes where it routed before: the shown
+    acceptance alone, and the ladder untouched — what tier runs next stays
+    outcome and axis alone (S-0054/D-12). No convicted tree is committed or
+    carried: the next attempt starts from the tree the convicted one started
+    from (S-0127/D-6), and is told what convicted it.
 
     The contract does not change: the battery judges the task file on disk,
     and this mutates only the in-memory copy the attempt is prompted from.
@@ -1325,43 +1609,6 @@ def _route_repair(run: Dispatch, state: RunState) -> None:
     run.meta["repair"] = gate
     run.meta["repair_of_attempt"] = state.attempts
     run.task = run.task.model_copy(update={"acceptance": [*run.contract_acceptance, command]})
-    _commit_convicted_tree(run, state, gate)
-
-
-# ....................... #
-
-
-def _commit_convicted_tree(run: Dispatch, state: RunState, gate: str) -> None:
-    """A repair starts from the convicted attempt's tree, not from base
-    (S-0069/D-4): the work that was right survives the mistake. The loop
-    carries the worktree into the next attempt either way; the commit is what
-    makes the convicted tree the repair's base at the seam — the repair
-    attempt's worktree contains the convicted attempt's commits, and an
-    ordinary retry's does not — and it leaves the tree on the task's branch
-    whatever the rest of the run does.
-
-    Like the budget checkpoint it is kin to (S-0026/D-9), this commit writes
-    no landing, and carries the same trailer so nothing mistakes it for a
-    landed candidate (S-0059/D-12). A failed commit does not undo the
-    routing: the tree is the same one the repair would carry anyway, the
-    commit is only its record, and the conviction must not be replaced by an
-    infrastructure escalation."""
-
-    message = (
-        f"torve({run.task.id}): attempt {state.attempts} convicted by {gate}\n\n"
-        f"Torve-Checkpoint: {run.task.id} attempt {state.attempts}"
-    )
-    author = f"{_agent_identity(run.meta)} <agents@torve.local>"
-
-    try:
-        run.deps.vcs.commit_all(run.worktree, message, author, run.config.vcs.signing_key)
-
-    except Exception as exc:
-        engine_event(
-            run.root,
-            "repair_tree_uncommitted",
-            {"task": run.task.id, "attempt": state.attempts, "gate": gate, "error": repr(exc)},
-        )
 
 
 # ....................... #
@@ -1372,9 +1619,8 @@ def _commit_reviewed_tree(run: Dispatch, state: RunState) -> None:
     the worktree — the candidate is committed at `reviewed → ready`, after the
     review — so a green-gated tree was lost to a blocker, an unreadable verdict
     or a broker refusal. S-0086/D-2 commits it on the task's branch here, kin to
-    the budget checkpoint (S-0026/D-9) and the convicted tree (S-0069/D-4): the
-    same trailer, so nothing mistakes it for a landed candidate, and no landing
-    is written (S-0059/D-12).
+    the budget checkpoint (S-0026/D-9): the same trailer, so nothing mistakes
+    it for a landed candidate, and no landing is written (S-0059/D-12).
 
     A failed commit leaves the escalation as it was: the reason the run stops
     is the review's, and an infrastructure failure here must not replace it."""
@@ -1466,9 +1712,9 @@ async def land(run: Dispatch, state: RunState, digest: str) -> str:
     except ValueError as exc:
         landed = f"no execution file — {exc}"
 
-    # A later attempt whose work was already committed — the convicted tree
-    # of the attempt before it is checkpointed on the branch (S-0069) — has
-    # nothing new to commit and is still a candidate: the tip the landing
+    # A later attempt whose work was already committed — a checkpoint on the
+    # branch, or the snapshot a candidate's worktree was cut at (S-0122/D-7) —
+    # has nothing new to commit and is still a candidate: the tip the landing
     # commit leaves. Without this the worker read "no landing" and released
     # the task, and the next claim recut the branch over a green candidate
     # (bloomery T-0007, 2026-09-19).
@@ -1554,9 +1800,9 @@ def checkpoint(run: Dispatch, final: RunState) -> None:
 
 
 # ....................... #
-# S-0122/D-7, D-8: the attempt as a unit's candidates. The order and the
-# choosing are `selection`'s; what one candidate is — a session in its own
-# worktree, its repair turn, its gate pass, its critic call — is here.
+# S-0122/D-7, S-0127/D-6: the attempt as a unit's candidates. The order and
+# the choosing are `selection`'s; what one candidate is — a session in its own
+# worktree, its gate pass, its critic call — is here.
 
 # A history fact per critic call, which the unit's budget of calls counts.
 CRITIC_MARKER = "critic reviewed candidate "
@@ -1617,8 +1863,9 @@ def _record_spend(state: RunState, spend: float, what: str) -> None:
 
 def selects(run: Dispatch) -> bool:
     """Whether this dispatch's attempt runs through selection: a live
-    implement run whose critic judges candidates, or whose seat can give a
-    red candidate a repair turn in its own session."""
+    implement run whose critic judges candidates, or whose seat runs a
+    session, so a red attempt is followed by a fresh one from the tree it
+    started from (S-0127/D-6)."""
 
     if run.shadow or run.arm != CONFIGURED or run.task.role != "implement":
         return False
@@ -1628,20 +1875,40 @@ def selects(run: Dispatch) -> bool:
     return critic or getattr(run.deps.agent, "follow_up", None) is not None
 
 
+def _escalated(state: RunState) -> bool:
+    """Whether the unit escalated once, which makes it class L (S-0122/D-7)."""
+
+    return any(entry.get("to") == str(TaskState.ESCALATED) for entry in state.history)
+
+
 def _width(run: Dispatch, state: RunState) -> tuple[int, str]:
     """The unit's width and class (S-0122/D-7, S-0124/D-1). Several candidates
-    only when a critic chooses between them; a revision attempt — one whose
+    only when a critic judges the unit; a revision attempt — one whose
     task has a feedback record at the root — is class S and runs one. A review
     round runs one, and `review.max_width` caps the rest."""
 
     revision = feedback.feedback_file(run.root, run.task.id).is_file()
-    escalated = any(entry.get("to") == str(TaskState.ESCALATED) for entry in state.history)
-    size = selection.unit_class(run.task, run.worktree, revision=revision, escalated=escalated)
+    size = selection.unit_class(
+        run.task, run.worktree, revision=revision, escalated=_escalated(state)
+    )
     critic = run.config.review.mode == "critic" and review_gated(run.config, run.task, run.shadow)
     width = selection.WIDTHS[size] if critic and run.task.round is None else 1
     cap = run.config.review.max_width
 
     return (width if cap is None else min(width, cap)), size
+
+
+def _unit_class(run: Dispatch, state: RunState) -> str:
+    """The class whose figures bound the unit's spend and clock (S-0127/D-9):
+    `unit_class` over the contract against the repository root's tree, with
+    the `escalated` flag `_width` reads and without the revision flag. Read
+    once per run, so every attempt reads the same one, and a revision, class
+    S for its width, keeps the unit's bounds."""
+
+    if not run.unit_size:
+        run.unit_size = selection.unit_class(run.task, run.root, escalated=_escalated(state))
+
+    return run.unit_size
 
 
 def _candidate_dispatch(run: Dispatch, start: Dispatch, index: int, base: str) -> Dispatch:
@@ -1666,11 +1933,13 @@ def _candidate_dispatch(run: Dispatch, start: Dispatch, index: int, base: str) -
 
 
 async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
-    """One attempt as the unit's candidates (S-0122/D-7, D-8): they run side by
-    side (S-0124/D-4) and are judged, a red one whose conviction is mechanical
-    first gets its repair turn, and the critic reads the green ones in rank
-    order. The one chosen is left in the task's worktree with its gate pass and
-    its verdict stamped on the run, which the loop's gates and review then read
+    """One attempt as the unit's candidates (S-0122/D-7): they run side by
+    side (S-0124/D-4) from the one tree the attempt started from, the first
+    to finish green wins and the others are cut, and the critic reads it
+    alone (S-0127/D-6). A red candidate gets no follow-up turn, and an attempt
+    with no green candidate is followed by a fresh one from the same tree.
+    The one chosen is left in the task's worktree with its gate pass and its
+    verdict stamped on the run, which the loop's gates and review then read
     instead of running again; the rest are removed, and the unit's record is
     written."""
 
@@ -1680,6 +1949,9 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
     critic = run.config.review.mode == "critic" and review_gated(run.config, run.task, run.shadow)
     prices = _list_prices(run.config) if critic else {}
     budget_spent = _unit_spend(state) if critic else 0.0
+    # S-0127/D-9: the unit's cap and clock are its class's, read from the
+    # root once per run, never the attempt's own class its width reads.
+    budget_usd, unit_minutes = selection.UNIT_BUDGETS[_unit_class(run, state)]
     revision_attempt = feedback.feedback_file(run.root, run.task.id).is_file()
     attempt_started = time.monotonic()
     reviews: list[str] = []
@@ -1691,25 +1963,30 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
     run.resolved_agent = advance_tier(run, state)
     agent_clock = agent_timeout_for(run.config, run.tier)
     start = replace(run, meta=dict(run.meta), repaired_gates=set(run.repaired_gates))
-    # The unit's one tree, taken before the first candidate changes it or its
-    # red commits a convicted tree there (S-0069/D-4): a retry's candidates all
-    # start from the work the attempt before them left.
-    base = await asyncio.to_thread(run.deps.workspace.snapshot, run.task.id) if width > 1 else ""
 
-    # What each candidate's dispatch is, so a cancelled one's finished turns
-    # can still be priced and its worktree still removed (S-0124/D-7).
-    dispatches: dict[int, Dispatch | None] = {}
+    # S-0127/D-6: the attempt after a red one is an independent sample — a
+    # fresh session from the tree the red one started from, never the tree it
+    # left. The task's worktree goes back to that tree before anything runs.
+    if run.start_tree is not None:
+        await asyncio.to_thread(run.deps.workspace.create_candidate, run.task.id, 1, run.start_tree)
+        await asyncio.to_thread(run.deps.workspace.promote_candidate, run.task.id, 1)
+
+    # The unit's one tree, taken before the first candidate changes it: every
+    # candidate starts from it, and so does the attempt after a red one.
+    base = await asyncio.to_thread(run.deps.workspace.snapshot, run.task.id)
+
+    # What each launched candidate's dispatch is, so a cancelled one's
+    # finished turns can still be priced (S-0124/D-7).
+    dispatches: dict[int, Dispatch] = {}
+    # The later candidates' own dispatches over their own worktrees, cut
+    # before any candidate starts.
+    cut_from_base: dict[int, Dispatch] = {}
     # Candidates whose spend this attempt already booked, so a cut that lands
     # after the booking prices them once (S-0123/D-1).
     booked: set[int] = set()
 
     async def launch(index: int, clock: float) -> selection.Candidate:
-        dispatches[index] = None
-        crun = (
-            run
-            if index == 1
-            else await asyncio.to_thread(_candidate_dispatch, run, start, index, base)
-        )
+        crun = run if index == 1 else cut_from_base[index]
         dispatches[index] = crun
         crun.clock = clock if clock < agent_clock else None
 
@@ -1726,11 +2003,9 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                 crun.meta.pop(stale, None)
 
         started = time.monotonic()
-        first: list[AgentResult] = []
-        held: list[tuple[int, str, str]] = []
-        # S-0124/D-4: the straggler cut can land while a gate pass is running.
-        # The shield lets that pass finish and its verdict stand, but the
-        # candidate itself is cut: no repair turn, no second pass.
+        # S-0124/D-4: the cut a sibling's green finish makes can land while a
+        # gate pass is running. The shield lets that pass finish and its
+        # verdict stand, but the candidate itself is cut.
         cut = [False]
 
         async def judged() -> tuple[int, str, str] | None:
@@ -1761,46 +2036,21 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                 return await asyncio.shield(running)
 
             except asyncio.CancelledError:
-                # The candidate's clock ran out, not its pass: the pass
+                # A sibling finished green first, not this pass: the pass
                 # finishes and its verdict stands, but the candidate is cut
-                # and takes no further turn (S-0124/D-4).
+                # (S-0124/D-4, S-0127/D-6).
                 cut[0] = True
                 return await running
 
-        async def repair(result: AgentResult) -> str | None:
-            first.append(result)
-
-            # A turn that escalated or halted is judged by nobody and buys nothing.
-            if state.escalation is not None or halted(crun, state.attempts) is not None:
-                return None
-
-            verdict = await judged()
-
-            if verdict is not None:
-                held.append(verdict)
-
-            # A cut candidate buys no repair turn, whatever its verdict was —
-            # the shielded pass that produced it still stands (S-0124/D-4).
-            if verdict is None or cut[0]:
-                return None
-
-            mechanical = verdict[0] != 0 and selection.repairable(crun.convictions)
-
-            return verdict[1] if mechanical else None
-
-        result = await run_agent_session(crun, state, repair)
+        # S-0127/D-6: one session and no follow-up turn — a red candidate's
+        # tree is judged once and goes no further.
+        result = await run_agent_session(crun, state)
         crun.clock = None
 
         candidate = selection.Candidate(index=index, result=result, run=crun)
         # S-0124/D-9: the seat the candidate ran on, for the unit record.
         candidate.tier = crun.tier_name
         candidate.model = crun.tier.model or ""
-        candidate.followed_up = bool(first) and result is not first[0]
-        # The straggler deadline cut this candidate's turn, but a gate pass
-        # already running finished and its verdict stands (S-0124/D-4): the
-        # candidate is recorded with that real verdict, marked cut, and buys
-        # no further turn or pass.
-        candidate.cut = cut[0]
 
         if critic:
             # S-0123/D-1: what this candidate cost the unit. The block is the
@@ -1820,9 +2070,9 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             and result.exit_code == 0
             and halted(crun, state.attempts) is None
         ):
-            # The repair callback judged the tree the first turn left; a turn
-            # after it changed the tree, so that one is judged again.
-            verdict = held[0] if held and not candidate.followed_up else await judged()
+            verdict = await judged()
+            # A sibling's green finish cut this candidate while its pass ran:
+            # it is recorded with that pass's real verdict, marked cut.
             candidate.cut = cut[0]
 
             if verdict is None:
@@ -1832,13 +2082,6 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             crun.preselected = verdict
             candidate.green = verdict[0] == 0
             candidate.patch = crun.last_pass.patch
-            package = crun.last_pass.evidence
-
-            if package is not None:
-                candidate.failing = len(package.failing_items())
-                candidate.flags = len(package.flags)
-                candidate.lines = sum(f.added + f.removed for f in package.files)
-                candidate.widened = len(package.outside_files)
 
         candidate.wall_s = time.monotonic() - started
 
@@ -1885,7 +2128,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
     chosen = 1
 
     def cancelled_spend(index: int) -> float | None:
-        """What a candidate cut at the straggler deadline still spent: the
+        """What a candidate cut by a sibling's green finish still spent: the
         turns it finished before its turn was cancelled (S-0124/D-7). Recorded
         on the run's history too, so the next attempt's bound counts it."""
 
@@ -1915,21 +2158,25 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             crun.open_session = None
 
     def revision_reraised(member: selection.Candidate) -> bool:
-        """Whether the critic repeated a finding the previous round recorded
-        (S-0124/D-3), read from the same anchors `review_step` reads."""
+        """Whether the critic repeated a blocker an earlier round recorded
+        (S-0127/D-4), read from the decision `review_step` reads."""
 
         verdict = member.verdict
 
         if verdict is None or not verdict.blockers:
             return False
 
-        from torve.application.review import _anchor_reraised, mapped_blocker_anchors
-
-        anchors = mapped_blocker_anchors(member.run.worktree, state)
-
-        return _anchor_reraised(verdict.blockers, anchors) is not None
+        return verdict.decision is not None and bool(verdict.decision.reraised)
 
     try:
+        # S-0124/D-4, S-0127/D-6: every worktree is cut before any candidate
+        # starts, so the first to finish green finished first on its work,
+        # not on the head start a sibling's worktree cost that sibling.
+        for index in range(2, width + 1):
+            cut_from_base[index] = await asyncio.to_thread(
+                _candidate_dispatch, run, start, index, base
+            )
+
         chosen_round = await selection.select(
             width,
             launch,
@@ -1939,12 +2186,12 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             critic_budget=max(0, selection.CRITIC_CALLS - spent),
             stop=lambda: state.escalation is not None,
             spent=budget_spent,
-            budget_usd=selection.UNIT_BUDGET_USD,
+            budget_usd=budget_usd,
             cancelled_spend=cancelled_spend,
         )
 
         winner = chosen_round.chosen if chosen_round.candidates else None
-        # S-0124/D-8: the one green candidate every critic call blocked may be
+        # S-0124/D-8: the first green candidate the critic blocked may be
         # continued in its own open session, in place of the fresh attempt the
         # round would otherwise start. Its sandbox (and every other
         # candidate's) closes once the critic pass has decided.
@@ -1953,16 +2200,11 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             if winner is not None
             and critic
             and chosen_round.winner is None
-            and bool(chosen_round.ranked)
-            and all(c.reviewed and not c.clean for c in chosen_round.ranked)
             and not chosen_round.exhausted
             and run.config.review.revision == "session"
             and _blocker_revisions_spent(state) < run.config.review.resolved_blocker_revisions()
             and winner.reviewed
             and not winner.clean
-            # A cut candidate takes no further turn (S-0124/D-4): its blocker
-            # goes to the ordinary fresh revision.
-            and not winner.cut
             # A blocker the previous round already named stops the run in
             # `review_step` (S-0124/D-3); no turn is spent on it.
             and not revision_reraised(winner)
@@ -2000,14 +2242,14 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                 ),
             )
 
-        # S-0123/D-1: the $3 cap stopped a candidate or critic call the unit
-        # still needed. There is no winner to land, so the run escalates and
-        # names what it spent.
+        # S-0123/D-1: the class's cap stopped a candidate or critic call the
+        # unit still needed (S-0127/D-9). There is no winner to land, so the
+        # run escalates and names what it spent.
         if chosen_round.exhausted and chosen_round.winner is None:
             state.escalate(
                 EscalationReason.BUDGET_EXHAUSTED,
                 f"{selection.UNIT_BUDGET_MARKER}: ${chosen_round.spent_usd:.2f} spent of "
-                f"${selection.UNIT_BUDGET_USD:.2f}",
+                f"${budget_usd:.2f}",
             )
             close_unit()
 
@@ -2024,21 +2266,20 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             opened = getattr(member.run, "open_session", None)
             minutes = run.task.budget.wallclock_minutes
             if minutes is None:
-                minutes = selection.UNIT_MINUTES
+                minutes = unit_minutes
 
             elapsed = _elapsed_minutes(state)
             remaining = max(0.0, (minutes - elapsed) * 60.0)
             unit_spend = _unit_spend(state)
             verdict = member.verdict
 
-            if unit_spend >= selection.UNIT_BUDGET_USD:
+            if unit_spend >= budget_usd:
                 # S-0124/D-7: the bound is a stop before new work, checked
                 # before the revision turn exactly as before a fresh attempt.
                 close_session(continue_index)
                 state.escalate(
                     EscalationReason.BUDGET_EXHAUSTED,
-                    f"{selection.UNIT_BUDGET_MARKER}: ${unit_spend:.2f} spent of "
-                    f"${selection.UNIT_BUDGET_USD:.2f}",
+                    f"{selection.UNIT_BUDGET_MARKER}: ${unit_spend:.2f} spent of ${budget_usd:.2f}",
                 )
                 stopped = True
                 break
@@ -2071,8 +2312,8 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                     run.task.id, member.patch, threads, verdict.measured
                 )
                 # The sandbox is the outer bound (S-0035/D-6): the session
-                # turn gets what is left of the sandbox that kept it, as the
-                # repair turn does, never a clock that outlives the container.
+                # turn gets what is left of the sandbox that kept it, never a
+                # clock that outlives the container.
                 turn_clock = min(
                     remaining,
                     agent_timeout_for(run.config, member.run.tier),
@@ -2182,11 +2423,11 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                         member.green = True
                         member.patch = crun.last_pass.patch
                         # The critic call is new work too (S-0124/D-7).
-                        if _unit_spend(state) >= selection.UNIT_BUDGET_USD:
+                        if _unit_spend(state) >= budget_usd:
                             state.escalate(
                                 EscalationReason.BUDGET_EXHAUSTED,
                                 f"{selection.UNIT_BUDGET_MARKER}: ${_unit_spend(state):.2f} spent of "
-                                f"${selection.UNIT_BUDGET_USD:.2f}",
+                                f"${budget_usd:.2f}",
                             )
                             # The turn ran and spent; only its re-review did not.
                             session_revision = selection.Revision(
@@ -2236,6 +2477,10 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
 
         winner = chosen_round.chosen
         chosen = winner.index
+        # S-0127/D-6: a green candidate's tree goes on — to land, or to the
+        # attempt a blocker sends it to; any other ending sends the next
+        # attempt back to the tree this one started from.
+        run.start_tree = None if winner.green else base
 
         if chosen > 1:
             await asyncio.to_thread(run.deps.workspace.promote_candidate, run.task.id, chosen)
@@ -2284,10 +2529,10 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         for index in list(dispatches):
             close_session(index)
 
-        # Every candidate that had a worktree, including one cut before its
-        # launch returned, is removed unless it is the one that landed.
-        for index in dispatches:
-            if index > 1 and index != chosen:
+        # Every candidate's worktree, including one whose cut failed half way,
+        # is removed unless it is the one that landed.
+        for index in range(2, width + 1):
+            if index != chosen:
                 await asyncio.to_thread(run.deps.workspace.remove, f"{run.task.id}~{index}")
 
 
@@ -2377,6 +2622,7 @@ def real_hooks(
         close=partial(close_dispatch, run),
         checkpoint=partial(checkpoint, run),
         reviewed_tree=partial(_commit_reviewed_tree, run),
+        unit_size=partial(_unit_class, run),
     )
 
 

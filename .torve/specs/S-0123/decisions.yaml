@@ -4,10 +4,10 @@ decisions:
     grade: ASSUMED
     text: >-
       Under `review.mode: critic` a unit stops before its next candidate or critic
-      call once its notional spend across its attempts reaches $3, and the run escalates
-      `budget_exhausted` naming the spend; notional spend is each candidate's and
-      critic call's reported `cost_usd`, else its tokens at its model's `list_price`,
-      else nothing
+      call once its notional spend across its attempts reaches its class's cap (S-0127/D-9:
+      S $1.50, M $3, L $6), and the run escalates `budget_exhausted` naming the spend;
+      notional spend is each candidate's and critic call's reported `cost_usd`, else
+      its tokens at its model's `list_price`, else nothing
     paths: [src/torve/application/selection.py, src/torve/application/runner.py]
     consequence: >-
       a unit that keeps failing stops costing money at a known bound
@@ -15,12 +15,14 @@ decisions:
     cites: [S-0122/D-8]
     check: >-
       uv run pytest -q tests/test_selection.py tests/test_runner.py -k unit_budget
+    fingerprint: 9ef11050f2c62f42/1e6ac5b24cb20fae
   - id: D-2
     grade: ASSUMED
     text: >-
       Under `review.mode: critic` a task whose contract names no `budget.wallclock_minutes`
-      runs under 90, so the run escalates `budget_exhausted` before an attempt that
-      would start past 90 minutes; a contract that names a bound keeps it
+      runs under its class's clock (S-0127/D-9: S 45, M 90, L 180 minutes), so the
+      run escalates `budget_exhausted` before an attempt that would start past it;
+      a contract that names a bound keeps it
     paths: [src/torve/application/runner.py]
     consequence: >-
       no unit holds the night past an hour and a half unless its contract says so
@@ -29,6 +31,7 @@ decisions:
     cites: [S-0122/D-8]
     check: >-
       uv run pytest -q tests/test_runner.py -k unit_clock
+    fingerprint: e0587dd5b37470e4/14bd8ed0a79735ba
   - id: D-3
     grade: ASSUMED
     text: >-

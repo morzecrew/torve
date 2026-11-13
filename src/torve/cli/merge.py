@@ -170,6 +170,8 @@ def _document_pr_text(
     The gate results are read from the record's `gates.evaluated` events
     (S-0101/D-6), the board the caller opened: the body is composed the same
     from any host, and a host whose stream is empty lists the same results.
+    Each task's advisory findings are the items of its last task-gated
+    `review.recorded` event on the same board (S-0127/D-13).
     """
 
     from torve.application.forge import (
@@ -187,8 +189,9 @@ def _document_pr_text(
         document_phases,
         landed_phases,
     )
-    from torve.application.projections import rows_from_events
+    from torve.application.projections import recorded_review_rows, rows_from_events
     from torve.domain.attempt import GateResult
+    from torve.domain.events import ReviewItem
     from torve.gates.context import load_task
 
     document = branch.rsplit("/", 1)[-1]
@@ -199,12 +202,19 @@ def _document_pr_text(
     commits = dict(carried_landings(root, branch))
     task_ids = carried + ([task_id] if task_id not in carried else [])
     rows = rows_from_events(records)
+    # A pull-request review is reported and stops nothing; only a task-gated
+    # one judged the candidate that landed (S-0101/D-4).
+    reviews = [r for r in recorded_review_rows(records) if r["trigger"] == "task_gated"]
     phases = landed_phases(root, branch)
     landings = []
 
     for carried_id in task_ids:
         judged = [r for r in rows if r.get("task_id") == carried_id and "results" in r]
         recorded: list[Any] = (judged[-1].get("results") or []) if judged else []
+        # S-0127/D-13: the last review read the candidate that landed; an
+        # earlier one read an attempt the revision replaced.
+        reviewed = [r for r in reviews if r["target"] == carried_id]
+        found: list[Any] = reviewed[-1]["findings"] if reviewed else []
         landings.append(
             DocumentLanding(
                 # The task being published is not a carried one yet; it lands
@@ -216,6 +226,7 @@ def _document_pr_text(
                 ),
                 sha=commits.get(carried_id) or (tip or ""),
                 results=[GateResult.model_validate(r) for r in recorded],
+                advisory=[ReviewItem.model_validate(item) for item in found],
             )
         )
 

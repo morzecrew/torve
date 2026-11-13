@@ -21,7 +21,7 @@ import re
 import shutil
 import subprocess
 import time
-from collections.abc import Awaitable, Callable, Iterable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
@@ -55,6 +55,7 @@ from torve.application.telemetry import (
     broker_block,
     record_payload,
 )
+from torve.application.threads import names_spot
 from torve.base import naming
 from torve.base.clock import stamp
 from torve.config import layout
@@ -75,7 +76,7 @@ from torve.config.runconfig import (
 from torve.config.spec import write_tracked_files
 from torve.domain.attempt import GateResult
 from torve.domain.states import EscalationReason
-from torve.domain.task import Task
+from torve.domain.task import RoundFinding, Task
 from torve.domain.vocabulary import GateAxis
 from torve.gates.context import GitError, git
 
@@ -192,9 +193,10 @@ def advance_tier(run: Dispatch, state: RunState) -> Agent:
     mapping at the most severe axis present, the scalar read as its
     functional sugar — instead of continuing under the tier that just ran.
     The attempt after a surviving review blocker's revision resolves the
-    seat's `revision_variant`, when it names one (S-0117/D-1). Any other
-    attempt resolves the task's own tier, which is why an advance is never
-    sticky: a green pass hands the next attempt back to the seat.
+    seat's `revision_variant`, when it names one and `review.revision` is not
+    `off` (S-0117/D-1, S-0127/D-5). Any other attempt resolves the task's own
+    tier, which is why an advance is never sticky: a green pass hands the
+    next attempt back to the seat.
 
     Never fabricated. This only advances when the CLI wired an agent factory
     to actually build the resolved tier's Agent, so telemetry never stamps a
@@ -220,7 +222,9 @@ def advance_tier(run: Dispatch, state: RunState) -> Agent:
     elif retry_agent is not None and previous_attempt_follows_blocker_revision(state):
         # S-0117/D-1: a revision the seat could not clear gets the stronger
         # seat's worktree and critique, exactly as a gate-red gets its rung.
-        if seat_tier.revision_variant:
+        # Under `review.revision: off`, the default, it stays on the task's own
+        # seat (S-0127/D-5).
+        if seat_tier.revision_variant and run.config.review.revision != "off":
             resolved_name = seat_tier.revision_variant
             resolved_tier = tier_for(run.config, resolved_name)
 
@@ -393,8 +397,8 @@ async def _stamp_turn(
 ) -> None:
     """What a turn's result puts on the run's record: its regime, its cost and
     its clock, the counts the adapter reported and the broker's, and the log
-    rewritten from the record. Again after a repair turn, which reports the
-    whole session's (S-0122/D-8)."""
+    rewritten from the record. Again after a session revision's turn, which
+    reports the whole session's (S-0124/D-8)."""
 
     run.meta.update(
         model_version=result.model_version,
@@ -545,19 +549,10 @@ class OpenSession:
 # ....................... #
 
 
-async def run_agent_session(
-    run: Dispatch,
-    state: RunState,
-    repair: Callable[[AgentResult], Awaitable[str | None]] | None = None,
-) -> AgentResult:
+async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
     """One attempt: compose the sandbox, run the agent in it, record how it
     ended. The sandbox dies in the `finally` whatever happens — a cancelled
-    task cannot await its own cleanup (S-0001/D-12).
-
-    *repair*, when given, is asked after a clean first turn for the gate
-    output that buys the candidate one follow-up turn in its own session,
-    while the sandbox it ran in lives (S-0122/D-8); None buys none, and so
-    does an agent that runs no session."""
+    task cannot await its own cleanup (S-0001/D-12)."""
 
     deps, config, task = run.deps, run.config, run.task
     root, worktree, shadow, resume = run.root, run.worktree, run.shadow, run.resume
@@ -681,8 +676,8 @@ async def run_agent_session(
 
         planted.parent.mkdir(parents=True, exist_ok=True)
         _shutil.copyfile(captured, planted)
-        # A candidate's repair turn (S-0122/D-8) judges the tree inside the
-        # session, before the record leaves it, and the judge commits.
+        # A candidate kept open for a session revision (S-0124/D-8) is judged
+        # before the record leaves the tree, and the judge commits.
         _exclude(worktree, "/.torve/feedback.md", "the planted revision record (S-0005/D-13)")
 
     env_passthrough, volumes = (
@@ -793,31 +788,6 @@ async def run_agent_session(
         deps.runtime.sync_out(handle, worktree)
 
         await _stamp_turn(run, state, result, attempt_started_at, attempt_clock)
-
-        # S-0122/D-8: one repair turn in the candidate's own session, while
-        # the sandbox it ran in lives. The tree it leaves is finished the
-        # same way, and the result counts the whole session.
-        follow_up = getattr(run_agent, "follow_up", None)
-
-        if repair is not None and follow_up is not None and result.exit_code == 0:
-            text = await repair(result)
-            # The sandbox outlives one agent clock and no more (S-0035/D-6), so
-            # the repair turn gets what is left of it, and no turn when nothing is.
-            left = ctx.timeout_s - (time.monotonic() - attempt_clock)
-            continued = (
-                await asyncio.to_thread(follow_up, replace(ctx, timeout_s=left), result, text)
-                if text is not None and left > 0
-                else None
-            )
-
-            if continued is not None:
-                result = continued
-
-                if run.tier.finish:
-                    await _finish(run, handle, spec)
-
-                deps.runtime.sync_out(handle, worktree)
-                await _stamp_turn(run, state, result, attempt_started_at, attempt_clock)
 
         # Every path out of this hook ends in exactly one row (S-0038/D-1).
         # The endings are inspected in the order the loop itself reads
@@ -1123,7 +1093,9 @@ async def _prepare(
 # ....................... #
 
 
-def _halt_reason(worktree: Path, task_id: str, attempt: int) -> EscalationReason | None:
+def _halt_reason(
+    worktree: Path, task_id: str, attempt: int, findings: Sequence[RoundFinding] = ()
+) -> EscalationReason | None:
     """The escalation a halted divergence entry asks for (S-0096/D-1,
     amending S-0092/D-3): one citing a LOCKED row is `locked_conflict`; every
     other halt, whatever its class, is `underspecified`. A LOCKED row wins in
@@ -1133,7 +1105,10 @@ def _halt_reason(worktree: Path, task_id: str, attempt: int) -> EscalationReason
     requeued after a halt still carries that halt, and reading it again
     escalated every later attempt of the task the moment it stopped, its
     gates never run (T-0547, 2026-10-12). An entry with no attempt is read
-    as this one's."""
+    as this one's.
+
+    On a review round's attempt, *findings* are the round's, and halts that
+    only decline some of its claims end nothing (S-0127/D-8, `_declined`)."""
 
     log = layout.log_file(worktree, task_id)
 
@@ -1168,7 +1143,34 @@ def _halt_reason(worktree: Path, task_id: str, attempt: int) -> EscalationReason
     if any(str(e.get("grade", "")) == "LOCKED" for e in halts):
         return EscalationReason.LOCKED_CONFLICT
 
+    if _declined(halts, findings):
+        return None
+
     return EscalationReason.UNDERSPECIFIED
+
+
+def _declined(halts: list[dict[str, Any]], findings: Sequence[RoundFinding]) -> bool:
+    """Whether *halts*, none citing a LOCKED row, only decline claims of a
+    review round (S-0127/D-8): each names one of the round's *findings* by
+    `threads.names_spot` in its claim or its evidence, and some finding is
+    named by none of them. The attempt then goes on to its gates with its
+    other fixes, and each halt is answered on its thread as declined
+    (S-0127/D-12). A halt naming no finding, or halts naming every one,
+    decline nothing: the attempt ends as before."""
+
+    spots = [(finding.path, finding.line) for finding in findings]
+    named: set[int] = set()
+
+    for halt in halts:
+        said = (str(halt.get("claim", "")), str(halt.get("evidence", "")))
+        names = {i for i, spot in enumerate(spots) if any(names_spot(text, spot) for text in said)}
+
+        if not names:
+            return False
+
+        named |= names
+
+    return len(named) < len(spots)
 
 
 def _urgent_note(run: Dispatch) -> bool:
@@ -1204,13 +1206,16 @@ def halted(run: Dispatch, attempt: int) -> EscalationReason | None:
     """A halt is written to the log as a halted entry; the loop reads the
     fact from the file, so the agent cannot cause the transition directly.
     The S-0001/A-1 YAML log is parsed, not pattern-matched. Returns the
-    escalation the halt asks for, or None when nothing halted. An urgent
+    escalation the halt asks for, or None when nothing halted or a review
+    round's attempt only declined some of its claims (S-0127/D-8). An urgent
     operator note halts the attempt too, as `killed`."""
 
     if _urgent_note(run):
         return EscalationReason.KILLED
 
-    return _halt_reason(run.worktree, run.task.id, attempt)
+    round_ = run.task.round
+
+    return _halt_reason(run.worktree, run.task.id, attempt, round_.findings if round_ else ())
 
 
 # ....................... #

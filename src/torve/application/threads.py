@@ -119,10 +119,12 @@ def group_findings(threads: Sequence[ReviewThread]) -> list[Finding]:
 
 def rejections(entries: Sequence[Any], attempt: int) -> list[dict[str, Any]]:
     """The rejections one attempt recorded (S-0084/D-13, S-0126/D-3): the
-    entries under `unlisted` with `kind: contradicted` whose `attempt` is
-    *attempt*. An entry carrying no `attempt` counts for every attempt,
-    because logs written before the pin carried none; identical rejections
-    count once, so a claim recorded again on a retry is posted once."""
+    entries under `unlisted` with `kind: contradicted`, and the `halted`
+    entries that cite no LOCKED row, each a claim the attempt declined
+    (S-0127/D-12), whose `attempt` is *attempt*. An entry carrying no
+    `attempt` counts for every attempt, because logs written before the pin
+    carried none; identical rejections count once, so a claim recorded again
+    on a retry is posted once."""
 
     kept: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
@@ -131,7 +133,10 @@ def rejections(entries: Sequence[Any], attempt: int) -> list[dict[str, Any]]:
         if not isinstance(entry, dict):
             continue
 
-        if entry.get("decision") != "unlisted" or entry.get("kind") != "contradicted":
+        contradicted = entry.get("decision") == "unlisted" and entry.get("kind") == "contradicted"
+        declined = entry.get("action") == "halted" and entry.get("grade") != "LOCKED"
+
+        if not (contradicted or declined):
             continue
 
         recorded = entry.get("attempt")

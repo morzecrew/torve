@@ -24,6 +24,8 @@ from torve.application.critic import (
     PROMPT_FILE,
     SCHEMA_FILE,
     CriticDocument,
+    CriticFinding,
+    build_critic_prompt,
     corpus_repository,
     critic_prompt,
     critic_schema,
@@ -42,7 +44,7 @@ from torve.config.runconfig import ReviewConfig, RunnerConfig
 from torve.domain.states import TaskState
 from torve.domain.task import InheritedDecision, Scope, Task
 from torve.gates.context import build_context
-from torve.gates.evidence_package import build_evidence
+from torve.gates.evidence_package import CommandRun, build_evidence
 from torve.gates.sabotage import SUITE_TEST_RUN, TASK_ID
 
 # The frozen prompt's own bytes (S-0122/D-19). A change to `critic-v1.md` is a
@@ -63,6 +65,11 @@ def answer(rows=(), findings=(), **extra) -> str:
     )
 
 
+# The command a finding's repro names (S-0127/D-1). The rigs re-run it on the
+# candidate, where the defect the finding names makes it fail.
+REPRO = "uv run pytest -q tests/test_app.py"
+
+
 def finding(severity="major", evidence="src/app.py:2 — the bound", **fields) -> dict:
     return {
         "id": "F1",
@@ -72,17 +79,38 @@ def finding(severity="major", evidence="src/app.py:2 — the bound", **fields) -
         "evidence": evidence,
         "verified": "executed",
         "confidence": "high",
+        "repro": {"command": REPRO},
         **fields,
     }
 
 
+class Rerun:
+    """A scripted `reproduce` (S-0127/D-1): every command exits *default*,
+    and a probe the critic's copy did not keep refuses the repro, as
+    `runner.reproduce` does. Every call is recorded."""
+
+    def __init__(self, default: int | None = 1):
+        self.default = default
+        self.calls: list[tuple[list[str], dict[str, str | None]]] = []
+
+    def __call__(self, commands, probes):
+        self.calls.append((list(commands), dict(probes)))
+
+        if any(text is None for text in probes.values()):
+            return [
+                CommandRun(command, None, "refused: a probe was not kept") for command in commands
+            ]
+
+        return [CommandRun(command, self.default, f"{command}: 1 failed") for command in commands]
+
+
 # ....................... #
-# The engine decides (S-0122/D-1, LOCKED). Each row of this table is a pinned
-# consequence: the document the critic gave, the bar in force, and whether
-# the candidate is blocked.
+# The engine decides (S-0122/D-1, S-0127/D-1, LOCKED). Each row of this table
+# is a pinned consequence: the document the critic gave, the bar in force, and
+# whether the candidate is blocked when every repro fails on re-run.
 
 LOCATED = "src/app.py:2 — the bound"
-COMMAND = "`python probes/p.py` — AssertionError: 3 != 4"
+COMMAND = "`uv run pytest -q tests/test_app.py` — 1 failed: assert 3 == 4"
 
 TABLE = [
     # findings: located, at or above the bar, block
@@ -97,16 +125,17 @@ TABLE = [
     ("blocker past the file's end", [], [finding("blocker", "src/app.py:99 — x")], "major", False),
     ("blocker with prose evidence", [], [finding("blocker", "it is wrong")], "major", False),
     ("command with no output", [], [finding("blocker", "`pytest`")], "major", False),
-    # rows: violated with located evidence blocks; unknown never does
-    ("owned row violated", [{"row": OWNED, "verdict": "violated", "evidence": LOCATED}], [], "major", True),
-    ("owned row violated by command", [{"row": OWNED, "verdict": "violated", "evidence": COMMAND}], [], "blocker", True),
+    # rows: a LOCKED row's located breach blocks, an owned row's never, its
+    # evidence command unrun (S-0127/A-5); unknown never does
+    ("owned row violated, read only", [{"row": OWNED, "verdict": "violated", "evidence": LOCATED}], [], "major", False),
+    ("owned row violated by command", [{"row": OWNED, "verdict": "violated", "evidence": COMMAND}], [], "blocker", False),
     ("owned row violated, unlocated", [{"row": OWNED, "verdict": "violated", "evidence": "trust me"}], [], "major", False),
     ("owned row violated, no evidence", [{"row": OWNED, "verdict": "violated"}], [], "major", False),
     ("owned row unknown", [{"row": OWNED, "verdict": "unknown", "evidence": LOCATED}], [], "major", False),
     ("owned row holds", [{"row": OWNED, "verdict": "holds", "evidence": LOCATED}], [], "major", False),
     ("locked constraint violated", [{"row": LOCKED, "verdict": "violated", "evidence": LOCATED}], [], "major", True),
     ("a row nobody gave violated", [{"row": "S-0700/D-9", "verdict": "violated", "evidence": LOCATED}], [], "major", False),
-    ("a later holds keeps a located violation", [{"row": OWNED, "verdict": "violated", "evidence": LOCATED}, {"row": OWNED, "verdict": "holds", "evidence": LOCATED}], [], "major", True),
+    ("a later holds keeps a located violation", [{"row": LOCKED, "verdict": "violated", "evidence": LOCATED}, {"row": LOCKED, "verdict": "holds", "evidence": LOCATED}], [], "major", True),
     ("nothing at all", [], [], "major", False),
 ]  # fmt: skip
 
@@ -121,7 +150,7 @@ def test_the_engine_turns_findings_into_block_or_pass(tmp_path, rows, findings, 
     (tmp_path / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
     document = CriticDocument.model_validate({"rows": rows, "findings": findings})
 
-    decision = decide(document, {OWNED: True, LOCKED: False}, tmp_path, bar)
+    decision = decide(document, {OWNED: True, LOCKED: False}, tmp_path, bar, reproduce=Rerun())
 
     assert decision.blocked is blocked
     assert decision.blocked == bool(decision.blockers or decision.violated)
@@ -145,6 +174,392 @@ def test_a_violated_row_without_located_evidence_is_counted_as_discarded(tmp_pat
 
     assert decision.discarded == [f"row {OWNED}: violated without evidence that locates"]
     assert decision.rows[0]["blocks"] is False
+
+
+# ....................... #
+# A verdict comes from what ran (S-0127/D-1, LOCKED; S-0127/D-2): a finding or
+# an owned row blocks on its re-run's non-zero exit, a `gaming` finding and a
+# LOCKED row's breach on what locates, and a `weak_test` finding never.
+
+
+def _app(root: Path) -> None:
+    (root / "src").mkdir(exist_ok=True)
+    (root / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "blocks"),
+    [(1, True), (2, True), (0, False), (126, False), (127, False), (None, False)],
+    ids=["fails", "fails-otherwise", "passes", "not-executable", "not-found", "timed-out"],
+)
+def test_reproduced_a_finding_blocks_only_when_its_rerun_fails(tmp_path, exit_code, blocks):
+    """S-0127/D-1: the engine re-runs a kept finding's repro on the
+    candidate; a non-zero exit blocks, and an exit of 0, 126 or 127 or a
+    timeout records the finding advisory with the command, its exit code and
+    its output tail."""
+
+    _app(tmp_path)
+    document = CriticDocument.model_validate({"rows": [], "findings": [finding()]})
+    rerun = Rerun(default=exit_code)
+
+    decision = decide(document, {}, tmp_path, "major", reproduce=rerun)
+
+    assert rerun.calls == [([REPRO], {})]
+    assert decision.blocked is blocks
+    assert [one.id for one in decision.advisory] == ([] if blocks else ["F1"])
+    (recorded,) = critic_module._recorded_findings(decision)
+    assert recorded["rerun"] == {
+        "command": REPRO,
+        "exit_code": exit_code,
+        "tail": f"{REPRO}: 1 failed",
+    }
+    assert recorded.get("advisory", False) is not blocks
+
+
+def test_reproduced_a_finding_with_no_command_is_advisory_and_runs_nothing(tmp_path):
+    """S-0127/D-1: a finding with no repro, whose evidence carries no
+    backticked command with output, has nothing to re-run: it is advisory and
+    nothing ran."""
+
+    _app(tmp_path)
+    document = CriticDocument.model_validate(
+        {"rows": [], "findings": [finding("blocker", repro=None)]}
+    )
+    rerun = Rerun()
+
+    decision = decide(document, {}, tmp_path, "major", reproduce=rerun)
+
+    assert rerun.calls == []
+    assert decision.blocked is False
+    assert decision.advisory == decision.kept
+    assert critic_module._recorded_findings(decision)[0]["rerun"]["command"] == ""
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        "src/app.py:2 — `cast(column, Numeric)` compiles to an unscaled DECIMAL",
+        "src/app.py:2 — the bound: `uv run pytest -q tests/test_app.py` printed 1 failed",
+    ],
+    ids=["code", "command"],
+)
+def test_reproduced_a_command_shown_only_in_evidence_is_never_run(tmp_path, evidence):
+    """S-0127/D-1 (S-0127/A-5): a finding with no `repro.command` is never
+    re-run, whatever its evidence shows in backticks: code a shell refuses
+    would exit 2 and block on nothing the candidate did. It is advisory."""
+
+    _app(tmp_path)
+    document = CriticDocument.model_validate(
+        {"rows": [], "findings": [finding(evidence=evidence, repro=None)]}
+    )
+    rerun = Rerun()
+
+    decision = decide(document, {}, tmp_path, "major", reproduce=rerun)
+
+    assert rerun.calls == []
+    assert decision.blocked is False
+    assert decision.advisory == decision.kept
+
+
+def test_reproduced_a_kept_probe_is_handed_and_a_dropped_one_refuses(tmp_path):
+    """S-0127/D-1, S-0127/D-10: the probe a finding's `repro.file` names
+    reaches the re-run with the text the critic's copy kept; a probe the copy
+    did not keep, named by the repro or by its command, is handed as None, so
+    the re-run refuses and the finding is advisory. One command over the same
+    probes is re-run once."""
+
+    _app(tmp_path)
+    kept = {"probes/p.py": "assert bound(4) == 4\n"}
+    document = CriticDocument.model_validate(
+        {
+            "rows": [],
+            "findings": [
+                finding(id="F1", repro={"command": "python probes/p.py", "file": "probes/p.py"}),
+                finding(id="F2", repro={"command": "python probes/p.py", "file": "probes/p.py"}),
+                finding(id="F3", repro={"command": "python probes/q.py", "file": "probes/q.py"}),
+                finding(id="F4", repro={"command": "python ./probes/r.py"}),
+                finding(id="F5", repro={"command": "python ./probes/p.py", "file": "probes/p.py"}),
+            ],
+        }
+    )
+    rerun = Rerun()
+
+    decision = decide(document, {}, tmp_path, "major", reproduce=rerun, probes=kept)
+
+    assert rerun.calls == [
+        (["python probes/p.py"], kept),
+        (["python probes/q.py"], {"probes/q.py": None}),
+        (["python ./probes/r.py"], {"probes/r.py": None}),
+        (["python ./probes/p.py"], kept),
+    ]
+    assert [one.id for one in decision.blockers] == ["F1", "F2", "F5"]
+    assert [one.id for one in decision.advisory] == ["F3", "F4"]
+
+
+def test_reproduced_a_probe_its_command_names_is_kept_beside_its_file(tmp_path):
+    """S-0127/D-10: the probes kept from the critic's copy are every one a
+    re-run asks for, the one `repro.file` names and each its command names,
+    so a command running a wrapper around its probe is not refused for want
+    of the wrapper."""
+
+    (tmp_path / "probes").mkdir()
+    (tmp_path / "probes" / "run.sh").write_text('python probes/edge.py "$1"\n')
+    (tmp_path / "probes" / "edge.py").write_text("raise SystemExit(1)\n")
+    repro = {"command": "sh probes/run.sh range", "file": "probes/edge.py"}
+    document = CriticDocument.model_validate({"rows": [], "findings": [finding(repro=repro)]})
+
+    kept = critic_module._keep_probes(tmp_path, document)
+
+    assert sorted(kept) == ["probes/edge.py", "probes/run.sh"]
+
+
+def test_reproduced_a_pytest_selector_names_its_probe_file(tmp_path):
+    """S-0127/D-10: a command selecting a test inside a probe names the probe
+    file, not the file with its `::` selector, so the kept probe is handed and
+    nothing refuses the re-run."""
+
+    _app(tmp_path)
+    command = "uv run pytest probes/test_bug.py::test_bug"
+    kept = {"probes/test_bug.py": "def test_bug():\n    assert False\n"}
+    document = CriticDocument.model_validate(
+        {"rows": [], "findings": [finding(repro={"command": command})]}
+    )
+    rerun = Rerun()
+
+    decision = decide(document, {}, tmp_path, "major", reproduce=rerun, probes=kept)
+
+    assert rerun.calls == [([command], kept)]
+    assert decision.blocked is True
+
+
+def test_reproduced_a_carried_finding_is_never_rerun(tmp_path):
+    """S-0127/D-1: the S-0126/D-1 and S-0125/D-1 carries are read first, and
+    a finding either one carries is never re-run; only the finding the
+    revision's own change reaches is."""
+
+    _files(tmp_path, **{"src/app.py": 60})
+    document = CriticDocument.model_validate(
+        {
+            "rows": [],
+            "findings": [
+                finding("blocker", "src/app.py:30 — a rejected claim", id="F1"),
+                finding("blocker", "src/app.py:55 — code the revision never touched", id="F2"),
+                finding("blocker", "src/app.py:11 — the changed line", id="F3"),
+            ],
+        }
+    )
+    rerun = Rerun()
+
+    decision = decide(
+        document,
+        {},
+        tmp_path,
+        "blocker",
+        revision=Revision(diff=REVISION_DIFF),
+        rejected=[("src/app.py", 28, 32)],
+        reproduce=rerun,
+    )
+
+    assert [one.id for one in decision.carried] == ["F1", "F2"]
+    assert [one.id for one in decision.blockers] == ["F3"]
+    assert rerun.calls == [([REPRO], {})]
+    assert [one.id for one, _run in decision.reruns] == ["F3"]
+
+
+@pytest.mark.parametrize("reproduce", ["raises", "none"])
+def test_reproduced_a_rerun_that_could_not_happen_is_advisory(tmp_path, reproduce):
+    """S-0127/D-1: an engine that could not re-run — `reproduce` raised
+    because the judge checkout or the sandbox would not open, or there is no
+    engine at all — measured nothing of the candidate: the finding is
+    advisory with the reason, and the decision is still made."""
+
+    def broken(commands, probes):
+        raise RuntimeError("the judge checkout would not open")
+
+    _app(tmp_path)
+    document = CriticDocument.model_validate({"rows": [], "findings": [finding("blocker")]})
+
+    decision = decide(
+        document, {}, tmp_path, "major", reproduce=broken if reproduce == "raises" else None
+    )
+
+    assert decision.blocked is False
+    (recorded,) = critic_module._recorded_findings(decision)
+    assert recorded["advisory"] is True
+    assert recorded["rerun"]["exit_code"] is None
+    assert recorded["rerun"]["tail"].startswith("not run: ")
+
+    if reproduce == "raises":
+        assert "the judge checkout would not open" in recorded["rerun"]["tail"]
+
+
+@pytest.mark.parametrize("evidence", [LOCATED, COMMAND], ids=["citation", "command"])
+def test_reproduced_an_owned_rows_breach_blocks_only_through_a_finding(tmp_path, evidence):
+    """S-0127/D-1 (S-0127/A-5): a row carries no repro, so an owned row's
+    located `violated` verdict is advisory and nothing is re-run for it,
+    whatever its evidence shows; the breach blocks through a finding that
+    names the row and whose repro fails."""
+
+    _app(tmp_path)
+    breach = {"row": OWNED, "verdict": "violated", "evidence": evidence}
+    alone = CriticDocument.model_validate({"rows": [breach], "findings": []})
+    named = CriticDocument.model_validate({"rows": [breach], "findings": [finding(row=OWNED)]})
+    rerun = Rerun()
+
+    advisory = decide(alone, {OWNED: True}, tmp_path, "major", reproduce=rerun)
+    unrun = list(rerun.calls)
+    blocked = decide(named, {OWNED: True}, tmp_path, "major", reproduce=rerun)
+
+    assert unrun == []
+    assert advisory.blocked is False
+    assert [row.row for row in advisory.advisory_rows] == [OWNED]
+    assert advisory.rows == [
+        {
+            "row": OWNED,
+            "owned": True,
+            "verdict": "violated",
+            "located": True,
+            "blocks": False,
+            "advisory": True,
+        }
+    ]
+    assert rerun.calls == [([REPRO], {})]
+    assert blocked.blocked is True
+    assert [one.row for one in blocked.blockers] == [OWNED]
+
+
+def test_reproduced_the_per_call_prompt_says_only_a_failing_repro_blocks():
+    """S-0127/D-1: the per-call prompt tells the critic that only a repro
+    exiting non-zero on the candidate can block; the frozen prompt is
+    unchanged, as its pin above holds."""
+
+    prompt = build_critic_prompt(Task(id=TASK_ID, intent="x", decisions=[]), TASK_ID, [], True)
+
+    assert "Only a repro that exits non-zero on the candidate can block." in prompt
+    assert "Only a repro" not in critic_prompt()
+
+
+def test_blocks_on_reading_a_gaming_finding_and_a_locked_rows_breach(tmp_path):
+    """S-0127/D-1: a kept `gaming` finding at or above the bar, a violated
+    LOCKED constraint and an owned row graded LOCKED block on located
+    evidence alone: nothing is re-run, so a re-run that would pass changes
+    nothing. A `gaming` finding below the bar does not block."""
+
+    _app(tmp_path)
+    owned_locked = "S-0900/D-2"
+    document = CriticDocument.model_validate(
+        {
+            "rows": [
+                {"row": LOCKED, "verdict": "violated", "evidence": LOCATED},
+                {"row": owned_locked, "verdict": "violated", "evidence": LOCATED},
+            ],
+            "findings": [
+                finding("major", kind="gaming", id="F1"),
+                finding("minor", kind="gaming", id="F2"),
+            ],
+        }
+    )
+    rerun = Rerun(default=0)
+
+    decision = decide(
+        document,
+        {LOCKED: False, owned_locked: True},
+        tmp_path,
+        "major",
+        locked=[owned_locked],
+        reproduce=rerun,
+    )
+
+    assert rerun.calls == []
+    assert decision.blocked is True
+    assert [one.id for one in decision.blockers] == ["F1"]
+    assert [row.row for row in decision.violated] == [LOCKED, owned_locked]
+    assert decision.advisory == [] and decision.advisory_rows == []
+
+
+def test_weak_test_finding_never_blocks_and_is_never_rerun(tmp_path):
+    """S-0127/D-2: a `weak_test` finding never blocks and is never re-run,
+    whatever its severity and its repro: one at blocker whose repro would fail
+    is recorded `advisory: true`, as is one below the bar."""
+
+    _app(tmp_path)
+    document = CriticDocument.model_validate(
+        {
+            "rows": [],
+            "findings": [
+                finding("blocker", kind="weak_test", id="F1"),
+                finding("minor", kind="weak_test", id="F2"),
+            ],
+        }
+    )
+    rerun = Rerun()
+
+    decision = decide(document, {}, tmp_path, "major", reproduce=rerun)
+
+    assert rerun.calls == []
+    assert decision.blocked is False
+    assert [one.id for one in decision.advisory] == ["F1", "F2"]
+    recorded = critic_module._recorded_findings(decision)
+    assert [one["advisory"] for one in recorded] == [True, True]
+    assert all("rerun" not in one for one in recorded)
+
+
+def test_repeats_a_blocker_t0804_a_new_defect_on_the_next_line_spends_the_budget(tmp_path):
+    """S-0127/D-4, S-0127/D-11: T-0804's shape — a revision's blocker of the
+    earlier one's kind, cited on the line after it, with a claim about another
+    defect — is a new blocker and is not re-raised. The same defect described
+    in other words over the earlier line is, and so is a blocker naming the
+    same row."""
+
+    _files(tmp_path, **{"src/app.py": 60})
+    earlier = [
+        {
+            "round": 1,
+            "claim": "the cap is never enforced when a file has more findings than the cap",
+            "kind": "bug",
+            "path": "src/app.py",
+            "line": 12,
+        },
+        {"round": 1, "claim": f"{OWNED} is violated", "kind": "contract", "row": OWNED},
+    ]
+    diff = (
+        "diff --git a/src/app.py b/src/app.py\n--- a/src/app.py\n+++ b/src/app.py\n"
+        "@@ -40,1 +40,1 @@\n-old\n+new\n"
+    )
+    document = CriticDocument.model_validate(
+        {
+            "rows": [],
+            "findings": [
+                finding(
+                    id="F1",
+                    evidence="src/app.py:13 — the message",
+                    claim="the escalation message names the wrong configuration key",
+                ),
+                finding(
+                    id="F2",
+                    evidence="src/app.py:11-12 — the guard",
+                    claim="a file holding more findings than the cap is never split, "
+                    "so the cap is not enforced",
+                ),
+                finding(id="F3", evidence="src/app.py:40 — here", claim="another", row=OWNED),
+            ],
+        }
+    )
+
+    decision = decide(
+        document,
+        {},
+        tmp_path,
+        "major",
+        revision=Revision(diff=diff, blockers=earlier),
+        reproduce=Rerun(),
+    )
+
+    assert [one.id for one in decision.blockers] == ["F1", "F2", "F3"]
+    assert [one.id for one in decision.reraised if isinstance(one, CriticFinding)] == [
+        "F2",
+        "F3",
+    ]
 
 
 # ....................... #
@@ -188,13 +603,15 @@ def test_carried_finding_blocks_only_near_the_revisions_own_change(tmp_path):
             diff=REVISION_DIFF,
             blockers=[{"round": 1, "claim": "the earlier bound", "path": "src/app.py", "line": 30}],
         ),
+        reproduce=Rerun(),
     )
 
-    # Near the revision's change it blocks; near an earlier blocker it is
-    # re-raised; the untouched code and the anchorless finding are carried.
+    # Near the revision's change or an earlier blocker it counts, and blocks
+    # on its failing re-run; near is no repeat (S-0127/D-4), so nothing is
+    # re-raised. The untouched code and the anchorless finding are carried.
     assert decision.blocked is True
     assert [one.id for one in decision.blockers] == ["F1", "F2"]
-    assert [one.id for one in decision.reraised] == ["F2"]
+    assert decision.reraised == []
     assert [one.id for one in decision.carried] == ["F3", "F4"]
 
 
@@ -249,6 +666,7 @@ def test_a_dotted_citation_blocks_where_its_normalised_path_was_changed(tmp_path
         tmp_path,
         "major",
         revision=Revision(diff=REVISION_DIFF),
+        reproduce=Rerun(),
     )
 
     assert [one.id for one in decision.blockers] == ["F1"]
@@ -507,7 +925,7 @@ def test_rejected_claim_a_citation_outside_every_span_blocks(tmp_path):
     )
     spots = rejected_spots(task, tmp_path, 1)
 
-    decision = decide(document, {}, tmp_path, "blocker", rejected=spots)
+    decision = decide(document, {}, tmp_path, "blocker", rejected=spots, reproduce=Rerun())
 
     assert decision.blocked is True
     assert decision.blockers == decision.kept
@@ -526,7 +944,7 @@ def test_rejected_claim_a_citation_in_another_file_is_not_carried(tmp_path):
     )
     spots = rejected_spots(task, tmp_path, 1)
 
-    decision = decide(document, {}, tmp_path, "blocker", rejected=spots)
+    decision = decide(document, {}, tmp_path, "blocker", rejected=spots, reproduce=Rerun())
 
     assert decision.blocked is True
     assert decision.rejected == []
@@ -548,7 +966,7 @@ def test_rejected_claim_a_citation_that_does_not_locate_is_not_carried(tmp_path)
     )
     spots = rejected_spots(task, tmp_path, 1)
 
-    decision = decide(document, {}, tmp_path, "blocker", rejected=spots)
+    decision = decide(document, {}, tmp_path, "blocker", rejected=spots, reproduce=Rerun())
 
     assert decision.blocked is True
     assert decision.rejected == []
@@ -584,6 +1002,7 @@ def test_rejected_claim_is_carried_and_marked_on_a_revision_attempt(tmp_path):
         "blocker",
         revision=Revision(diff=diff),
         rejected=rejected_spots(task, tmp_path, 1),
+        reproduce=Rerun(),
     )
 
     assert [one.id for one in decision.blockers] == ["F2"]
@@ -604,6 +1023,7 @@ def test_rejected_claim_judge_reads_the_attempt_under_review(monkeypatch):
     monkeypatch.setattr(critic_module, "run_critic", lambda *a, **kw: seen.update(kw))
     monkeypatch.setattr(critic_module, "reviewer_for", lambda run: None)
     monkeypatch.setattr(critic_module, "revision_for", lambda run, state: None)
+    monkeypatch.setattr(critic_module, "mapped_blocker_anchors", lambda worktree, state: [])
     run = SimpleNamespace(
         root=Path("."),
         worktree=Path("."),
@@ -617,6 +1037,37 @@ def test_rejected_claim_judge_reads_the_attempt_under_review(monkeypatch):
     critic_module.judge(run, None, SimpleNamespace(attempts=3))  # type: ignore[arg-type]
 
     assert seen["attempt"] == 3
+
+
+def test_reproduced_judge_reruns_through_the_runs_reproduce(monkeypatch):
+    """S-0127/D-1: `judge` hands `run_critic` `runner.reproduce` over the run
+    under review and its state, so a re-run opens its own judge checkout and
+    gates sandbox for that candidate."""
+
+    from types import SimpleNamespace
+
+    seen: dict = {}
+    calls: list[tuple] = []
+    monkeypatch.setattr(critic_module, "run_critic", lambda *a, **kw: seen.update(kw))
+    monkeypatch.setattr(critic_module, "reviewer_for", lambda run: None)
+    monkeypatch.setattr(critic_module, "revision_for", lambda run, state: None)
+    monkeypatch.setattr(critic_module, "mapped_blocker_anchors", lambda worktree, state: [])
+    monkeypatch.setattr(run_module, "reproduce", lambda *args: calls.append(args) or [])
+    run = SimpleNamespace(
+        root=Path("."),
+        worktree=Path("."),
+        task=None,
+        config=None,
+        deps=SimpleNamespace(runtime=None, broker=None),
+        last_pass=SimpleNamespace(patch="", evidence=None, digest=""),
+        broker_handle=None,
+    )
+    state = SimpleNamespace(attempts=1)
+
+    critic_module.judge(run, None, state)  # type: ignore[arg-type]
+    seen["reproduce"](["uv run pytest -q"], {"probes/p.py": None})
+
+    assert calls == [(run, state, ["uv run pytest -q"], {"probes/p.py": None})]
 
 
 @given(
@@ -641,7 +1092,7 @@ def test_rejected_claim_carries_exactly_the_findings_within_the_window(
         {"rows": [], "findings": [finding("blocker", evidence)]}
     )
 
-    decision = decide(document, {}, tmp_path, "blocker", rejected=rejected)
+    decision = decide(document, {}, tmp_path, "blocker", rejected=rejected, reproduce=Rerun())
 
     expected = all(spot - threads.WINDOW <= line <= spot + width + threads.WINDOW for line in cited)
     assert (decision.rejected != []) is expected
@@ -649,20 +1100,21 @@ def test_rejected_claim_carries_exactly_the_findings_within_the_window(
 
 
 def test_a_rejected_row_verdict_never_erases_an_independent_violation(tmp_path):
-    """S-0122/D-1, S-0126/D-1: a row the critic answers twice keeps a located
-    `violated` that stands on its own beside one disputing a rejected claim,
-    so the independent violation still blocks."""
+    """S-0122/D-1, S-0126/D-1: a LOCKED row the critic answers twice keeps a
+    located `violated` that stands on its own beside one disputing a rejected
+    claim, so the independent violation still blocks on what locates
+    (S-0127/D-1)."""
 
     _files(tmp_path, **{"src/app.py": 60})
     rows = [
-        {"row": OWNED, "verdict": "violated", "evidence": "src/app.py:60 — an independent defect"},
-        {"row": OWNED, "verdict": "violated", "evidence": "src/app.py:14 — the rejected claim"},
+        {"row": LOCKED, "verdict": "violated", "evidence": "src/app.py:60 — an independent defect"},
+        {"row": LOCKED, "verdict": "violated", "evidence": "src/app.py:14 — the rejected claim"},
     ]
     document = CriticDocument.model_validate({"rows": rows, "findings": []})
 
     decision = decide(
         document,
-        {OWNED: True},
+        {LOCKED: False},
         tmp_path,
         "blocker",
         rejected=[("src/app.py", 12, 14)],
@@ -846,6 +1298,7 @@ def test_one_call_stages_the_evidence_scrubs_the_author_and_keeps_named_probes(r
             ],
         )
     )
+    rerun = Rerun()
 
     verdict = run_critic(
         repo.root,
@@ -858,6 +1311,7 @@ def test_one_call_stages_the_evidence_scrubs_the_author_and_keeps_named_probes(r
         ctx.patch,
         evidence,
         "digest",
+        reproduce=rerun,
     )
 
     # The inputs, and nothing of the author's (S-0122/D-2).
@@ -885,12 +1339,13 @@ def test_one_call_stages_the_evidence_scrubs_the_author_and_keeps_named_probes(r
         }
     ]
 
-    # The engine decided: a located major blocks, the row's breach blocks.
+    # The engine decided (S-0127/D-1): the located major's repro was re-run
+    # with the probe its copy kept and failed, so it blocks; the row's breach
+    # names no command, so it is advisory.
     assert verdict.decision is not None and verdict.decision.blocked
-    assert [f.claim for f in verdict.blockers] == [
-        "the bound is off by one",
-        f"{OWNED} is violated",
-    ]
+    assert rerun.calls == [(["python probes/p.py"], {"probes/p.py": "assert bound(4) == 4\n"})]
+    assert [f.claim for f in verdict.blockers] == ["the bound is off by one"]
+    assert [f.claim for f in verdict.kept] == ["the bound is off by one", f"{OWNED} is violated"]
     assert verdict.discarded and "it reads wrong" in verdict.discarded[0]
 
     # Only the probe a surviving finding names is kept.
@@ -898,6 +1353,10 @@ def test_one_call_stages_the_evidence_scrubs_the_author_and_keeps_named_probes(r
     kept = repo.root / ".torve" / "tasks" / review.id / "probes"
     assert sorted(p.name for p in kept.iterdir()) == ["p.py"]
     assert "assert bound(4) == 4" in verdict.threads[0]["comments"][0]["body"]
+    assert (
+        "the engine re-ran `python probes/p.py` on this candidate: exit 1"
+        in (verdict.threads[0]["comments"][0]["body"])
+    )
     assert verdict.threads[0]["path"] == "src/app.py"
 
     # The record (S-0122/D-19): mode, the prompt's sha, row verdicts and the
@@ -911,11 +1370,24 @@ def test_one_call_stages_the_evidence_scrubs_the_author_and_keeps_named_probes(r
     assert record["prompt_sha"] == prompt_sha()
     assert record["blocked"] is True
     assert record["rows"] == [
-        {"row": OWNED, "owned": True, "verdict": "violated", "located": True, "blocks": True}
+        {
+            "row": OWNED,
+            "owned": True,
+            "verdict": "violated",
+            "located": True,
+            "blocks": False,
+            "advisory": True,
+        }
     ]
     assert [(f["kind"], f["severity"], f["verified"]) for f in record["findings"]] == [
         ("bug", "major", "executed")
     ]
+    assert record["findings"][0]["rerun"] == {
+        "command": "python probes/p.py",
+        "exit_code": 1,
+        "tail": "python probes/p.py: 1 failed",
+    }
+    assert "advisory" not in record["findings"][0]
     assert record["evidence"]["rows"] == {OWNED: "proved"}
 
     # Nothing the critic wrote survived.
@@ -1024,6 +1496,38 @@ def test_the_probes_are_read_only_once_the_critics_sandbox_is_gone(repo, monkeyp
     assert len(destroyed_at_harvest) == 1 and destroyed_at_harvest[0]
 
 
+def test_reproduced_only_once_the_critics_session_has_ended(repo):
+    """S-0122/D-2, S-0127/D-1: `run_critic` re-runs a repro only after the
+    critic's sandbox is gone, so nothing the re-run measures reaches the
+    critic, and its verdict blocks on what the re-run measured."""
+
+    worktree, target = _candidate(repo)
+    runtime = MockRuntime()
+    destroyed_at_rerun: list[list[str]] = []
+
+    def rerun(commands, probes):
+        destroyed_at_rerun.append(list(runtime.destroyed))
+        return [CommandRun(command, 1, "1 failed") for command in commands]
+
+    verdict = run_critic(
+        repo.root,
+        worktree,
+        target,
+        mint_review_task(repo.root, target),
+        critic_config(),
+        runtime,
+        ScriptedAgent([AgentResult(exit_code=0, output=answer(findings=[finding()]))]),
+        "",
+        None,
+        "digest",
+        reproduce=rerun,
+    )
+
+    assert len(destroyed_at_rerun) == 1 and destroyed_at_rerun[0]
+    assert verdict.decision is not None and verdict.decision.blocked is True
+    assert verdict.fact.startswith("critic blocked: 1 finding(s)")
+
+
 def test_a_corpus_case_that_deletes_a_file_replays_without_it(tmp_path):
     case = tmp_path / "case"
     (case / "tree" / "src").mkdir(parents=True)
@@ -1065,8 +1569,9 @@ def test_a_critic_block_revises_with_its_findings_and_what_the_engine_measured(
     monkeypatch,
 ):
     """S-0122/D-8: the revision is handed the blocking findings with their
-    repros and the package's failing items — never the critic's own prose,
-    which is a trace no revision reads."""
+    repros, the engine's re-run of each (S-0127/D-1) and the package's
+    failing items — never the critic's own prose, which is a trace no
+    revision reads."""
 
     from torve.gates.evidence_package import EditedTest, EvidencePackage
 
@@ -1086,26 +1591,19 @@ def test_a_critic_block_revises_with_its_findings_and_what_the_engine_measured(
 
     monkeypatch.setattr(run_module, "judge", judged)
     critic = SequencedReviewer(
-        [
-            answer(
-                findings=[
-                    finding(
-                        repro={"command": "python probes/p.py"},
-                        fix_hint="the subtraction in bound",
-                    )
-                ]
-            ),
-            answer(),
-        ]
+        [answer(findings=[finding(fix_hint="the subtraction in bound")]), answer()]
     )
 
     state = run_task(repo.root, task_for(repo), critic_config(), deps_for(critic))
 
     assert state.state is TaskState.READY
-    assert any(h["fact"].startswith("review blocker (revision 1 of 2):") for h in state.history)
+    assert any(h["fact"].startswith("review blocker (revision 1 of 1):") for h in state.history)
     text = feedback_file(repo.root, "T-9001").read_text(encoding="utf-8")
     assert "the bound is off by one" in text
-    assert "repro: `python probes/p.py`" in text
+    assert f"repro: `{REPRO}`" in text
+    # S-0127/D-1: the thread carries the engine's re-run, its exit and output.
+    assert f"the engine re-ran `{REPRO}` on this candidate: exit 1" in text
+    assert "1 failed: assert 3 == 4" in text
     assert "fix: the subtraction in bound" in text
     assert "## What the engine measured" in text
     assert "assert_removed" in text

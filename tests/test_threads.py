@@ -132,11 +132,13 @@ def test_rejections_keep_one_attempts_contradictions_once() -> None:
             "evidence": "src/a.py:11 — this was fixed on the retry",
         },
         {
-            "decision": "unlisted",
-            "kind": "blocked",
+            "decision": "S-0096/D-1",
+            "grade": "LOCKED",
+            "kind": "contradicted",
+            "action": "halted",
             "attempt": 3,
-            "claim": "a halt is not a rejection",
-            "evidence": "src/a.py:12 — a blocked entry",
+            "claim": "a halt on a LOCKED row is not a rejection",
+            "evidence": "src/a.py:12 — the owner's to reopen",
         },
         {
             "decision": "S-0126/D-3",
@@ -171,6 +173,68 @@ def test_rejections_keep_one_attempts_contradictions_once() -> None:
         "an earlier attempt's rejection",
         "an entry with no attempt",
     ]
+
+
+def test_rejections_keep_a_declined_claim_beside_a_contradicted_one() -> None:
+    """S-0127/D-12: an attempt's `halted` entries that cite no LOCKED row are
+    claims it declined and are kept beside its contradicted ones, once each
+    and for their own attempt; a halt on a LOCKED row is the owner's
+    (`locked_conflict`, S-0096/D-1) and is no rejection."""
+
+    entries = [
+        {
+            "decision": "unlisted",
+            "grade": "UNLISTED",
+            "kind": "contradicted",
+            "action": "departed",
+            "attempt": 2,
+            "claim": "app.py:12 is already guarded",
+            "evidence": "src/app.py:10 — the guard",
+        },
+        {
+            "decision": "unlisted",
+            "grade": "UNLISTED",
+            "kind": "blocked",
+            "action": "halted",
+            "attempt": 2,
+            "claim": "schema.py:3 asks for a migration outside this round",
+            "evidence": "src/schema.py:1 — another phase's",
+        },
+        # `torve abort` citing two rows writes one entry per row.
+        {
+            "decision": "S-0001/D-2",
+            "grade": "ASSUMED",
+            "kind": "blocked",
+            "action": "halted",
+            "attempt": 2,
+            "claim": "schema.py:3 asks for a migration outside this round",
+            "evidence": "src/schema.py:1 — another phase's",
+        },
+        {
+            "decision": "S-0001/D-1",
+            "grade": "LOCKED",
+            "kind": "contradicted",
+            "action": "halted",
+            "attempt": 2,
+            "claim": "api.py:7 would break the frozen interface",
+            "evidence": "src/api.py:7 — the LOCKED row",
+        },
+        {
+            "decision": "unlisted",
+            "grade": "UNLISTED",
+            "kind": "blocked",
+            "action": "halted",
+            "attempt": 1,
+            "claim": "an earlier attempt's halt",
+            "evidence": "src/app.py:1 — the first attempt",
+        },
+    ]
+
+    assert [entry["claim"] for entry in rejections(entries, 2)] == [
+        "app.py:12 is already guarded",
+        "schema.py:3 asks for a migration outside this round",
+    ]
+    assert [entry["claim"] for entry in rejections(entries, 1)] == ["an earlier attempt's halt"]
 
 
 def test_rejections_treat_a_persisted_non_attempt_as_unpinned() -> None:

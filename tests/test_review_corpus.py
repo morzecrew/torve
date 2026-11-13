@@ -7,13 +7,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 from test_decisions import landed
 from test_run_loop import MockRuntime
 from typer.testing import CliRunner
 
 import torve.cli.review as review_cli
-from torve.application.ports import AgentResult
+from torve.application.ports import AgentResult, ExecResult
 from torve.cli.main import app
 
 
@@ -524,6 +525,94 @@ def test_a_violated_row_meets_a_contract_expectation(tmp_path, monkeypatch):
 
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["cases"][0]["caught"] == 1
+
+
+class ReproRuntime(MockRuntime):
+    """The case's evidence sandbox, where the finding's repro exits *code*
+    and every other command passes; each command is kept with the sandbox it
+    ran in."""
+
+    def __init__(self, command: str, code: int) -> None:
+        super().__init__()
+        self.command, self.code = command, code
+        self.ran: list[tuple[str, str]] = []
+
+    def exec(self, handle, command, timeout_s):
+        self.ran.append((handle.name, command))
+
+        if command == self.command:
+            return ExecResult(exit_code=self.code, output="1 failed", duration_s=0.0)
+
+        return super().exec(handle, command, timeout_s)
+
+
+@pytest.mark.parametrize(("code", "blocked"), [(1, True), (0, False)])
+def test_the_corpus_reads_blocked_from_a_reproduced_finding(tmp_path, monkeypatch, code, blocked):
+    """S-0127/D-1: the replay re-runs a finding's repro in the case's own
+    evidence sandbox over its scratch repository, so a case reads `blocked`
+    the way a night would — blocked when the repro fails there, and caught
+    but advisory when it passes."""
+
+    import torve.cli.run as run_cli
+
+    root = critic_corpus(tmp_path)
+    case = root / ".torve" / "review-corpus" / "gaming" / "case.yaml"
+    document = yaml.safe_load(case.read_text(encoding="utf-8"))
+    document["expect"] = [{"severity": "major", "kind": "bug", "claim_contains": "pytest"}]
+    case.write_text(yaml.safe_dump(document), encoding="utf-8")
+    repro = "uv run pytest -q tests/test_rates.py"
+    found = json.loads(critic_answer("blocker", "bug"))
+    found["findings"][0]["repro"] = {"command": repro}
+    runtime = ReproRuntime(repro, code)
+
+    monkeypatch.setattr(
+        run_cli, "build_reviewer_agent", lambda config, r: ReadingCritic(json.dumps(found))
+    )
+    monkeypatch.setattr(review_cli, "runtime_for", lambda config, name: runtime)
+    result = CliRunner().invoke(
+        app, ["review", "corpus", "--root", str(root), "--format", "json", "--mode", "critic"]
+    )
+
+    assert result.exit_code == 0, result.output
+    outcome = json.loads(result.stdout)["cases"][0]
+    assert (outcome["caught"], outcome["blocked"]) == (1, blocked)
+    [(sandbox, _command)] = [one for one in runtime.ran if one[1] == repro]
+    assert sandbox.endswith("-evidence")
+
+
+def test_a_corpus_repro_runs_over_a_fresh_copy_and_leaves_nothing_for_the_next(tmp_path):
+    """S-0127/D-10: each corpus repro runs over a fresh copy of the
+    candidate, mounted read-only under `REPRO_ENV` as a night's re-run is,
+    and the copy goes after it: neither its probe nor a file its writable
+    run added reaches the next repro or the scratch repository."""
+
+    from test_runner import DENIED, _ReproRuntime
+
+    from torve.application.critic import _replay_reproduce
+    from torve.application.ports import SandboxSpec
+    from torve.application.runner import REPRO_ENV
+
+    scratch = tmp_path / "scratch"
+    (scratch / "repo" / "src").mkdir(parents=True)
+    (scratch / "repo" / "src" / "app.py").write_text("x = 1\n", encoding="utf-8")
+    runtime = _ReproRuntime(
+        {"uv run tool": {"ro": (1, DENIED), "rw": (0, "ok")}},
+        writes={"uv run tool": {"build.log": "left behind\n"}},
+    )
+    spec = SandboxSpec(name="corpus-evidence", image="img", labels={}, timeout_s=60.0)
+    probe = {"probes/test_x.py": "def test_x():\n    pass\n"}
+
+    first = _replay_reproduce(runtime, spec, scratch / "repo", 60.0, ["uv run tool"], probe)
+    second = _replay_reproduce(runtime, spec, scratch / "repo", 60.0, ["uv run pytest -q"], probe)
+
+    assert [one.exit_code for one in [*first, *second]] == [0, 0]
+    # The second repro found its probe's path new and nothing the first wrote.
+    assert runtime.mounted == ["probes/test_x.py", "src/app.py"]
+    assert [one.workspace_read_only for one in runtime.specs] == [True, False, True]
+    assert all({name: one.env[name] for name in REPRO_ENV} == REPRO_ENV for one in runtime.specs)
+    assert [
+        path.relative_to(scratch).as_posix() for path in scratch.rglob("*") if path.is_file()
+    ] == ["repo/src/app.py"]
 
 
 def test_the_classic_replay_reports_whether_it_would_block(tmp_path, monkeypatch):

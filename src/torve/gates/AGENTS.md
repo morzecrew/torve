@@ -39,7 +39,7 @@ The critic is independent of the author: it judges a diff composed before its di
 
 ### S-0122/D-1 — `LOCKED` (Judge-and-select rebuild) — implementation: partial
 
-The engine, not a model, turns a critic's findings into block or pass: a candidate is blocked when a finding that survives the location filter is at or above `review.blocks_at`, or when an owned row is `violated` with located evidence, and an `unknown` row never blocks; on a revision attempt such a finding counts only when it also locates within `threads.WINDOW` lines of a line the revision changed or of an earlier round's blocker, and every other is recorded non-blocking; on a review round's attempt, a finding or `violated` row whose every cited `path:line` locates within `threads.WINDOW` lines of a claim that attempt rejected (S-0126/D-2) is recorded non-blocking, and a re-raise of the claim escalates (S-0121/D-29)
+The engine, not a model, turns a critic's findings into block or pass: a candidate is blocked when a finding that survives the location filter is at or above `review.blocks_at`, is not `weak_test`, and its repro exits non-zero when the engine re-runs it against the candidate in a gates sandbox, or when an owned row is `violated` and its evidence's command fails so; a `gaming` finding at or above `review.blocks_at` and a `violated` verdict on a LOCKED row block on located evidence alone; every other finding and row is recorded advisory, and an `unknown` row never blocks (S-0127/D-1, S-0127/D-2); on a revision attempt such a finding counts only when it also locates within `threads.WINDOW` lines of a line the revision changed or of an earlier round's blocker, and every other is recorded non-blocking; on a review round's attempt, a finding or `violated` row whose every cited `path:line` locates within `threads.WINDOW` lines of a claim that attempt rejected (S-0126/D-2) is recorded non-blocking, and a re-raise of the claim escalates (S-0121/D-29)
 
 - Paths: `src/torve/application/review.py` `src/torve/application/critic.py` `src/torve/gates/evidence.py`
 
@@ -78,5 +78,13 @@ Contract v3 splits scope into `files`, `tests` (paired tests derived at mint and
 Evals and arms, shadow arms, fleet, standing work, notify, the opensandbox runtime, serve and the web dashboard, survey, the verify role with held-out and verify-tests, the mutation, coverage-delta, decisions-reported, self-audit, user-facing-text, source-layout, red-on-base and row-evidence gates, the evidence matrix and the mimo, codex and opencode sandboxes are deleted, and a removed configuration key is accepted with a warning for one release
 
 - Paths: `src/torve/application/evals.py` `src/torve/application/shadow.py` `src/torve/application/fleet.py` `src/torve/application/standing.py` `src/torve/application/notify.py` `src/torve/application/survey.py` `src/torve/application/evidence_matrix.py` `src/torve/gates/mutation.py` `src/torve/gates/held_out.py` `src/torve/gates/verify_tests.py` `src/torve/gates/decisions_reported.py` `src/torve/gates/red_on_base.py` `src/torve/gates/row_evidence.py` `web/**` `sandboxes/mimo/**`
+
+### S-0127/D-3 — `ASSUMED` (A verdict comes from what ran)
+
+`locate` accepts evidence that carries, anywhere in its text, a `path:line` or `path:start-end` citation that resolves under the root, as `evidence.citations` reads them with the grammar `critic._citations` uses today, or a backticked command followed by output; evidence holding neither is refused with today's messages, and `filter_findings` and the execution log's evidence check, which share `locate`, both accept a citation that follows prose
+
+- Paths: `src/torve/gates/evidence.py` `src/torve/gates/log_entry.py`
+- Consequence: a probe or mutation sentence citing the line it changed survives the location filter; a divergence entry whose citation follows prose is accepted too, and the log's teaching rejection no longer asks for a leading citation
+- Check: `uv run pytest -q tests/test_review_role.py tests/test_gates.py -k locates_anywhere` (shadow; runs as `decision:S-0127/D-3`)
 
 <!-- /torve:managed -->

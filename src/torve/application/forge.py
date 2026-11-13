@@ -7,6 +7,7 @@ attached, checkable without opening a terminal.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -17,6 +18,7 @@ from pydantic import TypeAdapter, ValidationError
 from torve.config import layout
 from torve.config.spec import SpecError, document_dir, load_document
 from torve.domain.attempt import GateResult
+from torve.domain.events import ReviewItem
 from torve.domain.spec import FILE_FIELDS, PHASING_FILE, Commit, Corpus, Document, Phase
 from torve.domain.task import InheritedDecision, Task
 
@@ -319,12 +321,17 @@ def compose_pr(
 @dataclass(frozen=True)
 class DocumentLanding:
     """One phase as the document branch carries it: the contract that landed,
-    the sha the landing produced and the battery that judged it. There is no
-    field an agent's prose can occupy."""
+    the sha the landing produced, the battery that judged it and the findings
+    its last task-gated review recorded. An advisory item holds the critic's
+    claim and evidence as the record does, and the composer renders neither
+    (S-0121/D-34): no field reaches the body as an agent's prose."""
 
     task: Task
     sha: str = ""
     results: list[GateResult] = field(default_factory=list)
+    # S-0127/D-13: the landed candidate's last review blocked nothing, so every
+    # item it recorded is advisory; a task with no recorded review has none.
+    advisory: list[ReviewItem] = field(default_factory=list)
 
 
 class PhasingUnreadable(ValueError):
@@ -458,6 +465,41 @@ def _gates_line(results: list[GateResult]) -> str:
     return f"gates: all {len(results)} pass"
 
 
+def _code(text: str) -> str:
+    """*text* as one inline code span: its whitespace folded so the list item
+    stays one line, and fenced by one backtick more than its longest run, so
+    no character of it closes the span early and reads as markdown. A
+    re-run's command was written by a model, so it reaches the body as code
+    or not at all (S-0121/D-34)."""
+
+    text = " ".join(text.split())
+    fence = "`" * (max(map(len, re.findall("`+", text)), default=0) + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") else ""
+    return f"{fence}{pad}{text}{pad}{fence}"
+
+
+def _advisory_line(item: ReviewItem) -> str:
+    """One advisory finding as the body lists it (S-0127/D-13): its severity,
+    then its kind, its anchor and the engine's re-run of it, each when the
+    record holds one. Never its claim or its evidence: a person who wants the
+    claim reads the review record."""
+
+    parts: list[str] = [item.severity]
+
+    if item.kind:
+        parts.append(item.kind)
+
+    if item.path:
+        parts.append(_code(item.path if item.line is None else f"{item.path}:{item.line}"))
+
+    if item.rerun_command:
+        # None is a timeout, a refused repro or a command that was not run.
+        code = "no exit code" if item.rerun_exit is None else f"exit {item.rerun_exit}"
+        parts.append(f"re-run {_code(item.rerun_command)} {code}")
+
+    return "- " + " · ".join(parts)
+
+
 def document_complete(
     document: str,
     landings: list[DocumentLanding],
@@ -494,10 +536,13 @@ def compose_document_pr(
 ) -> tuple[str, str]:
     """(title, body) for a document branch's one pull request, composed
     entirely from records: every task the branch carries, the rows each
-    contract carried with their grades, the gates' verdicts and the
-    divergence entries, and the phases the document has still to come
-    (S-0083/D-8). The contract's intent is the author's paragraph and is in
-    the open; nothing an agent wrote as prose reaches it.
+    contract carried with their grades, the gates' verdicts, the divergence
+    entries and the critic's advisory findings, and the phases the document
+    has still to come (S-0083/D-8). The contract's intent is the author's
+    paragraph and is in the open; nothing an agent wrote as prose reaches it.
+
+    An advisory finding is listed by severity, kind, anchor and the engine's
+    re-run, inside the same bound as the rest (S-0127/D-13).
 
     *phases* is the union the draft flag counts (S-0124/D-10): a phase only
     the branch's phasing names is counted too, untitled, since the root's
@@ -576,6 +621,16 @@ def compose_document_pr(
 
         for divergence in _divergences(root, task.id):
             lines.append(f"- divergence: {divergence}")
+
+        if landing.advisory:
+            # A blank line first, or the heading reads as the list item above.
+            if lines[-1]:
+                lines.append("")
+
+            lines += [
+                "**The critic's advisory findings**",
+                *(_advisory_line(item) for item in landing.advisory),
+            ]
 
         lines.append("")
 

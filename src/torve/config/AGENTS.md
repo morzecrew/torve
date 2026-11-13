@@ -88,7 +88,7 @@ The issue intake leg is off until `intake.issue_label` names a label, drafts onl
 
 ### S-0122/D-7 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
 
-A unit's class sets its width (S one candidate, M two, L three, never more), stragglers are cut at 1.5 times the first green finisher's wall time capped at 15 minutes, identical normalised diffs collapse, and a deterministic pre-rank orders the rest before any critic call
+A unit's class sets its width (S one candidate, M two, L three, never more); among one attempt's candidates the first to finish green wins, the others are cut when it does, and the critic reads only it (S-0127/D-6)
 
 - Paths: `src/torve/application/selection.py` `src/torve/config/runconfig.py`
 
@@ -108,15 +108,15 @@ What makes intake demand a document now that one charter is the only standing do
 
 ### S-0124/D-2 — `ASSUMED` (Candidates side by side, and S-0122's revision)
 
-Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions` revision rounds when the configuration names it, else 2; classic mode keeps 1
+Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions` revision rounds when the configuration names it, else 1 under `review.revision: off`, the default (S-0127/D-5), and 2 under `fresh` or `session`; classic mode keeps 1
 
 - Paths: `src/torve/config/runconfig.py` `src/torve/application/review.py`
-- Consequence: a unit gets the two rounds S-0122/D-8 promises before it escalates
+- Consequence: a unit gets one fresh attempt after a block by default (S-0127/D-5), and the two rounds when a configuration names `fresh` or `session`
 - Check: `uv run pytest -q tests/test_runconfig.py tests/test_review_run.py -k revision_rounds` (shadow; runs as `decision:S-0124/D-2`)
 
 ### S-0124/D-8 — `ASSUMED` (Candidates side by side, and S-0122's revision)
 
-Under `review.revision: session` a revision round continues the selected candidate in its own still-open session, on that candidate's tier and not `revision_variant`, with the blocking findings, after the same spend and clock checks a fresh attempt passes, then judges its gates and asks the critic again, in place of a fresh revision attempt; `fresh` is the default, and a seat whose harness keeps no session falls back to it
+Under `review.revision: session` a revision round continues the selected candidate in its own still-open session, on that candidate's tier and not `revision_variant`, with the blocking findings, after the same spend and clock checks a fresh attempt passes, then judges its gates and asks the critic again, in place of a fresh revision attempt; `off` is the default (S-0127/D-5), under which neither revision mode runs, and a seat whose harness keeps no session falls back to `fresh`
 
 - Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `src/torve/config/runconfig.py`
 - Consequence: the night can run the in-session arm S-0122/D-9 asks about, one configuration key away
@@ -144,5 +144,13 @@ Whether dsh compacts against the context window torve passes and at what fractio
 
 - Paths: `src/torve/config/runconfig.py`
 - Consequence: if dsh does not compact against the passed window, D-8 bounds nothing for dsh and a per-attempt token budget comes back into scope
+
+### S-0127/D-5 — `ASSUMED` (A verdict comes from what ran)
+
+`review.revision` gains `off`, the default: a surviving blocker sends the unit to one fresh attempt on the task's own seat, never its `revision_variant`, on the blocked candidate's tree with the feedback record D-1's threads fill, and a blocker surviving that attempt escalates `blocker_finding`; under `off`, `review.blocker_revisions` resolves to 1 unless the configuration names a number, and `fresh` and `session` keep their meaning when a configuration names them
+
+- Paths: `src/torve/config/runconfig.py` `src/torve/application/session.py`
+- Consequence: no Opus revision runs unless a configuration asks for one, and a unit blocked twice reaches the owner after two executor sessions
+- Check: `uv run pytest -q tests/test_runconfig.py tests/test_session.py -k revision_off` (shadow; runs as `decision:S-0127/D-5`)
 
 <!-- /torve:managed -->

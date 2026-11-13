@@ -20,3 +20,147 @@ amendments:
       file, but its scope did not own it, so the only edit that passes was an edit the
       `no-test-tampering` gate convicts. T-0808's seventh attempt stopped on it. Phase 1's
       scope now includes `tests/test_critic.py`. No row's text, grade or paths changes.
+  - id: A-3
+    at: '2026-11-12T02:44:26Z'
+    title: >-
+      A revision runs on the task's own seat by default (S-0127/D-5)
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          A revision attempt, one whose task has a feedback record at the root, is
+          class S and runs one candidate, on the tier `revision_variant` names
+        after: >-
+          A revision attempt, one whose task has a feedback record at the root, is
+          class S and runs one candidate, on the task's own seat under `review.revision:
+          off`, the default, and on the tier `revision_variant` names only when a
+          configuration names `fresh` or `session` (S-0127/D-5)
+      - subject: D-1
+        field: fingerprint
+        after: 6082ef6597dc8b06/14bd8ed0a79735ba
+    md: |
+      Amended on 2026-11-12 in the pull request that accepts S-0127 (S-0127/Q-6).
+      S-0127/D-5 makes `off` the default: the attempt after a block is a fresh one on the task's own seat, not the Opus revision variant, which a configuration can still choose.
+  - id: A-4
+    at: '2026-11-12T02:44:32Z'
+    title: One revision round by default (S-0127/D-5)
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions`
+          revision rounds when the configuration names it, else 2; classic mode keeps
+          1
+        after: >-
+          Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions`
+          revision rounds when the configuration names it, else 1 under `review.revision:
+          off`, the default (S-0127/D-5), and 2 under `fresh` or `session`; classic
+          mode keeps 1
+      - subject: D-2
+        field: fingerprint
+        after: e279a2361f1bc149/0a34d1913148e82b
+    md: |
+      Amended on 2026-11-12 in the pull request that accepts S-0127 (S-0127/Q-6).
+      Under S-0127/D-5's default a blocker gets one fresh attempt, and a blocker surviving it escalates; a configuration naming a number or a revision mode keeps today's rounds.
+  - id: A-5
+    at: '2026-11-12T02:44:39Z'
+    title: >-
+      A re-raise repeats the claim, not the line (S-0127/D-4)
+    changes:
+      - subject: D-3
+        field: text
+        before: >-
+          Each revision round records its blocking findings' anchors in the run's
+          history; a blocking finding anchored in the same file within `threads.WINDOW`
+          lines of one the previous round recorded, or in the same file when either
+          has no line, is re-raised, and the run escalates `blocker_finding` naming
+          it instead of spending another round
+        after: >-
+          Each revision round records its blocking findings' anchors, kinds and rows
+          in the run's history; a blocking finding is re-raised only when it repeats
+          an earlier round's blocker, by naming the same row, or by having the same
+          `kind`, a citation whose span overlaps the earlier blocker's span as mapped
+          into the current tree, and a matching claim (S-0127/D-4), and the run escalates
+          `blocker_finding` naming it instead of spending another round
+      - subject: D-3
+        field: fingerprint
+        after: 26c0ca66e1890242/85d1b94f6e0dc6fb
+    md: |
+      Amended on 2026-11-12 in the pull request that accepts S-0127 (S-0127/Q-6).
+      Distance alone named new findings near an old anchor as re-raises. S-0127/D-4 asks a re-raise to repeat the row, or the kind, span and claim, so a new blocker near an old one is a new blocker inside the revision budget.
+  - id: A-6
+    at: '2026-11-12T04:01:29Z'
+    title: >-
+      The first green wins and cuts the rest (S-0127/D-6)
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          Under `review.mode: critic` a unit's candidates start together; from the
+          first green candidate's finish, a candidate whose agent turn runs past `straggler_clock`
+          of that wall time is cancelled and recorded red, a gate pass already running
+          is never cancelled, an escalating candidate cancels the others' turns, and
+          candidates are ordered by index before collapse and pre-rank
+        after: >-
+          Under `review.mode: critic` a unit's candidates start together; when the
+          first finishes green it wins and the others' agent turns are cancelled and
+          recorded red, a gate pass already running is never cancelled, an escalating
+          candidate cancels the others' turns, and candidates that finish together
+          are ordered by index (S-0127/D-6)
+      - subject: D-4
+        field: fingerprint
+        after: eff6ee2e1de73fa6/f9347bebfb8f8e32
+    md: |
+      Amended on 2026-11-12 while building S-0127.
+      S-0127/D-6 replaced the straggler clock, the collapse of identical diffs and the pre-rank with the first green finisher; S-0127/Q-6 missed this row, and building S-0127's phase 2 found it.
+  - id: A-7
+    at: '2026-11-12T04:02:19Z'
+    title: The bound is the class's (S-0127/D-9)
+    changes:
+      - subject: D-7
+        field: text
+        before: >-
+          The unit's $3 bound is checked before its candidates launch, before each
+          critic call and before a revision turn, so work launched under the bound,
+          a batch of candidates, a critic call or a turn, may finish above it by that
+          work's own spend; a cancelled candidate's spend from the turns it finished
+          still counts
+        after: >-
+          The unit's bound, its class's notional-spend cap (S-0127/D-9), is checked
+          before its candidates launch, before each critic call and before a revision
+          turn, so work launched under the bound, a batch of candidates, a critic
+          call or a turn, may finish above it by that work's own spend; a cancelled
+          candidate's spend from the turns it finished still counts
+      - subject: D-7
+        field: fingerprint
+        after: dd7724e4dea908d9/f9347bebfb8f8e32
+    md: |
+      Amended on 2026-11-12 while building S-0127.
+      S-0127/D-9 replaced the flat $3 with the class's cap; when the bound is checked is unchanged. S-0127/Q-6 missed this row, and building S-0127's phase 2 found it.
+  - id: A-8
+    at: '2026-11-12T04:27:41Z'
+    title: '`off` is the default (S-0127/D-5)'
+    changes:
+      - subject: D-8
+        field: text
+        before: >-
+          Under `review.revision: session` a revision round continues the selected
+          candidate in its own still-open session, on that candidate's tier and not
+          `revision_variant`, with the blocking findings, after the same spend and
+          clock checks a fresh attempt passes, then judges its gates and asks the
+          critic again, in place of a fresh revision attempt; `fresh` is the default,
+          and a seat whose harness keeps no session falls back to it
+        after: >-
+          Under `review.revision: session` a revision round continues the selected
+          candidate in its own still-open session, on that candidate's tier and not
+          `revision_variant`, with the blocking findings, after the same spend and
+          clock checks a fresh attempt passes, then judges its gates and asks the
+          critic again, in place of a fresh revision attempt; `off` is the default
+          (S-0127/D-5), under which neither revision mode runs, and a seat whose harness
+          keeps no session falls back to `fresh`
+      - subject: D-8
+        field: fingerprint
+        after: 14e58ad13fd7649c/e157d702accd77b8
+    md: |
+      Amended on 2026-11-12 while building S-0127: the row still named `fresh` the default,
+      which S-0127/D-5 replaced with `off`. CodeRabbit found it on the document's pull request.

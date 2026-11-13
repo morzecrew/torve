@@ -174,14 +174,15 @@ def test_blocker_revisions_defaults_to_one_and_parses_from_yaml(tmp_path: Path):
 
 
 def test_revision_rounds_default_by_mode_and_a_named_number_wins():
-    """S-0124/D-2: unset, a critic gets the two rounds S-0122/D-8 promises and
-    classic keeps one; a configuration that names a number gets that number
-    under either mode."""
+    """S-0124/D-2: unset under `fresh` or `session`, a critic gets the two
+    rounds S-0122/D-8 promises and classic keeps one; a configuration that
+    names a number gets that number under either mode."""
 
     from torve.config.runconfig import ReviewConfig
 
-    assert ReviewConfig().resolved_blocker_revisions() == 1
-    assert ReviewConfig(mode="critic").resolved_blocker_revisions() == 2
+    assert ReviewConfig(revision="fresh").resolved_blocker_revisions() == 1
+    assert ReviewConfig(mode="critic", revision="fresh").resolved_blocker_revisions() == 2
+    assert ReviewConfig(mode="critic", revision="session").resolved_blocker_revisions() == 2
 
     assert ReviewConfig(blocker_revisions=1).resolved_blocker_revisions() == 1
     assert ReviewConfig(mode="critic", blocker_revisions=1).resolved_blocker_revisions() == 1
@@ -189,14 +190,16 @@ def test_revision_rounds_default_by_mode_and_a_named_number_wins():
     assert ReviewConfig(blocker_revisions=0).resolved_blocker_revisions() == 0
 
 
-def test_session_revision_is_a_mode_and_fresh_is_the_default(tmp_path: Path):
-    """S-0124/D-8: `review.revision` is `fresh` unless the configuration names
-    `session`; anything else is refused at load, and the YAML key rides the
-    same `review:` mapping every other knob does."""
+def test_revision_off_is_the_default_and_session_revision_is_a_mode(tmp_path: Path):
+    """S-0127/D-5, S-0124/D-8: `review.revision` is `off` unless the
+    configuration names `fresh` or `session`; anything else is refused at load,
+    and the YAML key rides the same `review:` mapping every other knob does."""
 
     from torve.config.runconfig import ReviewConfig
 
-    assert ReviewConfig().revision == "fresh"
+    assert ReviewConfig().revision == "off"
+    assert RunnerConfig().review.revision == "off"
+    assert ReviewConfig(revision="fresh").revision == "fresh"
     assert ReviewConfig(revision="session").revision == "session"
 
     config = load(tmp_path, "\n".join(["review:", '  "on": [task_gated]', "  revision: session"]))
@@ -205,6 +208,35 @@ def test_session_revision_is_a_mode_and_fresh_is_the_default(tmp_path: Path):
 
     with pytest.raises(ValidationError):
         ReviewConfig(revision="resume")  # type: ignore[arg-type]
+
+
+def test_revision_off_unquoted_is_off_not_a_yaml_bool(tmp_path: Path):
+    """S-0127/D-5: YAML 1.1 loads an unquoted `revision: off` as False, which
+    is read as the `off` it was written as; any other boolean is still
+    refused by the field's vocabulary."""
+
+    from torve.config.runconfig import ReviewConfig
+
+    config = load(tmp_path, "\n".join(["review:", '  "on": [task_gated]', "  revision: off"]))
+
+    assert config.review.revision == "off"
+
+    with pytest.raises(ValidationError):
+        ReviewConfig(revision=True)  # type: ignore[arg-type]
+
+
+def test_revision_off_spends_one_round_unless_a_number_is_named():
+    """S-0127/D-5: under `off`, the default, a surviving blocker buys one fresh
+    attempt in either mode, so a second surviving blocker escalates; a
+    configuration that names a number still gets it."""
+
+    from torve.config.runconfig import ReviewConfig
+
+    assert ReviewConfig().resolved_blocker_revisions() == 1
+    assert ReviewConfig(mode="critic").resolved_blocker_revisions() == 1
+    assert ReviewConfig(mode="critic", revision="off").resolved_blocker_revisions() == 1
+    assert ReviewConfig(mode="critic", blocker_revisions=2).resolved_blocker_revisions() == 2
+    assert ReviewConfig(mode="critic", blocker_revisions=0).resolved_blocker_revisions() == 0
 
 
 # ....................... #
