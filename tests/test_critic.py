@@ -431,8 +431,9 @@ def test_reproduced_an_owned_rows_breach_blocks_only_through_a_finding(tmp_path,
 def test_the_per_call_prompt_lists_the_documents_other_rows_unjudged():
     """S-0127/D-15: the rows other units of the candidate's document deliver
     reach the critic beside the rows it judges, marked as the document's end
-    state and asked for no verdict; a row of another document does not, and
-    a unit given every row of its document gets no such section."""
+    state and asked for no verdict, while a LOCKED row it judges still binds;
+    a row of another document does not, and a unit given every row of its
+    document gets no such section."""
 
     def row(id_: str, text: str) -> InheritedDecision:
         return InheritedDecision(id=id_, grade="ASSUMED", text=text, paths=["src/app.py"])
@@ -452,6 +453,7 @@ def test_the_per_call_prompt_lists_the_documents_other_rows_unjudged():
     assert "S-0900/D-2" not in rows
     assert "- S-0900/D-2 [ASSUMED]: a price-only file passed alone is refused" in others
     assert "Give them no verdict" in others
+    assert "A LOCKED row above is the exception: it\nstill binds" in others
     assert "S-0800/D-1" not in prompt
     assert "## The document's other rows" not in whole
 

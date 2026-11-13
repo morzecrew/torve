@@ -606,10 +606,10 @@ Each item a critic review's `review.recorded` event carries holds the finding's 
 
 ### S-0127/D-15 — `ASSUMED` (A verdict comes from what ran)
 
-`build_critic_prompt` lists, under the rows the critic judges, the rows of the candidate's own document that other units deliver, asks for no verdict on them, and says that behaviour one of them orders is never a regression or a defect, doing that work early being at most `scope`; a row of another document, and a unit given every row of its document, add nothing
+`build_critic_prompt` lists, under the rows the critic judges, the rows of the candidate's own document that other units deliver, asks for no verdict on them, and says that behaviour one of them orders is never a regression or a defect, doing that work early being at most `scope`, while a LOCKED row the critic judges still binds; a row of another document, and a unit given every row of its document, add nothing
 
 - Paths: `src/torve/application/critic.py`
-- Consequence: a unit that builds a later unit's rule early is not blocked for breaking an earlier row that rule replaces; the critic still judges only the rows the unit delivers
+- Consequence: a unit that builds a later unit's rule early is not blocked for breaking an earlier row that rule replaces; the critic still judges only the rows the unit delivers, and a LOCKED row's breach still blocks (D-1)
 - Check: `uv run pytest -q tests/test_critic.py -k documents_other_rows` (shadow; runs as `decision:S-0127/D-15`)
 
 <!-- /torve:managed -->

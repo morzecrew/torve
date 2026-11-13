@@ -996,7 +996,8 @@ def build_critic_prompt(
         "Other units of this document deliver these. Give them no verdict. Each is part of\n"
         "the end state the document orders, so behaviour one of them orders is never a\n"
         "regression or a defect here, even where a row above reads otherwise; doing that\n"
-        "work in this unit is at most `scope`.\n\n"
+        "work in this unit is at most `scope`. A LOCKED row above is the exception: it\n"
+        "still binds, so judge it as usual.\n\n"
         + "\n".join(f"- {row.id} [{row.grade}]: {row.text}" for row in others)
         if others
         else ""
