@@ -319,3 +319,26 @@ decisions:
     cites: [S-0101/D-4, S-0101/D-11, S-0121/D-4, D-1]
     check: >-
       uv run pytest -q tests/test_review_run.py tests/test_events.py -k rerun_item
+  - id: D-15
+    grade: ASSUMED
+    text: >-
+      `build_critic_prompt` lists, under the rows the critic judges, the rows of the
+      candidate's own document that other units deliver, asks for no verdict on them,
+      and says that behaviour one of them orders is never a regression or a defect,
+      doing that work early being at most `scope`, while a LOCKED row the critic judges
+      still binds; a row of another document, and a unit given every row of its document,
+      add nothing
+    paths: [src/torve/application/critic.py]
+    consequence: >-
+      a unit that builds a later unit's rule early is not blocked for breaking an
+      earlier row that rule replaces; the critic still judges only the rows the unit
+      delivers, and a LOCKED row's breach still blocks (D-1)
+    rationale: >-
+      in the bed, cgt-schwab-awards' second unit was escalated after the critic twice
+      blocked a candidate that refused a price-only JSON, which a later row of that
+      document orders and an earlier one said the option kept; the unit delivered
+      only the earlier row, so `package_rows` never showed the critic the later one,
+      and the candidate passed every hidden check
+    cites: [S-0122/D-5, D-1]
+    check: >-
+      uv run pytest -q tests/test_critic.py -k documents_other_rows

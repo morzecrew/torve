@@ -982,6 +982,26 @@ def build_critic_prompt(
         )
         or "- none: no row governs these paths; judge the change on its own terms"
     )
+    # S-0127/D-15: the rows the document's other units deliver, unjudged. A
+    # unit judged against its own rows alone reads work a later unit orders
+    # as a regression of an earlier promise, and blocks the document's own end.
+    given = {row.id for row, _owned in rows}
+    others = [
+        row
+        for row in target.decisions
+        if target.spec and row.id.startswith(f"{target.spec}/") and row.id not in given
+    ]
+    document = (
+        "\n\n## The document's other rows\n\n"
+        "Other units of this document deliver these. Give them no verdict. Each is part of\n"
+        "the end state the document orders, so behaviour one of them orders is never a\n"
+        "regression or a defect here, even where a row above reads otherwise; doing that\n"
+        "work in this unit is at most `scope`. A LOCKED row above is the exception: it\n"
+        "still binds, so judge it as usual.\n\n"
+        + "\n".join(f"- {row.id} [{row.grade}]: {row.text}" for row in others)
+        if others
+        else ""
+    )
     base = (
         "- `.torve/review/base/` — the tree the candidate started from"
         if based
@@ -1002,7 +1022,7 @@ def build_critic_prompt(
 
 ## Rows
 
-{listed}
+{listed}{document}
 
 ## What blocks
 

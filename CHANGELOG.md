@@ -90,6 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as the store already does. An agent in such a repository could not record a divergence
   at all.
 
+- The critic no longer blocks a unit for doing work that a later unit of its document
+  orders. It now sees the document's other rows as the end state, without judging them.
+
 - A review round that rejects a bot's claim with a recorded reason is no longer blocked by
   the critic's findings on that claim. They are recorded as non-blocking. Such a round used
   to be blocked until it escalated at its poison ceiling.

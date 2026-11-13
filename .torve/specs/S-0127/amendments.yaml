@@ -271,3 +271,14 @@ amendments:
       that finding, and a LOCKED row's on located evidence as before. Building this also
       found `_keep_probes` kept only the probe `repro.file` names, so a command running a
       wrapper probe was refused; it now keeps every probe a re-run asks for (D-10).
+  - id: A-6
+    at: '2026-11-12T20:24:48Z'
+    title: The critic sees its document's other rows
+    md: |
+      Adds S-0127/D-15. In the bed, the critic judged each unit against the rows it delivers
+      and the LOCKED rows its diff touches, so a unit that built a later unit's rule early was
+      read against an earlier row that rule replaces: cgt-schwab-awards' second unit refused a
+      price-only JSON as a later row of its document orders, the critic held it to an earlier
+      row's "keeps its behaviour" twice, and the unit escalated though it passed every hidden
+      check. The critic
+      is now shown the document's other rows, unjudged, as the end state the document orders.
