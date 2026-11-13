@@ -26,7 +26,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="zensical-0.0.72">
+      <meta name="generator" content="zensical-0.0.74">
     
     
       
@@ -1564,13 +1564,13 @@ design, not an omission: a hand-minted contract is already signed by the
 person reading the output, which is the same ground the lint's own advisories
 stand on.</p>
 <h2 id="when-a-conviction-routes-a-repair">When a conviction routes a repair<a class="headerlink" href="#when-a-conviction-routes-a-repair" title="Permanent link">&para;</a></h2>
-<p>A red battery routes one way by default: a fresh attempt from base, the same
-prompt, the same contract, the previous reasoning deliberately not
-privileged. Measured over this repository's record that is expensive — the
-same gate convicted the next attempt of the same task 196 times across 28
-tasks: <code>acceptance</code> 52, <code>layering</code> 41, <code>user-facing-text</code> 39,
-<code>decisions-reported</code> 26, <code>scope</code> 14. A <strong>repair</strong> is the other route: the
-same task's next attempt, starting from the tree that was convicted and
+<p>A red battery routes one way: the next attempt is an independent fresh
+session from the tree the red attempt started from, the same prompt, the same
+contract, the previous reasoning deliberately not privileged (S-0127/D-6).
+Measured over this repository's record, the same gate convicted the next
+attempt of the same task 196 times across 28 tasks: <code>acceptance</code> 52,
+<code>layering</code> 41, <code>user-facing-text</code> 39, <code>decisions-reported</code> 26, <code>scope</code> 14. A
+<strong>repair</strong> is what a qualifying conviction adds to that next attempt: it is
 judged by the convicting gate as well as by everything its contract already
 declared.</p>
 <p>A repair is a mode of an attempt, not a role and not a task (S-0069/D-1).
@@ -1600,19 +1600,12 @@ contract on disk is untouched — the battery judges the task file as written,
 and the addition is rebuilt on every red from the acceptance sealed at
 dispatch, so it never accumulates and never leaks into an attempt that was
 not routed as a repair.</p>
-<p><strong>Where it starts.</strong> From the convicted attempt's tree, not from base
-(S-0069/D-4): the work that was right survives the mistake. Routing commits
-whatever that attempt left, so the repair's worktree carries those commits
-and an ordinary retry's does not:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>torve(T-0390): attempt 2 convicted by scope
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Torve-Checkpoint: T-0390 attempt 2
-</span></code></pre></div>
-<p>That commit is kin to the budget checkpoint and is not a landing: same
-trailer, no execution record, nothing to mistake for a candidate. If the
-commit itself fails the routing still stands and the engine records
-<code>repair_tree_uncommitted</code> — the tree is the one the repair would carry
-anyway, and an infrastructure failure must not replace the conviction.</p>
+<p><strong>Where it starts.</strong> From the tree the red attempt started from, never the
+convicted tree (S-0127/D-6). The attempt snapshots its tree before its first
+candidate runs, and a red one is put back to that snapshot, so no convicted
+tree is committed or carried; the context pack still names the earlier
+attempts' convictions. The attempts are independent samples, so a red
+tree never anchors the next.</p>
 <p><strong>A checkpoint survives a recut.</strong> The same trailer marks the tree an
 escalation leaves behind — from the review stage, or when the attempt halts
 on a locked row (S-0086/D-2, S-0086/A-1). A rerun cuts the task's branch
@@ -1632,14 +1625,14 @@ stamped as <code>repair</code> on the attempt and rides the agent block of the a
 record, so a repair is visible in the record rather than inferred from a
 prompt — two convictions on one gate show one repair and then the ordinary
 path.</p>
-<p><strong>The third place a tree is committed short of a landing.</strong> An escalation from
+<p><strong>The second place a tree is committed short of a landing.</strong> An escalation from
 the review stage — a surviving blocker, an unreadable verdict, a broker
 refusal — used to leave a gate-green tree in the worktree only, because the
 candidate is committed after the review. It is now committed first (S-0086/D-2),
 under the same trailer and with no landing:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>torve(T-0390): attempt 2 escalated from review
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>Torve-Checkpoint: T-0390 attempt 2
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>torve(T-0390): attempt 2 escalated from review
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>Torve-Checkpoint: T-0390 attempt 2
 </span></code></pre></div>
 <p>A commit that fails leaves the escalation exactly as it was and records
 <code>reviewed_tree_uncommitted</code> — the reason the run stopped is the review's.</p>
@@ -1832,9 +1825,9 @@ scope. Indentation is not whitespace here; a re-indented file is an ordinary
 <h2 id="which-carrier-answers-a-report">Which carrier answers a report<a class="headerlink" href="#which-carrier-answers-a-report" title="Permanent link">&para;</a></h2>
 <p><code>why</code>, <code>status</code> and <code>context</code> read either the record or this host's files,
 and <strong>naming a partition is what selects the record</strong>:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>torve<span class="w"> </span>status<span class="w">                                   </span><span class="c1"># this host's run-state files</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>torve<span class="w"> </span>status<span class="w"> </span>--partition<span class="w"> </span>morzecrew/torve<span class="w">       </span><span class="c1"># the partition's board</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>torve<span class="w"> </span>context<span class="w"> </span>--partition<span class="w"> </span>morzecrew/torve<span class="w">      </span><span class="c1"># tasks and attempts from the record</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>torve<span class="w"> </span>status<span class="w">                                   </span><span class="c1"># this host's run-state files</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>torve<span class="w"> </span>status<span class="w"> </span>--partition<span class="w"> </span>morzecrew/torve<span class="w">       </span><span class="c1"># the partition's board</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>torve<span class="w"> </span>context<span class="w"> </span>--partition<span class="w"> </span>morzecrew/torve<span class="w">      </span><span class="c1"># tasks and attempts from the record</span>
 </span></code></pre></div>
 <p>One rule is automatic, and it runs in the safe direction: a record that
 turns out not to hold the run falls back to the files, never the reverse. A
@@ -2197,8 +2190,8 @@ touches: the contract carries its own document's rows only, so read those
 before accepting.</p>
 <p>An amendment reaches the contracts the document already minted through
 <code>torve plan S-NNNN --refresh</code>, never through a hand edit of a contract:</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>torve<span class="w"> </span>plan<span class="w"> </span>S-0079<span class="w"> </span>--refresh<span class="w">                 </span><span class="c1"># the table: what would be rewritten, and what is left alone</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>torve<span class="w"> </span>plan<span class="w"> </span>S-0079<span class="w"> </span>--refresh<span class="w"> </span>--no-dry-run<span class="w">    </span><span class="c1"># rewrite them</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>torve<span class="w"> </span>plan<span class="w"> </span>S-0079<span class="w"> </span>--refresh<span class="w">                 </span><span class="c1"># the table: what would be rewritten, and what is left alone</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>torve<span class="w"> </span>plan<span class="w"> </span>S-0079<span class="w"> </span>--refresh<span class="w"> </span>--no-dry-run<span class="w">    </span><span class="c1"># rewrite them</span>
 </span></code></pre></div>
 <p>A phase an amendment <em>adds</em> to a document whose earlier phases are minted is
 minted alone with <code>--phase</code>: <code>torve plan S-0002 --phase 6 --no-dry-run</code>. Its
@@ -2223,7 +2216,7 @@ see the escalation loop below). Each rewrite is recorded as
 and stamped on the contract; under <code>--partition</code> the rewrite goes onto the
 board through the same path a mint does.</p>
 <h2 id="running-a-pass-without-spending">Running a pass without spending<a class="headerlink" href="#running-a-pass-without-spending" title="Permanent link">&para;</a></h2>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>torve<span class="w"> </span>manager<span class="w"> </span>serve<span class="w"> </span>&lt;partition&gt;<span class="w"> </span>--dsn<span class="w"> </span><span class="s2">"</span><span class="nv">$TORVE_PG_DSN</span><span class="s2">"</span><span class="w"> </span>--no-dispatch<span class="w"> </span>--passes<span class="w"> </span><span class="m">1</span>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>torve<span class="w"> </span>manager<span class="w"> </span>serve<span class="w"> </span>&lt;partition&gt;<span class="w"> </span>--dsn<span class="w"> </span><span class="s2">"</span><span class="nv">$TORVE_PG_DSN</span><span class="s2">"</span><span class="w"> </span>--no-dispatch<span class="w"> </span>--passes<span class="w"> </span><span class="m">1</span>
 </span></code></pre></div>
 <p>Imports contracts and releases expired leases; claims nothing. This is the
 pass to run after changing contracts, when you want the board to catch up
@@ -2243,8 +2236,8 @@ night work.</p>
 <p>The manager's pass can turn a labelled issue into drafts with
 no command typed (S-0119/D-8). The leg is off until <code>intake.issue_label</code>
 names a label:</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">intake</span><span class="p">:</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">issue_label</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">torve-candidate</span><span class="w">   </span><span class="c1"># empty, the default: the leg reads nothing</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">intake</span><span class="p">:</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">issue_label</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">torve-candidate</span><span class="w">   </span><span class="c1"># empty, the default: the leg reads nothing</span>
 </span></code></pre></div>
 <p>With a label set, each pass lists the open issues carrying it, oldest
 labelling first, and starts at most one drafting run — for the first issue it
@@ -2307,7 +2300,7 @@ exit accordingly.</p>
 </tr>
 <tr>
 <td><code>blocker_finding</code></td>
-<td>review ended with a blocker surviving — on the review path, when the executor seat names a <code>revision_variant</code> and <code>review.blocker_revisions</code> is at least 1, a blocker that reaches you has already had its revision on that rung (S-0117/D-1); a red whole-suite battery, or <code>blocker_revisions: 0</code>, escalates one unrevised</td>
+<td>review ended with a blocker surviving — on the review path a blocker that reaches you has already had its fresh attempt on the seat (S-0127/D-5), or, under <code>review.revision: fresh</code> or <code>session</code> with a <code>revision_variant</code>, its revision on that rung (S-0117/D-1); a red whole-suite battery, or <code>blocker_revisions: 0</code>, escalates one unrevised</td>
 <td>2</td>
 </tr>
 <tr>
@@ -2415,9 +2408,9 @@ because a requeue over the escalated run's leftover host state failed as
 <code>gate_infrastructure_failure</code>; run <code>torve manager resolve --resolution
 requeued</code>; restart the night. The loop is now one amendment and one
 command (S-0094):</p>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># amend the phase so the document's branch — torve/S-NNNN — holds</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="c1"># it when pushed</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>torve<span class="w"> </span>manager<span class="w"> </span>resolve<span class="w"> </span>&lt;partition&gt;<span class="w"> </span>T-0231<span class="w"> </span>--resolution<span class="w"> </span>requeued
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># amend the phase so the document's branch — torve/S-NNNN — holds</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="c1"># it when pushed</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>torve<span class="w"> </span>manager<span class="w"> </span>resolve<span class="w"> </span>&lt;partition&gt;<span class="w"> </span>T-0231<span class="w"> </span>--resolution<span class="w"> </span>requeued
 </span></code></pre></div>
 <p>The requeue clears the one task's escalated footprint, fetches, and
 refreshes the contract through <code>refresh_document</code>, the same derivation a
@@ -2475,8 +2468,8 @@ process is running would move the code it is executing.</p>
 <p><code>night.engine_paths</code> names the engine's files — globs in the same grammar a
 contract's scope uses. Empty, the default, turns the check off; torve's own
 night names its sources, its manifest and its lock:</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">night</span><span class="p">:</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">engine_paths</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">src/torve/**</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">pyproject.toml</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">uv.lock</span><span class="p p-Indicator">]</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">night</span><span class="p">:</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">engine_paths</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">src/torve/**</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">pyproject.toml</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">uv.lock</span><span class="p p-Indicator">]</span>
 </span></code></pre></div>
 <p>Between nights, when the fast-forward moves the checkout across a change to a
 file the list matches, the chain mints nothing and ends with the reason
@@ -2492,19 +2485,19 @@ exit, passing that exit's code on — installing the engine from the checkout
 the chain fast-forwards, and serving that same checkout with <code>--root</code>, so the
 chain plans <code>$root</code> rather than whatever directory the launcher was started
 from:</p>
-<div class="language-sh highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nv">root</span><span class="o">=</span>...<span class="w">              </span><span class="c1"># torve's checkout, the tree the chain moves</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nv">config</span><span class="o">=</span>...<span class="w">            </span><span class="c1"># the night's configuration</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nv">engine</span><span class="o">=</span><span class="nv">$HOME</span>/.torve-engines/torve-self
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nv">images</span><span class="o">=</span><span class="m">0</span>.9.0<span class="w">          </span><span class="c1"># the release the harness images were baked for</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="k">while</span><span class="w"> </span>:<span class="p">;</span><span class="w"> </span><span class="k">do</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span>uv<span class="w"> </span>venv<span class="w"> </span>--allow-existing<span class="w"> </span>-q<span class="w"> </span><span class="s2">"</span><span class="nv">$engine</span><span class="s2">"</span>
-</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span><span class="nv">SETUPTOOLS_SCM_PRETEND_VERSION</span><span class="o">=</span><span class="nv">$images</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">    </span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-q<span class="w"> </span>--reinstall-package<span class="w"> </span>torve<span class="w"> </span>--python<span class="w"> </span><span class="s2">"</span><span class="nv">$engine</span><span class="s2">/bin/python"</span><span class="w"> </span><span class="se">\</span>
-</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">    </span><span class="s2">"torve[postgres,migrate] @ file://</span><span class="nv">$root</span><span class="s2">"</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
-</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$engine</span><span class="s2">/bin/torve"</span><span class="w"> </span>--plain<span class="w"> </span>manager<span class="w"> </span>serve<span class="w"> </span>torve<span class="w"> </span>--night<span class="w"> </span>--chain<span class="w"> </span>--config<span class="w"> </span><span class="s2">"</span><span class="nv">$config</span><span class="s2">"</span><span class="w"> </span>--root<span class="w"> </span><span class="s2">"</span><span class="nv">$root</span><span class="s2">"</span>
-</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span><span class="nv">status</span><span class="o">=</span><span class="nv">$?</span>
-</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="o">[</span><span class="w"> </span><span class="s2">"</span><span class="nv">$status</span><span class="s2">"</span><span class="w"> </span>-eq<span class="w"> </span><span class="m">6</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="s2">"</span><span class="nv">$status</span><span class="s2">"</span>
-</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="k">done</span>
+<div class="language-sh highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nv">root</span><span class="o">=</span>...<span class="w">              </span><span class="c1"># torve's checkout, the tree the chain moves</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nv">config</span><span class="o">=</span>...<span class="w">            </span><span class="c1"># the night's configuration</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="nv">engine</span><span class="o">=</span><span class="nv">$HOME</span>/.torve-engines/torve-self
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="nv">images</span><span class="o">=</span><span class="m">0</span>.9.0<span class="w">          </span><span class="c1"># the release the harness images were baked for</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="k">while</span><span class="w"> </span>:<span class="p">;</span><span class="w"> </span><span class="k">do</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span>uv<span class="w"> </span>venv<span class="w"> </span>--allow-existing<span class="w"> </span>-q<span class="w"> </span><span class="s2">"</span><span class="nv">$engine</span><span class="s2">"</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span><span class="nv">SETUPTOOLS_SCM_PRETEND_VERSION</span><span class="o">=</span><span class="nv">$images</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">    </span>uv<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>-q<span class="w"> </span>--reinstall-package<span class="w"> </span>torve<span class="w"> </span>--python<span class="w"> </span><span class="s2">"</span><span class="nv">$engine</span><span class="s2">/bin/python"</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">    </span><span class="s2">"torve[postgres,migrate] @ file://</span><span class="nv">$root</span><span class="s2">"</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">  </span><span class="s2">"</span><span class="nv">$engine</span><span class="s2">/bin/torve"</span><span class="w"> </span>--plain<span class="w"> </span>manager<span class="w"> </span>serve<span class="w"> </span>torve<span class="w"> </span>--night<span class="w"> </span>--chain<span class="w"> </span>--config<span class="w"> </span><span class="s2">"</span><span class="nv">$config</span><span class="s2">"</span><span class="w"> </span>--root<span class="w"> </span><span class="s2">"</span><span class="nv">$root</span><span class="s2">"</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">  </span><span class="nv">status</span><span class="o">=</span><span class="nv">$?</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">  </span><span class="o">[</span><span class="w"> </span><span class="s2">"</span><span class="nv">$status</span><span class="s2">"</span><span class="w"> </span>-eq<span class="w"> </span><span class="m">6</span><span class="w"> </span><span class="o">]</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="nb">exit</span><span class="w"> </span><span class="s2">"</span><span class="nv">$status</span><span class="s2">"</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="k">done</span>
 </span></code></pre></div>
 <p><code>images</code> pins the installed engine's version. A harness image written
 <code>claude-sandbox:{torve}</code> names the engine's version, and images are baked for
@@ -2520,37 +2513,38 @@ own base did not move; only a night whose base moved needs the new engine, and
 only its own virtualenv takes it.</p>
 <p>So a document can go from acceptance to a ready pull request without its
 owner. The terms that make the run survive what its owner would have answered:</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">promotion</span><span class="p">:</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">landing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull_request</span><span class="w">      </span><span class="c1"># the thread leg reads a document's pull request</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">document</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">auto_merge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># arms the pass's landing leg</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">require_review</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">       </span><span class="c1"># at least one criterion must be armed</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="nt">review</span><span class="p">:</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">  </span><span class="s">"on"</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">task_gated</span><span class="p p-Indicator">]</span><span class="w">          </span><span class="c1"># the task-gated verdict require_review waits for</span>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="nt">scm</span><span class="p">:</span>
-</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">  </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">owner/name</span><span class="w">           </span><span class="c1"># the forge repository the pull request opens against</span>
-</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">  </span><span class="nt">open_pr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># landing: pull_request needs the forge's pull request</span>
-</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>
-</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="nt">tiers</span><span class="p">:</span>
-</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="w">  </span><span class="nt">executor</span><span class="p">:</span>
-</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="w">    </span><span class="nt">revision_variant</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">executor.strong</span><span class="w">   </span><span class="c1"># a surviving blocker's revision rung</span>
-</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="w">  </span><span class="nt">executor.strong</span><span class="p">:</span>
-</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a><span class="w">    </span><span class="nt">harness</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">claude</span>
-</span><span id="__span-10-19"><a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a><span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">claude-opus-5-5</span>
-</span><span id="__span-10-20"><a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a><span class="w">    </span><span class="nt">provider</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">anthropic</span>
-</span><span id="__span-10-21"><a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a>
-</span><span id="__span-10-22"><a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a><span class="nt">threads</span><span class="p">:</span>
-</span><span id="__span-10-23"><a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                         </span><span class="c1"># off by default</span>
-</span><span id="__span-10-24"><a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">      </span><span class="c1"># the forge's review bots: waited for and answered</span>
-</span><span id="__span-10-25"><a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a><span class="w">  </span><span class="nt">approve_comment</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span><span class="w">                </span><span class="c1"># posted once the wave is green; unset posts nothing</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">promotion</span><span class="p">:</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">landing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull_request</span><span class="w">      </span><span class="c1"># the thread leg reads a document's pull request</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">document</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">auto_merge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># arms the pass's landing leg</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">  </span><span class="nt">require_review</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">       </span><span class="c1"># at least one criterion must be armed</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="nt">review</span><span class="p">:</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="s">"on"</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">task_gated</span><span class="p p-Indicator">]</span><span class="w">          </span><span class="c1"># the task-gated verdict require_review waits for</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="nt">scm</span><span class="p">:</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">owner/name</span><span class="w">           </span><span class="c1"># the forge repository the pull request opens against</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="nt">open_pr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># landing: pull_request needs the forge's pull request</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="nt">tiers</span><span class="p">:</span>
+</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">  </span><span class="nt">executor</span><span class="p">:</span>
+</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">    </span><span class="nt">revision_variant</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">executor.strong</span><span class="w">   </span><span class="c1"># a surviving blocker's revision rung</span>
+</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="w">  </span><span class="nt">executor.strong</span><span class="p">:</span>
+</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="w">    </span><span class="nt">harness</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">claude</span>
+</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">    </span><span class="nt">model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">claude-opus-5-5</span>
+</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="w">    </span><span class="nt">provider</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">anthropic</span>
+</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>
+</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="nt">threads</span><span class="p">:</span>
+</span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                         </span><span class="c1"># off by default</span>
+</span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">      </span><span class="c1"># the forge's review bots: waited for and answered</span>
+</span><span id="__span-9-25"><a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="w">  </span><span class="nt">approve_comment</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span><span class="w">                </span><span class="c1"># posted once the wave is green; unset posts nothing</span>
 </span></code></pre></div>
 <p><code>revision_variant</code> names a configured tier, dotted, refused at load when it
-resolves to none (S-0117/D-1). When a review blocker survives the executor
-seat, the revision attempt runs on that tier in the same run, worktree and
-critique, so a blocker that escalates has already had the stronger seat's
-attempt; empty keeps the revision on the seat.</p>
+resolves to none (S-0117/D-1). Under <code>review.revision: off</code>, the default, a
+surviving blocker gets one fresh attempt on the seat itself and the tier is not
+used (S-0127/D-5). Under <code>fresh</code> or <code>session</code> the revision attempt runs on that
+tier in the same run, worktree and critique, so a blocker that escalates has
+already had the stronger seat's attempt; empty keeps the revision on the seat.</p>
 <p>The thread leg needs <code>threads.enabled</code>, the forge's bots in <code>threads.bots</code>, and
 a landing that reads a document's pull request — <code>promotion.landing:
 pull_request</code> with <code>unit: document</code>; it refuses to load otherwise. When every
@@ -2563,8 +2557,8 @@ for.</p>
 approval, a human act, and that is the whole of the safety story here — a
 manager with the switch off behaves exactly as it did before the landing
 leg existed.</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">promotion</span><span class="p">:</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">auto_merge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">    </span><span class="c1"># off by default; arms the pass's landing leg</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">promotion</span><span class="p">:</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">auto_merge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">    </span><span class="c1"># off by default; arms the pass's landing leg</span>
 </span></code></pre></div>
 <p>Armed, each pass runs the <strong>same</strong> serialized lane the verb runs, with the
 same arguments this configuration already feeds it. It adds a caller, not
@@ -2641,12 +2635,12 @@ through a pause is the manager's to decide from <code>promotion.landing</code>;
 <p>What a landing <em>is</em> comes from two terms of <code>promotion</code>, and neither is ever
 inferred from whether a remote exists or from whether the ready candidates
 happen to share a document (S-0080/D-1, S-0083/D-1):</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">promotion</span><span class="p">:</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">landing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull_request</span><span class="w">   </span><span class="c1"># local (default) | pull_request</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">document</span><span class="w">          </span><span class="c1"># task (default) | document</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="nt">scm</span><span class="p">:</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">owner/name</span><span class="w">        </span><span class="c1"># pull_request refuses to load without it</span>
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span><span class="nt">open_pr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># likewise</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">promotion</span><span class="p">:</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">landing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pull_request</span><span class="w">   </span><span class="c1"># local (default) | pull_request</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">document</span><span class="w">          </span><span class="c1"># task (default) | document</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="nt">scm</span><span class="p">:</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">  </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">owner/name</span><span class="w">        </span><span class="c1"># pull_request refuses to load without it</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">  </span><span class="nt">open_pr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># likewise</span>
 </span></code></pre></div>
 <p>Under <code>local</code>, <strong>landing is not publishing</strong>: the lane fast-forwards this
 checkout's base and stops, and pushing it stays yours. Under <code>pull_request</code>
@@ -2885,14 +2879,14 @@ task, the sha and the verb that writes one (<code>torve log land &lt;task&gt; --
 not carry (S-0065/D-7).</p>
 <p><strong>A reviewer's threads can be answered by the night too.</strong> Off by default, and
 a separate switch from <code>auto_merge</code>:</p>
-<div class="language-yaml highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">threads</span><span class="p">:</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># off by default</span>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># whose threads the engine may resolve</span>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">  </span><span class="nt">rounds_per_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">         </span><span class="c1"># how many revision rounds one pass may mint</span>
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="nt">findings_per_round</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span><span class="w">     </span><span class="c1"># findings packed into one round of a wave</span>
-</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">  </span><span class="nt">review_wait</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">45</span><span class="w">            </span><span class="c1"># minutes a night waits for the head's review</span>
-</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">  </span><span class="nt">approve_comment</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span><span class="w">     </span><span class="c1"># posted once the wave is green; unset posts nothing</span>
-</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">  </span><span class="nt">sources</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">forge</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">record</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># where findings come from; [forge] by default</span>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">threads</span><span class="p">:</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># off by default</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">bots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">coderabbitai</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">codeant-ai</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># whose threads the engine may resolve</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">  </span><span class="nt">rounds_per_pass</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">         </span><span class="c1"># how many revision rounds one pass may mint</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="nt">findings_per_round</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span><span class="w">     </span><span class="c1"># findings packed into one round of a wave</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span><span class="nt">review_wait</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">45</span><span class="w">            </span><span class="c1"># minutes a night waits for the head's review</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span><span class="nt">approve_comment</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span><span class="w">     </span><span class="c1"># posted once the wave is green; unset posts nothing</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span><span class="nt">sources</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">forge</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">record</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># where findings come from; [forge] by default</span>
 </span></code></pre></div>
 <p><code>bots</code> is every login the night both waits for and may answer: the review wait
 ends once all of them have reviewed the head, and only their threads does the
@@ -3184,10 +3178,10 @@ morning, which is the measurement it is accountable to.</p>
       
         
         
-      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":["announce.dismiss","content.code.annotate","content.code.copy","content.code.select","content.footnote.tooltips","content.tabs.link","content.tooltips","navigation.footer","navigation.indexes","navigation.instant","navigation.instant.prefetch","navigation.path","navigation.sections","navigation.top","navigation.tracking","search.highlight"],"redirect":null,"search":"../assets/javascripts/workers/search.c47bb847.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
+      <script id="__config" type="application/json">{"annotate":null,"base":"..","features":["announce.dismiss","content.code.annotate","content.code.copy","content.code.select","content.footnote.tooltips","content.tabs.link","content.tooltips","navigation.footer","navigation.indexes","navigation.instant","navigation.instant.prefetch","navigation.path","navigation.sections","navigation.top","navigation.tracking","search.highlight"],"redirect":null,"search":"../assets/javascripts/workers/search.719e0d91.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":{"alias":true,"default":"latest","provider":"mike"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.10ee5ab6.min.js"></script>
+      <script src="../assets/javascripts/bundle.d31f0ffa.min.js"></script>
       
     
   </body>
