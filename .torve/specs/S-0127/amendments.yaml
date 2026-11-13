@@ -282,3 +282,15 @@ amendments:
       row's "keeps its behaviour" twice, and the unit escalated though it passed every hidden
       check. The critic
       is now shown the document's other rows, unjudged, as the end state the document orders.
+  - id: A-7
+    at: '2026-11-13T12:30:00Z'
+    title: >-
+      The engine's own runs use the project's environment
+    md: |
+      Adds S-0127/D-16 and S-0127/D-17. In the bed, every repository holds `uv.lock` and its
+      manifest names no `tests.run`, so the evidence package ran each review's tests with the
+      image's bare `python3`, which has no pytest. No row read passing in any of the 47 reviews,
+      and the 17 critics that said why named `No module named pytest` and re-ran the tests
+      themselves. The default now runs through `uv run` in such a checkout. The critic's repros showed the same gap from
+      the other side: 15 started `.venv/bin/python`, and the 4 that were re-run exited 127 in the
+      judge checkout, which holds tracked files only. The per-call prompt now says so.

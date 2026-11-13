@@ -85,6 +85,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- In a repository with `uv.lock` whose gate manifest names no `tests.run`, the engine now runs
+  tests through `uv run`. It used the image's bare `python3`, which has none of the project's
+  packages, so the evidence the critic reads showed every test erroring.
+
+- The critic is now told that a re-run has no `.venv`, so it writes repro commands that start
+  through the project's tools. A repro that started `.venv/bin/python` exited 127 on re-run and
+  could never block.
+
 - An agent's `torve log` in a repository with no remote is no longer refused with "log
   carries no repo". The log's pin now names the repository by its checkout's directory,
   as the store already does. An agent in such a repository could not record a divergence

@@ -505,6 +505,28 @@ def test_the_manifest_adapter_takes_a_run_and_a_pairing(tmp_path):
     ) == ["src/foo/bar_test.go"]
 
 
+def test_a_uv_checkout_launches_its_tests_through_uv_unless_the_manifest_names_a_run(tmp_path):
+    """S-0127/D-16: a manifest naming no `tests.run` launches tests through
+    `uv run` over a checkout holding `uv.lock`, wherever the manifest was
+    read from; a named run stands, even one spelled as the default, and a
+    checkout without the lock keeps the default."""
+    from torve.config.manifest import DEFAULT_TEST_RUN, UV_TEST_RUN
+
+    uv, bare = tmp_path / "uv", tmp_path / "bare"
+    uv.mkdir()
+    bare.mkdir()
+    (uv / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+
+    unnamed = load_manifest(write_manifest(tmp_path, BASE_MANIFEST)).tests
+    named = load_manifest(
+        write_manifest(tmp_path, dict(BASE_MANIFEST, tests={"run": DEFAULT_TEST_RUN}))
+    ).tests
+
+    assert unnamed.launcher(uv) == UV_TEST_RUN
+    assert unnamed.launcher(bare) == DEFAULT_TEST_RUN
+    assert named.launcher(uv) == DEFAULT_TEST_RUN
+
+
 def test_the_pairing_refuses_a_module_the_templates_do_not_name():
     """S-0106/D-7 with the defaults: a template names a test source's suffix,
     so a module the templates do not name pairs with nothing — a schema or a

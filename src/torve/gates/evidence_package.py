@@ -937,7 +937,7 @@ def build_evidence(
     base: dict[str, Reading] = dict.fromkeys(tests.ids, "not_run")
     check_head: dict[str, Reading] = {row.id: "not_run" for row, _ in checked}
     check_base: dict[str, Reading] = {row.id: "not_run" for row, _ in checked}
-    runner = ctx.manifest.tests.run.strip()
+    runner = ctx.manifest.tests.launcher(ctx.root).strip()
 
     if tests.ids and runner:
         command = f"{runner} {_REPORT_CHARS} {' '.join(shlex.quote(node) for node in tests.ids)}"

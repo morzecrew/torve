@@ -171,7 +171,9 @@ def _run_files(ctx: GateContext, files: list[str]) -> str:
     """The manifest's test launcher over a list of files — the same seam
     `red-on-base` uses (S-0106/D-7)."""
 
-    return f"{ctx.manifest.tests.run} {' '.join(shlex.quote(path) for path in files)}"
+    return (
+        f"{ctx.manifest.tests.launcher(ctx.root)} {' '.join(shlex.quote(path) for path in files)}"
+    )
 
 
 def _with_base(command: str, ctx: GateContext) -> str | None:

@@ -231,6 +231,11 @@ DEFAULT_TEST_PATTERNS = [
 # `*_test.go` or `*.spec.ts` names its own.
 DEFAULT_TEST_RUN = "python3 -m pytest -q -p no:cacheprovider"
 
+# The default in a checkout that holds `uv.lock` (S-0127/D-16): the image's bare
+# `python3` has none of the project's packages, so every test it ran read
+# `error` on both trees.
+UV_TEST_RUN = "uv run python -m pytest -q -p no:cacheprovider"
+
 # Module -> its tests, as path templates over `{dir}` (the module's directory)
 # and `{stem}` (its filename without extension) (S-0106/D-7). The default is the
 # Python pairing at any depth under `tests/`: `test_<stem>.py` and every
@@ -327,7 +332,8 @@ class TestsConfig(BaseModel):
 
     run: str = DEFAULT_TEST_RUN
     """The command a list of test files is appended to (S-0106/D-7) — what
-    the suite gate reruns a failing file with. Defaults to pytest over the paths."""
+    the suite gate reruns a failing file with. Defaults to pytest over the paths;
+    `launcher` is what a run over a checkout uses."""
 
     pair: list[str] = Field(default_factory=lambda: list(DEFAULT_TEST_PAIRS))
     """Templates from a module to its tests over `{dir}` and `{stem}`
@@ -349,6 +355,18 @@ class TestsConfig(BaseModel):
             patterns=[f"{prefix}{pattern}" for pattern in DEFAULT_TEST_PATTERNS],
             pair=[f"{prefix}{pattern}" for pattern in DEFAULT_TEST_PAIRS],
         )
+
+    # ....................... #
+
+    def launcher(self, root: Path) -> str:
+        """The launcher a run over the checkout at *root* appends test files
+        to (S-0127/D-16): `run` when the manifest names one, else pytest
+        through `uv run` when *root* holds `uv.lock`, else the default."""
+
+        if "run" in self.model_fields_set or not (root / "uv.lock").is_file():
+            return self.run
+
+        return UV_TEST_RUN
 
     # ....................... #
 

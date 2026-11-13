@@ -87,4 +87,12 @@ Evals and arms, shadow arms, fleet, standing work, notify, the opensandbox runti
 - Consequence: a probe or mutation sentence citing the line it changed survives the location filter; a divergence entry whose citation follows prose is accepted too, and the log's teaching rejection no longer asks for a leading citation
 - Check: `uv run pytest -q tests/test_review_role.py tests/test_gates.py -k locates_anywhere` (shadow; runs as `decision:S-0127/D-3`)
 
+### S-0127/D-16 — `ASSUMED` (A verdict comes from what ran)
+
+A run of test files over a checkout — the evidence package's per-test runs at the head and the base, the suite gate's reruns and the review leg's fallback — launches them with `TestsConfig.launcher(root)`: the manifest's `tests.run` when it names one, else `uv run python -m pytest -q -p no:cacheprovider` when the checkout holds `uv.lock`, else the `python3` default
+
+- Paths: `src/torve/config/manifest.py` `src/torve/gates/evidence_package.py` `src/torve/gates/suite.py` `src/torve/application/reviewleg.py`
+- Consequence: a uv project's tests run in its own environment whichever copy of the manifest judged the attempt, the merge base's included
+- Check: `uv run pytest -q tests/test_manifest.py tests/test_evidence_package.py -k uv_checkout` (shadow; runs as `decision:S-0127/D-16`)
+
 <!-- /torve:managed -->
