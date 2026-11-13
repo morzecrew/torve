@@ -15,7 +15,7 @@ from hypothesis import strategies as st
 
 from torve.gates.runner import run_gates
 from torve.gates.sabotage import SUITE_TEST_RUN, Repo
-from torve.gates.suite import _reading, archive_tree, attribution, failing_ids
+from torve.gates.suite import _reading, _run_files, archive_tree, attribution, failing_ids
 
 TASK_ID = "T-9001"
 SUITE_ID = "tests/test_app.py::test_app"
@@ -415,3 +415,21 @@ def test_a_timed_out_archive_leaves_no_process_writing(tmp_path, monkeypatch):
     assert problem == "the base tree was not extracted within 0s"
     assert not marker.exists()
     assert not (tmp_path / "base").exists()
+
+
+def test_a_base_run_takes_the_launcher_of_the_checkout_it_runs_in(tmp_path):
+    """S-0127/D-16: the suite's base run launches tests as the base checkout
+    does, so a change that adds or drops `uv.lock` does not pick the base's
+    launcher; the candidate's run is the default."""
+    from types import SimpleNamespace
+
+    from torve.config.manifest import DEFAULT_TEST_RUN, UV_TEST_RUN, Manifest
+
+    head, base = tmp_path / "head", tmp_path / "base"
+    head.mkdir()
+    base.mkdir()
+    (base / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+    ctx: Any = SimpleNamespace(manifest=Manifest(), root=head)
+
+    assert _run_files(ctx, ["tests/test_a.py"]) == f"{DEFAULT_TEST_RUN} tests/test_a.py"
+    assert _run_files(ctx, ["tests/test_a.py"], base) == f"{UV_TEST_RUN} tests/test_a.py"

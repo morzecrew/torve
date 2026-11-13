@@ -527,7 +527,8 @@ class Manifest(BaseModel):
         if not root:
             return data
 
-        return {**data, "tests": TestsConfig.re_rooted(root).model_dump()}
+        # Without `run`, so the launcher still reads the checkout (S-0127/D-16).
+        return {**data, "tests": TestsConfig.re_rooted(root).model_dump(exclude={"run"})}
 
     # ....................... #
 

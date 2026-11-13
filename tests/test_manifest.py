@@ -526,6 +526,11 @@ def test_a_uv_checkout_launches_its_tests_through_uv_unless_the_manifest_names_a
     assert unnamed.launcher(bare) == DEFAULT_TEST_RUN
     assert named.launcher(uv) == DEFAULT_TEST_RUN
 
+    # Re-rooted defaults (S-0110/D-8) name no run either.
+    rooted = load_manifest(write_manifest(tmp_path, dict(BASE_MANIFEST, layout={"root": "app"})))
+    assert rooted.tests.patterns[0].startswith("app/")
+    assert rooted.tests.launcher(uv) == UV_TEST_RUN
+
 
 def test_the_pairing_refuses_a_module_the_templates_do_not_name():
     """S-0106/D-7 with the defaults: a template names a test source's suffix,

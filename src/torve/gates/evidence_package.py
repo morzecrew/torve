@@ -970,7 +970,9 @@ def build_evidence(
 
                 if ran and runner:
                     ids = " ".join(shlex.quote(node) for node in ran)
-                    command = f"cd {where} && {runner} {_REPORT_CHARS} {ids}"
+                    # The base's own launcher: the change may add or drop `uv.lock`.
+                    launcher = ctx.manifest.tests.launcher(base_dir).strip()
+                    command = f"cd {where} && {launcher} {_REPORT_CHARS} {ids}"
                     code, output = _run(ctx, command, timeout)
                     package.logs["tests-base.log"] = f"$ {command}  [exit {code}]\n{output}"
                     base.update({node: _reading(code, output, node) for node in ran})

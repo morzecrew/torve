@@ -167,13 +167,14 @@ def _files_of(ids: Iterable[str]) -> list[str]:
     return list(dict.fromkeys(node.split("::", 1)[0] for node in ids))
 
 
-def _run_files(ctx: GateContext, files: list[str]) -> str:
+def _run_files(ctx: GateContext, files: list[str], checkout: Path | None = None) -> str:
     """The manifest's test launcher over a list of files — the same seam
-    `red-on-base` uses (S-0106/D-7)."""
+    `red-on-base` uses (S-0106/D-7) — as *checkout* launches them, the
+    candidate's by default (S-0127/D-16)."""
 
-    return (
-        f"{ctx.manifest.tests.launcher(ctx.root)} {' '.join(shlex.quote(path) for path in files)}"
-    )
+    launcher = ctx.manifest.tests.launcher(checkout or ctx.root)
+
+    return f"{launcher} {' '.join(shlex.quote(path) for path in files)}"
 
 
 def _with_base(command: str, ctx: GateContext) -> str | None:
@@ -360,7 +361,7 @@ def check_suite(gate: Gate, ctx: GateContext) -> BuiltinOutcome:
                 if present:
                     base_command = (
                         f"cd {shlex.quote(str(base_dir.relative_to(ctx.root.resolve())))} && "
-                        f"{_run_files(ctx, _files_of(present))}"
+                        f"{_run_files(ctx, _files_of(present), base_dir)}"
                     )
                     base = run_command(
                         base_command, ctx.root, timeout, retry_flaky=False, execute=ctx.execute

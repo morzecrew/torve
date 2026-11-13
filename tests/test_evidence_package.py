@@ -142,10 +142,13 @@ def test_a_new_test_red_on_the_base_proves_the_row_it_names(repo):
     assert "tests-base.log" in package.logs and "tests-head.log" in package.logs
 
 
-def test_a_uv_checkout_runs_the_changed_tests_through_uv(repo, monkeypatch):
+@pytest.mark.parametrize("dropped", [False, True], ids=["kept", "dropped"])
+def test_a_uv_checkout_runs_the_changed_tests_through_uv(repo, monkeypatch, dropped):
     """S-0127/D-16: with a manifest naming no `tests.run`, the changed tests
     run through `uv run` at the head and the base of a checkout holding
-    `uv.lock`, not through the image's bare `python3`."""
+    `uv.lock`, not through the image's bare `python3`; each tree is launched
+    as it holds the lock, so a change dropping it runs the head bare and the
+    base through uv."""
 
     data = manifest()
     del data["tests"]
@@ -166,6 +169,8 @@ def test_a_uv_checkout_runs_the_changed_tests_through_uv(repo, monkeypatch):
         "tests/test_calc.py",
         BASE_TESTS + f'\n\ndef test_double():\n    """{ROW}"""\n    assert double(2) == 4\n',
     )
+    if dropped:
+        repo.git("rm", "-q", "uv.lock")
     repo.commit("double")
     ran: list[str] = []
     monkeypatch.setattr(
@@ -176,7 +181,7 @@ def test_a_uv_checkout_runs_the_changed_tests_through_uv(repo, monkeypatch):
     package_for(repo)
 
     assert len(ran) == 2
-    assert ran[0].startswith("uv run python -m pytest ")
+    assert ran[0].startswith("python3 -m pytest " if dropped else "uv run python -m pytest ")
     assert " && uv run python -m pytest " in ran[1]
 
 
