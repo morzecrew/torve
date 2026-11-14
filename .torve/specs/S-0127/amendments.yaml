@@ -305,7 +305,7 @@ amendments:
       turn that plugin off. The suite gate's own run is the manifest's command and is left as
       written.
   - id: A-9
-    at: '2026-11-14T21:30:00Z'
+    at: '2026-11-14T18:05:00Z'
     title: A dsh child reads no bracketed loopback
     md: |
       Adds S-0127/D-19. dsh adds `::1,[::1]` to the `no_proxy` every shell it spawns reads, and
