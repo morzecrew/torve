@@ -19,8 +19,9 @@ into block or pass (`decide`, S-0122/D-1, S-0127/D-1): a finding that survives
 the location filter at or above `review.blocks_at`, and a row `violated` with
 evidence that locates, block only when the engine re-runs their repro
 against the candidate and it fails; a `gaming` finding and a LOCKED row's
-breach block on located evidence alone, a `weak_test` finding never does,
-and `unknown` never does. Whatever does not block is recorded advisory.
+breach block on located evidence alone, a `weak_test` finding only through
+a probe its repro names, and `unknown` never does. Whatever does not block
+is recorded advisory.
 
 A probe the critic wrote survives only when a surviving finding names it as
 its repro; everything else dies with the copy. The engine writes a kept
@@ -274,6 +275,11 @@ Reproduce = Callable[[Sequence[str], Mapping[str, str | None]], list[CommandRun]
 #: not run the command (S-0127/D-1).
 NOT_RUNNABLE = frozenset({126, 127})
 
+#: The one exit a `weak_test` probe blocks with (S-0127/D-2): the changed test
+#: passed the wrong implementation the probe built. A crashed probe exits 1,
+#: and no interpreter, test runner or shell gives this code on its own.
+WRONG_PASSES = 42
+
 #: A path under the probe directory a command names, which the re-run must
 #: be handed from the critic's copy or refuse (S-0127/D-10). It ends at a
 #: colon, so a pytest selector's `::test_bug` is not read into the path.
@@ -293,8 +299,8 @@ class Decision:
     whose evidence disputes a claim the attempt rejected; they are marked in
     the record.
 
-    `advisory` is every kept `weak_test` finding and every kept finding whose
-    re-run did not fail, and `advisory_rows` every located `violated` row
+    `advisory` is every kept `weak_test` finding that does not block and every
+    kept finding whose re-run did not fail, and `advisory_rows` every located `violated` row
     other than a LOCKED one, which has no repro to re-run (S-0127/D-1,
     S-0127/A-5, S-0127/D-2); `reruns` is each re-run the engine made, beside
     the finding it measured."""
@@ -552,8 +558,11 @@ def decide(
 
     What is left blocks by what ran (S-0127/D-1, S-0127/D-2). A `gaming`
     finding at or above *blocks_at*, and a LOCKED row `violated` with evidence
-    that locates, block on that evidence alone. A `weak_test` finding never
-    blocks and is never re-run. Any other finding at or above *blocks_at*
+    that locates, block on that evidence alone. A `weak_test` finding whose
+    repro names no probe is never re-run: only a probe can hold the wrong
+    implementation the changed test still passes. One that names a probe
+    blocks only when the re-run exits `WRONG_PASSES`. Any other finding at or
+    above *blocks_at*
     blocks only when *reproduce* re-runs its `repro.command` against the
     candidate, with the probes *probes* kept for it, and the command exits
     non-zero. An exit of 0, 126 or 127, a timeout, a refused repro, a re-run
@@ -633,8 +642,18 @@ def decide(
             # locates blocks, as it always did.
             blockers.append(finding)
         elif finding.kind == "weak_test":
-            # S-0127/D-2: a test that proves too little is advisory unread.
-            continue
+            # S-0127/D-2: a test that proves too little blocks only when a
+            # probe says it passed a wrong implementation; one only read is
+            # advisory unrun.
+            named = finding.repro.file if finding.repro else None
+
+            if not _probe_names(_repro_command(finding), named):
+                continue
+
+            if rerun(finding, _repro_command(finding), named).exit_code == WRONG_PASSES:
+                blockers.append(finding)
+            else:
+                unreproduced.add(id(finding))
         elif _failed(
             rerun(finding, _repro_command(finding), finding.repro.file if finding.repro else None)
         ):
@@ -642,8 +661,12 @@ def decide(
         else:
             unreproduced.add(id(finding))
 
+    blocked_ids = {id(finding) for finding in blockers}
     advisory = [
-        finding for finding in kept if finding.kind == "weak_test" or id(finding) in unreproduced
+        finding
+        for finding in kept
+        if id(finding) in unreproduced
+        or (finding.kind == "weak_test" and id(finding) not in blocked_ids)
     ]
 
     def weight(verdict: RowVerdict) -> tuple[bool, bool, bool]:
@@ -973,7 +996,8 @@ def build_critic_prompt(
     it reads. A revision's prompt also names what it changed and what it was
     asked to fix (S-0125/D-2). What blocks is said here, never in the frozen
     prompt: only a repro that exits non-zero when the engine re-runs it on the
-    candidate (S-0127/D-1)."""
+    candidate (S-0127/D-1), and for a weak test only a probe's `WRONG_PASSES`
+    (S-0127/D-2)."""
 
     listed = (
         "\n".join(
@@ -1031,6 +1055,13 @@ re-runs each finding's `repro.command`, with the probes it names; a command show
 evidence is never run. A violated row other than a LOCKED one blocks only through a finding
 that names the row and carries a repro. A `gaming` finding and a LOCKED row's breach block
 on located evidence alone.
+
+A `weak_test` finding blocks only through a probe its repro names: the probe builds a
+plausible wrong implementation, runs the changed test against it, and exits {WRONG_PASSES} when
+that test still passes, with any other code otherwise. A crash exits 1, so only {WRONG_PASSES}
+blocks. Build the wrong implementation in a copy of the tree or by patching it at import:
+the re-run mounts the checkout read-only. A `weak_test` finding whose repro names no probe
+never blocks.
 
 The re-run reads a fresh checkout of the candidate's tracked files and the probes: no
 `.venv`, no build output. Start the project's tools the way its acceptance commands do,

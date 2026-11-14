@@ -305,10 +305,39 @@ amendments:
       turn that plugin off. The suite gate's own run is the manifest's command and is left as
       written.
   - id: A-9
-    at: '2026-11-14T21:30:00Z'
+    at: '2026-11-14T18:05:00Z'
     title: A dsh child reads no bracketed loopback
     md: |
       Adds S-0127/D-19. dsh adds `::1,[::1]` to the `no_proxy` every shell it spawns reads, and
       httpx cannot parse the bracketed entry: building a client raises `Invalid port: ':1]'`. In the
       bed, that error is in 18 dsh executor traces on the two spoolman tasks, across both engine
       arms. The dsh image now deletes that one entry, and its smoke check reads a child's list back.
+  - id: A-10
+    at: '2026-11-14T18:14:10Z'
+    title: A weak test blocks through a probe
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          A `weak_test` finding never blocks and is never re-run, whatever its severity
+          and its repro: `decide` records it `advisory: true`
+        after: >-
+          A `weak_test` finding at or above `review.blocks_at` blocks only when its
+          repro names a probe under `probes/` and the engine's re-run of its `repro.command`
+          exits 42, the code the per-call prompt tells the probe to exit with when
+          the changed test passes a plausible wrong implementation the probe built
+          without editing a tracked file; any other exit, a crash's 1 included, records
+          it `advisory: true`, a `weak_test` finding whose repro names no probe is
+          never re-run, and every one that does not block is recorded advisory
+      - subject: D-2
+        field: fingerprint
+        after: 62b7c1325cacd9d0/e65c5af0a246a016
+    md: |
+      Changes S-0127/D-2, the owner's call after the bed. A `weak_test` finding now blocks when its
+      repro names a probe and the engine's re-run of it exits 42: the probe built a plausible wrong
+      implementation, and the changed test still passed. In the bed, 13 major `weak_test` findings
+      named a probe. The critic's own runs supported all 13 claims, one only in part. 10 of the probes
+      built a mutant and ran the changed tests against it, and the 9 that ran exited 1 when it passed. The code is 42 rather than any
+      non-zero exit: one of those probes first exited 1 on an `IndexError`, and one that built no
+      mutant exits 1 whether its test is fixed or not. A weak test the critic only read stays
+      advisory.
