@@ -391,9 +391,9 @@ decisions:
     text: >-
       Every test run torve composes itself and reads pytest's short summary from —
       the evidence package's per-test runs at the head and the base, and the suite
-      gate's reruns and base run — adds `-p no:pretty` after the launcher, so pytest-pretty,
-      which replaces that summary with a table naming no test id, cannot hide a test's
-      outcome
+      gate's reruns and base run — adds `-p no:pretty` after a launcher that starts
+      pytest, so pytest-pretty, which replaces that summary with a table naming no
+      test id, cannot hide a test's outcome; any other launcher keeps its own flags
     paths: [src/torve/gates/evidence_package.py, src/torve/gates/suite.py]
     consequence: >-
       a project that installs pytest-pretty reads its changed tests as proved, held,

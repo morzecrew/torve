@@ -437,3 +437,19 @@ def test_a_base_run_takes_the_launcher_of_the_checkout_it_runs_in(tmp_path):
     assert (
         _run_files(ctx, ["tests/test_a.py"], base) == f"{UV_TEST_RUN} -p no:pretty tests/test_a.py"
     )
+
+
+def test_only_a_pytest_launcher_turns_off_the_plugin_that_replaces_the_summary(tmp_path):
+    """S-0127/D-18: a rerun through a launcher that starts pytest turns off
+    pytest-pretty; any other runner is left its own flags, since `go test`
+    reads `-p` as its parallelism."""
+    from types import SimpleNamespace
+
+    from torve.config.manifest import Manifest, TestsConfig
+
+    def rerun(run: str) -> str:
+        ctx: Any = SimpleNamespace(manifest=Manifest(tests=TestsConfig(run=run)), root=tmp_path)
+        return _run_files(ctx, ["a_test.go"])
+
+    assert rerun("uv run pytest -q") == "uv run pytest -q -p no:pretty a_test.go"
+    assert rerun("go test ./...") == "go test ./... a_test.go"

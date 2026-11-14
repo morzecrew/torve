@@ -97,7 +97,7 @@ A run of test files over a checkout — the evidence package's per-test runs at 
 
 ### S-0127/D-18 — `ASSUMED` (A verdict comes from what ran)
 
-Every test run torve composes itself and reads pytest's short summary from — the evidence package's per-test runs at the head and the base, and the suite gate's reruns and base run — adds `-p no:pretty` after the launcher, so pytest-pretty, which replaces that summary with a table naming no test id, cannot hide a test's outcome
+Every test run torve composes itself and reads pytest's short summary from — the evidence package's per-test runs at the head and the base, and the suite gate's reruns and base run — adds `-p no:pretty` after a launcher that starts pytest, so pytest-pretty, which replaces that summary with a table naming no test id, cannot hide a test's outcome; any other launcher keeps its own flags
 
 - Paths: `src/torve/gates/evidence_package.py` `src/torve/gates/suite.py`
 - Consequence: a project that installs pytest-pretty reads its changed tests as proved, held, broken or failing like any other; the suite gate's own run is the manifest's command, left as written, so a red suite there still fails closed (S-0118/D-2)

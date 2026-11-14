@@ -53,10 +53,17 @@ BASE_NAME = "suite-base"
 #: and D-2 keeps that red a conviction.
 _SUMMARY = re.compile(r"^(?:FAILED|ERROR) (\S+)", re.MULTILINE)
 
-#: What every run whose summary is read here adds to the launcher (S-0127/D-18):
-#: pytest-pretty replaces pytest's short summary with a table that names no
-#: test id. Disabling a plugin that is not installed does nothing.
+#: What every run whose summary is read here adds to a pytest launcher
+#: (S-0127/D-18): pytest-pretty replaces pytest's short summary with a table
+#: that names no test id. Disabling a plugin that is not installed does nothing.
 PLAIN_SUMMARY = "-p no:pretty"
+
+
+def plain(launcher: str) -> str:
+    """*launcher* with `PLAIN_SUMMARY` when it starts pytest. Any other runner's
+    flags are its own: `go test` reads `-p` as its parallelism."""
+
+    return f"{launcher} {PLAIN_SUMMARY}" if "pytest" in launcher else launcher
 
 
 # ....................... #
@@ -179,7 +186,7 @@ def _run_files(ctx: GateContext, files: list[str], checkout: Path | None = None)
 
     launcher = ctx.manifest.tests.launcher(checkout or ctx.root)
 
-    return f"{launcher} {PLAIN_SUMMARY} {' '.join(shlex.quote(path) for path in files)}"
+    return f"{plain(launcher)} {' '.join(shlex.quote(path) for path in files)}"
 
 
 def _with_base(command: str, ctx: GateContext) -> str | None:
