@@ -563,6 +563,33 @@ def test_weak_test_finding_blocks_only_through_a_probe_that_exits_wrong_passes(
     assert "rerun" not in recorded["F2"] and "rerun" not in recorded["F3"]
 
 
+def test_weak_test_a_blocking_probe_named_only_in_its_command_reaches_the_thread(tmp_path):
+    """S-0127/D-2: a weak test's probe that its repro names in the command
+    alone, with no `repro.file`, is still shown in the blocker's thread, so the
+    revision reads the wrong implementation its test passed."""
+
+    _app(tmp_path)
+    probe = "uv run python probes/wrong.py"
+    document = CriticDocument.model_validate(
+        {"rows": [], "findings": [finding(kind="weak_test", repro={"command": probe})]}
+    )
+    kept = {"probes/wrong.py": "import sys\nsys.exit(42)\n"}
+    decision = decide(document, {}, tmp_path, "major", reproduce=Rerun(42), probes=kept)
+    verdict = critic_module.CriticVerdict(
+        review_id="R-1",
+        fact="",
+        blockers=decision.blockers,
+        kept=decision.kept,
+        decision=decision,
+        probes=kept,
+    )
+
+    body = critic_module.revision_threads(verdict, tmp_path)[0]["comments"][0]["body"]
+
+    assert "probes/wrong.py:\n```\nimport sys\nsys.exit(42)\n```" in body
+    assert f"the engine re-ran `{probe}` on this candidate: exit 42" in body
+
+
 def test_weak_test_the_per_call_prompt_says_a_probe_must_pass_the_wrong_implementation():
     """S-0127/D-2: the per-call prompt says how a weak test blocks — a probe
     that runs the changed test against a wrong implementation it builds, in a
