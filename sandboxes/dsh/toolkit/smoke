@@ -105,7 +105,8 @@ fi
 
 # The proxy bypass a child reads (S-0127/D-19): what dsh publishes to its shells
 # under a sealed sandbox's proxy variables, which carries no bracketed address.
-children=$(cd /opt/harness && http_proxy=http://192.0.2.1:9 no_proxy=127.0.0.1,localhost,192.0.2.1 \
+own=127.0.0.1,localhost,192.0.2.1
+children=$(cd /opt/harness && http_proxy=http://192.0.2.1:9 no_proxy=$own \
     node --input-type=module -e '
 import { installProxyFromEnvironment, proxyEnvironmentForChild } from "@deepseek-ai/dsh-http-proxy";
 const env = new Map(Object.entries(process.env).map(([name, value]) => [name, { value }]));
@@ -114,9 +115,13 @@ process.stdout.write(proxyEnvironmentForChild().no_proxy ?? "");
 ') || fail 'the proxy policy did not load' "$children"
 case ",$children," in
     *",[::1],"*) fail "a child's no_proxy carries [::1]" "$children" ;;
-    *",localhost,"*) ;;
-    *) fail "a child's no_proxy lost the sandbox's own entries" "$children" ;;
 esac
+for entry in $(printf '%s' "$own" | tr ',' ' '); do
+    case ",$children," in
+        *",$entry,"*) ;;
+        *) fail "a child's no_proxy lost $entry" "$children" ;;
+    esac
+done
 
 # The profile and homes this wrote are build residue: the attempt's own are
 # made fresh by `equip`, and an image that ships a half-built profile is an
