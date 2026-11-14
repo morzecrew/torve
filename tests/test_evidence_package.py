@@ -185,6 +185,49 @@ def test_a_uv_checkout_runs_the_changed_tests_through_uv(repo, monkeypatch, drop
     assert " && uv run python -m pytest " in ran[1]
 
 
+# A stand-in for pytest-pretty, registered under its name: the short summary
+# that names each test's outcome is gone.
+PRETTY = """import pytest
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_configure(config):
+    config.pluginmanager.get_plugin("terminalreporter").reportchars = ""
+"""
+
+
+def test_a_plugin_that_replaces_the_short_summary_still_proves_the_row(repo):
+    """S-0127/D-18: a project whose pytest loads a plugin named `pretty` that
+    drops the short summary still reads its tests' outcomes, since the
+    package's runs turn that plugin off; without that, the head's pass read
+    `not_run`."""
+
+    data = manifest()
+    data["tests"] = {"run": f"PYTHONPATH=. PYTEST_PLUGINS=pretty {SUITE_TEST_RUN}"}
+    repo.seed(data)
+    based(
+        repo,
+        {
+            "conftest.py": "",
+            "pretty.py": PRETTY,
+            "src/__init__.py": "",
+            "src/calc.py": BASE_CALC,
+            "tests/test_calc.py": BASE_TESTS,
+        },
+    )
+    repo.task(contract(), None)
+    repo.write("src/calc.py", HEAD_CALC)
+    repo.write(
+        "tests/test_calc.py",
+        BASE_TESTS + f'\n\ndef test_double():\n    """{ROW}"""\n    assert double(2) == 4\n',
+    )
+    repo.commit("double")
+
+    run = tests_of(package_for(repo))["tests/test_calc.py::test_double"]
+
+    assert (run.base, run.head, run.status) == ("fail", "pass", "proved")
+
+
 def test_a_test_green_on_both_sides_holds_and_proves_nothing(repo):
     seeded(repo)
     repo.write("src/calc.py", HEAD_CALC)

@@ -431,5 +431,9 @@ def test_a_base_run_takes_the_launcher_of_the_checkout_it_runs_in(tmp_path):
     (base / "uv.lock").write_text("version = 1\n", encoding="utf-8")
     ctx: Any = SimpleNamespace(manifest=Manifest(), root=head)
 
-    assert _run_files(ctx, ["tests/test_a.py"]) == f"{DEFAULT_TEST_RUN} tests/test_a.py"
-    assert _run_files(ctx, ["tests/test_a.py"], base) == f"{UV_TEST_RUN} tests/test_a.py"
+    assert (
+        _run_files(ctx, ["tests/test_a.py"]) == f"{DEFAULT_TEST_RUN} -p no:pretty tests/test_a.py"
+    )
+    assert (
+        _run_files(ctx, ["tests/test_a.py"], base) == f"{UV_TEST_RUN} -p no:pretty tests/test_a.py"
+    )

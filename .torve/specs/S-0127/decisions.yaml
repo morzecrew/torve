@@ -386,3 +386,24 @@ decisions:
     cites: [D-1, D-10]
     check: >-
       uv run pytest -q tests/test_critic.py -k rerun_has_no_venv
+  - id: D-18
+    grade: ASSUMED
+    text: >-
+      Every test run torve composes itself and reads pytest's short summary from —
+      the evidence package's per-test runs at the head and the base, and the suite
+      gate's reruns and base run — adds `-p no:pretty` after the launcher, so pytest-pretty,
+      which replaces that summary with a table naming no test id, cannot hide a test's
+      outcome
+    paths: [src/torve/gates/evidence_package.py, src/torve/gates/suite.py]
+    consequence: >-
+      a project that installs pytest-pretty reads its changed tests as proved, held,
+      broken or failing like any other; the suite gate's own run is the manifest's
+      command, left as written, so a red suite there still fails closed (S-0118/D-2)
+    rationale: >-
+      in the bed, the three pydantic-settings tasks lock pytest-pretty, and all 39
+      readings of a row with a linked test, across both engine arms, read `not_run`:
+      under that plugin a run prints no `PASSED <id>` line whatever its outcome
+    cites: [S-0122/D-5, S-0118/D-2, D-16]
+    check: >-
+      uv run pytest -q tests/test_evidence_package.py tests/test_suite.py -k 'plugin_that_replaces
+      or launcher_of_the_checkout'

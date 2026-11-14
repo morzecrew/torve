@@ -53,6 +53,11 @@ BASE_NAME = "suite-base"
 #: and D-2 keeps that red a conviction.
 _SUMMARY = re.compile(r"^(?:FAILED|ERROR) (\S+)", re.MULTILINE)
 
+#: What every run whose summary is read here adds to the launcher (S-0127/D-18):
+#: pytest-pretty replaces pytest's short summary with a table that names no
+#: test id. Disabling a plugin that is not installed does nothing.
+PLAIN_SUMMARY = "-p no:pretty"
+
 
 # ....................... #
 
@@ -174,7 +179,7 @@ def _run_files(ctx: GateContext, files: list[str], checkout: Path | None = None)
 
     launcher = ctx.manifest.tests.launcher(checkout or ctx.root)
 
-    return f"{launcher} {' '.join(shlex.quote(path) for path in files)}"
+    return f"{launcher} {PLAIN_SUMMARY} {' '.join(shlex.quote(path) for path in files)}"
 
 
 def _with_base(command: str, ctx: GateContext) -> str | None:

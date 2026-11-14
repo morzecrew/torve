@@ -93,6 +93,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   through the project's tools. A repro that started `.venv/bin/python` exited 127 on re-run and
   could never block.
 
+- In a project that installs pytest-pretty, the critic's evidence now shows whether each changed
+  test passed or failed. That plugin replaces pytest's short summary, so every test read as not
+  run. The test runs the engine composes itself now turn the plugin off.
+
 - An agent's `torve log` in a repository with no remote is no longer refused with "log
   carries no repo". The log's pin now names the repository by its checkout's directory,
   as the store already does. An agent in such a repository could not record a divergence

@@ -57,7 +57,13 @@ from torve.domain.attempt import GateResult
 from torve.domain.task import InheritedDecision, Task
 from torve.gates.acceptance import selected_nothing
 from torve.gates.context import GateContext, GitError, git
-from torve.gates.suite import collection_errors, extract_base, failing_ids, settled_ids
+from torve.gates.suite import (
+    PLAIN_SUMMARY,
+    collection_errors,
+    extract_base,
+    failing_ids,
+    settled_ids,
+)
 
 # ----------------------- #
 
@@ -84,8 +90,9 @@ _STATUS_ORDER: tuple[Status, ...] = ("broken", "failing", "proved", "held", "not
 _RED: frozenset[Reading] = frozenset({"fail", "error"})
 
 #: What the package adds to the manifest's test launcher: the short summary
-#: names failures, errors and passes, so a test that never ran reads as such.
-_REPORT_CHARS = "-rfEp"
+#: names failures, errors and passes, so a test that never ran reads as such,
+#: in pytest's own words whatever plugin the project installs (S-0127/D-18).
+_REPORT_CHARS = f"{PLAIN_SUMMARY} -rfEp"
 _PASSED = re.compile(r"^PASSED (\S+)", re.MULTILINE)
 
 # Added text that addresses whoever judges the change rather than whoever
