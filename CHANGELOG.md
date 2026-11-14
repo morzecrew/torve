@@ -97,6 +97,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   test passed or failed. That plugin replaces pytest's short summary, so every test read as not
   run. The test runs the engine composes itself now turn the plugin off.
 
+- Under the dsh seat, a project's code that builds an httpx client no longer fails with
+  `Invalid port: ':1]'` in a sandbox behind a proxy. dsh added `[::1]` to every shell's
+  `no_proxy`, which httpx cannot parse. The dsh image now removes that one entry.
+
 - An agent's `torve log` in a repository with no remote is no longer refused with "log
   carries no repo". The log's pin now names the repository by its checkout's directory,
   as the store already does. An agent in such a repository could not record a divergence

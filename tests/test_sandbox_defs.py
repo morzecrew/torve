@@ -1222,3 +1222,27 @@ def test_the_base_carries_the_docker_cli_compose_buildx_just_and_openssl() -> No
     assert "--from=docker:29.7.2-cli /usr/local/bin/docker" in instructions
     assert "--from=docker:29.7.2-cli /usr/local/libexec/docker/cli-plugins" in instructions
     assert "/just /usr/local/bin/just" in instructions
+
+
+def test_a_dsh_child_reads_no_bracketed_loopback_in_its_no_proxy() -> None:
+    """S-0127/D-19: dsh adds `::1,[::1]` to the `no_proxy` every child reads,
+    and httpx raises `Invalid port: ':1]'` on the bracketed entry. The image
+    deletes that entry from dsh's list after the install, the rest of the file
+    untouched, and the build's smoke check reads a child's list back."""
+
+    dockerfile = (DEFINITIONS / "dsh" / "Dockerfile").read_text(encoding="utf-8")
+    found = re.search(r"RUN sed -i '([^']*LOOPBACK_NO_PROXY[^']*)'", dockerfile)
+
+    assert found is not None
+    # rc.5's list, and a bracketed address outside it the edit must leave.
+    shipped = (
+        'const LOOPBACK_NO_PROXY = [\n\t"localhost",\n\t"127.0.0.1",\n\t"::1",\n\t"[::1]"\n];\n'
+    )
+    other = 'const HOSTS = [\n\t"[::1]"\n];\n'
+    edited = subprocess.run(
+        ["sed", found.group(1)], input=shipped + other, capture_output=True, text=True, check=True
+    ).stdout
+
+    assert edited == shipped.replace('\t"[::1]"\n', "") + other
+    assert dockerfile.index("npm ci") < found.start() < dockerfile.index("RUN /opt/torve/smoke")
+    assert "a child's no_proxy carries [::1]" in toolkit("dsh")

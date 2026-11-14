@@ -407,3 +407,24 @@ decisions:
     check: >-
       uv run pytest -q tests/test_evidence_package.py tests/test_suite.py -k 'plugin_that_replaces
       or launcher_of_the_checkout'
+  - id: D-19
+    grade: ASSUMED
+    text: >-
+      The dsh image deletes `[::1]` from the loopback entries `@deepseek-ai/dsh-http-proxy`
+      adds to the `no_proxy` it publishes to every child, keeping the bare `::1`,
+      and the build's smoke check reads a child's `no_proxy` back under a proxy and
+      fails on a bracketed entry or a lost one of the sandbox's own
+    paths: [sandboxes/dsh/Dockerfile, sandboxes/dsh/toolkit/smoke]
+    consequence: >-
+      a project test that builds an httpx client runs under the dsh seat; a Node child
+      that requests `http://[::1]:port` itself goes to the proxy, because undici reads
+      the bare `::1` as host `:` port `1`, while dsh's own requests still bypass loopback
+      by address
+    rationale: >-
+      httpx parses `[::1]` in `no_proxy` as a host with port `:1]` and raises `Invalid
+      port: ':1]'` before any request; in the bed that error is in 18 dsh executor
+      traces across both engine arms' spoolman tasks, and agents spent turns working
+      around it
+    cites: [S-0122/D-10, S-0021/D-3]
+    check: >-
+      uv run pytest -q tests/test_sandbox_defs.py -k bracketed_loopback

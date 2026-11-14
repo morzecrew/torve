@@ -304,3 +304,11 @@ amendments:
       tests, re-run by hand, passed and printed no `PASSED <id>` line. The runs torve composes itself now
       turn that plugin off. The suite gate's own run is the manifest's command and is left as
       written.
+  - id: A-9
+    at: '2026-11-14T21:30:00Z'
+    title: A dsh child reads no bracketed loopback
+    md: |
+      Adds S-0127/D-19. dsh adds `::1,[::1]` to the `no_proxy` every shell it spawns reads, and
+      httpx cannot parse the bracketed entry: building a client raises `Invalid port: ':1]'`. In the
+      bed, that error is in 18 dsh executor traces on the two spoolman tasks, across both engine
+      arms. The dsh image now deletes that one entry, and its smoke check reads a child's list back.
