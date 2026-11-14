@@ -25,6 +25,15 @@ RUN cd /opt/harness && npm ci --no-audit --no-fund \
  && test "$(node -p 'require("@deepseek-ai/dsh/package.json").version')" = "${DSH_VERSION}" \
  && ln -s /opt/harness/node_modules/.bin/dsh /usr/local/bin/dsh \
  && dsh --version
+# dsh adds `::1,[::1]` to the `no_proxy` every child it spawns reads (`withLoopback`
+# in `@deepseek-ai/dsh-http-proxy`), and httpx cannot parse the bracketed entry:
+# building a client raises `Invalid port: ':1]'` before any request, so every
+# project test that makes one dies in a sandbox with a proxy (S-0127/D-19). The
+# bare `::1` stays, and dsh routes its own requests to loopback by address
+# whatever the list says. The smoke check reads a child's `no_proxy` back, so a
+# bump that moves the list fails the build rather than the attempts.
+RUN sed -i '/^const LOOPBACK_NO_PROXY = \[$/,/^\];$/{/^\t"\[::1\]"$/d}' \
+    /opt/harness/node_modules/@deepseek-ai/dsh-http-proxy/lib/index.js
 # `dsh plugin add` shells out to pnpm and exits 127 without it, which is how
 # every `routine` attempt died once the hook branch stopped dying first
 # (S-0072/D-3). Pinned like the harness above it, for the same reason.
