@@ -2503,7 +2503,8 @@ def _revision_acceptance(root: Path, claims: Sequence[Claim]) -> list[str]:
     tests = dict.fromkeys(
         test for module in touched for test in manifest.tests.paired(module, names)
     )
-    commands = [f"{manifest.tests.run} {' '.join(shlex.quote(t) for t in tests)}"] if tests else []
+    launcher = manifest.tests.launcher(root)
+    commands = [f"{launcher} {' '.join(shlex.quote(t) for t in tests)}"] if tests else []
     commands += [g.run for g in manifest.resolved_gates() if g.name == "mypy" and g.run]
 
     return commands

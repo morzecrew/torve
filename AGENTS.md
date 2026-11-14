@@ -64,12 +64,12 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/torve/adapters/store/` — 1 decision(s)
 - `src/torve/adapters/vcs/` — 5 decision(s)
 - `src/torve/adapters/workspace/` — 2 decision(s)
-- `src/torve/application/` — 84 decision(s)
+- `src/torve/application/` — 86 decision(s)
 - `src/torve/base/` — 4 decision(s)
 - `src/torve/cli/` — 14 decision(s)
-- `src/torve/config/` — 21 decision(s)
+- `src/torve/config/` — 22 decision(s)
 - `src/torve/domain/` — 12 decision(s)
-- `src/torve/gates/` — 13 decision(s)
+- `src/torve/gates/` — 14 decision(s)
 - `tests/` — 0 decision(s)
 
 <!-- /torve:managed -->

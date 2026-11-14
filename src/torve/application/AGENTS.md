@@ -612,4 +612,20 @@ Each item a critic review's `review.recorded` event carries holds the finding's 
 - Consequence: a unit that builds a later unit's rule early is not blocked for breaking an earlier row that rule replaces; the critic still judges only the rows the unit delivers, and a LOCKED row's breach still blocks (D-1)
 - Check: `uv run pytest -q tests/test_critic.py -k documents_other_rows` (shadow; runs as `decision:S-0127/D-15`)
 
+### S-0127/D-16 — `ASSUMED` (A verdict comes from what ran)
+
+A run of test files over a checkout — the evidence package's per-test runs at the head and the base, the suite gate's reruns and the review leg's fallback — launches them with `TestsConfig.launcher(root)` of the checkout it runs in, the base's for a base run: the manifest's `tests.run` when it names one, re-rooted defaults naming none, else `uv run python -m pytest -q -p no:cacheprovider` when that checkout holds `uv.lock`, else the `python3` default
+
+- Paths: `src/torve/config/manifest.py` `src/torve/gates/evidence_package.py` `src/torve/gates/suite.py` `src/torve/application/reviewleg.py`
+- Consequence: a uv project's tests run in its own environment whichever copy of the manifest judged the attempt, the merge base's included
+- Check: `uv run pytest -q tests/test_manifest.py tests/test_evidence_package.py tests/test_suite.py -k 'uv_checkout or launcher_of_the_checkout'` (shadow; runs as `decision:S-0127/D-16`)
+
+### S-0127/D-17 — `ASSUMED` (A verdict comes from what ran)
+
+`build_critic_prompt` says that a re-run reads a fresh checkout of the candidate's tracked files and the probes, with no `.venv`, that a repro starts the project's tools the way its acceptance commands do and never by a path into `.venv/`, and that a command the checkout cannot start exits 127 and never blocks
+
+- Paths: `src/torve/application/critic.py`
+- Consequence: a repro written against the critic's own `.venv` is no longer lost to an exit 127 on re-run; the frozen prompt is unchanged
+- Check: `uv run pytest -q tests/test_critic.py -k rerun_has_no_venv` (shadow; runs as `decision:S-0127/D-17`)
+
 <!-- /torve:managed -->

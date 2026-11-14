@@ -469,6 +469,17 @@ def test_reproduced_the_per_call_prompt_says_only_a_failing_repro_blocks():
     assert "Only a repro" not in critic_prompt()
 
 
+def test_reproduced_the_per_call_prompt_says_a_rerun_has_no_venv():
+    """S-0127/D-17: the per-call prompt tells the critic that a re-run reads
+    a fresh checkout with no `.venv`, so a repro starts the project's tools
+    the way its acceptance commands do."""
+
+    prompt = build_critic_prompt(Task(id=TASK_ID, intent="x", decisions=[]), TASK_ID, [], True)
+
+    assert "no\n`.venv`" in prompt
+    assert "never by a path\ninto `.venv/`" in prompt
+
+
 def test_blocks_on_reading_a_gaming_finding_and_a_locked_rows_breach(tmp_path):
     """S-0127/D-1: a kept `gaming` finding at or above the bar, a violated
     LOCKED constraint and an owned row graded LOCKED block on located

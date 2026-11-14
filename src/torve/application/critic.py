@@ -1032,6 +1032,11 @@ evidence is never run. A violated row other than a LOCKED one blocks only throug
 that names the row and carries a repro. A `gaming` finding and a LOCKED row's breach block
 on located evidence alone.
 
+The re-run reads a fresh checkout of the candidate's tracked files and the probes: no
+`.venv`, no build output. Start the project's tools the way its acceptance commands do,
+such as `uv run python probes/x.py` where the checkout holds `uv.lock`, never by a path
+into `.venv/`. A command the checkout cannot start exits 127, and never blocks.
+
 ## Inputs
 
 - `.torve/review/diff.patch` — the change under judgment

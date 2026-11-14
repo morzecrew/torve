@@ -937,7 +937,7 @@ def build_evidence(
     base: dict[str, Reading] = dict.fromkeys(tests.ids, "not_run")
     check_head: dict[str, Reading] = {row.id: "not_run" for row, _ in checked}
     check_base: dict[str, Reading] = {row.id: "not_run" for row, _ in checked}
-    runner = ctx.manifest.tests.run.strip()
+    runner = ctx.manifest.tests.launcher(ctx.root).strip()
 
     if tests.ids and runner:
         command = f"{runner} {_REPORT_CHARS} {' '.join(shlex.quote(node) for node in tests.ids)}"
@@ -970,7 +970,9 @@ def build_evidence(
 
                 if ran and runner:
                     ids = " ".join(shlex.quote(node) for node in ran)
-                    command = f"cd {where} && {runner} {_REPORT_CHARS} {ids}"
+                    # The base's own launcher: the change may add or drop `uv.lock`.
+                    launcher = ctx.manifest.tests.launcher(base_dir).strip()
+                    command = f"cd {where} && {launcher} {_REPORT_CHARS} {ids}"
                     code, output = _run(ctx, command, timeout)
                     package.logs["tests-base.log"] = f"$ {command}  [exit {code}]\n{output}"
                     base.update({node: _reading(code, output, node) for node in ran})
