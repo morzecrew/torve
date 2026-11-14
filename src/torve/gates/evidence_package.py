@@ -57,7 +57,7 @@ from torve.domain.attempt import GateResult
 from torve.domain.task import InheritedDecision, Task
 from torve.gates.acceptance import selected_nothing
 from torve.gates.context import GateContext, GitError, git
-from torve.gates.suite import collection_errors, extract_base, failing_ids, settled_ids
+from torve.gates.suite import collection_errors, extract_base, failing_ids, plain, settled_ids
 
 # ----------------------- #
 
@@ -84,7 +84,9 @@ _STATUS_ORDER: tuple[Status, ...] = ("broken", "failing", "proved", "held", "not
 _RED: frozenset[Reading] = frozenset({"fail", "error"})
 
 #: What the package adds to the manifest's test launcher: the short summary
-#: names failures, errors and passes, so a test that never ran reads as such.
+#: names failures, errors and passes, so a test that never ran reads as such,
+#: in pytest's own words through `plain` whatever plugin the project installs
+#: (S-0127/D-18).
 _REPORT_CHARS = "-rfEp"
 _PASSED = re.compile(r"^PASSED (\S+)", re.MULTILINE)
 
@@ -940,7 +942,8 @@ def build_evidence(
     runner = ctx.manifest.tests.launcher(ctx.root).strip()
 
     if tests.ids and runner:
-        command = f"{runner} {_REPORT_CHARS} {' '.join(shlex.quote(node) for node in tests.ids)}"
+        ids = " ".join(shlex.quote(node) for node in tests.ids)
+        command = f"{plain(runner)} {_REPORT_CHARS} {ids}"
         code, output = _run(ctx, command, timeout)
         package.logs["tests-head.log"] = f"$ {command}  [exit {code}]\n{output}"
         head = {node: _reading(code, output, node) for node in tests.ids}
@@ -972,7 +975,7 @@ def build_evidence(
                     ids = " ".join(shlex.quote(node) for node in ran)
                     # The base's own launcher: the change may add or drop `uv.lock`.
                     launcher = ctx.manifest.tests.launcher(base_dir).strip()
-                    command = f"cd {where} && {launcher} {_REPORT_CHARS} {ids}"
+                    command = f"cd {where} && {plain(launcher)} {_REPORT_CHARS} {ids}"
                     code, output = _run(ctx, command, timeout)
                     package.logs["tests-base.log"] = f"$ {command}  [exit {code}]\n{output}"
                     base.update({node: _reading(code, output, node) for node in ran})

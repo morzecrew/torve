@@ -69,7 +69,7 @@ and invariants that govern it. `torve spec show S-NNNN/D-n`, `torve spec paths`
 - `src/torve/cli/` — 14 decision(s)
 - `src/torve/config/` — 22 decision(s)
 - `src/torve/domain/` — 12 decision(s)
-- `src/torve/gates/` — 14 decision(s)
+- `src/torve/gates/` — 15 decision(s)
 - `tests/` — 0 decision(s)
 
 <!-- /torve:managed -->

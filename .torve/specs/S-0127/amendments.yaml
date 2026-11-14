@@ -294,3 +294,13 @@ amendments:
       themselves. The default now runs through `uv run` in such a checkout. The critic's repros showed the same gap from
       the other side: 15 started `.venv/bin/python`, and the 4 that were re-run exited 127 in the
       judge checkout, which holds tracked files only. The per-call prompt now says so.
+  - id: A-8
+    at: '2026-11-14T18:00:00Z'
+    title: The engine reads pytest's own summary
+    md: |
+      Adds S-0127/D-18. In the bed, the three pydantic-settings tasks lock pytest-pretty, which
+      replaces pytest's short summary with a table that names no test id. Every one of the 39
+      readings of a row with a linked test, across both engine arms, read `not_run`. One of those
+      tests, re-run by hand, passed and printed no `PASSED <id>` line. The runs torve composes itself now
+      turn that plugin off. The suite gate's own run is the manifest's command and is left as
+      written.
