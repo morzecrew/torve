@@ -38,19 +38,31 @@ decisions:
   - id: D-2
     grade: ASSUMED
     text: >-
-      A `weak_test` finding never blocks and is never re-run, whatever its severity
-      and its repro: `decide` records it `advisory: true`
+      A `weak_test` finding at or above `review.blocks_at` blocks only when its repro
+      names a probe under `probes/` and the engine's re-run of its `repro.command`
+      exits 42, the code the per-call prompt tells the probe to exit with when the
+      changed test passes a plausible wrong implementation the probe built without
+      editing a tracked file; any other exit, a crash's 1 included, records it `advisory:
+      true`, a `weak_test` finding whose repro names no probe is never re-run, and
+      every one that does not block is recorded advisory
     paths: [src/torve/application/critic.py]
     consequence: >-
-      a test that proves too little reaches the review record and the document's pull
-      request as advisory, and its unit still lands
+      a test that passes a plausible wrong implementation sends its unit to a revision
+      once a probe shows it, and the revision is handed the probe's command, exit
+      code and output; a weak test the critic only read, or whose probe crashed, still
+      lands advisory in the review record and the document's pull request
     rationale: >-
-      11 of the pilot's 25 blocking findings were `weak_test`, and none of those blocks
-      changed a hidden-check result; the 10 weak-test findings of the 20 sampled were
-      true and were still not defects
-    cites: [S-0122/D-1]
+      a probe's exit is measured like any repro D-1 re-runs, while the pilot's 11
+      weak-test blocks on reading alone changed no hidden-check result; in the bed,
+      13 major `weak_test` findings named a probe, the critic's own runs supported
+      all 13 claims, one in part, and 10 of the probes built a mutant and ran the
+      changed tests against it, the 9 that ran exiting 1 when it passed; the code
+      is 42 because one of those probes first exited 1 on an `IndexError`, and a probe
+      that built no mutant exits 1 whether its test is fixed or not
+    cites: [S-0122/D-1, D-1]
     check: >-
       uv run pytest -q tests/test_critic.py -k weak_test
+    fingerprint: 62b7c1325cacd9d0/e65c5af0a246a016
   - id: D-3
     grade: ASSUMED
     text: >-

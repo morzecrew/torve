@@ -511,10 +511,10 @@ Under `review.mode: critic`, a kept finding at or above `review.blocks_at` block
 
 ### S-0127/D-2 — `ASSUMED` (A verdict comes from what ran)
 
-A `weak_test` finding never blocks and is never re-run, whatever its severity and its repro: `decide` records it `advisory: true`
+A `weak_test` finding at or above `review.blocks_at` blocks only when its repro names a probe under `probes/` and the engine's re-run of its `repro.command` exits 42, the code the per-call prompt tells the probe to exit with when the changed test passes a plausible wrong implementation the probe built without editing a tracked file; any other exit, a crash's 1 included, records it `advisory: true`, a `weak_test` finding whose repro names no probe is never re-run, and every one that does not block is recorded advisory
 
 - Paths: `src/torve/application/critic.py`
-- Consequence: a test that proves too little reaches the review record and the document's pull request as advisory, and its unit still lands
+- Consequence: a test that passes a plausible wrong implementation sends its unit to a revision once a probe shows it, and the revision is handed the probe's command, exit code and output; a weak test the critic only read, or whose probe crashed, still lands advisory in the review record and the document's pull request
 - Check: `uv run pytest -q tests/test_critic.py -k weak_test` (shadow; runs as `decision:S-0127/D-2`)
 
 ### S-0127/D-4 — `ASSUMED` (A verdict comes from what ran)

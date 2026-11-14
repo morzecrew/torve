@@ -179,7 +179,8 @@ def test_a_violated_row_without_located_evidence_is_counted_as_discarded(tmp_pat
 # ....................... #
 # A verdict comes from what ran (S-0127/D-1, LOCKED; S-0127/D-2): a finding or
 # an owned row blocks on its re-run's non-zero exit, a `gaming` finding and a
-# LOCKED row's breach on what locates, and a `weak_test` finding never.
+# LOCKED row's breach on what locates, and a `weak_test` finding only through
+# a probe whose re-run fails.
 
 
 def _app(root: Path) -> None:
@@ -518,31 +519,64 @@ def test_blocks_on_reading_a_gaming_finding_and_a_locked_rows_breach(tmp_path):
     assert decision.advisory == [] and decision.advisory_rows == []
 
 
-def test_weak_test_finding_never_blocks_and_is_never_rerun(tmp_path):
-    """S-0127/D-2: a `weak_test` finding never blocks and is never re-run,
-    whatever its severity and its repro: one at blocker whose repro would fail
-    is recorded `advisory: true`, as is one below the bar."""
+@pytest.mark.parametrize(
+    ("exit_code", "blocks"),
+    [(42, True), (1, False), (0, False), (127, False), (None, False)],
+    ids=["passes-the-wrong-implementation", "crashed", "catches-it", "not-found", "timed-out"],
+)
+def test_weak_test_finding_blocks_only_through_a_probe_that_exits_wrong_passes(
+    tmp_path, exit_code, blocks
+):
+    """S-0127/D-2: a `weak_test` finding at or above the bar whose repro names
+    a probe is re-run, and blocks only on an exit of `WRONG_PASSES`: the
+    changed test passed the wrong implementation the probe built. Any other
+    exit, the 1 a crashed probe gives included, records it advisory. One whose
+    repro names no probe, at blocker with a repro that would fail, and one
+    below the bar are never re-run and are recorded `advisory: true`."""
 
     _app(tmp_path)
+    probe = "uv run python probes/wrong.py"
+    named = {"command": probe, "file": "probes/wrong.py"}
     document = CriticDocument.model_validate(
         {
             "rows": [],
             "findings": [
-                finding("blocker", kind="weak_test", id="F1"),
-                finding("minor", kind="weak_test", id="F2"),
+                finding("major", kind="weak_test", id="F1", repro=named),
+                finding("blocker", kind="weak_test", id="F2"),
+                finding("minor", kind="weak_test", id="F3", repro=named),
             ],
         }
     )
-    rerun = Rerun()
+    rerun = Rerun(default=exit_code)
+    kept = {"probes/wrong.py": "import sys\nsys.exit(42)\n"}
 
-    decision = decide(document, {}, tmp_path, "major", reproduce=rerun)
+    decision = decide(document, {}, tmp_path, "major", reproduce=rerun, probes=kept)
 
-    assert rerun.calls == []
-    assert decision.blocked is False
-    assert [one.id for one in decision.advisory] == ["F1", "F2"]
-    recorded = critic_module._recorded_findings(decision)
-    assert [one["advisory"] for one in recorded] == [True, True]
-    assert all("rerun" not in one for one in recorded)
+    assert critic_module.WRONG_PASSES == 42
+    assert rerun.calls == [([probe], kept)]
+    assert decision.blocked is blocks
+    assert [one.id for one in decision.blockers] == (["F1"] if blocks else [])
+    assert [one.id for one in decision.advisory] == (["F2", "F3"] if blocks else ["F1", "F2", "F3"])
+    recorded = {one["id"]: one for one in critic_module._recorded_findings(decision)}
+    assert recorded["F1"]["rerun"]["exit_code"] == exit_code
+    assert recorded["F1"].get("advisory", False) is not blocks
+    assert "rerun" not in recorded["F2"] and "rerun" not in recorded["F3"]
+
+
+def test_weak_test_the_per_call_prompt_says_a_probe_must_pass_the_wrong_implementation():
+    """S-0127/D-2: the per-call prompt says how a weak test blocks — a probe
+    that runs the changed test against a wrong implementation it builds, in a
+    copy or at import, and exits 42 when the test still passes — and that one
+    whose repro names no probe never blocks."""
+
+    prompt = build_critic_prompt(Task(id=TASK_ID, intent="x", decisions=[]), TASK_ID, [], True)
+
+    assert "A `weak_test` finding blocks only through a probe its repro names" in prompt
+    assert "exits 42 when\nthat test still passes, with any other code otherwise" in prompt
+    assert "A crash exits 1, so only 42\nblocks." in prompt
+    assert "the re-run mounts the checkout read-only" in prompt
+    assert "whose repro names no probe\nnever blocks" in prompt
+    assert "weak_test` finding blocks" not in critic_prompt()
 
 
 def test_repeats_a_blocker_t0804_a_new_defect_on_the_next_line_spends_the_budget(tmp_path):

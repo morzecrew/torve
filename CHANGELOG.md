@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unless the row is LOCKED, are recorded as advisory. Integrity findings and LOCKED-row
   breaches still block on located evidence.
 
+- A critic finding that a changed test proves too little now blocks a unit when the critic's
+  probe runs that test against a wrong implementation and the test still passes. Without
+  such a probe the finding stays advisory.
+
 - Under `review.mode: critic` a unit's candidates now run side by side, and the first to
   finish green wins: the others are cut and recorded red, and the critic reads only the
   winner. A unit takes about its fastest green candidate's time rather than the sum.
