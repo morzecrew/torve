@@ -917,10 +917,15 @@ def revision_threads(verdict: CriticVerdict, root: Path) -> list[dict[str, Any]]
 
         if finding.repro is not None:
             lines.append(f"repro: `{finding.repro.command}`")
-            probe = verdict.probes.get(finding.repro.file or "")
 
-            if probe is not None:
-                lines += ["", f"{finding.repro.file}:", "```", probe.rstrip(), "```"]
+            # Every probe the re-run was handed, the ones the command alone
+            # names included: a weak test's revision reads the wrong
+            # implementation its test passed (S-0127/D-2).
+            for name in _probe_names(finding.repro.command, finding.repro.file):
+                probe = verdict.probes.get(name)
+
+                if probe is not None:
+                    lines += ["", f"{name}:", "```", probe.rstrip(), "```"]
 
         lines += _rerun_lines(decision.rerun(finding))
 
