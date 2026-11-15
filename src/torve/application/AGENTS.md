@@ -622,7 +622,7 @@ A run of test files over a checkout — the evidence package's per-test runs at 
 - Consequence: a repro written against the critic's own `.venv` is no longer lost to an exit 127 on re-run; the frozen prompt is unchanged
 - Check: `uv run pytest -q tests/test_critic.py -k rerun_has_no_venv` (shadow; runs as `decision:S-0127/D-17`)
 
-### S-0128/D-2 — `ASSUMED` (One session per document) — implementation: none
+### S-0128/D-2 — `ASSUMED` (One session per document)
 
 `review.revision` defaults to none and every reader reads `ReviewConfig.resolved_revision()`: what a configuration names, else `session` under `review.mode: critic` and `off` under `classic`; `review.blocker_revisions` left unset resolves to one round under `off` and `session`, two under `fresh` in critic mode, and one in classic mode
 
@@ -630,7 +630,7 @@ A run of test files over a checkout — the evidence package's per-test runs at 
 - Consequence: a critic-mode configuration that names no revision continues a blocked candidate in its own session for one round, on its own tier; a seat whose harness keeps no session falls back to `fresh` as S-0124/D-8 says, which on a seat naming no `revision_variant` is the fresh attempt `off` runs
 - Check: `uv run pytest -q tests/test_runconfig.py -k resolved_revision` (shadow; runs as `decision:S-0128/D-2`)
 
-### S-0128/D-3 — `ASSUMED` (One session per document) — implementation: none
+### S-0128/D-3 — `ASSUMED` (One session per document)
 
 After a session revision turn whose gates are green, the engine judges the turn by `critic.recheck` before any second critic call: each finding blocker of the verdict the turn was handed is re-run, its `repro.command` with the probes that review stored, through `runner.reproduce` against the revised candidate as S-0127/D-1 and S-0127/D-10 say; a re-run that executes clears a `weak_test` at any exit but 42 and any other kind at exit 0, and keeps it otherwise; a re-run that does not execute (no exit, 126, 127, a probe the review did not store) clears nothing, and a blocker that blocked on located evidence alone (a `gaming` finding, a LOCKED row's `violated` verdict) has nothing to re-run; the turn is clean when every blocker cleared, blocked when one kept a measured failure, which re-raises it (S-0127/D-4) and escalates `blocker_finding`, and otherwise goes to the critic's re-review as S-0124/D-8 describes it
 
@@ -638,7 +638,7 @@ After a session revision turn whose gates are green, the engine judges the turn 
 - Consequence: a session turn whose blockers all re-ran costs its own tokens and the re-runs' seconds, no critic call and no reviewer spend, and nothing reads its diff but the gates; a turn left with a blocker no re-run measured is read by the critic as today, and a fresh revision is new code whose review stays a full critic call
 - Check: `uv run pytest -q tests/test_critic.py tests/test_runner.py -k "recheck or session_revision"` (shadow; runs as `decision:S-0128/D-3`)
 
-### S-0128/D-4 — `ASSUMED` (One session per document) — implementation: none
+### S-0128/D-4 — `ASSUMED` (One session per document)
 
 `ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that made the finding block; after a session turn `review_step` emits `review.recorded` for the rechecked verdict, each blocker an item with `blocked_exit` and the turn's re-run exit as `rerun_exit`, and the `unit.closed` record's `revision` block gains `by`, `rerun` for a rechecked turn and `critic` for a reviewed one
 
@@ -646,7 +646,7 @@ After a session revision turn whose gates are green, the engine judges the turn 
 - Consequence: the blocking review reaches the board, as the review a revision re-measured, and an item or a record written before these fields reads as one with no blocker cleared and no `by`
 - Check: `uv run pytest -q tests/test_review_run.py tests/test_selection.py -k "blocked_exit or rerun"` (shadow; runs as `decision:S-0128/D-4`)
 
-### S-0128/D-5 — `ASSUMED` (One session per document) — implementation: none
+### S-0128/D-5 — `ASSUMED` (One session per document)
 
 The document's pull-request body lists, under each landing, every item of its last task-gated review that carries a `blocked_exit`, under a heading that names them the blockers a revision cleared, by severity, kind, anchor and the re-run's command with its exit before and after; every other item stays in the advisory list S-0127/D-13 describes, and no claim or evidence text is listed
 
@@ -654,7 +654,7 @@ The document's pull-request body lists, under each landing, every item of its la
 - Consequence: a person merging sees what the critic blocked, that the engine measured it fixed, and by which command, read from records alone as S-0121/D-34 requires
 - Check: `uv run pytest -q tests/test_forge.py -k cleared` (shadow; runs as `decision:S-0128/D-5`)
 
-### S-0128/D-6 — `ASSUMED` (One session per document) — implementation: none
+### S-0128/D-6 — `ASSUMED` (One session per document)
 
 A contract whose `covered()` holds more than one phase reads an unset `review.max_width` as 1, so it runs one candidate; a configuration naming a cap still caps its class's width, as for every other contract
 

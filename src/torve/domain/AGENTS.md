@@ -84,7 +84,7 @@ Each item a critic review's `review.recorded` event carries holds the finding's 
 - Consequence: any host reads what a finding was and what the engine measured of it from the record, without the review record on the host that ran the critic
 - Check: `uv run pytest -q tests/test_review_run.py tests/test_events.py -k rerun_item` (shadow; runs as `decision:S-0127/D-14`)
 
-### S-0128/D-1 — `ASSUMED` (One session per document) — implementation: none
+### S-0128/D-1 — `ASSUMED` (One session per document)
 
 A document whose phasing sets no `unit` mints one contract for the whole document when it has eight phases or fewer (`WHOLE_UNTIL = 8`) and one per phase above that; `unit: phase` and `unit: document` keep their meaning, and `--refresh` keeps the shape a document was minted in
 
@@ -92,7 +92,7 @@ A document whose phasing sets no `unit` mints one contract for the whole documen
 - Consequence: a document of four to eight phases runs as one session with one critic review and one landing, where it ran as a chain of up to eight units, each on the critical path
 - Check: `uv run pytest -q tests/test_plan.py -k "larger_document_mints_per_phase or small_document_mints_one"` (shadow; runs as `decision:S-0128/D-1`)
 
-### S-0128/D-4 — `ASSUMED` (One session per document) — implementation: none
+### S-0128/D-4 — `ASSUMED` (One session per document)
 
 `ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that made the finding block; after a session turn `review_step` emits `review.recorded` for the rechecked verdict, each blocker an item with `blocked_exit` and the turn's re-run exit as `rerun_exit`, and the `unit.closed` record's `revision` block gains `by`, `rerun` for a rechecked turn and `critic` for a reviewed one
 

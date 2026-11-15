@@ -14,17 +14,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no longer blocked for the later phase's work. `torve spec check` refuses a `delivers` entry
   that names no row of the document.
 
-- `review.max_width` caps how many candidates the critic chooses between, and unset keeps
-  today's widths. Each extra candidate costs a full session's tokens. A review round now
-  always runs one candidate.
+- `review.max_width` caps how many candidates the critic chooses between. Unset keeps each
+  unit's class width, but a contract covering several phases, such as a whole document, runs
+  one. A review round always runs one candidate.
 
 - `review.revision: session` makes a critic revision round continue the selected candidate
-  in its own open session, on that candidate's tier, with the blocking findings. A seat whose
-  harness keeps no session falls back to `fresh`, a new attempt on the `revision_variant` tier.
+  in its own open session, on that candidate's tier, with the blocking findings. It is the
+  default in critic mode. A seat whose harness keeps no session falls back to `fresh`, a new
+  attempt on the `revision_variant` tier.
 
 - A document's pull request now lists the critic's advisory findings under each landing, by
-  severity, kind, location and the engine's re-run command with its exit code. Claims and
+  severity, kind, location and the engine's re-run command with its exit code. Blockers a
+  revision fixed get their own heading, with exit codes before and after. Claims and
   evidence stay in the review record.
+
+- A review's recorded items carry `blocked_exit` for a blocker a revision's re-run
+  re-measured, and the review-thread leg opens no thread for it. The `revision` block of
+  `unit.closed` says whether re-runs (`rerun`) or the critic (`critic`) judged the round.
 
 ### Changed
 
@@ -41,10 +47,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   finish green wins: the others are cut and recorded red, and the critic reads only the
   winner. A unit takes about its fastest green candidate's time rather than the sum.
 
-- A critic block now sends the unit to one fresh attempt on its own seat by default, and a
-  blocker that survives it escalates `blocker_finding`. `review.revision: fresh` or `session`
-  restores the `revision_variant` tier and 2 rounds. A re-raise must repeat the earlier
-  blocker's row, or its kind, span and claim.
+- In critic mode a block now continues the blocked candidate in its own session for one
+  round by default, and a blocker that survives it escalates `blocker_finding`.
+  `review.revision: off` sends it to one fresh attempt on its own seat, and `fresh` to the
+  `revision_variant` tier with 2 rounds; classic mode keeps `off`.
+
+- After a session revision turn the engine re-runs the blockers' repro commands against the
+  revised tree instead of asking the critic again. A blocker no re-run can measure still goes
+  to the critic. A re-raise must repeat the earlier blocker's row, or its kind, span and
+  claim.
+
+- A document of eight phases or fewer now mints one contract for the whole document unless
+  its phasing says `unit: phase`. The line was three phases.
 
 - After red gates the next attempt is now a new session from the tree the red attempt started
   from. The red session gets no follow-up turn, and its tree is no longer committed.

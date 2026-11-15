@@ -100,7 +100,7 @@ The document's pull-request body lists, under each landing, each finding its las
 - Consequence: a person merging sees where the critic found something and what the engine measured of it, reads the claim in the review record, and the body stays composed from records and bounded by `BODY_LIMIT`
 - Check: `uv run pytest -q tests/test_forge.py -k advisory` (shadow; runs as `decision:S-0127/D-13`)
 
-### S-0128/D-5 — `ASSUMED` (One session per document) — implementation: none
+### S-0128/D-5 — `ASSUMED` (One session per document)
 
 The document's pull-request body lists, under each landing, every item of its last task-gated review that carries a `blocked_exit`, under a heading that names them the blockers a revision cleared, by severity, kind, anchor and the re-run's command with its exit before and after; every other item stays in the advisory list S-0127/D-13 describes, and no claim or evidence text is listed
 

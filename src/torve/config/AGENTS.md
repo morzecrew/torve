@@ -167,7 +167,7 @@ A run of test files over a checkout — the evidence package's per-test runs at 
 - Consequence: a uv project's tests run in its own environment whichever copy of the manifest judged the attempt, the merge base's included
 - Check: `uv run pytest -q tests/test_manifest.py tests/test_evidence_package.py tests/test_suite.py -k 'uv_checkout or launcher_of_the_checkout'` (shadow; runs as `decision:S-0127/D-16`)
 
-### S-0128/D-2 — `ASSUMED` (One session per document) — implementation: none
+### S-0128/D-2 — `ASSUMED` (One session per document)
 
 `review.revision` defaults to none and every reader reads `ReviewConfig.resolved_revision()`: what a configuration names, else `session` under `review.mode: critic` and `off` under `classic`; `review.blocker_revisions` left unset resolves to one round under `off` and `session`, two under `fresh` in critic mode, and one in classic mode
 
