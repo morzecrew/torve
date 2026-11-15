@@ -143,7 +143,10 @@ class Revision:
     timed out, failed or was refused, or its gates were red, so no critic read
     it; `reraised` says the critic named the
     same finding again; `spend_usd` and `wall_s` are the round's own — for a
-    session turn, the cumulative session cost after the turn minus before it."""
+    session turn, the cumulative session cost after the turn minus before it.
+    `by` names what judged the round (S-0128/D-4): `rerun` when the engine's
+    re-runs of its blockers decided it, `critic` when the critic read it, and
+    None when nothing did."""
 
     kind: str
     round: int
@@ -151,6 +154,7 @@ class Revision:
     reraised: bool = False
     spend_usd: float | None = None
     wall_s: float | None = None
+    by: str | None = None
 
 
 # ....................... #
@@ -388,7 +392,7 @@ def _revision_block(revision: Any) -> dict[str, Any] | None:
     else:
         values = {
             name: getattr(revision, name, None)
-            for name in ("kind", "round", "rereview", "reraised", "spend_usd", "wall_s")
+            for name in ("kind", "round", "rereview", "reraised", "spend_usd", "wall_s", "by")
         }
 
     kind = values.get("kind")
@@ -397,7 +401,7 @@ def _revision_block(revision: Any) -> dict[str, Any] | None:
     if kind is None or rereview is None:
         return None
 
-    return {
+    block = {
         "kind": str(kind),
         "round": int(values.get("round") or 1),
         "rereview": str(rereview),
@@ -405,6 +409,12 @@ def _revision_block(revision: Any) -> dict[str, Any] | None:
         "spend_usd": values.get("spend_usd"),
         "wall_s": values.get("wall_s"),
     }
+
+    # S-0128/D-4: additive, so a record written before it reads with no `by`.
+    if values.get("by") is not None:
+        block["by"] = str(values["by"])
+
+    return block
 
 
 # ....................... #

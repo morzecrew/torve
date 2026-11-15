@@ -36,7 +36,7 @@ import re
 import shutil
 import tempfile
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -856,6 +856,27 @@ def _recorded_findings(decision: Decision) -> list[dict[str, Any]]:
     return recorded
 
 
+def verdict_findings(
+    decision: Decision, grades: Mapping[str, str], root: Path
+) -> tuple[list[Finding], list[Finding]]:
+    """A decision's blockers and kept findings in the classic shape the run
+    loop acts on, in the decision's own order: its findings first, then its
+    rows, a violated row a finding of kind `contract`, blocking or advisory as
+    the decision said (S-0127/D-1, S-0127/D-14). `recheck` reads a verdict's
+    findings back in this order."""
+
+    violated: list[Finding] = [
+        _row_finding(verdict, grades, decision, root) for verdict in decision.violated
+    ]
+    advisory_rows: list[Finding] = [
+        _row_finding(verdict, grades, decision, root) for verdict in decision.advisory_rows
+    ]
+    blockers: list[Finding] = [_as_finding(one, decision, root) for one in decision.blockers]
+    kept: list[Finding] = [_as_finding(one, decision, root) for one in decision.kept]
+
+    return blockers + violated, kept + violated + advisory_rows
+
+
 def _row_claim(verdict: RowVerdict) -> str:
     return f"{verdict.row} is violated" + (f": {verdict.note}" if verdict.note else "")
 
@@ -949,6 +970,122 @@ def _anchored(evidence: str, author: str, body: str, root: Path) -> dict[str, An
         thread["path"], thread["line"] = anchor
 
     return thread
+
+
+# ----------------------- #
+# A session turn judged by its blockers' re-runs (S-0128/D-3).
+
+
+def _cleared(finding: CriticFinding, run: CommandRun) -> bool | None:
+    """What *run* measured of *finding* after a revision: True when it ran
+    and shows the finding fixed — exit 0, or anything but `WRONG_PASSES` for a
+    `weak_test` (S-0127/D-2) — False when it ran and still fails, and None
+    when it measured nothing: no exit, 126 or 127 (S-0127/D-1)."""
+
+    if run.exit_code is None or run.exit_code in NOT_RUNNABLE:
+        return None
+
+    if finding.kind == "weak_test":
+        return run.exit_code != WRONG_PASSES
+
+    return run.exit_code == 0
+
+
+def recheck(verdict: CriticVerdict, reproduce: Reproduce | None, root: Path) -> CriticVerdict:
+    """The verdict a session revision turn is judged by (S-0128/D-3):
+    *verdict*, the one the turn was handed, with each finding that blocked it
+    re-run against the revised tree at *root* — its `repro.command`, with the
+    probes *verdict* stored — and the critic asked nothing.
+
+    A blocker the re-run shows fixed is cleared; one it shows still failing
+    is re-raised (S-0127/D-4); one it measured nothing of — no exit, 126 or
+    127, a probe the review did not store — stays a blocker. A `gaming`
+    finding and a violated row blocked on located evidence alone
+    (S-0127/D-1), so no re-run measures them and they stay too. The result's
+    `blockers` are every blocker not cleared: none is a clean turn, a
+    re-raise a blocked one, and any other a turn the critic must read.
+
+    Each re-run blocker, in `blockers` and `kept` alike, carries the exit that
+    made it block as `blocked_exit` and the new one as `rerun_exit`
+    (S-0128/D-4). *verdict*'s findings are read in the order
+    `verdict_findings` built them, which is how each one here finds its own."""
+
+    decision = verdict.decision
+
+    if decision is None:
+        return verdict
+
+    measured: dict[tuple[str, frozenset[tuple[str, str | None]]], CommandRun] = {}
+    reruns: list[tuple[CriticFinding, CommandRun]] = []
+    reraised: list[CriticFinding | RowVerdict] = []
+    standing: list[CriticFinding] = []
+    judged = dict(zip(map(id, decision.blockers), verdict.blockers, strict=False))
+    rechecked: dict[int, JudgedFinding] = {}
+
+    for finding in decision.blockers:
+        if finding.kind == "gaming":
+            standing.append(finding)
+            continue
+
+        command = _repro_command(finding)
+        given = {
+            name: verdict.probes.get(name)
+            for name in _probe_names(command, finding.repro.file if finding.repro else None)
+        }
+        key = (command, frozenset(given.items()))
+
+        if key not in measured:
+            measured[key] = (
+                _rerun_once(reproduce, command, given)
+                if command
+                else CommandRun(command="", exit_code=None, tail="not run: no command to re-run")
+            )
+
+        run = measured[key]
+        before = decision.rerun(finding)
+        reruns.append((finding, run))
+        rechecked[id(finding)] = _as_finding(finding, decision, root).model_copy(
+            update={
+                "rerun_command": run.command,
+                "rerun_exit": run.exit_code,
+                "blocked_exit": before.exit_code if before is not None else None,
+            }
+        )
+        cleared = _cleared(finding, run)
+
+        if cleared is not True:
+            standing.append(finding)
+
+        if cleared is False:
+            reraised.append(finding)
+
+    rows = verdict.blockers[len(decision.blockers) :]
+    kept = [
+        rechecked.get(id(one), shown)
+        for one, shown in zip(decision.kept, verdict.kept, strict=False)
+    ]
+    kept += verdict.kept[len(decision.kept) :]
+    blockers = [rechecked.get(id(one), judged[id(one)]) for one in standing] + rows
+    cleared_count = len(decision.blockers) - len(standing)
+    outcome = replace(
+        verdict,
+        fact=f"re-run cleared {cleared_count} of {len(decision.blockers) + len(rows)} blocker(s)",
+        blockers=blockers,
+        kept=kept,
+        decision=replace(
+            decision,
+            blocked=bool(standing or decision.violated),
+            blockers=standing,
+            reraised=reraised,
+            reruns=[*reruns, *decision.reruns],
+        ),
+        head=tree_snapshot(root),
+        cost_usd=None,
+        token_counts={},
+    )
+    outcome.threads = revision_threads(outcome, root)
+
+    return outcome
 
 
 # ----------------------- #
@@ -1264,19 +1401,16 @@ def run_critic(
     probes: dict[str, str] = {}
 
     if decision is not None:
-        # A violated row is a finding of kind `contract` there, blocking or
-        # advisory as its re-run decided (S-0127/D-1, S-0127/D-14).
-        violated: list[Finding] = [
-            _row_finding(verdict, grades, decision, worktree) for verdict in decision.violated
-        ]
-        advisory_rows: list[Finding] = [
-            _row_finding(verdict, grades, decision, worktree) for verdict in decision.advisory_rows
-        ]
-        blockers = [_as_finding(finding, decision, worktree) for finding in decision.blockers]
-        blockers += violated
-        kept = [_as_finding(finding, decision, worktree) for finding in decision.kept]
-        kept += violated + advisory_rows
-        named = {f.repro.file for f in decision.kept if f.repro is not None and f.repro.file}
+        blockers, kept = verdict_findings(decision, grades, worktree)
+        # Every probe a kept finding's re-run is handed, the ones its command
+        # alone names included, so a revision's recheck re-runs it whole
+        # (S-0127/D-10, S-0128/D-3).
+        named = {
+            name
+            for f in decision.kept
+            if f.repro is not None
+            for name in _probe_names(f.repro.command, f.repro.file)
+        }
         probes = {name: text for name, text in harvested.items() if name in named}
         _store_probes(root, review.id, probes)
 

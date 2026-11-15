@@ -1218,9 +1218,9 @@ class ReviewConfig(BaseModel):
     in-run attempts a surviving blocker earns before escalating
     `blocker_finding`; 0 escalates on the first surviving blocker. `None`
     until `resolved_blocker_revisions` reads it: a configuration that names
-    no number gets one round under `revision: off` (S-0127/D-5), else two
-    under `critic` (S-0122/D-8) and one under `classic`, and that resolution
-    lives here alone."""
+    no number gets two rounds under `revision: fresh` in critic mode and one
+    otherwise (S-0127/D-5, S-0128/D-2), and that resolution lives here alone.
+    `revision` resolves the same way, through `resolved_revision`."""
 
     model_config = STRICT
     on: list[str] = Field(default_factory=list)
@@ -1235,16 +1235,17 @@ class ReviewConfig(BaseModel):
     attempts, same worktree, a surviving blocker spends before escalating. Counted per
     run, spent only by surviving blockers — a clean review costs nothing against it. 0
     escalates on the first surviving blocker. `None` resolves through
-    `resolved_blocker_revisions`: one under `revision: off`, else two under
-    `critic` and one under `classic`."""
+    `resolved_blocker_revisions`: two under `revision: fresh` in critic mode,
+    else one."""
 
-    revision: Literal["off", "fresh", "session"] = "off"
+    revision: Literal["off", "fresh", "session"] | None = None
     """How a revision round after a critic block continues (S-0124/D-8,
-    S-0127/D-5): `off` (the default) starts one fresh attempt on the task's own
-    seat, never its `revision_variant`; `fresh` starts a new attempt on the
-    seat's `revision_variant`; `session` continues the selected candidate in its
-    own still-open session, on that candidate's tier, and falls back to `fresh`
-    when its harness keeps no session."""
+    S-0127/D-5): `off` starts one fresh attempt on the task's own seat, never
+    its `revision_variant`; `fresh` starts a new attempt on the seat's
+    `revision_variant`; `session` continues the selected candidate in its own
+    still-open session, on that candidate's tier, and falls back to `fresh`
+    when its harness keeps no session. `None` resolves through
+    `resolved_revision` (S-0128/D-2), which every reader reads."""
 
     mode: Literal["classic", "critic"] = "classic"
     """Who judges a gate-green candidate (S-0122/D-6): `classic`, the reviewer
@@ -1254,19 +1255,27 @@ class ReviewConfig(BaseModel):
     findings the engine turns into block or pass (S-0122/D-1). `classic` stays for
     one release beside it."""
 
+    def resolved_revision(self) -> Literal["off", "fresh", "session"]:
+        """The revision mode this configuration runs (S-0128/D-2): what it
+        names, else `session` under `mode: critic` and `off` under `classic`.
+        One resolution, so every reader of the mode agrees."""
+
+        if self.revision is not None:
+            return self.revision
+
+        return "session" if self.mode == "critic" else "off"
+
     def resolved_blocker_revisions(self) -> int:
         """The revision budget this configuration spends (S-0124/D-2): what it
-        names when it names a number, else one under `revision: off`
-        (S-0127/D-5), else two under `critic` and one under `classic`. One
-        resolution, so every reader of the budget agrees."""
+        names when it names a number, else two under `revision: fresh` in
+        critic mode and one otherwise — `off`, `session` and classic mode
+        (S-0127/D-5, S-0128/D-2). One resolution, so every reader of the
+        budget agrees."""
 
         if self.blocker_revisions is not None:
             return self.blocker_revisions
 
-        if self.revision == "off":
-            return 1
-
-        return 2 if self.mode == "critic" else 1
+        return 2 if self.mode == "critic" and self.resolved_revision() == "fresh" else 1
 
     blocks_at: Literal["blocker", "major"] = "major"
     """The severity that stops a promotion. Three consecutive reviews of this engine's own

@@ -11,6 +11,7 @@ import subprocess
 import threading
 from pathlib import Path
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from test_review_run import review_rig  # noqa: F401 — the fixture, by name
@@ -720,6 +721,32 @@ def test_unit_record_carries_tier_model_spend_and_the_revision_round():
         selection.Selection([one], one), task_id="T-0001", attempt=3, width=1, size="S", at="x"
     )
     assert "revision" not in none
+
+
+@pytest.mark.parametrize("by", ["rerun", "critic"])
+def test_a_revision_block_names_whether_a_rerun_or_the_critic_judged_it(by):
+    """S-0128/D-4: a revision round the engine's re-runs decided records
+    `by: rerun`, one the critic read `by: critic`, from the dataclass and a
+    mapping alike."""
+
+    one = _candidate(1, green=True, patch="+a")
+    round_ = selection.Revision(kind="session", round=1, rereview="clean", by=by)
+    chosen = selection.Selection([one], one, revision=round_)
+
+    record = selection.unit_record(
+        chosen, task_id="T-0001", attempt=1, width=1, size="S", at="2026-11-15T00:00:00Z"
+    )
+    plain = selection.unit_record(
+        chosen,
+        task_id="T-0001",
+        attempt=1,
+        width=1,
+        size="S",
+        at="2026-11-15T00:00:00Z",
+        revision={"kind": "session", "round": 1, "rereview": "clean", "by": by},
+    )
+
+    assert record["revision"]["by"] == plain["revision"]["by"] == by
 
 
 # ....................... #

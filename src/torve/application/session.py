@@ -193,8 +193,8 @@ def advance_tier(run: Dispatch, state: RunState) -> Agent:
     mapping at the most severe axis present, the scalar read as its
     functional sugar — instead of continuing under the tier that just ran.
     The attempt after a surviving review blocker's revision resolves the
-    seat's `revision_variant`, when it names one and `review.revision` is not
-    `off` (S-0117/D-1, S-0127/D-5). Any other attempt resolves the task's own
+    seat's `revision_variant`, when it names one and the resolved
+    `review.revision` is not `off` (S-0117/D-1, S-0127/D-5, S-0128/D-2). Any other attempt resolves the task's own
     tier, which is why an advance is never sticky: a green pass hands the
     next attempt back to the seat.
 
@@ -222,9 +222,9 @@ def advance_tier(run: Dispatch, state: RunState) -> Agent:
     elif retry_agent is not None and previous_attempt_follows_blocker_revision(state):
         # S-0117/D-1: a revision the seat could not clear gets the stronger
         # seat's worktree and critique, exactly as a gate-red gets its rung.
-        # Under `review.revision: off`, the default, it stays on the task's own
-        # seat (S-0127/D-5).
-        if seat_tier.revision_variant and run.config.review.revision != "off":
+        # Under `review.revision: off` it stays on the task's own seat
+        # (S-0127/D-5).
+        if seat_tier.revision_variant and run.config.review.resolved_revision() != "off":
             resolved_name = seat_tier.revision_variant
             resolved_tier = tier_for(run.config, resolved_name)
 
@@ -739,7 +739,7 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         # A seat that cannot follow up has no turn to keep the sandbox for,
         # and its teardown restores the `never_send` files before the gates.
         and getattr(run_agent, "follow_up", None) is not None
-        and config.review.revision == "session"
+        and config.review.resolved_revision() == "session"
         and review_gated(config, task, shadow)
     )
     teardown = True

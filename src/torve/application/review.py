@@ -837,6 +837,10 @@ class JudgedFinding(Finding):
     rerun_exit: int | None = None
     """The re-run's exit code; None for a timeout, a repro refused or not run,
     and a finding never re-run."""
+    blocked_exit: int | None = None
+    """The exit of the re-run that made this finding block, on a blocker a
+    session revision's re-run re-measured (S-0128/D-4); `rerun_exit` is then
+    the exit after the turn. None on every other finding."""
 
 
 # ....................... #
@@ -895,7 +899,9 @@ def review_items(findings: list[Finding], root: Path | None = None) -> list[dict
     a backticked command with its output.
 
     A critic's finding also carries its kind and, when the engine re-ran its
-    repro, the command and its exit code (S-0127/D-14)."""
+    repro, the command and its exit code (S-0127/D-14), and a blocker a
+    session revision's re-run re-measured the exit that made it block
+    (S-0128/D-4)."""
 
     items: list[dict[str, Any]] = []
 
@@ -915,6 +921,9 @@ def review_items(findings: list[Finding], root: Path | None = None) -> list[dict
                 rerun_command=finding.rerun_command,
                 rerun_exit=finding.rerun_exit,
             )
+
+            if finding.blocked_exit is not None:
+                item["blocked_exit"] = finding.blocked_exit
 
         items.append(item)
 

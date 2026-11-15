@@ -174,15 +174,16 @@ def test_blocker_revisions_defaults_to_one_and_parses_from_yaml(tmp_path: Path):
 
 
 def test_revision_rounds_default_by_mode_and_a_named_number_wins():
-    """S-0124/D-2: unset under `fresh` or `session`, a critic gets the two
-    rounds S-0122/D-8 promises and classic keeps one; a configuration that
-    names a number gets that number under either mode."""
+    """S-0124/D-2, S-0128/D-2: unset, a critic under `fresh` gets two rounds
+    and one under `session`, and classic keeps one; a configuration that names
+    a number gets that number under either mode."""
 
     from torve.config.runconfig import ReviewConfig
 
     assert ReviewConfig(revision="fresh").resolved_blocker_revisions() == 1
     assert ReviewConfig(mode="critic", revision="fresh").resolved_blocker_revisions() == 2
-    assert ReviewConfig(mode="critic", revision="session").resolved_blocker_revisions() == 2
+    assert ReviewConfig(mode="critic", revision="session").resolved_blocker_revisions() == 1
+    assert ReviewConfig(mode="critic").resolved_blocker_revisions() == 1
 
     assert ReviewConfig(blocker_revisions=1).resolved_blocker_revisions() == 1
     assert ReviewConfig(mode="critic", blocker_revisions=1).resolved_blocker_revisions() == 1
@@ -190,21 +191,26 @@ def test_revision_rounds_default_by_mode_and_a_named_number_wins():
     assert ReviewConfig(blocker_revisions=0).resolved_blocker_revisions() == 0
 
 
-def test_revision_off_is_the_default_and_session_revision_is_a_mode(tmp_path: Path):
-    """S-0127/D-5, S-0124/D-8: `review.revision` is `off` unless the
-    configuration names `fresh` or `session`; anything else is refused at load,
+def test_resolved_revision_is_session_under_critic_and_off_under_classic(tmp_path: Path):
+    """S-0128/D-2, S-0124/D-8: `review.revision` left unset resolves to
+    `session` under `mode: critic` and `off` under `classic`; a mode the
+    configuration names is kept in either; anything else is refused at load,
     and the YAML key rides the same `review:` mapping every other knob does."""
 
     from torve.config.runconfig import ReviewConfig
 
-    assert ReviewConfig().revision == "off"
-    assert RunnerConfig().review.revision == "off"
-    assert ReviewConfig(revision="fresh").revision == "fresh"
-    assert ReviewConfig(revision="session").revision == "session"
+    assert ReviewConfig().revision is None
+    assert ReviewConfig().resolved_revision() == "off"
+    assert RunnerConfig().review.resolved_revision() == "off"
+    assert ReviewConfig(mode="critic").resolved_revision() == "session"
+
+    for mode in ("classic", "critic"):
+        for named in ("off", "fresh", "session"):
+            assert ReviewConfig(mode=mode, revision=named).resolved_revision() == named
 
     config = load(tmp_path, "\n".join(["review:", '  "on": [task_gated]', "  revision: session"]))
 
-    assert config.review.revision == "session"
+    assert config.review.resolved_revision() == "session"
 
     with pytest.raises(ValidationError):
         ReviewConfig(revision="resume")  # type: ignore[arg-type]
@@ -226,9 +232,10 @@ def test_revision_off_unquoted_is_off_not_a_yaml_bool(tmp_path: Path):
 
 
 def test_revision_off_spends_one_round_unless_a_number_is_named():
-    """S-0127/D-5: under `off`, the default, a surviving blocker buys one fresh
-    attempt in either mode, so a second surviving blocker escalates; a
-    configuration that names a number still gets it."""
+    """S-0127/D-5, S-0128/D-2: under `off`, and under the `session` critic
+    mode resolves to, a surviving blocker buys one round, so a second
+    surviving blocker escalates; a configuration that names a number still
+    gets it."""
 
     from torve.config.runconfig import ReviewConfig
 

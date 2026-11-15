@@ -1568,6 +1568,181 @@ def test_revision_inputs_stage_the_diff_and_blockers_and_a_carried_finding_is_re
     assert record["findings"][0]["claim"] == "the bound is off by one"
 
 
+def test_one_call_keeps_every_probe_a_kept_finding_s_re_run_is_handed(repo):
+    """S-0127/D-10, S-0128/D-3: the review stores each probe a kept finding's
+    re-run was handed, the ones its command alone names included, so a
+    revision's recheck can hand them again."""
+
+    worktree, target = _candidate(repo)
+    ctx = build_context(worktree, load_manifest(worktree / ".torve" / "gates.yaml"), base="main")
+    ctx.task = target
+    command = "python probes/p.py && python probes/stray.py"
+    critic = ProbingCritic(
+        answer(findings=[finding(repro={"command": command, "file": "probes/p.py"})])
+    )
+
+    verdict = run_critic(
+        repo.root,
+        worktree,
+        target,
+        mint_review_task(repo.root, target),
+        critic_config(),
+        MockRuntime(),
+        critic,
+        ctx.patch,
+        build_evidence(ctx, [], candidate=TASK_ID),
+        "digest",
+        reproduce=Rerun(),
+    )
+
+    assert verdict.probes == {
+        "probes/p.py": "assert bound(4) == 4\n",
+        "probes/stray.py": "named by nobody\n",
+    }
+
+
+# ....................... #
+# A session turn judged by its blockers' re-runs (S-0128/D-3).
+
+
+def _handed(root: Path, kinds: list[str], locked_row: bool = False):
+    """The blocked verdict a session turn is handed, built as `run_critic`
+    builds it: one finding of each of *kinds*, `claim <i>` at line i + 1, each
+    repro running its own probe and failing — a weak test's probe exiting
+    `WRONG_PASSES`, a `gaming` finding blocking on its evidence — and, with
+    *locked_row*, a LOCKED row's located breach."""
+
+    _files(root, **{"src/app.py": 60})
+    probes: dict[str, str] = {}
+    findings = []
+    before: dict[str, int] = {}
+
+    for index, kind in enumerate(kinds):
+        probe = f"probes/p{index}.py"
+        command = f"python {probe}"
+        findings.append(
+            finding(
+                evidence=f"src/app.py:{index + 1} — the bound",
+                id=f"F{index}",
+                kind=kind,
+                claim=f"claim {index}",
+                repro={"command": command, "file": probe},
+            )
+        )
+        probes[probe] = f"# probe {index}\n"
+        before[command] = critic_module.WRONG_PASSES if kind == "weak_test" else 1
+
+    rows = (
+        [{"row": LOCKED, "verdict": "violated", "evidence": "src/app.py:60 — a breach"}]
+        if locked_row
+        else []
+    )
+    document = CriticDocument.model_validate({"rows": rows, "findings": findings})
+    decision = decide(
+        document,
+        {LOCKED: False} if locked_row else {},
+        root,
+        "major",
+        reproduce=lambda commands, _probes: [CommandRun(c, before[c], "") for c in commands],
+        probes=probes,
+    )
+    blockers, kept = critic_module.verdict_findings(decision, {LOCKED: "LOCKED"}, root)
+
+    return critic_module.CriticVerdict(
+        review_id="T-0002",
+        fact="critic blocked",
+        blockers=blockers,
+        kept=kept,
+        decision=decision,
+        probes=dict(probes),
+    )
+
+
+@given(
+    handed=st.lists(
+        st.tuples(
+            st.sampled_from(["bug", "weak_test", "gaming"]),
+            st.sampled_from([None, 0, 1, 2, critic_module.WRONG_PASSES, 126, 127]),
+            st.booleans(),
+        ),
+        min_size=1,
+        max_size=4,
+    ),
+    locked_row=st.booleans(),
+)
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+def test_recheck_clears_a_blocker_exactly_when_its_re_run_shows_it_fixed(
+    tmp_path, handed, locked_row
+):
+    """S-0128/D-3: after a revision turn a blocker clears exactly when its
+    re-run executed and exited 0, or anything but `WRONG_PASSES` for a
+    `weak_test`; one that executed and still fails is re-raised; no exit, 126,
+    127 and a probe the review did not store clear nothing, and a `gaming`
+    blocker and a LOCKED row's breach are never re-run. Each re-run blocker
+    keeps the exit that made it block beside the new one (S-0128/D-4)."""
+
+    verdict = _handed(tmp_path, [kind for kind, _code, _stored in handed], locked_row)
+    after: dict[str, int | None] = {}
+
+    for index, (_kind, code, stored) in enumerate(handed):
+        after[f"python probes/p{index}.py"] = code
+
+        if not stored:
+            del verdict.probes[f"probes/p{index}.py"]
+
+    calls: list[str] = []
+
+    def reproduce(commands, probes):
+        calls.extend(commands)
+
+        if any(text is None for text in probes.values()):
+            return [CommandRun(c, None, "refused: a probe was not kept") for c in commands]
+
+        return [CommandRun(c, after[c], "") for c in commands]
+
+    rechecked = critic_module.recheck(verdict, reproduce, tmp_path)
+
+    def ran(kind: str, code: int | None, stored: bool) -> bool:
+        return kind != "gaming" and stored and code is not None and code not in (126, 127)
+
+    def cleared(kind: str, code: int | None, stored: bool) -> bool:
+        fixed = code != critic_module.WRONG_PASSES if kind == "weak_test" else code == 0
+        return ran(kind, code, stored) and fixed
+
+    assert [one.claim for one in rechecked.blockers] == [
+        f"claim {index}" for index, one in enumerate(handed) if not cleared(*one)
+    ] + ([f"{LOCKED} is violated"] if locked_row else [])
+    assert rechecked.decision is not None
+    assert [one.claim for one in rechecked.decision.reraised] == [
+        f"claim {index}" for index, one in enumerate(handed) if ran(*one) and not cleared(*one)
+    ]
+    assert calls == [f"python probes/p{i}.py" for i, one in enumerate(handed) if one[0] != "gaming"]
+
+    kept = {one.claim: one for one in rechecked.kept}
+
+    for index, (kind, code, stored) in enumerate(handed):
+        one = kept[f"claim {index}"]
+
+        if kind == "gaming":
+            assert one.blocked_exit is None
+        else:
+            blocked = critic_module.WRONG_PASSES if kind == "weak_test" else 1
+            assert (one.blocked_exit, one.rerun_exit) == (blocked, code if stored else None)
+
+
+def test_recheck_asks_nobody_when_no_engine_re_runs(tmp_path):
+    """S-0128/D-3: with no engine to re-run them, every blocker stays and
+    none is re-raised, so the turn goes to the critic."""
+
+    verdict = _handed(tmp_path, ["bug", "weak_test"])
+
+    rechecked = critic_module.recheck(verdict, None, tmp_path)
+
+    assert [one.claim for one in rechecked.blockers] == ["claim 0", "claim 1"]
+    assert rechecked.decision is not None and rechecked.decision.reraised == []
+    assert rechecked.review_id == "T-0002"
+
+
 def test_the_probes_are_read_only_once_the_critics_sandbox_is_gone(repo, monkeypatch):
     """A process the critic left running could swap a probe for a link to a
     host file between the containment check and the read."""

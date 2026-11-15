@@ -4959,14 +4959,36 @@ def test_one_tier_for_every_candidate(tmp_path: Path) -> None:
 # The in-session revision arm (S-0124/D-8, D-9).
 
 
+def _scripted_reruns(monkeypatch, *exits: int | None) -> list[list[str]]:
+    """The rig's re-runs (S-0127/D-1) in order: each call's commands exit the
+    next of *exits*, the last one repeated, so a test says what the critic's
+    re-run measured and what the turn's recheck did (S-0128/D-3). Returns the
+    commands of every call."""
+
+    from torve.gates.evidence_package import CommandRun
+
+    calls: list[list[str]] = []
+
+    def scripted(run, state, commands, probes):
+        code = exits[min(len(calls), len(exits) - 1)]
+        calls.append(list(commands))
+        return [CommandRun(command, code, f"exit {code}") for command in commands]
+
+    monkeypatch.setattr(run_module, "reproduce", scripted)
+
+    return calls
+
+
 def test_session_revision_continues_the_blocked_candidate_in_its_own_session(
     review_rig,  # noqa: F811
+    monkeypatch,
 ):
-    """S-0124/D-8: under `review.revision: session` a blocked unit's selected
-    candidate gets one more turn in the sandbox and session it ran, on its own
-    tier, with the blocking findings rendered as feedback; its gates are
-    judged again and the critic asked again, and the unit lands without a fresh
-    attempt. The record names the session round (D-9)."""
+    """S-0124/D-8, S-0128/D-3: under `review.revision: session` a blocked
+    unit's selected candidate gets one more turn in the sandbox and session it
+    ran, on its own tier, with the blocking findings rendered as feedback; its
+    gates are judged again, its blocker's repro is re-run and passes, and the
+    unit lands with no second critic call and no fresh attempt. The record
+    names the session round and that the re-run judged it (D-9, S-0128/D-4)."""
 
     from test_critic import answer, finding
     from test_review_run import SequencedReviewer
@@ -4995,12 +5017,8 @@ def test_session_revision_continues_the_blocked_candidate_in_its_own_session(
 
             return AgentResult(exit_code=0, output="second", cost_usd=0.3)
 
-    critic = SequencedReviewer(
-        [
-            answer(findings=[finding()]),
-            answer(findings=[]),
-        ]
-    )
+    reruns = _scripted_reruns(monkeypatch, 1, 0)
+    critic = SequencedReviewer([answer(findings=[finding()])])
     config = RunnerConfig(
         review=ReviewConfig(
             on=["task_gated"], mode="critic", revision="session", blocker_revisions=1
@@ -5013,8 +5031,11 @@ def test_session_revision_continues_the_blocked_candidate_in_its_own_session(
 
     assert state.state is TaskState.READY
     assert state.escalation is None
-    # The round was spent in the session, not on a fresh attempt.
+    # The round was spent in the session, not on a fresh attempt, and judged
+    # by the blocker's own repro, re-run once after the turn.
     assert state.attempts == 1
+    assert critic.calls == 1
+    assert len(reruns) == 2
     assert [event[0] for event in events] == ["run", "follow_up"]
     assert events[1][1] == events[0][1]
     assert events[1][2] == "first"
@@ -5038,16 +5059,19 @@ def test_session_revision_continues_the_blocked_candidate_in_its_own_session(
         "reraised": False,
         "spend_usd": 0.2,
         "wall_s": unit["revision"]["wall_s"],
+        "by": "rerun",
     }
     assert unit["revision"]["wall_s"] >= 0.0
-    assert unit["critic_calls"] == 2
+    assert unit["critic_calls"] == 1
     candidate = unit["candidates"][0]
     assert (candidate["tier"], candidate["spend_usd"]) == ("executor", 0.3)
 
 
-def _session_revision_rig(review_rig, monkeypatch, turn):  # noqa: F811
+def _session_revision_rig(review_rig, monkeypatch, turn, reruns=(1, 0)):  # noqa: F811
     """A one-candidate critic unit whose first turn is green and blocked once,
-    whose session turn returns *turn*, with every real gate pass counted."""
+    whose session turn returns *turn*, with every real gate pass counted.
+    *reruns* are the exits of the blocker's repro, before the turn and after:
+    by default the turn fixed it."""
 
     from test_critic import answer, finding
     from test_review_run import SequencedReviewer
@@ -5067,6 +5091,7 @@ def _session_revision_rig(review_rig, monkeypatch, turn):  # noqa: F811
         return real(run, state)
 
     monkeypatch.setattr(run_module, "run_gate_pass", counting)
+    _scripted_reruns(monkeypatch, *reruns)
 
     class SessionHarness(ScriptedAgent):
         kind = "harness"
@@ -5098,9 +5123,9 @@ def _session_revision_rig(review_rig, monkeypatch, turn):  # noqa: F811
 
 
 def test_session_revision_judges_the_turn_once(review_rig, monkeypatch):  # noqa: F811
-    """S-0124/D-8: the session turn's gate verdict is the one the loop's gates
-    step reads, so the tree the critic was asked about is judged once, not
-    again by the loop."""
+    """S-0124/D-8, S-0128/D-3: the session turn's gate verdict is the one the
+    loop's gates step reads, so the tree its blocker was re-run on is judged
+    once, not again by the loop, and no critic reads it."""
 
     from torve.application.ports import AgentResult
     from torve.domain.states import TaskState
@@ -5111,7 +5136,72 @@ def test_session_revision_judges_the_turn_once(review_rig, monkeypatch):  # noqa
 
     assert state.state is TaskState.READY
     assert passes == [1, 1]
+    assert unit["critic_calls"] == 1
+    assert unit["revision"]["by"] == "rerun"
+
+
+@pytest.mark.parametrize("after", [None, 126, 127])
+def test_session_revision_rereviews_a_turn_its_rerun_measured_nothing_of(
+    review_rig,  # noqa: F811
+    monkeypatch,
+    after,
+):
+    """S-0128/D-3: a turn whose blocker's re-run measured nothing — no exit,
+    126 or 127 — is read by the critic, as S-0124/D-8 reads every turn, and
+    the record says the critic judged it."""
+
+    from torve.application.ports import AgentResult
+    from torve.domain.states import TaskState
+
+    state, passes, unit = _session_revision_rig(
+        review_rig,
+        monkeypatch,
+        AgentResult(exit_code=0, output="second", cost_usd=0.3),
+        reruns=(1, after),
+    )
+
+    assert state.state is TaskState.READY
+    assert passes == [1, 1]
     assert unit["critic_calls"] == 2
+    assert (unit["revision"]["rereview"], unit["revision"]["by"]) == ("clean", "critic")
+
+
+def test_a_whole_contract_runs_one_candidate_unless_a_width_is_named(tmp_path: Path) -> None:
+    """S-0128/D-6: a contract covering more than one phase reads an unset
+    `review.max_width` as 1, so a whole document runs one candidate; a named
+    cap still caps its class's width, and a one-phase contract of the same
+    class keeps its three."""
+
+    from test_run_loop import MockWorkspace
+
+    from torve.application.runstate import RunState
+    from torve.config.runconfig import ReviewConfig
+
+    state = RunState(task_id=TASK_ID, path=tmp_path / f"{TASK_ID}.state.json")
+
+    def width(phases: list[int], cap: int | None = None) -> tuple[int, str]:
+        run = _gate_dispatch(
+            root=tmp_path,
+            worktree=tmp_path,
+            workspace=MockWorkspace(tmp_path),
+            task=Task(
+                id=TASK_ID,
+                decisions=[],
+                phase=phases[0],
+                phases=phases,
+                scope=Scope(files=["src/a.py", "src/b.py", "src/c.py"]),
+            ),
+        )
+        run.config = RunnerConfig(
+            review=ReviewConfig(on=["task_gated"], mode="critic", max_width=cap)
+        )
+
+        return run_module._width(run, state)
+
+    assert width([1, 2]) == (1, "L")
+    assert width([1, 2], cap=2) == (2, "L")
+    assert width([1, 2], cap=3) == (3, "L")
+    assert width([1]) == (3, "L")
 
 
 def test_session_revision_timed_out_turn_is_not_judged(review_rig, monkeypatch):  # noqa: F811
@@ -5237,6 +5327,7 @@ def test_a_session_turn_fits_inside_the_sandbox_that_kept_it(
 
 def test_session_revision_prices_the_turn_the_way_the_candidate_was(
     review_rig,  # noqa: F811
+    monkeypatch,
 ):
     """S-0123/D-1, S-0124/D-9: a roster-priced seat's session turn is booked
     at torve's price for the session's cumulative tokens, minus what the
@@ -5252,6 +5343,7 @@ def test_session_revision_prices_the_turn_the_way_the_candidate_was(
     from torve.config.runconfig import ReviewConfig
 
     repo, _runtime, deps_for = review_rig
+    _scripted_reruns(monkeypatch, 1, 0)
 
     class SessionHarness(ScriptedAgent):
         kind = "harness"
@@ -5295,11 +5387,12 @@ def test_session_revision_prices_the_turn_the_way_the_candidate_was(
 def test_session_revision_blocked_again_spends_the_round_and_escalates(
     review_rig,  # noqa: F811
 ):
-    """S-0124/D-8, S-0124/D-3: the session turn is the round `review_step`
-    would spend on a fresh attempt, not one added before it. Blocked again
-    under a one-round budget, the unit escalates `blocker_finding` with no
-    second attempt; the turn's clock is the unit's remaining time when that
-    is under the seat's agent clock, and the repeated finding reads re-raised."""
+    """S-0124/D-8, S-0124/D-3, S-0128/D-3: the session turn is the round
+    `review_step` would spend on a fresh attempt, not one added before it.
+    Its blocker's repro still failing after the turn, the unit escalates
+    `blocker_finding` with no second attempt and no second critic call; the
+    turn's clock is the unit's remaining time when that is under the seat's
+    agent clock, and the blocker reads re-raised."""
 
     from test_critic import answer, finding
     from test_review_run import SequencedReviewer
@@ -5351,20 +5444,23 @@ def test_session_revision_blocked_again_spends_the_round_and_escalates(
     ]
     [unit] = [row for row in rows if row.get("kind") == "unit.closed"]
 
-    assert unit["critic_calls"] == 2
+    assert unit["critic_calls"] == 1
     assert unit["revision"]["kind"] == "session"
     assert unit["revision"]["round"] == 1
     assert unit["revision"]["rereview"] == "blocked"
     assert unit["revision"]["reraised"] is True
+    assert unit["revision"]["by"] == "rerun"
 
 
 def test_session_revision_stopped_by_the_budget_still_writes_the_unit_record(
     review_rig,  # noqa: F811
+    monkeypatch,
 ):
     """S-0124/D-9, D-7: a session turn that takes the unit past its class's
-    cap — $1.50 for this S unit (S-0127/D-9) — ends the attempt before its
-    re-review, and `unit.closed` is still written, naming the stopped round
-    and what the turn spent."""
+    cap — $1.50 for this S unit (S-0127/D-9) — and whose blocker's re-run
+    measured nothing (S-0128/D-3) ends the attempt before its re-review, and
+    `unit.closed` is still written, naming the stopped round and what the turn
+    spent."""
 
     from test_critic import answer, finding
     from test_review_run import SequencedReviewer
@@ -5375,6 +5471,7 @@ def test_session_revision_stopped_by_the_budget_still_writes_the_unit_record(
     from torve.config.runconfig import ReviewConfig
 
     repo, _runtime, deps_for = review_rig
+    _scripted_reruns(monkeypatch, 1, None)
 
     class SessionHarness(ScriptedAgent):
         kind = "harness"
@@ -5420,9 +5517,11 @@ def test_session_revision_stopped_by_the_budget_still_writes_the_unit_record(
 
 def test_a_unit_cap_stop_on_a_revision_keeps_the_revision(
     review_rig,  # noqa: F811
+    monkeypatch,
 ):
-    """S-0026/D-8: a session turn that takes the unit past its class's cap
-    stops before its re-review with a green tree (T-0904, 2026-11-08). A spent cap is budget
+    """S-0026/D-8: a session turn that takes the unit past its class's cap,
+    its blocker's re-run measuring nothing (S-0128/D-3), stops before its
+    re-review with a green tree (T-0904, 2026-11-08). A spent cap is budget
     exhaustion, so the tree goes on the branch under the budget checkpoint and
     a requeue resumes it instead of starting over from base."""
 
@@ -5437,6 +5536,7 @@ def test_a_unit_cap_stop_on_a_revision_keeps_the_revision(
     from torve.domain.states import TaskState
 
     repo, _runtime, deps_for = review_rig
+    _scripted_reruns(monkeypatch, 1, None)
 
     class SessionHarness(ScriptedAgent):
         kind = "harness"
@@ -5476,10 +5576,12 @@ def test_a_unit_cap_stop_on_a_revision_keeps_the_revision(
 
 def test_session_revision_spends_every_round_in_the_same_session(
     review_rig,  # noqa: F811
+    monkeypatch,
 ):
-    """S-0124/D-8, S-0124/D-2: under two rounds a session turn blocked anew
-    by a finding the last round did not record takes the second round in the
-    same session too, never a fresh attempt on `revision_variant`."""
+    """S-0124/D-8, S-0124/D-2, S-0128/D-3: under two rounds a session turn
+    whose blocker's re-run measured nothing goes to the critic, and blocked
+    anew by a finding the last round did not record takes the second round in
+    the same session too, never a fresh attempt on `revision_variant`."""
 
     from test_critic import answer, finding
     from test_review_run import SequencedReviewer
@@ -5491,6 +5593,9 @@ def test_session_revision_spends_every_round_in_the_same_session(
     from torve.domain.states import TaskState
 
     repo, _runtime, deps_for = review_rig
+    # The first review's re-run fails, each recheck measures nothing, and the
+    # critic's re-review re-runs its new finding failing.
+    _scripted_reruns(monkeypatch, 1, None, 1, None)
     events: list[tuple] = []
     built: list[str] = []
 
@@ -5559,6 +5664,7 @@ def test_session_revision_spends_every_round_in_the_same_session(
     assert unit["revision"]["round"] == 2
     assert unit["revision"]["rereview"] == "clean"
     assert unit["revision"]["reraised"] is False
+    assert unit["revision"]["by"] == "critic"
 
 
 def test_session_revision_falls_back_to_a_fresh_attempt_when_no_session_continues(

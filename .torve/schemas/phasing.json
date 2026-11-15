@@ -1063,7 +1063,7 @@
         }
       ],
       "default": null,
-      "description": "What one contract covers (S-0122/D-13): a phasing entry, or the whole\ndocument. Unset is `document` for three phases or fewer, `phase` beyond.",
+      "description": "What one contract covers (S-0122/D-13): a phasing entry, or the whole\ndocument. Unset is `document` for eight phases or fewer, `phase` beyond.",
       "title": "Unit"
     }
   },

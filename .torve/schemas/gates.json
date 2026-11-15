@@ -223,7 +223,7 @@
         },
         "run": {
           "default": "python3 -m pytest -q -p no:cacheprovider",
-          "description": "The command a list of test files is appended to (S-0106/D-7) \u2014 what\nthe suite gate reruns a failing file with. Defaults to pytest over the paths.",
+          "description": "The command a list of test files is appended to (S-0106/D-7) \u2014 what\nthe suite gate reruns a failing file with. Defaults to pytest over the paths;\n`launcher` is what a run over a checkout uses.",
           "title": "Run",
           "type": "string"
         }
