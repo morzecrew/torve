@@ -1,0 +1,280 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0128
+title: One session per document
+kind: design
+change:
+  type: feat
+  scope: engine
+status: draft
+implementation: none
+depends_on: [S-0122, S-0124, S-0127]
+informed_by: [S-0121, S-0125]
+supersedes: []
+superseded_by: null
+owner: misery7100
+schema_version: 4
+summary: |
+  A document of up to eight phases runs as one agent session, judged once by the critic; a
+  blocked candidate is revised once in its own session, and the engine re-runs the blockers'
+  repros instead of asking the critic again. The pull request lists the blockers a revision
+  cleared, with each repro's exit before and after. This is the library form the
+  pinned-behaviour plan's gate chose: the per-unit engine did not beat one session per
+  document on the eval bed, so torve keeps its verdict and record and gives up its per-phase
+  chain.
+motivation: |
+  The pinned-behaviour plan set one gate for the engine: beat one bare session per document
+  (arm A0) on the sealed eval bed, at a lower 95% bound above zero and at most 1.5× its cost,
+  or become the library, which is the acceptance checks, the verdict and the record wrapped
+  around one session per document. The bed decided it. Every arm runs deepseek-v4.1-flash
+  through dsh on the same 13 documents: 11 lean features in four forked projects and a
+  synthetic one, plus two composites of 6 and 8 phases. Every number below is one trial per
+  document.
+
+  - **One session per document is the bar, and it sits at the ceiling.** A0 passed 13 of 13
+    hidden checks in 10,696 s. The composites passed in one session faster than their parts:
+    ps-pair (6 phases) in 677 s against 940 s, synth-pair (8 phases) in 302 s against 488 s.
+    No arm can beat A0 on pass rate on this bed, so the gate's pass-rate test cannot pass.
+  - **The per-phase chain costs time and adds no passes.** On 11 tasks of the earlier pinned
+    documents, engine-env-w (one unit per phase, class width, critic on every unit) took 473
+    minutes, where one session per unit without the engine took 286. The difference is the
+    critic, 131 minutes, and the retries after its blocks, 86 minutes. Every unit sits on the
+    document's critical path, so each critic call adds its whole wall time.
+  - **The critic's blocks are real, and an in-session revision fixes them cheaply.** Both
+    library arms wrap A0's session in the engine. `library` (`revision: off`, a fresh
+    attempt after a block) passed 11 of 13 in 18,870 s (1.76×), with $14.16 of reviewer.
+    `library-session` (`revision: session`, one round) passed 12 of 13 in 18,519 s (1.73×),
+    with $14.74 of reviewer. It blocked 8 first candidates and revised each in its own
+    session in 32 to 672 s, 1,258 s in all, against 3,240 s for the fresh retries. All 8
+    re-reviews came back clean.
+  - **The re-review re-measured what a re-run measures, at 1.6 times the revision's cost.**
+    The 8 re-reviews took 2,046 s and found no new blocker. Re-running the 14 blockers of
+    those first reviews against the revised trees cleared all 14. The 7 bug repros now exit
+    0, and none of the 7 weak-test probes exits 42.
+  - **What the arms missed, the critic missed too.** The three hidden-check failures across
+    the library arms were rules the document stated and the first attempt skipped:
+    spoolman-nfc's `reader_id` pattern, harlequin's `connection_options` for a `-r` server,
+    and pydantic-settings' `NoDecode` on a bare flag. No review named any of them. A
+    revision cannot fix what nobody named.
+
+  Wall time over A0 splits into first reviews (0.25×), revision turns (0.12×) and re-reviews
+  (0.19×). The remaining 0.17× is the gates plus first attempts that ran longer than A0's;
+  one trial per document cannot separate the two. Dropping the re-review brings the library
+  to 1.37× A0 plus that remainder, so between 1.37× and 1.54×.
+current_state: |
+  - **The fold exists.** S-0122/D-13 lets a phasing file set `unit: document`.
+    `Document.whole()` in `src/torve/domain/spec.py` makes that the default only while a
+    document has `WHOLE_UNTIL = 3` phases or fewer. `Document.as_one_phase()` unions scopes,
+    acceptance and deliverables in phase order and joins the intents, and
+    `planner.plan_document` mints the whole contract from it. The bed's arms above folded
+    each document by hand before planning (`fold` in the bed's `doc_arm.py`).
+  - **The revision default is a fresh attempt.** `ReviewConfig.revision` in
+    `src/torve/config/runconfig.py` defaults to `off` (S-0127/D-5), and
+    `resolved_blocker_revisions()` gives one round under `off` and two under `fresh` or
+    `session` in critic mode. Three places read the mode: the revision seat in
+    `session.py`, the session check beside it, and `continue_index` in `runner.py`, which
+    decides whether a session continues.
+  - **A session revision asks the critic again.** The session loop in `runner.py` sends the
+    findings with `opened.follow_up`, judges the gates, then calls
+    `member.clean = await review(member)`. That is a full critic call, counted against
+    `selection.CRITIC_CALLS`. The re-run primitives already exist, private, in
+    `critic.py`: `_repro_command`, `_probe_names`, `_rerun_once` and `_failed`, with
+    `WRONG_PASSES = 42`. `decide` composes them for a review's own findings, and
+    `_store_probes` keeps the probes a review wrote under its task directory.
+  - **The pull request never sees a blocker the revision fixed.** `review_step` in
+    `review.py` emits `review.recorded` for the verdict it is handed. After a session
+    revision, that is the re-review's verdict. The critic emits no store event of its own,
+    so the first review, the one that blocked, never reaches the board.
+    `forge.compose_document_pr` lists the last task-gated review's items as advisory
+    (S-0127/D-13), so the person merging sees nothing of the 14 blockers above.
+goals: |
+  - A document of eight phases or fewer is one unit: one session, one critic review, one
+    landing.
+  - A critic block is revised once in the candidate's own session, by default in critic mode.
+  - A revision is judged by re-running the blockers it was handed, not by a second critic
+    call.
+  - The pull request shows, from records, every blocker a revision cleared and what its
+    repro exited before and after.
+  - The library form costs at most 1.5× A0 on the bed, measured once the second phase lands.
+non_goals: |
+  - Beating A0's pass rate. A0 sits at 13 of 13 on this bed. What the library sells is the
+    verdict: executed blockers, fixed in place, shown to the person merging.
+  - A new judge. The critic, its frozen prompt, S-0127's blocking rule and the gate battery
+    are unchanged.
+  - Removing per-phase machinery. `unit: phase`, width and the per-unit chain stay for
+    documents above eight phases and for configurations that name them. Deleting them is
+    the plan's simplify phase, after nights have run the library form.
+design:
+  - key: the-fold
+    md: |
+      `WHOLE_UNTIL` becomes 8. A phasing file that sets no `unit` mints one contract for a
+      document of eight phases or fewer, and one per phase above that. `unit: phase` and
+      `unit: document` keep their meaning. `--refresh` keeps the shape a document was minted
+      in, so a document already in flight does not change shape. Eight
+      is the largest document the bed has run in one session. A larger one keeps the chain
+      until a bed document of its size says otherwise.
+
+      The rows a whole contract carries do not change. It already carries every row of its
+      document (`planner.inherit_decisions`). The fold costs the critic nothing
+      either: S-0127/D-15 adds the document's other rows only for a unit that does not own
+      them all.
+  - key: revision-in-session-by-default
+    md: |
+      `review.revision` gains a `None` default, and `ReviewConfig.resolved_revision()` reads
+      it. Under `review.mode: critic` it resolves to `session`, under `classic` to `off`, and
+      a configuration that names a mode keeps it. The three readers of the mode read the
+      resolved value: the two in `session.py` and `continue_index` in `runner.py`. Under
+      `session`, `resolved_blocker_revisions()` gives one round, as under `off`. `fresh` keeps
+      two. One round is what the bed measured: 8 of 8 blocks cleared in one round. No unit
+      needed a second.
+
+      A seat whose harness keeps no session falls back to `fresh`, as S-0124/D-8 says. On a
+      seat that names no `revision_variant`, that is a fresh attempt on its own tier, exactly
+      what `off` runs.
+  - key: re-run-not-re-review
+    md: |
+      After a session turn whose gates are green, the engine re-runs every blocker of the
+      verdict it handed the turn. For each one it runs the finding's `repro.command` with the
+      probes that review stored, through `runner.reproduce`, against the revised candidate,
+      as S-0127/D-1 and S-0127/D-10 re-run a fresh review's finding. It asks the critic
+      nothing.
+
+      `critic.recheck(verdict, reproduce, root)` is the public composition of
+      `_repro_command`, `_probe_names`, `_rerun_once` and `_failed`. It returns the verdict
+      the turn is judged by: the same review id and kept findings, and each blocker's
+      re-run beside it, with `blockers` holding only the ones whose re-run still fails as
+      S-0127/D-1 reads a failure, or exits 42 for a `weak_test` (S-0127/D-2). An empty
+      `blockers` is a clean turn. A non-empty one is the blocked candidate's verdict again,
+      and the run escalates `blocker_finding` through `review_step`. A blocker that survives
+      the turn that was handed it is the re-raise S-0127/D-4 describes, so another round
+      would spend a second session on a claim the first did not move.
+
+      The re-run is no critic call, so `chosen_round.critic_calls` does not grow and the
+      unit's notional spend gains only the turn. `unit.closed` keeps `rereview` as
+      `clean`, `blocked`, `failed` or `stopped`, and the `revision` block gains `by`:
+      `rerun`, or `critic` for a fresh revision's review. A fresh revision is new code, so
+      its review stays a full critic call.
+
+      What the re-run gives up is a second reading of the turn's own diff. The gates still
+      judge it, and S-0125/D-1 already confined a revision's critic to the revision's
+      changed lines. On the bed, the 8 re-reviews of session turns raised no blocker.
+  - key: the-record
+    md: |
+      `ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that made the
+      finding block, beside `rerun_exit`. After a session turn, `review_step` emits
+      `review.recorded` for the rechecked verdict. Each blocker is an item carrying the exit
+      that blocked it as `blocked_exit` and the exit after the turn as `rerun_exit`. A review
+      recorded before the field reads `None`, as S-0127/D-14 grew the item.
+
+      `compose_document_pr` lists, under each landing, the items with a `blocked_exit` under
+      the heading "Blockers the revision cleared". Each line gives severity · kind · anchor ·
+      `` re-run `<command>` exit <before> → <after> ``. The advisory list keeps every other
+      item. Everything in the body is a record field, so S-0121/D-34 (LOCKED) stands: no
+      claim or evidence text reaches the body.
+  - key: the-amendments
+    md: |
+      The pull request that accepts this document amends the ASSUMED and OPEN rows that
+      describe what it replaces, with `torve spec amend`:
+
+      - S-0122/D-13: the default becomes eight phases or fewer.
+      - S-0122/D-8, S-0124/D-1 and S-0127/D-5: `off` stops being the default.
+      - S-0124/D-2: one round under `session`.
+      - S-0124/D-8: the default, and a turn judged by re-running its blockers instead of the
+        critic.
+      - S-0127/D-13: the cleared blockers' heading.
+      - S-0122/D-9 (OPEN): settled or kept open, as Q-1 decides.
+
+      None of these rows is LOCKED. The LOCKED rows the second phase touches, S-0121/D-34,
+      S-0122/D-1, S-0122/D-2, S-0122/D-3 and S-0127/D-1, are read as they stand: a blocker still blocks
+      only on a failing re-run, and the turn still reaches the judge only through its tree.
+tests: |
+  - **The fold:** `tests/test_plan.py`'s
+    `test_a_larger_document_mints_per_phase_unless_it_says_document` moves its unset case
+    from four phases to nine. A new case mints an eight-phase document as one contract. The
+    refresh tests keep a per-phase document per phase.
+  - **The resolved revision:** `tests/test_runconfig.py` checks that critic mode with
+    nothing named reads `session` and one round, that classic reads `off`, and that every
+    named mode and number is kept.
+  - **The recheck:** `tests/test_critic.py` checks `critic.recheck`. A Hypothesis property
+    over findings and exits says that a blocker stays exactly when its re-run fails as
+    `_failed` reads it, or exits 42 for a `weak_test`. Exits 126 and 127 and an unrun
+    repro never keep a blocker. A probe the review did not store refuses the re-run, which
+    keeps nothing.
+  - **The session loop:** the `test_session_revision_*` tests in `tests/test_runner.py`
+    are rewritten so that a turn's green tree is rechecked, never reviewed. A turn whose
+    recheck clears is selected with no second critic call and `by: rerun`. One whose
+    blocker still fails escalates `blocker_finding`. Red gates still read `failed`.
+  - **The record:** `tests/test_forge.py` checks that a cleared blocker lands under its
+    heading with both exits, and that the advisory list is unchanged.
+docs: |
+  - No `docs/` page names the revision default or the three-phase fold. The `AGENTS.md`
+    projections of the amended rows are regenerated by `torve spec project` in the pull
+    request that accepts this document.
+  - The changelog entry goes under Changed: a document of up to eight phases runs as one
+    session, and a critic block is revised in session by default.
+out_of_scope: |
+  - **Acceptance checks written before the code.** All three misses above were rules the
+    document stated and nobody tested. A compiler that turns rows into executable checks
+    before the session would aim at exactly that. The bed cannot show a gain while A0 sits
+    at the ceiling, so it waits for a bed measure with headroom: pass^k at k ≥ 3, or every
+    arm's probes run against every arm's final tree.
+  - **Width across documents.** The time the owner wants back comes from running
+    documents side by side, not candidates within one. Two sealed runs at once collide on
+    the broker's fixed port, so this needs a port per lease first. It gets its own
+    document.
+  - **A blocked document as a draft pull request.** A unit whose blocker survives
+    escalates and lands nothing, so no pull request opens. A draft carrying the verdict
+    would show the owner the same facts in the place they merge. The escalation path
+    already works, and nothing yet measures which of the two an owner acts on faster.
+risks: |
+  - **A turn can game the repro.** The executor sees each blocker's claim and its repro
+    command, though not the probe file. A turn could special-case the inputs the claim
+    names, and only a second reading would see it. The gates, the hidden-check bed and
+    S-0127's `gaming` kind remain. If a bed audit finds one gamed repro, the re-review
+    comes back for session turns.
+  - **A turn's new defect goes unread.** The re-review read the turn's diff. Without it,
+    a defect the turn adds reaches the pull request unless a gate catches it. On the bed
+    this happened 0 times in 8. The bed's cross-arm probe run is the measure.
+  - **Eight phases is two documents' evidence.** Only ps-pair and synth-pair ran at six
+    and eight phases. A larger torve document on this repository's own code may exceed what
+    one session holds. `unit: phase` is the author's way out, and the night's first folded
+    document is the first test of it.
+  - **One trial per document.** Every bed number above is k = 1. The wall-time remainder of
+    0.17× A0 mixes the gates with run-to-run noise. Pass rates of 11, 12 and 13 of 13
+    differ by less than one trial can tell apart.
+alternatives:
+  - option: >-
+      Keep the per-unit engine and win on width within a unit.
+    rejected_because: >-
+      Selection among greens moved little time on the bed. 13 of 42 width-two-or-more
+      units had a second green, and 2 of 7 blocks had one. The critic and the retries,
+      not the executor, made the per-unit chain slower than plain sessions.
+  - option: >-
+      Verdict only, no revision. The critic reviews once, and a block reaches the
+      owner.
+    rejected_because: >-
+      It would cost about 1.25× A0 plus the same remainder. But 8 of 13 documents
+      would reach the owner blocked, though a 32-to-672-second session turn cleared
+      every one of those blocks on the bed.
+  - option: Keep the critic re-review after a session turn.
+    rejected_because: >-
+      It took 2,046 s, 0.19× A0, to re-measure what re-running the 14 blockers measured
+      in seconds, and it raised no blocker in 8 turns. It returns if a gamed or broken
+      turn is found (risks).
+  - option: Fresh attempt after a block, today's default.
+    rejected_because: >-
+      3,240 s against 1,258 s for the same number of rounds. Its re-reviews raised
+      new majors on the fresh code (harlequin's idle clock, cgt's report), and 11
+      of 13 passed against 12.
+questions:
+  - id: Q-1
+    text: >-
+      S-0122/D-9 (OPEN) asks 20 units before an in-session revision becomes the default,
+      and the bed has 8, all cleared in one round at lower cost and wall time than
+      a fresh attempt. The run with class width now on the bed adds more. Settle S-0122/D-9
+      on these and amend it with D-2, or keep D-2 waiting for 20?
+  - id: Q-2
+    text: >-
+      A whole document is class L, so it runs three candidates by default, first green
+      to the critic. The bed's library arms ran one, and the `library-session-w` run
+      on the bed now measures three. If three do not shorten wall time, should a whole
+      contract run one candidate by default?
