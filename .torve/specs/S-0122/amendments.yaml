@@ -285,3 +285,113 @@ amendments:
       wrong implementation it built. D-1 still said a blocking finding is not `weak_test` and that
       every other finding is advisory, so a reader of this row alone got the old rule. It now names
       the weak-test path beside the gaming and LOCKED-row ones.
+  - id: A-9
+    at: '2026-11-15T19:48:01Z'
+    title: >-
+      A document of eight phases or fewer is one unit (S-0128/D-1)
+    changes:
+      - subject: D-13
+        field: text
+        before: >-
+          A phasing file may set `unit: document` to mint one contract for the whole
+          document, the default when it has three phases or fewer, and a contract
+          carries its own document's rows plus at most ten LOCKED rows of other documents
+          whose paths it touches
+        after: >-
+          A phasing file may set `unit: document` to mint one contract for the whole
+          document, the default when it has eight phases or fewer (S-0128/D-1), and
+          a contract carries its own document's rows plus at most ten LOCKED rows
+          of other documents whose paths it touches
+      - subject: D-13
+        field: fingerprint
+        after: 5159f489445f772a/74c8f991888a3623
+    md: |
+      Amended on 2026-11-15 in the pull request that accepts S-0128.
+      S-0128/D-1 moves the line from three phases to eight. On the evaluation bed one session per document passed 13 of 13 documents, the 6- and 8-phase composites included, in less wall time than the same documents run as a chain of phases. `unit: phase` and `unit: document` keep their meaning.
+  - id: A-10
+    at: '2026-11-15T19:48:07Z'
+    title: >-
+      A whole contract runs one candidate unless a cap is named (S-0128/D-6)
+    changes:
+      - subject: D-7
+        field: text
+        before: >-
+          A unit's class sets its width (S one candidate, M two, L three, never more);
+          among one attempt's candidates the first to finish green wins, the others
+          are cut when it does, and the critic reads only it (S-0127/D-6)
+        after: >-
+          A unit's class sets its width (S one candidate, M two, L three, never more),
+          except that a contract covering more than one phase runs one unless `review.max_width`
+          names a cap (S-0128/D-6); among one attempt's candidates the first to finish
+          green wins, the others are cut when it does, and the critic reads only it
+          (S-0127/D-6)
+      - subject: D-7
+        field: fingerprint
+        before: 88a1205946019fb1/f14ab6f1332bea73
+        after: ce97960512700b17/f14ab6f1332bea73
+    md: |
+      Amended on 2026-11-15 in the pull request that accepts S-0128.
+      A whole-document contract is class L. S-0128/D-6 keeps it at the one candidate the bed's library arms measured. A configuration that names `review.max_width` still caps the class's width, so naming 3 restores three candidates. S-0128/Q-2 asks whether the default should follow the bed's class-width run.
+  - id: A-11
+    at: '2026-11-15T19:48:14Z'
+    title: >-
+      A block is revised in its own session by default (S-0128/D-2, D-3)
+    changes:
+      - subject: D-8
+        field: text
+        before: >-
+          A gate-red candidate gets no follow-up turn: the next attempt is an independent
+          fresh session from the tree the red attempt started from (S-0127/D-6); a
+          critic block sends the unit to one fresh attempt on the task's own seat
+          under `review.revision: off`, the default, or to the revision a configuration
+          names with `fresh` or `session` (S-0127/D-5); a re-raised finding escalates
+          (S-0127/D-4); a unit stops at five critic calls or at its class's notional
+          spend and clock (S-0127/D-9)
+        after: >-
+          A gate-red candidate gets no follow-up turn: the next attempt is an independent
+          fresh session from the tree the red attempt started from (S-0127/D-6); a
+          critic block continues the selected candidate in its own session for one
+          round under `review.revision: session`, the default in critic mode (S-0128/D-2),
+          and the turn is judged by re-running its blockers (S-0128/D-3); `off` sends
+          the unit to one fresh attempt on the task's own seat, and `fresh` to the
+          seat's `revision_variant` (S-0127/D-5); a re-raised finding escalates (S-0127/D-4);
+          a unit stops at five critic calls or at its class's notional spend and clock
+          (S-0127/D-9)
+      - subject: D-8
+        field: fingerprint
+        before: 7e463b5c9e30cf03/c9ee6598052a783c
+        after: d41ad142263ff50b/c9ee6598052a783c
+    md: |
+      Amended on 2026-11-15 in the pull request that accepts S-0128.
+      S-0128/D-2 makes the in-session revision the default in critic mode, and S-0128/D-3 judges its turn by re-running the blockers it was handed rather than by a second critic call. `off` and `fresh` keep their meaning when a configuration names them.
+  - id: A-12
+    at: '2026-11-15T19:48:21Z'
+    title: >-
+      Settled: an in-session revision is the default (S-0128/Q-1)
+    changes:
+      - subject: D-9
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-9
+        field: paths
+        before: [src/torve/application/selection.py]
+        after: [src/torve/config/runconfig.py]
+      - subject: D-9
+        field: text
+        before: >-
+          Whether an in-session dsh revision replaces the Opus revision after a critic
+          block, decided by 20 units comparing the two after the session driver lands:
+          dsh becomes the default if it clears 70% or more at lower cost and wall
+          time
+        after: >-
+          An in-session revision replaces the fresh attempt after a critic block as
+          the default in critic mode (S-0128/D-2): on the evaluation bed it cleared
+          15 of 17 blocks in one round (88%), past the 70% this row set, in less wall
+          time than a fresh attempt
+      - subject: D-9
+        field: fingerprint
+        after: 047507ca85857b83/3fe568a12e5031ef
+    md: |
+      Amended on 2026-11-15 in the pull request that accepts S-0128.
+      The owner settled this row on the units the bed had rather than the 20 it asked for (S-0128/Q-1). Across the `library-session` and `library-session-w` runs, 15 of 17 session revisions cleared their re-review in one round, 88% against the 70% bar. In `library-session` a block took 413 s with its turn and the critic's re-review, against 540 s for each of `library`'s fresh attempts with theirs, and S-0128/D-3 replaces the re-review with re-runs. The row compared the turn with an Opus revision, which S-0127/D-5 had already replaced with a fresh attempt on the task's own seat, so the comparison made is with that attempt. The bed's executor is unpriced, so the cost half rests on what a turn needs: one more executor turn, where the Opus revision cost about $0.92. The grade is ASSUMED: a configuration naming `off` or `fresh` restores either, and a later bed run can reopen it.

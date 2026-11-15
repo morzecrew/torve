@@ -5,7 +5,7 @@ kind: design
 change:
   type: feat
   scope: engine
-status: draft
+status: accepted
 implementation: none
 depends_on: [S-0122, S-0124, S-0127]
 informed_by: [S-0121, S-0125]
@@ -44,8 +44,9 @@ motivation: |
     attempt after a block) passed 11 of 13 in 18,870 s (1.76×), with $14.16 of reviewer.
     `library-session` (`revision: session`, one round) passed 12 of 13 in 18,519 s (1.73×),
     with $14.74 of reviewer. It blocked 8 first candidates and revised each in its own
-    session in 32 to 672 s, 1,258 s in all, against 3,240 s for the fresh retries. All 8
-    re-reviews came back clean.
+    session in 32 to 672 s, 1,258 s in all. With its re-review a block took 413 s, against
+    540 s for each of `library`'s 6 fresh retries with theirs. All 8 re-reviews came back
+    clean.
   - **The re-review re-measured what a re-run measures, at 1.6 times the revision's cost.**
     The 8 re-reviews took 2,046 s and found no new blocker. Re-running the 14 blockers of
     those first reviews against the revised trees cleared all 14. The 7 bug repros now exit
@@ -275,7 +276,8 @@ alternatives:
       turn is found (risks).
   - option: Fresh attempt after a block, today's default.
     rejected_because: >-
-      3,240 s against 1,258 s for the same number of rounds. Its re-reviews raised
+      540 s a block with its re-review, against 413 s for a session turn with its
+      re-review and 157 s for the turn alone, which D-3 leaves. Its re-reviews raised
       new majors on the fresh code (harlequin's idle clock, cgt's report), and 11
       of 13 passed against 12.
 questions:
@@ -284,10 +286,18 @@ questions:
       S-0122/D-9 (OPEN) asks 20 units before an in-session revision becomes the default,
       and the bed has 8, all cleared in one round at lower cost and wall time than
       a fresh attempt. The run with class width now on the bed adds more. Settle S-0122/D-9
-      on these and amend it with D-2, or keep D-2 waiting for 20?
+      on these and amend it with D-2, or keep D-2 waiting for 20? Settle now (owner,
+      2026-11-15): with `library-session-w` the bed has 17 session revisions, and
+      15 of them cleared in one round. S-0122/A-12 settles S-0122/D-9 at grade ASSUMED.
+    status: settled
+    settled_by: S-0122/A-12
   - id: Q-2
     text: >-
       D-6 runs a whole contract on one candidate, the width the bed measured. The
       `library-session-w` run on the bed now measures the class's three, first green
       to the critic. If three shorten wall time at no loss of passes, should the default
-      follow, and D-6 go?
+      follow, and D-6 go? The run, one trial per document, passed 10 of 13 against
+      12 of 13 at one candidate, in 16,974 s against 18,519 s, with $16.99 of reviewer
+      against $14.74. Both extra failures escalated on a blocker re-raised after the
+      revision. The run was also the first with a warm critic cache, so cache and
+      width are confounded. The condition did not hold, so D-6 stands.

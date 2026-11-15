@@ -5,8 +5,8 @@ decisions:
     text: >-
       A revision attempt, one whose task has a feedback record at the root, is class
       S and runs one candidate, on the task's own seat under `review.revision: off`,
-      the default, and on the tier `revision_variant` names only when a configuration
-      names `fresh` or `session` (S-0127/D-5)
+      and on the tier `revision_variant` names when the resolved revision is `fresh`
+      or `session`, which critic mode resolves to by default (S-0127/D-5, S-0128/D-2)
     paths: [src/torve/application/runner.py]
     consequence: >-
       a revision costs one session on the revision seat, not a full-width unit split
@@ -17,14 +17,14 @@ decisions:
     cites: [S-0122/D-7, S-0122/D-8]
     check: >-
       uv run pytest -q tests/test_runner.py -k revision_width
-    fingerprint: 6082ef6597dc8b06/14bd8ed0a79735ba
+    fingerprint: 74abe8fcc2755c3c/14bd8ed0a79735ba
   - id: D-2
     grade: ASSUMED
     text: >-
       Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions`
-      revision rounds when the configuration names it, else 1 under `review.revision:
-      off`, the default (S-0127/D-5), and 2 under `fresh` or `session`; classic mode
-      keeps 1
+      revision rounds when the configuration names it, else 2 under `review.revision:
+      fresh` and 1 under `off` and `session`, the default (S-0127/D-5, S-0128/D-2);
+      classic mode keeps 1
     paths: [src/torve/config/runconfig.py, src/torve/application/review.py]
     consequence: >-
       a unit gets one fresh attempt after a block by default (S-0127/D-5), and the
@@ -34,7 +34,7 @@ decisions:
     cites: [S-0122/D-8]
     check: >-
       uv run pytest -q tests/test_runconfig.py tests/test_review_run.py -k revision_rounds
-    fingerprint: e279a2361f1bc149/0a34d1913148e82b
+    fingerprint: e867ff0d878ec672/0a34d1913148e82b
   - id: D-3
     grade: ASSUMED
     text: >-
@@ -127,12 +127,14 @@ decisions:
   - id: D-8
     grade: ASSUMED
     text: >-
-      Under `review.revision: session` a revision round continues the selected candidate
-      in its own still-open session, on that candidate's tier and not `revision_variant`,
-      with the blocking findings, after the same spend and clock checks a fresh attempt
-      passes, then judges its gates and asks the critic again, in place of a fresh
-      revision attempt; `off` is the default (S-0127/D-5), under which neither revision
-      mode runs, and a seat whose harness keeps no session falls back to `fresh`
+      Under `review.revision: session`, the default in critic mode (S-0128/D-2), a
+      revision round continues the selected candidate in its own still-open session,
+      on that candidate's tier and not `revision_variant`, with the blocking findings,
+      after the same spend and clock checks a fresh attempt passes, then judges its
+      gates and re-runs its blockers, asking the critic again only when a blocker
+      was left with no re-run that measured it (S-0128/D-3), in place of a fresh revision
+      attempt; under `off` neither revision mode runs, and a seat whose harness keeps
+      no session falls back to `fresh`
     paths:
       - src/torve/application/runner.py
       - src/torve/application/session.py
@@ -146,7 +148,7 @@ decisions:
     cites: [S-0122/D-8, S-0122/D-9]
     check: >-
       uv run pytest -q tests/test_runner.py tests/test_runconfig.py -k session_revision
-    fingerprint: 14e58ad13fd7649c/e157d702accd77b8
+    fingerprint: 4fd723dcfa82c0c2/e157d702accd77b8
   - id: D-9
     grade: ASSUMED
     text: >-

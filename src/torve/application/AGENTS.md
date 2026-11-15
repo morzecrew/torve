@@ -215,21 +215,15 @@ The critic reviews one candidate per call in a fresh context, in pre-rank order,
 
 ### S-0122/D-7 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
 
-A unit's class sets its width (S one candidate, M two, L three, never more); among one attempt's candidates the first to finish green wins, the others are cut when it does, and the critic reads only it (S-0127/D-6)
+A unit's class sets its width (S one candidate, M two, L three, never more), except that a contract covering more than one phase runs one unless `review.max_width` names a cap (S-0128/D-6); among one attempt's candidates the first to finish green wins, the others are cut when it does, and the critic reads only it (S-0127/D-6)
 
 - Paths: `src/torve/application/selection.py` `src/torve/config/runconfig.py`
 
 ### S-0122/D-8 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
 
-A gate-red candidate gets no follow-up turn: the next attempt is an independent fresh session from the tree the red attempt started from (S-0127/D-6); a critic block sends the unit to one fresh attempt on the task's own seat under `review.revision: off`, the default, or to the revision a configuration names with `fresh` or `session` (S-0127/D-5); a re-raised finding escalates (S-0127/D-4); a unit stops at five critic calls or at its class's notional spend and clock (S-0127/D-9)
+A gate-red candidate gets no follow-up turn: the next attempt is an independent fresh session from the tree the red attempt started from (S-0127/D-6); a critic block continues the selected candidate in its own session for one round under `review.revision: session`, the default in critic mode (S-0128/D-2), and the turn is judged by re-running its blockers (S-0128/D-3); `off` sends the unit to one fresh attempt on the task's own seat, and `fresh` to the seat's `revision_variant` (S-0127/D-5); a re-raised finding escalates (S-0127/D-4); a unit stops at five critic calls or at its class's notional spend and clock (S-0127/D-9)
 
 - Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `src/torve/application/selection.py`
-
-### S-0122/D-9 — `OPEN` (Judge-and-select rebuild) — implementation: partial
-
-Whether an in-session dsh revision replaces the Opus revision after a critic block, decided by 20 units comparing the two after the session driver lands: dsh becomes the default if it clears 70% or more at lower cost and wall time
-
-- Paths: `src/torve/application/selection.py`
 
 ### S-0122/D-12 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
 
@@ -239,7 +233,7 @@ Contract v3 splits scope into `files`, `tests` (paired tests derived at mint and
 
 ### S-0122/D-13 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
 
-A phasing file may set `unit: document` to mint one contract for the whole document, the default when it has three phases or fewer, and a contract carries its own document's rows plus at most ten LOCKED rows of other documents whose paths it touches
+A phasing file may set `unit: document` to mint one contract for the whole document, the default when it has eight phases or fewer (S-0128/D-1), and a contract carries its own document's rows plus at most ten LOCKED rows of other documents whose paths it touches
 
 - Paths: `src/torve/application/planner.py` `src/torve/domain/spec.py`
 
@@ -311,7 +305,7 @@ Under `review.mode: critic` a task whose contract names no `budget.wallclock_min
 
 ### S-0124/D-1 — `ASSUMED` (Candidates side by side, and S-0122's revision)
 
-A revision attempt, one whose task has a feedback record at the root, is class S and runs one candidate, on the task's own seat under `review.revision: off`, the default, and on the tier `revision_variant` names only when a configuration names `fresh` or `session` (S-0127/D-5)
+A revision attempt, one whose task has a feedback record at the root, is class S and runs one candidate, on the task's own seat under `review.revision: off`, and on the tier `revision_variant` names when the resolved revision is `fresh` or `session`, which critic mode resolves to by default (S-0127/D-5, S-0128/D-2)
 
 - Paths: `src/torve/application/runner.py`
 - Consequence: a revision costs one session on the revision seat, not a full-width unit split across seats
@@ -319,7 +313,7 @@ A revision attempt, one whose task has a feedback record at the root, is class S
 
 ### S-0124/D-2 — `ASSUMED` (Candidates side by side, and S-0122's revision)
 
-Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions` revision rounds when the configuration names it, else 1 under `review.revision: off`, the default (S-0127/D-5), and 2 under `fresh` or `session`; classic mode keeps 1
+Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions` revision rounds when the configuration names it, else 2 under `review.revision: fresh` and 1 under `off` and `session`, the default (S-0127/D-5, S-0128/D-2); classic mode keeps 1
 
 - Paths: `src/torve/config/runconfig.py` `src/torve/application/review.py`
 - Consequence: a unit gets one fresh attempt after a block by default (S-0127/D-5), and the two rounds when a configuration names `fresh` or `session`
@@ -367,7 +361,7 @@ The unit's bound, its class's notional-spend cap (S-0127/D-9), is checked before
 
 ### S-0124/D-8 — `ASSUMED` (Candidates side by side, and S-0122's revision)
 
-Under `review.revision: session` a revision round continues the selected candidate in its own still-open session, on that candidate's tier and not `revision_variant`, with the blocking findings, after the same spend and clock checks a fresh attempt passes, then judges its gates and asks the critic again, in place of a fresh revision attempt; `off` is the default (S-0127/D-5), under which neither revision mode runs, and a seat whose harness keeps no session falls back to `fresh`
+Under `review.revision: session`, the default in critic mode (S-0128/D-2), a revision round continues the selected candidate in its own still-open session, on that candidate's tier and not `revision_variant`, with the blocking findings, after the same spend and clock checks a fresh attempt passes, then judges its gates and re-runs its blockers, asking the critic again only when a blocker was left with no re-run that measured it (S-0128/D-3), in place of a fresh revision attempt; under `off` neither revision mode runs, and a seat whose harness keeps no session falls back to `fresh`
 
 - Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `src/torve/config/runconfig.py`
 - Consequence: the night can run the in-session arm S-0122/D-9 asks about, one configuration key away
@@ -527,7 +521,7 @@ A finding's anchor is the first citation in its evidence that resolves, wherever
 
 ### S-0127/D-5 — `ASSUMED` (A verdict comes from what ran)
 
-`review.revision` gains `off`, the default: a surviving blocker sends the unit to one fresh attempt on the task's own seat, never its `revision_variant`, on the blocked candidate's tree with the feedback record D-1's threads fill, and a blocker surviving that attempt escalates `blocker_finding`; under `off`, `review.blocker_revisions` resolves to 1 unless the configuration names a number, and `fresh` and `session` keep their meaning when a configuration names them
+`review.revision` gains `off`, the default in classic mode (S-0128/D-2): a surviving blocker sends the unit to one fresh attempt on the task's own seat, never its `revision_variant`, on the blocked candidate's tree with the feedback record D-1's threads fill, and a blocker surviving that attempt escalates `blocker_finding`; under `off`, `review.blocker_revisions` resolves to 1 unless the configuration names a number, and `fresh` and `session` keep their meaning when a configuration names them
 
 - Paths: `src/torve/config/runconfig.py` `src/torve/application/session.py`
 - Consequence: no Opus revision runs unless a configuration asks for one, and a unit blocked twice reaches the owner after two executor sessions
@@ -590,7 +584,7 @@ Which deterministic measure over two blocker claims D-4 reads as a match, for ex
 
 ### S-0127/D-13 — `ASSUMED` (A verdict comes from what ran)
 
-The document's pull-request body lists, under each landing, each finding its last task-gated review recorded, by severity, kind, anchor (`path:line`) and, when the engine re-ran it, the re-run's command and exit code, read from the store's `review.recorded` items (D-14) under a heading that names them the critic's advisory findings; no claim or evidence text is listed, and a landed candidate's last review blocked nothing, so every finding listed is advisory
+The document's pull-request body lists, under each landing, each finding its last task-gated review recorded, by severity, kind, anchor (`path:line`) and, when the engine re-ran it, the re-run's command and exit code, read from the store's `review.recorded` items (D-14) under a heading that names them the critic's advisory findings, except that an item carrying a `blocked_exit` is listed under a heading that names it a blocker the revision cleared, with its exit before the revision and after (S-0128/D-5); no claim or evidence text is listed, and a landed candidate's last review blocked nothing, so every other finding listed is advisory
 
 - Paths: `src/torve/application/forge.py` `src/torve/cli/merge.py`
 - Consequence: a person merging sees where the critic found something and what the engine measured of it, reads the claim in the review record, and the body stays composed from records and bounded by `BODY_LIMIT`
@@ -627,5 +621,45 @@ A run of test files over a checkout — the evidence package's per-test runs at 
 - Paths: `src/torve/application/critic.py`
 - Consequence: a repro written against the critic's own `.venv` is no longer lost to an exit 127 on re-run; the frozen prompt is unchanged
 - Check: `uv run pytest -q tests/test_critic.py -k rerun_has_no_venv` (shadow; runs as `decision:S-0127/D-17`)
+
+### S-0128/D-2 — `ASSUMED` (One session per document) — implementation: none
+
+`review.revision` defaults to none and every reader reads `ReviewConfig.resolved_revision()`: what a configuration names, else `session` under `review.mode: critic` and `off` under `classic`; `review.blocker_revisions` left unset resolves to one round under `off` and `session`, two under `fresh` in critic mode, and one in classic mode
+
+- Paths: `src/torve/config/runconfig.py` `src/torve/application/session.py` `src/torve/application/runner.py`
+- Consequence: a critic-mode configuration that names no revision continues a blocked candidate in its own session for one round, on its own tier; a seat whose harness keeps no session falls back to `fresh` as S-0124/D-8 says, which on a seat naming no `revision_variant` is the fresh attempt `off` runs
+- Check: `uv run pytest -q tests/test_runconfig.py -k resolved_revision` (shadow; runs as `decision:S-0128/D-2`)
+
+### S-0128/D-3 — `ASSUMED` (One session per document) — implementation: none
+
+After a session revision turn whose gates are green, the engine judges the turn by `critic.recheck` before any second critic call: each finding blocker of the verdict the turn was handed is re-run, its `repro.command` with the probes that review stored, through `runner.reproduce` against the revised candidate as S-0127/D-1 and S-0127/D-10 say; a re-run that executes clears a `weak_test` at any exit but 42 and any other kind at exit 0, and keeps it otherwise; a re-run that does not execute (no exit, 126, 127, a probe the review did not store) clears nothing, and a blocker that blocked on located evidence alone (a `gaming` finding, a LOCKED row's `violated` verdict) has nothing to re-run; the turn is clean when every blocker cleared, blocked when one kept a measured failure, which re-raises it (S-0127/D-4) and escalates `blocker_finding`, and otherwise goes to the critic's re-review as S-0124/D-8 describes it
+
+- Paths: `src/torve/application/critic.py` `src/torve/application/runner.py`
+- Consequence: a session turn whose blockers all re-ran costs its own tokens and the re-runs' seconds, no critic call and no reviewer spend, and nothing reads its diff but the gates; a turn left with a blocker no re-run measured is read by the critic as today, and a fresh revision is new code whose review stays a full critic call
+- Check: `uv run pytest -q tests/test_critic.py tests/test_runner.py -k "recheck or session_revision"` (shadow; runs as `decision:S-0128/D-3`)
+
+### S-0128/D-4 — `ASSUMED` (One session per document) — implementation: none
+
+`ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that made the finding block; after a session turn `review_step` emits `review.recorded` for the rechecked verdict, each blocker an item with `blocked_exit` and the turn's re-run exit as `rerun_exit`, and the `unit.closed` record's `revision` block gains `by`, `rerun` for a rechecked turn and `critic` for a reviewed one
+
+- Paths: `src/torve/domain/events.py` `src/torve/application/review.py` `src/torve/application/selection.py`
+- Consequence: the blocking review reaches the board, as the review a revision re-measured, and an item or a record written before these fields reads as one with no blocker cleared and no `by`
+- Check: `uv run pytest -q tests/test_review_run.py tests/test_selection.py -k "blocked_exit or rerun"` (shadow; runs as `decision:S-0128/D-4`)
+
+### S-0128/D-5 — `ASSUMED` (One session per document) — implementation: none
+
+The document's pull-request body lists, under each landing, every item of its last task-gated review that carries a `blocked_exit`, under a heading that names them the blockers a revision cleared, by severity, kind, anchor and the re-run's command with its exit before and after; every other item stays in the advisory list S-0127/D-13 describes, and no claim or evidence text is listed
+
+- Paths: `src/torve/application/forge.py` `src/torve/cli/merge.py`
+- Consequence: a person merging sees what the critic blocked, that the engine measured it fixed, and by which command, read from records alone as S-0121/D-34 requires
+- Check: `uv run pytest -q tests/test_forge.py -k cleared` (shadow; runs as `decision:S-0128/D-5`)
+
+### S-0128/D-6 — `ASSUMED` (One session per document) — implementation: none
+
+A contract whose `covered()` holds more than one phase reads an unset `review.max_width` as 1, so it runs one candidate; a configuration naming a cap still caps its class's width, as for every other contract
+
+- Paths: `src/torve/application/runner.py`
+- Consequence: a whole document is one candidate session by default, the shape the bed measured, and a configuration that names a wider cap gets up to its class's three
+- Check: `uv run pytest -q tests/test_runner.py -k "whole_contract and width"` (shadow; runs as `decision:S-0128/D-6`)
 
 <!-- /torve:managed -->
