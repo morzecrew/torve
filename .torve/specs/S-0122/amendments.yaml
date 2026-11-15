@@ -236,3 +236,52 @@ amendments:
     md: |
       Amended on 2026-11-12 in the pull request that accepts S-0127 (S-0127/Q-6).
       The pilot's revision loop flipped none of six failing candidates at about $0.92 of Opus per unit, so S-0127 replaces the follow-up turn with a fresh attempt (S-0127/D-6), the Opus revision with one fresh attempt on the task's own seat (S-0127/D-5), and the flat $3 and 90 minutes with the class's figures (S-0127/D-9). The five-call critic cap stands.
+  - id: A-8
+    at: '2026-11-14T23:08:58Z'
+    title: A weak test blocks through a probe
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          The engine, not a model, turns a critic's findings into block or pass: a
+          candidate is blocked when a finding that survives the location filter is
+          at or above `review.blocks_at`, is not `weak_test`, and its repro exits
+          non-zero when the engine re-runs it against the candidate in a gates sandbox,
+          or when an owned row is `violated` and its evidence's command fails so;
+          a `gaming` finding at or above `review.blocks_at` and a `violated` verdict
+          on a LOCKED row block on located evidence alone; every other finding and
+          row is recorded advisory, and an `unknown` row never blocks (S-0127/D-1,
+          S-0127/D-2); on a revision attempt such a finding counts only when it also
+          locates within `threads.WINDOW` lines of a line the revision changed or
+          of an earlier round's blocker, and every other is recorded non-blocking;
+          on a review round's attempt, a finding or `violated` row whose every cited
+          `path:line` locates within `threads.WINDOW` lines of a claim that attempt
+          rejected (S-0126/D-2) is recorded non-blocking, and a re-raise of the claim
+          escalates (S-0121/D-29)
+        after: >-
+          The engine, not a model, turns a critic's findings into block or pass: a
+          candidate is blocked when a finding that survives the location filter is
+          at or above `review.blocks_at`, is not `weak_test`, and its repro exits
+          non-zero when the engine re-runs it against the candidate in a gates sandbox,
+          or when an owned row is `violated` and its evidence's command fails so;
+          a `gaming` finding at or above `review.blocks_at` and a `violated` verdict
+          on a LOCKED row block on located evidence alone; a `weak_test` finding at
+          or above `review.blocks_at` blocks only when its repro names a probe under
+          `probes/` whose re-run exits 42 (S-0127/D-2); every other finding and row
+          is recorded advisory, and an `unknown` row never blocks (S-0127/D-1, S-0127/D-2);
+          on a revision attempt such a finding counts only when it also locates within
+          `threads.WINDOW` lines of a line the revision changed or of an earlier round's
+          blocker, and every other is recorded non-blocking; on a review round's attempt,
+          a finding or `violated` row whose every cited `path:line` locates within
+          `threads.WINDOW` lines of a claim that attempt rejected (S-0126/D-2) is
+          recorded non-blocking, and a re-raise of the claim escalates (S-0121/D-29)
+      - subject: D-1
+        field: fingerprint
+        before: cb753d5a384ba039/03a530a15ac3f0d0
+        after: 43b61ba7c8c266ee/03a530a15ac3f0d0
+    md: |
+      Changes S-0122/D-1, the owner's call. S-0127/A-10 lets a `weak_test` finding block when its
+      repro names a probe whose re-run exits 42, the code a probe gives when the changed test passed a
+      wrong implementation it built. D-1 still said a blocking finding is not `weak_test` and that
+      every other finding is advisory, so a reader of this row alone got the old rule. It now names
+      the weak-test path beside the gaming and LOCKED-row ones.
