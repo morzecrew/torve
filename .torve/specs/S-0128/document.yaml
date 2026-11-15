@@ -14,13 +14,13 @@ superseded_by: null
 owner: misery7100
 schema_version: 4
 summary: |
-  A document of up to eight phases runs as one agent session, judged once by the critic; a
+  A document of up to eight phases runs as one unit, one candidate session judged once by the critic; a
   blocked candidate is revised once in its own session, and the engine re-runs the blockers'
-  repros instead of asking the critic again. The pull request lists the blockers a revision
-  cleared, with each repro's exit before and after. This is the library form the
-  pinned-behaviour plan's gate chose: the per-unit engine did not beat one session per
-  document on the eval bed, so torve keeps its verdict and record and gives up its per-phase
-  chain.
+  repros instead of asking the critic again, unless a blocker has nothing a re-run can measure. The
+  pull request lists the blockers a revision cleared, with each repro's exit before and after. This is
+  the library form the pinned-behaviour plan's gate chose: the per-unit engine did not beat one
+  session per document on the eval bed, so torve keeps its verdict and record and gives up its
+  per-phase chain.
 motivation: |
   The pinned-behaviour plan set one gate for the engine: beat one bare session per document
   (arm A0) on the sealed eval bed, at a lower 95% bound above zero and at most 1.5× its cost,
@@ -117,6 +117,11 @@ design:
       document (`planner.inherit_decisions`). The fold costs the critic nothing
       either: S-0127/D-15 adds the document's other rows only for a unit that does not own
       them all.
+
+      A whole contract is class L, which S-0122/D-7 gives three candidates. It runs one instead: `_width`
+      reads an unset `review.max_width` as 1 for a contract covering more than one phase. One is what the
+      bed's library arms ran and every cost above measures. A configuration that names a cap still caps
+      the class's width, so naming 3 restores today's three. Q-2 asks whether the default should follow.
   - key: revision-in-session-by-default
     md: |
       `review.revision` gains a `None` default, and `ReviewConfig.resolved_revision()` reads
@@ -139,19 +144,25 @@ design:
       nothing.
 
       `critic.recheck(verdict, reproduce, root)` is the public composition of
-      `_repro_command`, `_probe_names`, `_rerun_once` and `_failed`. It returns the verdict
-      the turn is judged by: the same review id and kept findings, and each blocker's
-      re-run beside it, with `blockers` holding only the ones whose re-run still fails as
-      S-0127/D-1 reads a failure, or exits 42 for a `weak_test` (S-0127/D-2). An empty
-      `blockers` is a clean turn. A non-empty one is the blocked candidate's verdict again,
-      and the run escalates `blocker_finding` through `review_step`. A blocker that survives
-      the turn that was handed it is the re-raise S-0127/D-4 describes, so another round
-      would spend a second session on a claim the first did not move.
+      `_repro_command`, `_probe_names` and `_rerun_once`. It returns the verdict the turn is judged by:
+      the same review id and kept findings, each blocker's re-run beside it, and whether every blocker
+      was measured. A re-run that executes clears a `weak_test` at any exit but 42 (S-0127/D-2) and any
+      other kind at exit 0, and keeps the blocker otherwise. A re-run that does not execute clears
+      nothing: no exit, 126, 127, or a probe the review did not store. Those exits keep a fresh finding
+      advisory under S-0127/D-1, because nothing was measured, and for the same reason they cannot show a
+      blocker fixed. A `gaming` finding and a LOCKED row's `violated` verdict block on located evidence
+      alone (S-0127/D-1), so a re-run has nothing of theirs to measure.
 
-      The re-run is no critic call, so `chosen_round.critic_calls` does not grow and the
-      unit's notional spend gains only the turn. `unit.closed` keeps `rereview` as
+      The turn is clean when every blocker cleared. It is blocked when one kept a measured failure: that
+      blocker survived the turn it was handed, the re-raise S-0127/D-4 describes, and the run escalates
+      `blocker_finding` through `review_step`, since another round would spend a second session on a
+      claim the first did not move. Otherwise a blocker was left unmeasured, and the turn goes to the
+      critic's re-review exactly as S-0124/D-8 runs it today.
+
+      A turn the recheck decided makes no critic call, so `chosen_round.critic_calls` does not
+      grow and the unit's notional spend gains only the turn. `unit.closed` keeps `rereview` as
       `clean`, `blocked`, `failed` or `stopped`, and the `revision` block gains `by`:
-      `rerun`, or `critic` for a fresh revision's review. A fresh revision is new code, so
+      `rerun` for a turn the recheck decided, `critic` for one the critic read. A fresh revision is new code, so
       its review stays a full critic call.
 
       What the re-run gives up is a second reading of the turn's own diff. The gates still
@@ -176,6 +187,7 @@ design:
       describe what it replaces, with `torve spec amend`:
 
       - S-0122/D-13: the default becomes eight phases or fewer.
+      - S-0122/D-7: a whole contract runs one candidate unless a configuration names a cap.
       - S-0122/D-8, S-0124/D-1 and S-0127/D-5: `off` stops being the default.
       - S-0124/D-2: one round under `session`.
       - S-0124/D-8: the default, and a turn judged by re-running its blockers instead of the
@@ -194,15 +206,16 @@ tests: |
   - **The resolved revision:** `tests/test_runconfig.py` checks that critic mode with
     nothing named reads `session` and one round, that classic reads `off`, and that every
     named mode and number is kept.
-  - **The recheck:** `tests/test_critic.py` checks `critic.recheck`. A Hypothesis property
-    over findings and exits says that a blocker stays exactly when its re-run fails as
-    `_failed` reads it, or exits 42 for a `weak_test`. Exits 126 and 127 and an unrun
-    repro never keep a blocker. A probe the review did not store refuses the re-run, which
-    keeps nothing.
+  - **The recheck:** `tests/test_critic.py` checks `critic.recheck`. A Hypothesis property over
+    findings and exits says that a blocker clears exactly when its re-run executed and exited 0, or
+    anything but 42 for a `weak_test`. An exit of 126 or 127, an unrun repro, a probe the review did
+    not store, a `gaming` blocker and a LOCKED row's breach never clear, and they leave the turn
+    unmeasured unless another blocker kept a measured failure.
   - **The session loop:** the `test_session_revision_*` tests in `tests/test_runner.py`
-    are rewritten so that a turn's green tree is rechecked, never reviewed. A turn whose
+    are rewritten so that a turn's green tree is rechecked before any critic call. A turn whose
     recheck clears is selected with no second critic call and `by: rerun`. One whose
-    blocker still fails escalates `blocker_finding`. Red gates still read `failed`.
+    blocker still fails escalates `blocker_finding`. One left unmeasured is reviewed by the critic,
+    `by: critic`. A whole contract with no `max_width` runs one candidate. Red gates still read `failed`.
   - **The record:** `tests/test_forge.py` checks that a cleared blocker lands under its
     heading with both exits, and that the advisory list is unchanged.
 docs: |
@@ -274,7 +287,7 @@ questions:
       on these and amend it with D-2, or keep D-2 waiting for 20?
   - id: Q-2
     text: >-
-      A whole document is class L, so it runs three candidates by default, first green
-      to the critic. The bed's library arms ran one, and the `library-session-w` run
-      on the bed now measures three. If three do not shorten wall time, should a whole
-      contract run one candidate by default?
+      D-6 runs a whole contract on one candidate, the width the bed measured. The
+      `library-session-w` run on the bed now measures the class's three, first green
+      to the critic. If three shorten wall time at no loss of passes, should the default
+      follow, and D-6 go?

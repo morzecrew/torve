@@ -26,24 +26,32 @@ phasing:
       `off` under `classic`; `resolved_blocker_revisions()` gives one round under
       `off` and `session`, two under `fresh` in critic mode, one in classic. `session.py`'s
       revision seat and session check and `runner.py`'s `continue_index` read the
-      resolved value. `critic.recheck(verdict, reproduce, root)` re-runs each of the
-      verdict's blockers — `_repro_command`, `_probe_names` over the probes the review
-      stored, `_rerun_once` — and returns the verdict with the same review id and
-      kept findings, each blocker's re-run recorded beside it and `blockers` holding
-      the ones whose re-run fails as `_failed` reads it, or exits `WRONG_PASSES` for
-      a `weak_test`, marked re-raised. The session loop in `runner.py` calls it in
-      place of `review(member)` after a green turn: no critic call is counted, the
-      unit record's `selection.Revision` gains `by` (`rerun` here, `critic` for a
-      fresh revision's review), and `run.preselected_review` is the rechecked verdict,
-      so `review_step` escalates `blocker_finding` on a surviving blocker as it does
-      today. `ReviewItem` gains `blocked_exit: int | None = None`, and `review_step`
-      writes it, with the re-run exit as `rerun_exit`, for each item of a rechecked
-      verdict that was a blocker. Tests: `tests/test_runconfig.py` (`resolved_revision`
-      for each mode and number), `tests/test_critic.py` (a Hypothesis property: a
-      blocker stays exactly when its re-run fails or a `weak_test` probe exits 42;
-      126, 127, an unrun repro and a missing probe never keep one), the `test_session_revision_*`
-      tests in `tests/test_runner.py` rewritten for a recheck with no second critic
-      call, and `tests/test_review_run.py` for `blocked_exit` on the recorded items.
+      resolved value. `critic.recheck(verdict, reproduce, root)` re-runs each finding
+      blocker of the verdict — `_repro_command`, `_probe_names` over the probes the
+      review stored, `_rerun_once` — and returns the verdict with the same review
+      id and kept findings and each re-run beside its blocker, plus whether every
+      blocker was measured. A re-run that executes clears a `weak_test` at any exit
+      but `WRONG_PASSES` and any other kind at exit 0; one with no exit, 126 or 127,
+      or a probe the review did not store, clears nothing; a `gaming` blocker and
+      a LOCKED row's `violated` verdict are never re-run. `blockers` keeps every finding
+      not cleared, a measured failure marked re-raised. The session loop in `runner.py`
+      calls it after a green turn and calls `review(member)` only when a blocker was
+      left unmeasured and none kept a measured failure: a turn the recheck decided
+      counts no critic call, the unit record's `selection.Revision` gains `by` (`rerun`
+      for a turn the recheck decided, `critic` for one the critic read), and `run.preselected_review`
+      is the rechecked verdict, so `review_step` escalates `blocker_finding` on a
+      surviving blocker as it does today. `ReviewItem` gains `blocked_exit: int |
+      None = None`, and `_width` reads an unset `max_width` as 1 for a contract covering
+      more than one phase. `review_step` writes `blocked_exit`, with the re-run exit
+      as `rerun_exit`, for each item of a rechecked verdict that was a blocker. Tests:
+      `tests/test_runconfig.py` (`resolved_revision` for each mode and number), `tests/test_critic.py`
+      (a Hypothesis property: a blocker clears exactly when its re-run executed and
+      exited 0, or anything but 42 for a `weak_test`; 126, 127, an unrun repro, a
+      missing probe, a `gaming` blocker and a LOCKED row's breach never clear and
+      leave the turn unmeasured), the `test_session_revision_*` tests in `tests/test_runner.py`
+      rewritten for a recheck with no second critic call and for the fallback to it,
+      a whole contract's width, and `tests/test_review_run.py` for `blocked_exit`
+      on the recorded items.
     scope:
       - src/torve/config/runconfig.py
       - src/torve/application/session.py
@@ -64,7 +72,7 @@ phasing:
         tests/test_critic.py tests/test_review_run.py tests/test_selection.py tests/test_events.py
         tests/test_feedback.py tests/test_run_loop.py
       - uv run mypy src
-    delivers: [D-2, D-3, D-4]
+    delivers: [D-2, D-3, D-4, D-6]
   - phase: 3
     title: >-
       The blockers a revision cleared, in the pull request

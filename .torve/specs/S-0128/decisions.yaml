@@ -48,17 +48,24 @@ decisions:
     grade: ASSUMED
     text: >-
       After a session revision turn whose gates are green, the engine judges the turn
-      by `critic.recheck`, never by a second critic call — each blocker of the verdict
-      the turn was handed is re-run, its `repro.command` with the probes that review
-      stored, through `runner.reproduce` against the revised candidate as S-0127/D-1
-      and S-0127/D-10 say — and the turn is clean when no re-run fails as S-0127/D-1
-      reads a failure, or exits 42 for a `weak_test` (S-0127/D-2); a blocker whose
-      re-run still fails is re-raised (S-0127/D-4) and the run escalates `blocker_finding`
+      by `critic.recheck` before any second critic call: each finding blocker of the
+      verdict the turn was handed is re-run, its `repro.command` with the probes that
+      review stored, through `runner.reproduce` against the revised candidate as S-0127/D-1
+      and S-0127/D-10 say; a re-run that executes clears a `weak_test` at any exit
+      but 42 and any other kind at exit 0, and keeps it otherwise; a re-run that does
+      not execute (no exit, 126, 127, a probe the review did not store) clears nothing,
+      and a blocker that blocked on located evidence alone (a `gaming` finding, a
+      LOCKED row's `violated` verdict) has nothing to re-run; the turn is clean when
+      every blocker cleared, blocked when one kept a measured failure, which re-raises
+      it (S-0127/D-4) and escalates `blocker_finding`, and otherwise goes to the critic's
+      re-review as S-0124/D-8 describes it
     paths: [src/torve/application/critic.py, src/torve/application/runner.py]
     consequence: >-
-      a session turn costs its own tokens and the re-runs' seconds, no critic call
-      and no reviewer spend, and nothing reads the turn's diff but the gates; a fresh
-      revision is new code and its review stays a full critic call
+      a session turn whose blockers all re-ran costs its own tokens and the re-runs'
+      seconds, no critic call and no reviewer spend, and nothing reads its diff but
+      the gates; a turn left with a blocker no re-run measured is read by the critic
+      as today, and a fresh revision is new code whose review stays a full critic
+      call
     rationale: >-
       the 8 critic re-reviews of session turns took 2,046 s, 0.19× of A0's whole wall
       time, and raised no blocker, and re-running the 14 blockers of those units'
@@ -108,3 +115,19 @@ decisions:
       body shows only the advisory findings of the review after it
     cites: [S-0127/D-13, S-0121/D-34]
     check: uv run pytest -q tests/test_forge.py -k cleared
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      A contract whose `covered()` holds more than one phase reads an unset `review.max_width`
+      as 1, so it runs one candidate; a configuration naming a cap still caps its
+      class's width, as for every other contract
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      a whole document is one candidate session by default, the shape the bed measured,
+      and a configuration that names a wider cap gets up to its class's three
+    rationale: >-
+      the library arms ran one candidate; a whole document is class L, three candidates,
+      and no bed run has yet shown three shortening its wall time (Q-2)
+    cites: [S-0122/D-7, S-0124/D-1]
+    check: >-
+      uv run pytest -q tests/test_runner.py -k "whole_contract and width"
