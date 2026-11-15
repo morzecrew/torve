@@ -362,7 +362,10 @@ decisions:
       — launches them with `TestsConfig.launcher(root)` of the checkout it runs in,
       the base's for a base run: the manifest's `tests.run` when it names one, re-rooted
       defaults naming none, else `uv run python -m pytest -q -p no:cacheprovider`
-      when that checkout holds `uv.lock`, else the `python3` default
+      when that checkout holds `uv.lock`, with `--group <name>` or else `--extra <name>`
+      after `uv run` when its `pyproject.toml` puts pytest in no default group and
+      not in the project's own dependencies but in that group or extra, else the `python3`
+      default
     paths:
       - src/torve/config/manifest.py
       - src/torve/gates/evidence_package.py
@@ -380,6 +383,7 @@ decisions:
     check: >-
       uv run pytest -q tests/test_manifest.py tests/test_evidence_package.py tests/test_suite.py
       -k 'uv_checkout or launcher_of_the_checkout'
+    fingerprint: 07dbc97414ab65f8/8451f65bd9e64031
   - id: D-17
     grade: ASSUMED
     text: >-

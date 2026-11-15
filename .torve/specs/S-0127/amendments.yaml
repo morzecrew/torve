@@ -341,3 +341,38 @@ amendments:
       non-zero exit: one of those probes first exited 1 on an `IndexError`, and one that built no
       mutant exits 1 whether its test is fixed or not. A weak test the critic only read stays
       advisory.
+  - id: A-11
+    at: '2026-11-15T11:53:38Z'
+    title: A uv run names the group that carries pytest
+    changes:
+      - subject: D-16
+        field: text
+        before: >-
+          A run of test files over a checkout — the evidence package's per-test runs
+          at the head and the base, the suite gate's reruns and the review leg's fallback
+          — launches them with `TestsConfig.launcher(root)` of the checkout it runs
+          in, the base's for a base run: the manifest's `tests.run` when it names
+          one, re-rooted defaults naming none, else `uv run python -m pytest -q -p
+          no:cacheprovider` when that checkout holds `uv.lock`, else the `python3`
+          default
+        after: >-
+          A run of test files over a checkout — the evidence package's per-test runs
+          at the head and the base, the suite gate's reruns and the review leg's fallback
+          — launches them with `TestsConfig.launcher(root)` of the checkout it runs
+          in, the base's for a base run: the manifest's `tests.run` when it names
+          one, re-rooted defaults naming none, else `uv run python -m pytest -q -p
+          no:cacheprovider` when that checkout holds `uv.lock`, with `--group <name>`
+          or else `--extra <name>` after `uv run` when its `pyproject.toml` puts pytest
+          in no default group and not in the project's own dependencies but in that
+          group or extra, else the `python3` default
+      - subject: D-16
+        field: fingerprint
+        after: 07dbc97414ab65f8/8451f65bd9e64031
+    md: |
+      Changes S-0127/D-16 after the library bed run. `uv run` installs only the project's default
+      dependency groups, `dev` unless `tool.uv.default-groups` says otherwise. A project that keeps
+      pytest in another group, as harlequin keeps it in `test`, therefore ran every per-test run
+      without pytest: both of hq's critics read `No module named pytest` in `tests-head.log` and
+      `tests-base.log`, and judged the rows from the acceptance logs instead. The launcher now adds
+      the group, or else the extra, that carries pytest, so the run uses the same environment the
+      phase's own acceptance commands name. A manifest's `tests.run` still wins.

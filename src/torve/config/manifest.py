@@ -4,6 +4,9 @@
 
 from __future__ import annotations
 
+import re
+import shlex
+import tomllib
 import warnings
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
@@ -236,6 +239,9 @@ DEFAULT_TEST_RUN = "python3 -m pytest -q -p no:cacheprovider"
 # `error` on both trees.
 UV_TEST_RUN = "uv run python -m pytest -q -p no:cacheprovider"
 
+# A requirement on pytest itself, not a plugin: `pytest>=9`, `pytest[x]`, `pytest; ...`.
+_PYTEST = re.compile(r"pytest\s*(?:[\[(<>=!~;@]|$)", re.IGNORECASE)
+
 # Module -> its tests, as path templates over `{dir}` (the module's directory)
 # and `{stem}` (its filename without extension) (S-0106/D-7). The default is the
 # Python pairing at any depth under `tests/`: `test_<stem>.py` and every
@@ -321,6 +327,60 @@ def read_layout(root: Path) -> LayoutConfig:
 # ....................... #
 
 
+def _pytest_flag(root: Path) -> str:
+    """The `uv run` flag that puts pytest in the environment of the project at
+    *root* (S-0127/D-16): none when its own dependencies or a default group
+    carry it, else `--group` for the first other group that does, else
+    `--extra` for the first extra that does. A pyproject that cannot be read
+    names none, and the run keeps the plain default."""
+
+    try:
+        data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return ""
+
+    project = data.get("project") or {}
+    uv = (data.get("tool") or {}).get("uv") or {}
+    groups: dict[str, list[object]] = dict(data.get("dependency-groups") or {})
+    # uv reads the legacy `tool.uv.dev-dependencies` as part of `dev`.
+    groups["dev"] = [*groups.get("dev", []), *uv.get("dev-dependencies", [])]
+    defaults = uv.get("default-groups", ["dev"])
+    defaults = list(groups) if defaults == "all" else defaults
+
+    def carries(entries: object, seen: frozenset[str] = frozenset()) -> bool:
+        for entry in entries if isinstance(entries, list) else []:
+            if isinstance(entry, str) and _PYTEST.match(entry.strip()):
+                return True
+
+            included = entry.get("include-group") if isinstance(entry, dict) else None
+
+            if (
+                included in groups
+                and included not in seen
+                and carries(groups[included], seen | {included})
+            ):
+                return True
+
+        return False
+
+    if carries(project.get("dependencies")) or any(carries(groups.get(g)) for g in defaults):
+        return ""
+
+    for name, entries in groups.items():
+        if carries(entries, frozenset({name})):
+            return f"--group {shlex.quote(name)}"
+
+    for name, entries in (project.get("optional-dependencies") or {}).items():
+        if carries(entries):
+            return f"--extra {shlex.quote(name)}"
+
+    return ""
+
+
+# ....................... #
+
+
 class TestsConfig(BaseModel):
     """Which files count as tests, how a module pairs with them, and how they
     run (S-0106/D-7)."""
@@ -361,12 +421,15 @@ class TestsConfig(BaseModel):
     def launcher(self, root: Path) -> str:
         """The launcher a run over the checkout at *root* appends test files
         to (S-0127/D-16): `run` when the manifest names one, else pytest
-        through `uv run` when *root* holds `uv.lock`, else the default."""
+        through `uv run` when *root* holds `uv.lock` — with the group or extra
+        that carries pytest when no default one does — else the default."""
 
         if "run" in self.model_fields_set or not (root / "uv.lock").is_file():
             return self.run
 
-        return UV_TEST_RUN
+        flag = _pytest_flag(root)
+
+        return UV_TEST_RUN.replace("uv run", f"uv run {flag}", 1) if flag else UV_TEST_RUN
 
     # ....................... #
 
