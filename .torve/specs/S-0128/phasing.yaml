@@ -1,0 +1,97 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+after: [S-0127]
+unit: phase
+phasing:
+  - phase: 1
+    title: Eight phases are one unit
+    intent: >-
+      `torve.domain.spec.WHOLE_UNTIL` becomes 8, so `Document.whole()` is true for
+      a document whose phasing sets no `unit` and has eight phases or fewer; `unit:
+      phase`, `unit: document` and the planner's `--phase` and `--refresh` behave
+      as before. In `tests/test_plan.py`, `test_a_larger_document_mints_per_phase_unless_it_says_document`
+      moves its unset case from four phases to nine and gains an eight-phase case
+      that mints one contract covering every phase; the refresh tests keep a per-phase
+      document per phase.
+    scope: [src/torve/domain/spec.py, tests/test_plan.py]
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_plan.py tests/test_spec.py tests/test_lane.py
+      - uv run mypy src
+    delivers: [D-1]
+  - phase: 2
+    title: A session turn judged by its blockers' re-runs
+    intent: >-
+      `ReviewConfig.revision` defaults to `None` and `ReviewConfig.resolved_revision()`
+      returns what a configuration names, else `session` under `mode: critic` and
+      `off` under `classic`; `resolved_blocker_revisions()` gives one round under
+      `off` and `session`, two under `fresh` in critic mode, one in classic. `session.py`'s
+      revision seat and session check and `runner.py`'s `continue_index` read the
+      resolved value. `critic.recheck(verdict, reproduce, root)` re-runs each finding
+      blocker of the verdict — `_repro_command`, `_probe_names` over the probes the
+      review stored, `_rerun_once` — and returns the verdict with the same review
+      id and kept findings and each re-run beside its blocker, plus whether every
+      blocker was measured. A re-run that executes clears a `weak_test` at any exit
+      but `WRONG_PASSES` and any other kind at exit 0; one with no exit, 126 or 127,
+      or a probe the review did not store, clears nothing; a `gaming` blocker and
+      a LOCKED row's `violated` verdict are never re-run. `blockers` keeps every finding
+      not cleared, a measured failure marked re-raised. The session loop in `runner.py`
+      calls it after a green turn and calls `review(member)` only when a blocker was
+      left unmeasured and none kept a measured failure: a turn the recheck decided
+      counts no critic call, the unit record's `selection.Revision` gains `by` (`rerun`
+      for a turn the recheck decided, `critic` for one the critic read), and `run.preselected_review`
+      is the rechecked verdict, so `review_step` escalates `blocker_finding` on a
+      surviving blocker as it does today. `ReviewItem` gains `blocked_exit: int |
+      None = None`, and `_width` reads an unset `max_width` as 1 for a contract covering
+      more than one phase. `review_step` writes `blocked_exit`, with the re-run exit
+      as `rerun_exit`, for each item of a rechecked verdict that was a blocker. Tests:
+      `tests/test_runconfig.py` (`resolved_revision` for each mode and number), `tests/test_critic.py`
+      (a Hypothesis property: a blocker clears exactly when its re-run executed and
+      exited 0, or anything but 42 for a `weak_test`; 126, 127, an unrun repro, a
+      missing probe, a `gaming` blocker and a LOCKED row's breach never clear and
+      leave the turn unmeasured), the `test_session_revision_*` tests in `tests/test_runner.py`
+      rewritten for a recheck with no second critic call and for the fallback to it,
+      a whole contract's width, and `tests/test_review_run.py` for `blocked_exit`
+      on the recorded items.
+    scope:
+      - src/torve/config/runconfig.py
+      - src/torve/application/session.py
+      - src/torve/application/runner.py
+      - src/torve/application/critic.py
+      - src/torve/application/review.py
+      - src/torve/application/selection.py
+      - src/torve/domain/events.py
+      - tests/test_runconfig.py
+      - tests/test_session.py
+      - tests/test_runner.py
+      - tests/test_critic.py
+      - tests/test_review_run.py
+      - tests/test_selection.py
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_runconfig.py tests/test_session.py tests/test_runner.py
+        tests/test_critic.py tests/test_review_run.py tests/test_selection.py tests/test_events.py
+        tests/test_feedback.py tests/test_run_loop.py
+      - uv run mypy src
+    delivers: [D-2, D-3, D-4, D-6]
+  - phase: 3
+    title: >-
+      The blockers a revision cleared, in the pull request
+    intent: >-
+      `forge.compose_document_pr` lists, under each landing, the items of its last
+      task-gated review that carry a `blocked_exit`, under the heading "Blockers the
+      revision cleared", one line each: severity · kind · anchor · re-run `<command>`
+      exit `<before>` → `<after>`; the advisory list keeps every other item and its
+      own line. `cli/merge.py`'s `_document_pr_text` hands the items as it does today.
+      Test: `tests/test_forge.py` checks a cleared blocker under its heading with
+      both exits, an advisory item unchanged, and a body with none of either unchanged.
+    scope:
+      - src/torve/application/forge.py
+      - src/torve/cli/merge.py
+      - tests/test_forge.py
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_forge.py tests/test_lane.py tests/test_cli.py
+      - uv run mypy src
+    depends_on:
+      - 2
+    delivers: [D-5]

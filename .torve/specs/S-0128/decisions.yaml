@@ -1,0 +1,133 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      A document whose phasing sets no `unit` mints one contract for the whole document
+      when it has eight phases or fewer (`WHOLE_UNTIL = 8`) and one per phase above
+      that; `unit: phase` and `unit: document` keep their meaning, and `--refresh`
+      keeps the shape a document was minted in
+    paths: [src/torve/domain/spec.py]
+    consequence: >-
+      a document of four to eight phases runs as one session with one critic review
+      and one landing, where it ran as a chain of up to eight units, each on the critical
+      path
+    rationale: >-
+      on the eval bed one session per document passed 13 of 13, the 6- and 8-phase
+      composites included (677 s against 940 s for ps-pair's parts, 302 s against
+      488 s for synth-pair's), while the per-unit engine spent 473 minutes where per-unit
+      sessions without it spent 286
+    cites: [S-0122/D-13]
+    check: >-
+      uv run pytest -q tests/test_plan.py -k "larger_document_mints_per_phase or small_document_mints_one"
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      `review.revision` defaults to none and every reader reads `ReviewConfig.resolved_revision()`:
+      what a configuration names, else `session` under `review.mode: critic` and `off`
+      under `classic`; `review.blocker_revisions` left unset resolves to one round
+      under `off` and `session`, two under `fresh` in critic mode, and one in classic
+      mode
+    paths:
+      - src/torve/config/runconfig.py
+      - src/torve/application/session.py
+      - src/torve/application/runner.py
+    consequence: >-
+      a critic-mode configuration that names no revision continues a blocked candidate
+      in its own session for one round, on its own tier; a seat whose harness keeps
+      no session falls back to `fresh` as S-0124/D-8 says, which on a seat naming
+      no `revision_variant` is the fresh attempt `off` runs
+    rationale: >-
+      on the bed the in-session revision cleared 8 of 8 blocks in one round, in 1,258
+      s against 3,240 s for fresh retries, and its arm passed 12 of 13 against 11
+      of 13
+    cites: [S-0127/D-5, S-0124/D-2, S-0124/D-8, S-0122/D-9]
+    check: >-
+      uv run pytest -q tests/test_runconfig.py -k resolved_revision
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      After a session revision turn whose gates are green, the engine judges the turn
+      by `critic.recheck` before any second critic call: each finding blocker of the
+      verdict the turn was handed is re-run, its `repro.command` with the probes that
+      review stored, through `runner.reproduce` against the revised candidate as S-0127/D-1
+      and S-0127/D-10 say; a re-run that executes clears a `weak_test` at any exit
+      but 42 and any other kind at exit 0, and keeps it otherwise; a re-run that does
+      not execute (no exit, 126, 127, a probe the review did not store) clears nothing,
+      and a blocker that blocked on located evidence alone (a `gaming` finding, a
+      LOCKED row's `violated` verdict) has nothing to re-run; the turn is clean when
+      every blocker cleared, blocked when one kept a measured failure, which re-raises
+      it (S-0127/D-4) and escalates `blocker_finding`, and otherwise goes to the critic's
+      re-review as S-0124/D-8 describes it
+    paths: [src/torve/application/critic.py, src/torve/application/runner.py]
+    consequence: >-
+      a session turn whose blockers all re-ran costs its own tokens and the re-runs'
+      seconds, no critic call and no reviewer spend, and nothing reads its diff but
+      the gates; a turn left with a blocker no re-run measured is read by the critic
+      as today, and a fresh revision is new code whose review stays a full critic
+      call
+    rationale: >-
+      the 8 critic re-reviews of session turns took 2,046 s, 0.19× of A0's whole wall
+      time, and raised no blocker, and re-running the 14 blockers of those units'
+      first reviews on the revised trees cleared all 14, matching every re-review's
+      verdict
+    cites: [S-0127/D-1, S-0127/D-2, S-0127/D-4, S-0127/D-10, S-0124/D-8]
+    check: >-
+      uv run pytest -q tests/test_critic.py tests/test_runner.py -k "recheck or session_revision"
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      `ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that made
+      the finding block; after a session turn `review_step` emits `review.recorded`
+      for the rechecked verdict, each blocker an item with `blocked_exit` and the
+      turn's re-run exit as `rerun_exit`, and the `unit.closed` record's `revision`
+      block gains `by`, `rerun` for a rechecked turn and `critic` for a reviewed one
+    paths:
+      - src/torve/domain/events.py
+      - src/torve/application/review.py
+      - src/torve/application/selection.py
+    consequence: >-
+      the blocking review reaches the board, as the review a revision re-measured,
+      and an item or a record written before these fields reads as one with no blocker
+      cleared and no `by`
+    rationale: >-
+      today the first review of a revised unit never leaves the host that ran it,
+      so the 14 blockers the bed's revisions fixed are on no board a merging person
+      or another host can read
+    cites: [S-0127/D-14, S-0124/D-9]
+    check: >-
+      uv run pytest -q tests/test_review_run.py tests/test_selection.py -k "blocked_exit
+      or rerun"
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The document's pull-request body lists, under each landing, every item of its
+      last task-gated review that carries a `blocked_exit`, under a heading that names
+      them the blockers a revision cleared, by severity, kind, anchor and the re-run's
+      command with its exit before and after; every other item stays in the advisory
+      list S-0127/D-13 describes, and no claim or evidence text is listed
+    paths: [src/torve/application/forge.py, src/torve/cli/merge.py]
+    consequence: >-
+      a person merging sees what the critic blocked, that the engine measured it fixed,
+      and by which command, read from records alone as S-0121/D-34 requires
+    rationale: >-
+      a blocker fixed in place is the verdict the library form sells, and today the
+      body shows only the advisory findings of the review after it
+    cites: [S-0127/D-13, S-0121/D-34]
+    check: uv run pytest -q tests/test_forge.py -k cleared
+  - id: D-6
+    grade: ASSUMED
+    text: >-
+      A contract whose `covered()` holds more than one phase reads an unset `review.max_width`
+      as 1, so it runs one candidate; a configuration naming a cap still caps its
+      class's width, as for every other contract
+    paths: [src/torve/application/runner.py]
+    consequence: >-
+      a whole document is one candidate session by default, the shape the bed measured,
+      and a configuration that names a wider cap gets up to its class's three
+    rationale: >-
+      the library arms ran one candidate; a whole document is class L, three candidates,
+      and no bed run has yet shown three shortening its wall time (Q-2)
+    cites: [S-0122/D-7, S-0124/D-1]
+    check: >-
+      uv run pytest -q tests/test_runner.py -k "whole_contract and width"
