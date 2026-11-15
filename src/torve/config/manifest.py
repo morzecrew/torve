@@ -4,6 +4,9 @@
 
 from __future__ import annotations
 
+import re
+import shlex
+import tomllib
 import warnings
 from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
@@ -236,6 +239,9 @@ DEFAULT_TEST_RUN = "python3 -m pytest -q -p no:cacheprovider"
 # `error` on both trees.
 UV_TEST_RUN = "uv run python -m pytest -q -p no:cacheprovider"
 
+# A requirement on pytest itself, not a plugin: `pytest>=9`, `pytest[x]`, `pytest; ...`.
+_PYTEST = re.compile(r"pytest\s*(?:[\[(<>=!~;@]|$)", re.IGNORECASE)
+
 # Module -> its tests, as path templates over `{dir}` (the module's directory)
 # and `{stem}` (its filename without extension) (S-0106/D-7). The default is the
 # Python pairing at any depth under `tests/`: `test_<stem>.py` and every
@@ -321,6 +327,72 @@ def read_layout(root: Path) -> LayoutConfig:
 # ....................... #
 
 
+def _pytest_flag(root: Path) -> str:
+    """The `uv run` flag that puts pytest in the environment of the project at
+    *root* (S-0127/D-16): none when its own dependencies or a default group
+    carry it, else `--group` for the first other group that does, else
+    `--extra` for the first extra that does. A pyproject that cannot be read,
+    or holds a value of the wrong type where one is read, names none for that
+    value, and the run keeps the plain default."""
+
+    try:
+        data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return ""
+
+    def table(value: object) -> dict[str, object]:
+        return value if isinstance(value, dict) else {}
+
+    def listed(value: object) -> list[object]:
+        return value if isinstance(value, list) else []
+
+    project = table(data.get("project"))
+    uv = table(table(data.get("tool")).get("uv"))
+    groups = {
+        name: listed(entries) for name, entries in table(data.get("dependency-groups")).items()
+    }
+    # uv reads the legacy `tool.uv.dev-dependencies` as part of `dev`.
+    groups["dev"] = [*groups.get("dev", []), *listed(uv.get("dev-dependencies"))]
+    defaults = uv.get("default-groups", ["dev"])
+    defaults = list(groups) if defaults == "all" else listed(defaults)
+
+    def carries(entries: list[object], seen: frozenset[str] = frozenset()) -> bool:
+        for entry in entries:
+            if isinstance(entry, str) and _PYTEST.match(entry.strip()):
+                return True
+
+            included = table(entry).get("include-group")
+
+            if (
+                isinstance(included, str)
+                and included in groups
+                and included not in seen
+                and carries(groups[included], seen | {included})
+            ):
+                return True
+
+        return False
+
+    if carries(listed(project.get("dependencies"))) or any(
+        carries(groups[g]) for g in defaults if isinstance(g, str) and g in groups
+    ):
+        return ""
+
+    for name, entries in groups.items():
+        if carries(entries, frozenset({name})):
+            return f"--group {shlex.quote(name)}"
+
+    for name, extra in table(project.get("optional-dependencies")).items():
+        if carries(listed(extra)):
+            return f"--extra {shlex.quote(name)}"
+
+    return ""
+
+
+# ....................... #
+
+
 class TestsConfig(BaseModel):
     """Which files count as tests, how a module pairs with them, and how they
     run (S-0106/D-7)."""
@@ -361,12 +433,15 @@ class TestsConfig(BaseModel):
     def launcher(self, root: Path) -> str:
         """The launcher a run over the checkout at *root* appends test files
         to (S-0127/D-16): `run` when the manifest names one, else pytest
-        through `uv run` when *root* holds `uv.lock`, else the default."""
+        through `uv run` when *root* holds `uv.lock` — with the group or extra
+        that carries pytest when no default one does — else the default."""
 
         if "run" in self.model_fields_set or not (root / "uv.lock").is_file():
             return self.run
 
-        return UV_TEST_RUN
+        flag = _pytest_flag(root)
+
+        return UV_TEST_RUN.replace("uv run", f"uv run {flag}", 1) if flag else UV_TEST_RUN
 
     # ....................... #
 

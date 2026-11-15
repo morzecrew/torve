@@ -93,6 +93,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tests through `uv run`. It used the image's bare `python3`, which has none of the project's
   packages, so the evidence the critic reads showed every test erroring.
 
+- When a uv project keeps pytest outside its default dependency groups, for example in a `test`
+  group or an extra, the engine's own test runs now name that group or extra. `uv run` alone
+  installed no pytest, so every test the critic's evidence listed read as never run.
+
 - The critic is now told that a re-run has no `.venv`, so it writes repro commands that start
   through the project's tools. A repro that started `.venv/bin/python` exited 127 on re-run and
   could never block.

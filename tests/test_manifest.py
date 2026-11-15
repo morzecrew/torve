@@ -532,6 +532,49 @@ def test_a_uv_checkout_launches_its_tests_through_uv_unless_the_manifest_names_a
     assert rooted.tests.launcher(uv) == UV_TEST_RUN
 
 
+@pytest.mark.parametrize(
+    ("pyproject", "flag"),
+    [
+        ('[dependency-groups]\ndev = ["pytest>=9"]\n', ""),
+        ('[project]\nname = "p"\ndependencies = ["pytest"]\n', ""),
+        ('[tool.uv]\ndev-dependencies = ["pytest"]\n', ""),
+        ('[dependency-groups]\ntest = ["pytest>=9.1,<9.2", "flaky"]\n', "--group test"),
+        ('[dependency-groups]\ndev = ["pytest-asyncio"]\ntest = ["pytest"]\n', "--group test"),
+        (
+            '[dependency-groups]\ntest = [{include-group = "base"}]\nbase = ["pytest"]\n',
+            "--group test",
+        ),
+        ('[dependency-groups]\ntest = ["pytest"]\n[tool.uv]\ndefault-groups = ["test"]\n', ""),
+        ('[dependency-groups]\ntest = ["pytest"]\n[tool.uv]\ndefault-groups = "all"\n', ""),
+        (
+            '[project]\nname = "p"\n[project.optional-dependencies]\ntesting = ["pytest[x]"]\n',
+            "--extra testing",
+        ),
+        ('[dependency-groups]\ndev = ["pytest-cov"]\n', ""),
+        ("[dependency-groups\n", ""),
+        # Values of the wrong type are read as absent, never raised on.
+        ('project = "p"\ndependency-groups = "g"\ntool = 1\n', ""),
+        ('[dependency-groups]\ndev = 3\ntest = ["pytest"]\n', "--group test"),
+        ('[tool.uv]\ndev-dependencies = "pytest"\ndefault-groups = [["dev"], 1]\n', ""),
+        ('[dependency-groups]\ntest = [{include-group = ["base"]}]\nbase = 1\n', ""),
+        ('[project]\nname = "p"\ndependencies = "pytest"\noptional-dependencies = 1\n', ""),
+    ],
+)
+def test_a_uv_checkout_names_the_group_or_extra_that_carries_pytest(tmp_path, pyproject, flag):
+    """S-0127/D-16: `uv run` installs only the default groups, so a project
+    whose pytest sits in another group or an extra gets that group or extra
+    named; a pytest plugin is not pytest, and a pyproject that does not parse,
+    or holds a wrong-typed value, keeps the plain default for it."""
+    from torve.config.manifest import UV_TEST_RUN
+
+    (tmp_path / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+    (tmp_path / "pyproject.toml").write_text(pyproject, encoding="utf-8")
+    tests = load_manifest(write_manifest(tmp_path, BASE_MANIFEST)).tests
+
+    expected = UV_TEST_RUN.replace("uv run", f"uv run {flag}", 1) if flag else UV_TEST_RUN
+    assert tests.launcher(tmp_path) == expected
+
+
 def test_the_pairing_refuses_a_module_the_templates_do_not_name():
     """S-0106/D-7 with the defaults: a template names a test source's suffix,
     so a module the templates do not name pairs with nothing — a schema or a

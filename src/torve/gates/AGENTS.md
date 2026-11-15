@@ -89,7 +89,7 @@ Evals and arms, shadow arms, fleet, standing work, notify, the opensandbox runti
 
 ### S-0127/D-16 — `ASSUMED` (A verdict comes from what ran)
 
-A run of test files over a checkout — the evidence package's per-test runs at the head and the base, the suite gate's reruns and the review leg's fallback — launches them with `TestsConfig.launcher(root)` of the checkout it runs in, the base's for a base run: the manifest's `tests.run` when it names one, re-rooted defaults naming none, else `uv run python -m pytest -q -p no:cacheprovider` when that checkout holds `uv.lock`, else the `python3` default
+A run of test files over a checkout — the evidence package's per-test runs at the head and the base, the suite gate's reruns and the review leg's fallback — launches them with `TestsConfig.launcher(root)` of the checkout it runs in, the base's for a base run: the manifest's `tests.run` when it names one, re-rooted defaults naming none, else `uv run python -m pytest -q -p no:cacheprovider` when that checkout holds `uv.lock`, with `--group <name>` or else `--extra <name>` after `uv run` when its `pyproject.toml` puts pytest in no default group and not in the project's own dependencies but in that group or extra, else the `python3` default
 
 - Paths: `src/torve/config/manifest.py` `src/torve/gates/evidence_package.py` `src/torve/gates/suite.py` `src/torve/application/reviewleg.py`
 - Consequence: a uv project's tests run in its own environment whichever copy of the manifest judged the attempt, the merge base's included
