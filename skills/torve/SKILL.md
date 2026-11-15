@@ -81,7 +81,7 @@ name in the store, for example `org/repo`.
 ## Habits that prevent most repairs
 
 - Size a phase by component: the modules that change together, with the
-  callers their acceptance can turn red. A document of three phases or fewer
+  callers their acceptance can turn red. A document of eight phases or fewer
   mints as one contract unless its phasing says `unit: phase`.
 - A phase owns every file its acceptance can turn red — the tests that
   enumerate artifacts, generated snapshots, docs pages a test compares

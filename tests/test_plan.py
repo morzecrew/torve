@@ -1267,14 +1267,23 @@ def test_a_small_document_mints_one_contract_for_every_phase(plan_repo):
     assert "Phase 2, wire-together: Wire core and frobnicator together." in task.intent
 
 
-@pytest.mark.parametrize(("unit", "contracts"), [(None, 4), ("document", 1)])
-def test_a_larger_document_mints_per_phase_unless_it_says_document(plan_repo, unit, contracts):
+@pytest.mark.parametrize(
+    ("phases", "unit", "contracts"),
+    [(9, None, 9), (9, "document", 1), (8, None, 1), (4, "phase", 4)],
+)
+def test_a_larger_document_mints_per_phase_unless_it_says_document(
+    plan_repo, phases, unit, contracts
+):
+    """Eight phases or fewer fold into one contract unless the phasing says
+    `unit: phase`; past eight, one per phase unless it says `document`
+    (S-0128/D-1)."""
+
     root, write_doc, git = plan_repo
-    four = [
+    entries = [
         {"phase": n, "title": f"p{n}", "intent": f"Phase {n}.", "scope": [f"src/p{n}.py"]}
-        for n in range(1, 5)
+        for n in range(1, phases + 1)
     ]
-    write_doc("0091", "Larger", rows=[], phasing=four, unit=unit)
+    write_doc("0091", "Larger", rows=[], phasing=entries, unit=unit)
     git("add", "-A")
     git("commit", "-qm", "larger")
 
@@ -1341,7 +1350,7 @@ def test_a_refresh_keeps_the_shape_a_document_was_minted_in(plan_repo):
 
 def test_a_refresh_keeps_a_whole_contract_whole_and_covers_an_added_phase(plan_repo):
     """A whole-document contract stays whole when its document grows past
-    three phases, and the refresh rewrites the phases it covers."""
+    eight phases, and the refresh rewrites the phases it covers."""
 
     from torve.application.planner import refresh_document
 
@@ -1352,8 +1361,10 @@ def test_a_refresh_keeps_a_whole_contract_whole_and_covers_an_added_phase(plan_r
     write_contracts(root, plan_document(root, root / ".torve" / "specs", "0091"))
     grown = [
         *PHASING,
-        {"phase": 3, "title": "p3", "intent": "Phase 3.", "scope": ["src/p3.py"]},
-        {"phase": 4, "title": "p4", "intent": "Phase 4.", "scope": ["src/p4.py"]},
+        *(
+            {"phase": n, "title": f"p{n}", "intent": f"Phase {n}.", "scope": [f"src/p{n}.py"]}
+            for n in range(3, 10)
+        ),
     ]
     write_doc("0091", "Small", rows=[], phasing=grown, unit=None)
     git("add", "-A")
@@ -1363,8 +1374,8 @@ def test_a_refresh_keeps_a_whole_contract_whole_and_covers_an_added_phase(plan_r
 
     assert "phases" in refreshed.changed and "scope" in refreshed.changed
     assert refreshed.task is not None
-    assert refreshed.task.phases == [1, 2, 3, 4]
-    assert {"src/app.py", "src/p3.py", "src/p4.py"} <= set(refreshed.task.scope.files)
+    assert refreshed.task.phases == list(range(1, 10))
+    assert {"src/app.py", "src/p3.py", "src/p9.py"} <= set(refreshed.task.scope.files)
 
 
 def test_a_phase_minted_on_its_own_stays_beside_the_whole_contract(plan_repo):
