@@ -1699,6 +1699,8 @@ def record_threads(
     one round, and never a round again (S-0103/D-2). The round that lists it in
     `round.findings` answers it once it lands, or a person resolves it — read
     from the round's own contract, so a leg on any host reads the same answer.
+    Nor is a blocker a session revision's re-run measured fixed, an item
+    carrying `blocked_exit` in a review that blocked nothing (S-0128/D-4).
     """
 
     from torve.application.lane import document_tasks
@@ -1746,7 +1748,7 @@ def record_threads(
         for index, finding in enumerate(row.get("findings") or []):
             ident = f"{RECORD}{review}:{index}"
 
-            if ident in answered:
+            if ident in answered or finding.get("blocked_exit") is not None:
                 continue
 
             evidence = str(finding.get("evidence") or "")

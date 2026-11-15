@@ -2280,6 +2280,37 @@ def test_a_review_of_a_round_the_leg_minted_opens_no_further_round(seeded):
     ) == ([], {})
 
 
+def test_a_blocker_a_revision_s_re_run_cleared_raises_no_thread(seeded):
+    """S-0128/D-4: a review a session revision re-measured records the
+    blocker it cleared with `blocked_exit`; the leg raises no thread for it,
+    since the engine measured it fixed, and still raises the rest."""
+
+    open_document(seeded.root)
+    rows = [
+        {
+            "kind": "review",
+            "at": "2026-11-15T10:00:00Z",
+            "task_id": "T-0901",
+            "target": "T-0900",
+            "trigger": "task_gated",
+            "findings": [
+                {
+                    "severity": "major",
+                    "claim": "the value is never checked",
+                    "evidence": "src/app.py:12 — the caller passes None",
+                    "blocked_exit": 1,
+                    "rerun_exit": 0,
+                },
+                {"severity": "minor", "claim": "a name", "evidence": "src/app.py:12 — the name"},
+            ],
+        }
+    ]
+
+    threads, _files = record_threads(seeded.root, BRANCH, rows, landings_of(seeded.root))
+
+    assert [one.id for one in threads] == ["record:T-0901:1"]
+
+
 def events_all(root: Path) -> list[dict[str, Any]]:
     from torve.application.streams import stream_rows
 
