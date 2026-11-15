@@ -552,13 +552,19 @@ def test_a_uv_checkout_launches_its_tests_through_uv_unless_the_manifest_names_a
         ),
         ('[dependency-groups]\ndev = ["pytest-cov"]\n', ""),
         ("[dependency-groups\n", ""),
+        # Values of the wrong type are read as absent, never raised on.
+        ('project = "p"\ndependency-groups = "g"\ntool = 1\n', ""),
+        ('[dependency-groups]\ndev = 3\ntest = ["pytest"]\n', "--group test"),
+        ('[tool.uv]\ndev-dependencies = "pytest"\ndefault-groups = [["dev"], 1]\n', ""),
+        ('[dependency-groups]\ntest = [{include-group = ["base"]}]\nbase = 1\n', ""),
+        ('[project]\nname = "p"\ndependencies = "pytest"\noptional-dependencies = 1\n', ""),
     ],
 )
 def test_a_uv_checkout_names_the_group_or_extra_that_carries_pytest(tmp_path, pyproject, flag):
     """S-0127/D-16: `uv run` installs only the default groups, so a project
     whose pytest sits in another group or an extra gets that group or extra
-    named; a pytest plugin is not pytest, and a pyproject that does not parse
-    keeps the plain default."""
+    named; a pytest plugin is not pytest, and a pyproject that does not parse,
+    or holds a wrong-typed value, keeps the plain default for it."""
     from torve.config.manifest import UV_TEST_RUN
 
     (tmp_path / "uv.lock").write_text("version = 1\n", encoding="utf-8")

@@ -331,8 +331,9 @@ def _pytest_flag(root: Path) -> str:
     """The `uv run` flag that puts pytest in the environment of the project at
     *root* (S-0127/D-16): none when its own dependencies or a default group
     carry it, else `--group` for the first other group that does, else
-    `--extra` for the first extra that does. A pyproject that cannot be read
-    names none, and the run keeps the plain default."""
+    `--extra` for the first extra that does. A pyproject that cannot be read,
+    or holds a value of the wrong type where one is read, names none for that
+    value, and the run keeps the plain default."""
 
     try:
         data = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
@@ -340,23 +341,32 @@ def _pytest_flag(root: Path) -> str:
     except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
         return ""
 
-    project = data.get("project") or {}
-    uv = (data.get("tool") or {}).get("uv") or {}
-    groups: dict[str, list[object]] = dict(data.get("dependency-groups") or {})
-    # uv reads the legacy `tool.uv.dev-dependencies` as part of `dev`.
-    groups["dev"] = [*groups.get("dev", []), *uv.get("dev-dependencies", [])]
-    defaults = uv.get("default-groups", ["dev"])
-    defaults = list(groups) if defaults == "all" else defaults
+    def table(value: object) -> dict[str, object]:
+        return value if isinstance(value, dict) else {}
 
-    def carries(entries: object, seen: frozenset[str] = frozenset()) -> bool:
-        for entry in entries if isinstance(entries, list) else []:
+    def listed(value: object) -> list[object]:
+        return value if isinstance(value, list) else []
+
+    project = table(data.get("project"))
+    uv = table(table(data.get("tool")).get("uv"))
+    groups = {
+        name: listed(entries) for name, entries in table(data.get("dependency-groups")).items()
+    }
+    # uv reads the legacy `tool.uv.dev-dependencies` as part of `dev`.
+    groups["dev"] = [*groups.get("dev", []), *listed(uv.get("dev-dependencies"))]
+    defaults = uv.get("default-groups", ["dev"])
+    defaults = list(groups) if defaults == "all" else listed(defaults)
+
+    def carries(entries: list[object], seen: frozenset[str] = frozenset()) -> bool:
+        for entry in entries:
             if isinstance(entry, str) and _PYTEST.match(entry.strip()):
                 return True
 
-            included = entry.get("include-group") if isinstance(entry, dict) else None
+            included = table(entry).get("include-group")
 
             if (
-                included in groups
+                isinstance(included, str)
+                and included in groups
                 and included not in seen
                 and carries(groups[included], seen | {included})
             ):
@@ -364,15 +374,17 @@ def _pytest_flag(root: Path) -> str:
 
         return False
 
-    if carries(project.get("dependencies")) or any(carries(groups.get(g)) for g in defaults):
+    if carries(listed(project.get("dependencies"))) or any(
+        carries(groups[g]) for g in defaults if isinstance(g, str) and g in groups
+    ):
         return ""
 
     for name, entries in groups.items():
         if carries(entries, frozenset({name})):
             return f"--group {shlex.quote(name)}"
 
-    for name, entries in (project.get("optional-dependencies") or {}).items():
-        if carries(entries):
+    for name, extra in table(project.get("optional-dependencies")).items():
+        if carries(listed(extra)):
             return f"--extra {shlex.quote(name)}"
 
     return ""
