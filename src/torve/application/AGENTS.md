@@ -640,9 +640,9 @@ After a session revision turn whose gates are green, the engine judges the turn 
 
 ### S-0128/D-4 — `ASSUMED` (One session per document)
 
-`ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that made the finding block; after a session turn `review_step` emits `review.recorded` for the rechecked verdict, each blocker an item with `blocked_exit` and the turn's re-run exit as `rerun_exit`, and the `unit.closed` record's `revision` block gains `by`, `rerun` for a rechecked turn and `critic` for a reviewed one
+`ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that made the finding block; after a session turn `review_step` emits `review.recorded` for the rechecked verdict, each re-run blocker an item with the turn's re-run exit as `rerun_exit` and each one that re-run cleared with `blocked_exit` too, and the `unit.closed` record's `revision` block gains `by`, `rerun` for a rechecked turn and `critic` for a reviewed one
 
-- Paths: `src/torve/domain/events.py` `src/torve/application/review.py` `src/torve/application/selection.py`
+- Paths: `src/torve/domain/events.py` `src/torve/application/review.py` `src/torve/application/selection.py` `src/torve/application/critic.py`
 - Consequence: the blocking review reaches the board, as the review a revision re-measured, and an item or a record written before these fields reads as one with no blocker cleared and no `by`
 - Check: `uv run pytest -q tests/test_review_run.py tests/test_selection.py -k "blocked_exit or rerun"` (shadow; runs as `decision:S-0128/D-4`)
 

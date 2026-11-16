@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-11-16T01:35:41Z'
+    title: A fold runs on one seat
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          A document whose phasing sets no `unit` mints one contract for the whole
+          document when it has eight phases or fewer (`WHOLE_UNTIL = 8`) and one per
+          phase above that; `unit: phase` and `unit: document` keep their meaning,
+          and `--refresh` keeps the shape a document was minted in
+        after: >-
+          A document whose phasing sets no `unit` mints one contract for the whole
+          document when it has eight phases or fewer (`WHOLE_UNTIL = 8`) and no two
+          of its phases name different `tier_variant`s or `character`s, and one per
+          phase otherwise; `unit: phase` and `unit: document` keep their meaning,
+          and `--refresh` keeps the shape a document was minted in
+      - subject: D-1
+        field: fingerprint
+        after: 1d635c6c62ad0508/4da6bd99cb87b7ed
+    md: |
+      Amended on 2026-11-16 after the review of the pull request that built S-0128.
+      A contract runs on one seat, and the fold kept each setting's first value, so a later phase that named another tier or character ran on the first one's seat. With the line at eight phases a document is likelier to mix them, so a document whose phases disagree now mints per phase. `unit: document` still folds it and keeps the first value named.
+  - id: A-2
+    at: '2026-11-16T01:35:47Z'
+    title: Only a cleared blocker carries `blocked_exit`
+    changes:
+      - subject: D-4
+        field: paths
+        before:
+          - src/torve/domain/events.py
+          - src/torve/application/review.py
+          - src/torve/application/selection.py
+        after:
+          - src/torve/domain/events.py
+          - src/torve/application/review.py
+          - src/torve/application/selection.py
+          - src/torve/application/critic.py
+      - subject: D-4
+        field: text
+        before: >-
+          `ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that
+          made the finding block; after a session turn `review_step` emits `review.recorded`
+          for the rechecked verdict, each blocker an item with `blocked_exit` and
+          the turn's re-run exit as `rerun_exit`, and the `unit.closed` record's `revision`
+          block gains `by`, `rerun` for a rechecked turn and `critic` for a reviewed
+          one
+        after: >-
+          `ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that
+          made the finding block; after a session turn `review_step` emits `review.recorded`
+          for the rechecked verdict, each re-run blocker an item with the turn's re-run
+          exit as `rerun_exit` and each one that re-run cleared with `blocked_exit`
+          too, and the `unit.closed` record's `revision` block gains `by`, `rerun`
+          for a rechecked turn and `critic` for a reviewed one
+      - subject: D-4
+        field: fingerprint
+        after: 27ae840676b492b3/cd1e79605dce3a11
+    md: |
+      Amended on 2026-11-16 after the review of the pull request that built S-0128.
+      D-5 lists an item carrying `blocked_exit` as a blocker the revision cleared, and the thread leg raises no thread for one. `critic.recheck` gave it to every re-run blocker, so a blocker still failing after the turn would have been listed as cleared and raised no thread. It now goes only to a blocker the re-run cleared, so both readers stay right. The row names `critic.py`, where `recheck` sets it.

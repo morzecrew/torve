@@ -672,12 +672,19 @@ class Document(Item):
         return routing_line(self.summary)
 
     def whole(self) -> bool:
-        """Whether one contract covers the whole document (S-0122/D-13)."""
+        """Whether one contract covers the whole document (S-0122/D-13): what
+        its phasing's `unit` says, else whether it has eight phases or fewer
+        that name no two different `tier_variant`s or `character`s, since a
+        contract runs on one seat (S-0128/D-1)."""
 
         if self.unit is not None:
             return self.unit == "document"
 
-        return len({entry.phase for entry in self.phasing}) <= WHOLE_UNTIL
+        return (
+            len({entry.phase for entry in self.phasing}) <= WHOLE_UNTIL
+            and len({entry.tier_variant for entry in self.phasing} - {""}) <= 1
+            and len({entry.character for entry in self.phasing} - {None}) <= 1
+        )
 
     def as_one_phase(self, entries: list[Phase] | None = None) -> Phase:
         """The phasing — or those of its *entries* — folded into the one entry a

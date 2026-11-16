@@ -4,9 +4,10 @@ decisions:
     grade: ASSUMED
     text: >-
       A document whose phasing sets no `unit` mints one contract for the whole document
-      when it has eight phases or fewer (`WHOLE_UNTIL = 8`) and one per phase above
-      that; `unit: phase` and `unit: document` keep their meaning, and `--refresh`
-      keeps the shape a document was minted in
+      when it has eight phases or fewer (`WHOLE_UNTIL = 8`) and no two of its phases
+      name different `tier_variant`s or `character`s, and one per phase otherwise;
+      `unit: phase` and `unit: document` keep their meaning, and `--refresh` keeps
+      the shape a document was minted in
     paths: [src/torve/domain/spec.py]
     consequence: >-
       a document of four to eight phases runs as one session with one critic review
@@ -20,6 +21,7 @@ decisions:
     cites: [S-0122/D-13]
     check: >-
       uv run pytest -q tests/test_plan.py -k "larger_document_mints_per_phase or small_document_mints_one"
+    fingerprint: 1d635c6c62ad0508/4da6bd99cb87b7ed
   - id: D-2
     grade: ASSUMED
     text: >-
@@ -79,13 +81,15 @@ decisions:
     text: >-
       `ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that made
       the finding block; after a session turn `review_step` emits `review.recorded`
-      for the rechecked verdict, each blocker an item with `blocked_exit` and the
-      turn's re-run exit as `rerun_exit`, and the `unit.closed` record's `revision`
-      block gains `by`, `rerun` for a rechecked turn and `critic` for a reviewed one
+      for the rechecked verdict, each re-run blocker an item with the turn's re-run
+      exit as `rerun_exit` and each one that re-run cleared with `blocked_exit` too,
+      and the `unit.closed` record's `revision` block gains `by`, `rerun` for a rechecked
+      turn and `critic` for a reviewed one
     paths:
       - src/torve/domain/events.py
       - src/torve/application/review.py
       - src/torve/application/selection.py
+      - src/torve/application/critic.py
     consequence: >-
       the blocking review reaches the board, as the review a revision re-measured,
       and an item or a record written before these fields reads as one with no blocker
@@ -98,6 +102,7 @@ decisions:
     check: >-
       uv run pytest -q tests/test_review_run.py tests/test_selection.py -k "blocked_exit
       or rerun"
+    fingerprint: 27ae840676b492b3/cd1e79605dce3a11
   - id: D-5
     grade: ASSUMED
     text: >-

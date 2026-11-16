@@ -153,7 +153,7 @@ def test_rerun_item_written_before_kind_and_rerun_loads_with_the_defaults():
     assert old.model_dump()["items"] == [
         {**item, "kind": "", "rerun_command": "", "rerun_exit": None, "blocked_exit": None}
     ]
-    # S-0128/D-4: a blocker a revision's re-run re-measured keeps the exit
+    # S-0128/D-4: a blocker a revision's re-run cleared keeps the exit
     # that made it block beside the one after the turn.
     assert new.model_dump()["items"][0] == {
         **item,

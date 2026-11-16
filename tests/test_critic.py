@@ -39,6 +39,7 @@ from torve.application.feedback import feedback_file
 from torve.application.ports import AgentResult, ExecResult, SandboxHandle
 from torve.application.review import Revision, SchemaRefusal, mint_review_task, tree_snapshot
 from torve.application.runner import run_task
+from torve.config import layout
 from torve.config.manifest import load_manifest
 from torve.config.runconfig import ReviewConfig, RunnerConfig
 from torve.domain.states import TaskState
@@ -1679,7 +1680,8 @@ def test_recheck_clears_a_blocker_exactly_when_its_re_run_shows_it_fixed(
     `weak_test`; one that executed and still fails is re-raised; no exit, 126,
     127 and a probe the review did not store clear nothing, and a `gaming`
     blocker and a LOCKED row's breach are never re-run. Each re-run blocker
-    keeps the exit that made it block beside the new one (S-0128/D-4)."""
+    carries its new exit, and a cleared one the exit that made it block, so
+    a blocker still failing is never read as fixed (S-0128/D-4)."""
 
     verdict = _handed(tmp_path, [kind for kind, _code, _stored in handed], locked_row)
     after: dict[str, int | None] = {}
@@ -1727,7 +1729,24 @@ def test_recheck_clears_a_blocker_exactly_when_its_re_run_shows_it_fixed(
             assert one.blocked_exit is None
         else:
             blocked = critic_module.WRONG_PASSES if kind == "weak_test" else 1
-            assert (one.blocked_exit, one.rerun_exit) == (blocked, code if stored else None)
+            assert one.rerun_exit == (code if stored else None)
+            assert one.blocked_exit == (blocked if cleared(kind, code, stored) else None)
+
+
+def test_stored_probes_keep_their_path_below_probes(tmp_path):
+    """Two probes of one basename are two files, and a name that leaves
+    `probes/` is written nowhere."""
+
+    critic_module._store_probes(
+        tmp_path,
+        "T-0002",
+        {"probes/a/check.py": "a\n", "probes/b/check.py": "b\n", "../../escape.py": "x\n"},
+    )
+
+    kept = layout.task_dir(tmp_path, "T-0002") / "probes"
+    assert (kept / "a" / "check.py").read_text() == "a\n"
+    assert (kept / "b" / "check.py").read_text() == "b\n"
+    assert not any(path.name == "escape.py" for path in tmp_path.rglob("*"))
 
 
 def test_recheck_asks_nobody_when_no_engine_re_runs(tmp_path):

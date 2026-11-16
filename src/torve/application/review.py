@@ -839,7 +839,7 @@ class JudgedFinding(Finding):
     and a finding never re-run."""
     blocked_exit: int | None = None
     """The exit of the re-run that made this finding block, on a blocker a
-    session revision's re-run re-measured (S-0128/D-4); `rerun_exit` is then
+    session revision's re-run measured fixed (S-0128/D-4); `rerun_exit` is then
     the exit after the turn. None on every other finding."""
 
 
@@ -900,7 +900,7 @@ def review_items(findings: list[Finding], root: Path | None = None) -> list[dict
 
     A critic's finding also carries its kind and, when the engine re-ran its
     repro, the command and its exit code (S-0127/D-14), and a blocker a
-    session revision's re-run re-measured the exit that made it block
+    session revision's re-run measured fixed the exit that made it block
     (S-0128/D-4)."""
 
     items: list[dict[str, Any]] = []

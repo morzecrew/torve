@@ -1005,9 +1005,9 @@ def recheck(verdict: CriticVerdict, reproduce: Reproduce | None, root: Path) -> 
     `blockers` are every blocker not cleared: none is a clean turn, a
     re-raise a blocked one, and any other a turn the critic must read.
 
-    Each re-run blocker, in `blockers` and `kept` alike, carries the exit that
-    made it block as `blocked_exit` and the new one as `rerun_exit`
-    (S-0128/D-4). *verdict*'s findings are read in the order
+    Each re-run blocker, in `blockers` and `kept` alike, carries the new exit
+    as `rerun_exit`, and a cleared one the exit that made it block as
+    `blocked_exit` (S-0128/D-4). *verdict*'s findings are read in the order
     `verdict_findings` built them, which is how each one here finds its own."""
 
     decision = verdict.decision
@@ -1044,14 +1044,18 @@ def recheck(verdict: CriticVerdict, reproduce: Reproduce | None, root: Path) -> 
         run = measured[key]
         before = decision.rerun(finding)
         reruns.append((finding, run))
+        cleared = _cleared(finding, run)
+        # Only a cleared blocker carries `blocked_exit`: its readers list it
+        # as fixed and raise no thread for it (S-0128/D-4, D-5).
         rechecked[id(finding)] = _as_finding(finding, decision, root).model_copy(
             update={
                 "rerun_command": run.command,
                 "rerun_exit": run.exit_code,
-                "blocked_exit": before.exit_code if before is not None else None,
+                "blocked_exit": (
+                    before.exit_code if cleared is True and before is not None else None
+                ),
             }
         )
-        cleared = _cleared(finding, run)
 
         if cleared is not True:
             standing.append(finding)
@@ -1496,8 +1500,15 @@ def _store_probes(root: Path, review_id: str, probes: Mapping[str, str]) -> None
     directory, so the revision and the record can cite them after the copy
     is gone."""
 
+    kept = (layout.task_dir(root, review_id) / "probes").resolve()
+
     for name, text in probes.items():
-        path = layout.task_dir(root, review_id) / "probes" / Path(name).name
+        # Under its path below `probes/`, so two of one basename are two files.
+        path = (kept / posixpath.normpath(name).removeprefix("probes/")).resolve()
+
+        if not path.is_relative_to(kept):
+            continue  # a name that leaves `probes/` is no probe a re-run takes
+
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 
