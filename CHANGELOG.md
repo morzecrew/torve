@@ -53,9 +53,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `revision_variant` tier with 2 rounds; classic mode keeps `off`.
 
 - After a session revision turn the engine re-runs the blockers' repro commands against the
-  revised tree instead of asking the critic again. A blocker no re-run can measure still goes
-  to the critic. A re-raise must repeat the earlier blocker's row, or its kind, span and
-  claim.
+  revised tree instead of asking the critic again. A blocker no re-run can measure, or a weak
+  test whose probe still exits 42, goes to the critic. A re-raise must repeat the earlier
+  blocker's row, or its kind, span and claim.
 
 - A document of eight phases or fewer now mints one contract for the whole document unless
   its phasing says `unit: phase` or two of its phases name different `tier_variant`s or

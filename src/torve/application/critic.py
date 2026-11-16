@@ -980,13 +980,15 @@ def _cleared(finding: CriticFinding, run: CommandRun) -> bool | None:
     """What *run* measured of *finding* after a revision: True when it ran
     and shows the finding fixed — exit 0, or anything but `WRONG_PASSES` for a
     `weak_test` (S-0127/D-2) — False when it ran and still fails, and None
-    when it measured nothing: no exit, 126 or 127 (S-0127/D-1)."""
+    when it measured nothing: no exit, 126 or 127 (S-0127/D-1), or a
+    `weak_test` probe's `WRONG_PASSES`, since the probe runs the tests the
+    review named and a revision may have added the one that catches it."""
 
     if run.exit_code is None or run.exit_code in NOT_RUNNABLE:
         return None
 
     if finding.kind == "weak_test":
-        return run.exit_code != WRONG_PASSES
+        return None if run.exit_code == WRONG_PASSES else True
 
     return run.exit_code == 0
 
@@ -999,7 +1001,8 @@ def recheck(verdict: CriticVerdict, reproduce: Reproduce | None, root: Path) -> 
 
     A blocker the re-run shows fixed is cleared; one it shows still failing
     is re-raised (S-0127/D-4); one it measured nothing of — no exit, 126 or
-    127, a probe the review did not store — stays a blocker. A `gaming`
+    127, a probe the review did not store, a `weak_test` probe's
+    `WRONG_PASSES` — stays a blocker. A `gaming`
     finding and a violated row blocked on located evidence alone
     (S-0127/D-1), so no re-run measures them and they stay too. The result's
     `blockers` are every blocker not cleared: none is a clean turn, a

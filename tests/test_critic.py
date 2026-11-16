@@ -1678,8 +1678,10 @@ def test_recheck_clears_a_blocker_exactly_when_its_re_run_shows_it_fixed(
     """S-0128/D-3: after a revision turn a blocker clears exactly when its
     re-run executed and exited 0, or anything but `WRONG_PASSES` for a
     `weak_test`; one that executed and still fails is re-raised; no exit, 126,
-    127 and a probe the review did not store clear nothing, and a `gaming`
-    blocker and a LOCKED row's breach are never re-run. Each re-run blocker
+    127, a probe the review did not store and a `weak_test` probe's
+    `WRONG_PASSES` measure nothing, since the probe cannot run a test the
+    revision added, and a `gaming` blocker and a LOCKED row's breach are never
+    re-run. Each re-run blocker
     carries its new exit, and a cleared one the exit that made it block, so
     a blocker still failing is never read as fixed (S-0128/D-4)."""
 
@@ -1705,7 +1707,10 @@ def test_recheck_clears_a_blocker_exactly_when_its_re_run_shows_it_fixed(
     rechecked = critic_module.recheck(verdict, reproduce, tmp_path)
 
     def ran(kind: str, code: int | None, stored: bool) -> bool:
-        return kind != "gaming" and stored and code is not None and code not in (126, 127)
+        measured = not (kind == "weak_test" and code == critic_module.WRONG_PASSES)
+        return (
+            kind != "gaming" and stored and code is not None and code not in (126, 127) and measured
+        )
 
     def cleared(kind: str, code: int | None, stored: bool) -> bool:
         fixed = code != critic_module.WRONG_PASSES if kind == "weak_test" else code == 0
