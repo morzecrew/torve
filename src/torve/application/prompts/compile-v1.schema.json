@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "CompiledProbe": {
+      "description": "One probe.",
+      "properties": {
+        "row": {
+          "description": "The row it pins, exactly as given, `S-NNNN/D-n`.",
+          "title": "Row",
+          "type": "string"
+        },
+        "quote": {
+          "description": "The passage of the document that states the behaviour, copied verbatim.",
+          "title": "Quote",
+          "type": "string"
+        },
+        "claim": {
+          "description": "What the probe asserts, in one sentence.",
+          "title": "Claim",
+          "type": "string"
+        },
+        "file": {
+          "description": "The probe's file, a path under probes/acceptance/ that you wrote.",
+          "title": "File",
+          "type": "string"
+        },
+        "command": {
+          "description": "The command that runs it from the workspace root, exiting 0 when the behaviour holds.",
+          "title": "Command",
+          "type": "string"
+        }
+      },
+      "required": [
+        "row",
+        "quote",
+        "claim",
+        "file",
+        "command"
+      ],
+      "title": "CompiledProbe",
+      "type": "object"
+    }
+  },
+  "description": "torve.compile/v1: the one JSON document your answer ends with.",
+  "properties": {
+    "schema": {
+      "const": "torve.compile/v1",
+      "default": "torve.compile/v1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "probes": {
+      "description": "Every probe, most likely to catch a wrong implementation first.",
+      "items": {
+        "$ref": "#/$defs/CompiledProbe"
+      },
+      "title": "Probes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "probes"
+  ],
+  "title": "CompileDocument",
+  "type": "object"
+}

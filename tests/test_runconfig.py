@@ -191,6 +191,19 @@ def test_revision_rounds_default_by_mode_and_a_named_number_wins():
     assert ReviewConfig(blocker_revisions=0).resolved_blocker_revisions() == 0
 
 
+def test_compile_is_off_by_default_and_needs_the_critic():
+    """S-0129/D-1: a compiled probe blocks through the critic's decision, so
+    `review.compile` loads only beside `mode: critic`."""
+
+    from torve.config.runconfig import ReviewConfig
+
+    assert RunnerConfig().review.compile is False
+    assert ReviewConfig(mode="critic", compile=True).compile is True
+
+    with pytest.raises(ValidationError, match="review.compile needs review.mode: critic"):
+        ReviewConfig(compile=True)
+
+
 def test_resolved_revision_is_session_under_critic_and_off_under_classic(tmp_path: Path):
     """S-0128/D-2, S-0124/D-8: `review.revision` left unset resolves to
     `session` under `mode: critic` and `off` under `classic`; a mode the

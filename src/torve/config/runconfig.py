@@ -1255,6 +1255,13 @@ class ReviewConfig(BaseModel):
     findings the engine turns into block or pass (S-0122/D-1). `classic` stays for
     one release beside it."""
 
+    compile: bool = False
+    """Whether a unit compiles its document into acceptance probes before its
+    first candidate (S-0129/D-1): one reviewer-seat call whose kept probes the
+    executor is shown and the critic's decision re-runs, a failing one
+    blocking. Only `mode: critic` has the decision a probe's failure goes to,
+    so `classic` refuses it."""
+
     def resolved_revision(self) -> Literal["off", "fresh", "session"]:
         """The revision mode this configuration runs (S-0128/D-2): what it
         names, else `session` under `mode: critic` and `off` under `classic`.
@@ -1342,6 +1349,12 @@ class ReviewConfig(BaseModel):
             raise ValueError(
                 f"unsupported review trigger(s) {', '.join(unknown)} — "
                 f"the vocabulary is {', '.join(sorted(supported))}"
+            )
+
+        if self.compile and self.mode != "critic":
+            raise ValueError(
+                "review.compile needs review.mode: critic — a compiled probe blocks "
+                "through the critic's decision (S-0129/D-1)"
             )
 
         return self
