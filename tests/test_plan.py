@@ -1298,6 +1298,8 @@ def test_a_larger_document_mints_per_phase_unless_it_says_document(
         ([{"tier_variant": "long"}, {}, {"tier_variant": "long"}], None, 1),
         ([{"tier_variant": "long"}, {"tier_variant": "strong"}, {}], None, 3),
         ([{"character": "structural"}, {"character": "routine"}, {}], None, 3),
+        ([{"tier_variant": "long"}, {"character": "structural"}, {}], None, 3),
+        ([{"tier_variant": "long", "character": "routine"}, {"tier_variant": "long"}, {}], None, 1),
         ([{"tier_variant": "long"}, {"tier_variant": "strong"}, {}], "document", 1),
     ],
 )
@@ -1305,8 +1307,10 @@ def test_phases_naming_two_seats_mint_per_phase_unless_it_says_document(
     plan_repo, settings, unit, contracts
 ):
     """A contract runs on one seat, so a document whose phases name two
-    different `tier_variant`s or `character`s mints one contract per phase
-    unless the phasing says `unit: document` (S-0128/D-1)."""
+    different seats mints one contract per phase unless the phasing says
+    `unit: document` (S-0128/D-1). A phase's seat is its `tier_variant`, or
+    its `character` when it names none, since a named variant wins over
+    character routing (S-0034/D-3)."""
 
     root, write_doc, git = plan_repo
     entries = [

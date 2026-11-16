@@ -101,3 +101,29 @@ amendments:
     md: |
       Amended on 2026-11-16 after the `library-session-w` bed run.
       S-0127/D-2's probe contract has a `weak_test` probe run the changed test against a wrong implementation, so the probe names the tests the review saw. In `hq-warm-sessions-lean` the revision answered a weak-test blocker with a new test, and the review's probe, which lists five test names, still exits 42 on the revised tree: under the row as written that re-raises and escalates whatever the new test proves. A 42 after a turn now measures nothing, so the turn goes to the critic, which reads the new test. There the critic re-raised a race the revision left unfixed, so the unit still escalated, rightly.
+  - id: A-4
+    at: '2026-11-16T16:27:23Z'
+    title: A fold compares the seat each phase routes to
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          A document whose phasing sets no `unit` mints one contract for the whole
+          document when it has eight phases or fewer (`WHOLE_UNTIL = 8`) and no two
+          of its phases name different `tier_variant`s or `character`s, and one per
+          phase otherwise; `unit: phase` and `unit: document` keep their meaning,
+          and `--refresh` keeps the shape a document was minted in
+        after: >-
+          A document whose phasing sets no `unit` mints one contract for the whole
+          document when it has eight phases or fewer (`WHOLE_UNTIL = 8`) and every
+          phase that names a seat names the same one, a phase's seat being its `tier_variant`,
+          or its `character` when it names no variant (S-0034/D-3), and one per phase
+          otherwise; `unit: phase` and `unit: document` keep their meaning, and `--refresh`
+          keeps the shape a document was minted in
+      - subject: D-1
+        field: fingerprint
+        before: 1d635c6c62ad0508/4da6bd99cb87b7ed
+        after: ead22f28d52aae11/4da6bd99cb87b7ed
+    md: |
+      Amended on 2026-11-16 after the review of the pull request that made A-1.
+      A-1 compared the variants and the characters apart, so a phase naming a `tier_variant` beside one naming only a `character` still folded. A named variant wins over character routing (S-0034/D-3), so the second phase then ran on the first one's seat. The row now compares the seat each phase routes to.

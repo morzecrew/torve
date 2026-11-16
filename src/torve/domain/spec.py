@@ -674,16 +674,22 @@ class Document(Item):
     def whole(self) -> bool:
         """Whether one contract covers the whole document (S-0122/D-13): what
         its phasing's `unit` says, else whether it has eight phases or fewer
-        that name no two different `tier_variant`s or `character`s, since a
-        contract runs on one seat (S-0128/D-1)."""
+        and every phase naming a seat names the same one, since a contract
+        runs on one seat (S-0128/D-1). A phase's seat is its `tier_variant`,
+        or its `character` when it names no variant: a named variant wins over
+        character routing (S-0034/D-3)."""
 
         if self.unit is not None:
             return self.unit == "document"
 
+        seats = {
+            (entry.tier_variant, None) if entry.tier_variant else ("", entry.character)
+            for entry in self.phasing
+        }
+
         return (
             len({entry.phase for entry in self.phasing}) <= WHOLE_UNTIL
-            and len({entry.tier_variant for entry in self.phasing} - {""}) <= 1
-            and len({entry.character for entry in self.phasing} - {None}) <= 1
+            and len(seats - {("", None)}) <= 1
         )
 
     def as_one_phase(self, entries: list[Phase] | None = None) -> Phase:
