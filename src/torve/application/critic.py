@@ -980,13 +980,15 @@ def _cleared(finding: CriticFinding, run: CommandRun) -> bool | None:
     """What *run* measured of *finding* after a revision: True when it ran
     and shows the finding fixed — exit 0, or anything but `WRONG_PASSES` for a
     `weak_test` (S-0127/D-2) — False when it ran and still fails, and None
-    when it measured nothing: no exit, 126 or 127 (S-0127/D-1)."""
+    when it measured nothing: no exit, 126 or 127 (S-0127/D-1), or a
+    `weak_test` probe's `WRONG_PASSES`, since the probe runs the tests the
+    review named and a revision may have added the one that catches it."""
 
     if run.exit_code is None or run.exit_code in NOT_RUNNABLE:
         return None
 
     if finding.kind == "weak_test":
-        return run.exit_code != WRONG_PASSES
+        return None if run.exit_code == WRONG_PASSES else True
 
     return run.exit_code == 0
 
@@ -999,15 +1001,16 @@ def recheck(verdict: CriticVerdict, reproduce: Reproduce | None, root: Path) -> 
 
     A blocker the re-run shows fixed is cleared; one it shows still failing
     is re-raised (S-0127/D-4); one it measured nothing of — no exit, 126 or
-    127, a probe the review did not store — stays a blocker. A `gaming`
+    127, a probe the review did not store, a `weak_test` probe's
+    `WRONG_PASSES` — stays a blocker. A `gaming`
     finding and a violated row blocked on located evidence alone
     (S-0127/D-1), so no re-run measures them and they stay too. The result's
     `blockers` are every blocker not cleared: none is a clean turn, a
     re-raise a blocked one, and any other a turn the critic must read.
 
-    Each re-run blocker, in `blockers` and `kept` alike, carries the exit that
-    made it block as `blocked_exit` and the new one as `rerun_exit`
-    (S-0128/D-4). *verdict*'s findings are read in the order
+    Each re-run blocker, in `blockers` and `kept` alike, carries the new exit
+    as `rerun_exit`, and a cleared one the exit that made it block as
+    `blocked_exit` (S-0128/D-4). *verdict*'s findings are read in the order
     `verdict_findings` built them, which is how each one here finds its own."""
 
     decision = verdict.decision
@@ -1044,14 +1047,18 @@ def recheck(verdict: CriticVerdict, reproduce: Reproduce | None, root: Path) -> 
         run = measured[key]
         before = decision.rerun(finding)
         reruns.append((finding, run))
+        cleared = _cleared(finding, run)
+        # Only a cleared blocker carries `blocked_exit`: its readers list it
+        # as fixed and raise no thread for it (S-0128/D-4, D-5).
         rechecked[id(finding)] = _as_finding(finding, decision, root).model_copy(
             update={
                 "rerun_command": run.command,
                 "rerun_exit": run.exit_code,
-                "blocked_exit": before.exit_code if before is not None else None,
+                "blocked_exit": (
+                    before.exit_code if cleared is True and before is not None else None
+                ),
             }
         )
-        cleared = _cleared(finding, run)
 
         if cleared is not True:
             standing.append(finding)
@@ -1496,8 +1503,15 @@ def _store_probes(root: Path, review_id: str, probes: Mapping[str, str]) -> None
     directory, so the revision and the record can cite them after the copy
     is gone."""
 
+    kept = (layout.task_dir(root, review_id) / "probes").resolve()
+
     for name, text in probes.items():
-        path = layout.task_dir(root, review_id) / "probes" / Path(name).name
+        # Under its path below `probes/`, so two of one basename are two files.
+        path = (kept / posixpath.normpath(name).removeprefix("probes/")).resolve()
+
+        if not path.is_relative_to(kept):
+            continue  # a name that leaves `probes/` is no probe a re-run takes
+
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
 

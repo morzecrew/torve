@@ -2455,12 +2455,17 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                             if member.clean:
                                 chosen_round.winner = member
 
-                        # The critic call is new work too (S-0124/D-7).
-                        elif _unit_spend(state) >= budget_usd:
+                        # The critic call is new work too (S-0124/D-7), and
+                        # the turn and its re-runs may have spent the clock.
+                        elif (unit_spend := _unit_spend(state)) >= budget_usd or (
+                            elapsed := _elapsed_minutes(state)
+                        ) >= minutes:
                             state.escalate(
                                 EscalationReason.BUDGET_EXHAUSTED,
-                                f"{selection.UNIT_BUDGET_MARKER}: ${_unit_spend(state):.2f} spent of "
-                                f"${budget_usd:.2f}",
+                                f"{selection.UNIT_BUDGET_MARKER}: ${unit_spend:.2f} spent of "
+                                f"${budget_usd:.2f}"
+                                if unit_spend >= budget_usd
+                                else f"{_WALLCLOCK_MARKER}: {elapsed:.1f}m elapsed, budget {minutes}m",
                             )
                             # The turn ran and spent; only its re-review did not.
                             session_revision = selection.Revision(

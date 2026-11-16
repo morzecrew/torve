@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-11-16T01:35:41Z'
+    title: A fold runs on one seat
+    changes:
+      - subject: D-1
+        field: text
+        before: >-
+          A document whose phasing sets no `unit` mints one contract for the whole
+          document when it has eight phases or fewer (`WHOLE_UNTIL = 8`) and one per
+          phase above that; `unit: phase` and `unit: document` keep their meaning,
+          and `--refresh` keeps the shape a document was minted in
+        after: >-
+          A document whose phasing sets no `unit` mints one contract for the whole
+          document when it has eight phases or fewer (`WHOLE_UNTIL = 8`) and no two
+          of its phases name different `tier_variant`s or `character`s, and one per
+          phase otherwise; `unit: phase` and `unit: document` keep their meaning,
+          and `--refresh` keeps the shape a document was minted in
+      - subject: D-1
+        field: fingerprint
+        after: 1d635c6c62ad0508/4da6bd99cb87b7ed
+    md: |
+      Amended on 2026-11-16 after the review of the pull request that built S-0128.
+      A contract runs on one seat, and the fold kept each setting's first value, so a later phase that named another tier or character ran on the first one's seat. With the line at eight phases a document is likelier to mix them, so a document whose phases disagree now mints per phase. `unit: document` still folds it and keeps the first value named.
+  - id: A-2
+    at: '2026-11-16T01:35:47Z'
+    title: Only a cleared blocker carries `blocked_exit`
+    changes:
+      - subject: D-4
+        field: paths
+        before:
+          - src/torve/domain/events.py
+          - src/torve/application/review.py
+          - src/torve/application/selection.py
+        after:
+          - src/torve/domain/events.py
+          - src/torve/application/review.py
+          - src/torve/application/selection.py
+          - src/torve/application/critic.py
+      - subject: D-4
+        field: text
+        before: >-
+          `ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that
+          made the finding block; after a session turn `review_step` emits `review.recorded`
+          for the rechecked verdict, each blocker an item with `blocked_exit` and
+          the turn's re-run exit as `rerun_exit`, and the `unit.closed` record's `revision`
+          block gains `by`, `rerun` for a rechecked turn and `critic` for a reviewed
+          one
+        after: >-
+          `ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that
+          made the finding block; after a session turn `review_step` emits `review.recorded`
+          for the rechecked verdict, each re-run blocker an item with the turn's re-run
+          exit as `rerun_exit` and each one that re-run cleared with `blocked_exit`
+          too, and the `unit.closed` record's `revision` block gains `by`, `rerun`
+          for a rechecked turn and `critic` for a reviewed one
+      - subject: D-4
+        field: fingerprint
+        after: 27ae840676b492b3/cd1e79605dce3a11
+    md: |
+      Amended on 2026-11-16 after the review of the pull request that built S-0128.
+      D-5 lists an item carrying `blocked_exit` as a blocker the revision cleared, and the thread leg raises no thread for one. `critic.recheck` gave it to every re-run blocker, so a blocker still failing after the turn would have been listed as cleared and raised no thread. It now goes only to a blocker the re-run cleared, so both readers stay right. The row names `critic.py`, where `recheck` sets it.
+  - id: A-3
+    at: '2026-11-16T01:56:52Z'
+    title: A weak test's probe cannot see a new test
+    changes:
+      - subject: D-3
+        field: text
+        before: >-
+          After a session revision turn whose gates are green, the engine judges the
+          turn by `critic.recheck` before any second critic call: each finding blocker
+          of the verdict the turn was handed is re-run, its `repro.command` with the
+          probes that review stored, through `runner.reproduce` against the revised
+          candidate as S-0127/D-1 and S-0127/D-10 say; a re-run that executes clears
+          a `weak_test` at any exit but 42 and any other kind at exit 0, and keeps
+          it otherwise; a re-run that does not execute (no exit, 126, 127, a probe
+          the review did not store) clears nothing, and a blocker that blocked on
+          located evidence alone (a `gaming` finding, a LOCKED row's `violated` verdict)
+          has nothing to re-run; the turn is clean when every blocker cleared, blocked
+          when one kept a measured failure, which re-raises it (S-0127/D-4) and escalates
+          `blocker_finding`, and otherwise goes to the critic's re-review as S-0124/D-8
+          describes it
+        after: >-
+          After a session revision turn whose gates are green, the engine judges the
+          turn by `critic.recheck` before any second critic call: each finding blocker
+          of the verdict the turn was handed is re-run, its `repro.command` with the
+          probes that review stored, through `runner.reproduce` against the revised
+          candidate as S-0127/D-1 and S-0127/D-10 say; a re-run that executes clears
+          a `weak_test` at any exit but 42 and any other kind at exit 0, and keeps
+          any other kind otherwise; a re-run that does not execute (no exit, 126,
+          127, a probe the review did not store) clears nothing, nor does a `weak_test`
+          probe's 42, which runs only the tests the review named and so cannot see
+          a test the turn added, and a blocker that blocked on located evidence alone
+          (a `gaming` finding, a LOCKED row's `violated` verdict) has nothing to re-run;
+          the turn is clean when every blocker cleared, blocked when one kept a measured
+          failure, which re-raises it (S-0127/D-4) and escalates `blocker_finding`,
+          and otherwise goes to the critic's re-review as S-0124/D-8 describes it
+      - subject: D-3
+        field: fingerprint
+        after: 77bc889d47db8d36/e20b63a95c8a18bd
+    md: |
+      Amended on 2026-11-16 after the `library-session-w` bed run.
+      S-0127/D-2's probe contract has a `weak_test` probe run the changed test against a wrong implementation, so the probe names the tests the review saw. In `hq-warm-sessions-lean` the revision answered a weak-test blocker with a new test, and the review's probe, which lists five test names, still exits 42 on the revised tree: under the row as written that re-raises and escalates whatever the new test proves. A 42 after a turn now measures nothing, so the turn goes to the critic, which reads the new test. There the critic re-raised a race the revision left unfixed, so the unit still escalated, rightly.

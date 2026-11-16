@@ -1292,6 +1292,39 @@ def test_a_larger_document_mints_per_phase_unless_it_says_document(
     assert len(report.tasks) == contracts
 
 
+@pytest.mark.parametrize(
+    ("settings", "unit", "contracts"),
+    [
+        ([{"tier_variant": "long"}, {}, {"tier_variant": "long"}], None, 1),
+        ([{"tier_variant": "long"}, {"tier_variant": "strong"}, {}], None, 3),
+        ([{"character": "structural"}, {"character": "routine"}, {}], None, 3),
+        ([{"tier_variant": "long"}, {"tier_variant": "strong"}, {}], "document", 1),
+    ],
+)
+def test_phases_naming_two_seats_mint_per_phase_unless_it_says_document(
+    plan_repo, settings, unit, contracts
+):
+    """A contract runs on one seat, so a document whose phases name two
+    different `tier_variant`s or `character`s mints one contract per phase
+    unless the phasing says `unit: document` (S-0128/D-1)."""
+
+    root, write_doc, git = plan_repo
+    entries = [
+        {"phase": n, "title": f"p{n}", "intent": f"Phase {n}.", "scope": [f"src/p{n}.py"], **extra}
+        for n, extra in enumerate(settings, start=1)
+    ]
+    write_doc("0091", "Seats", rows=[], phasing=entries, unit=unit)
+    git("add", "-A")
+    git("commit", "-qm", "seats")
+
+    report = plan_document(root, root / ".torve" / "specs", "0091")
+
+    assert len(report.tasks) == contracts
+
+    if contracts == 1:
+        assert report.tasks[0].task.tier_variant == "long"
+
+
 def test_a_whole_contract_s_landing_completes_every_phase(plan_repo):
     from torve.application.forge import DocumentLanding, document_complete
 

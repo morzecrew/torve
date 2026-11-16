@@ -82,7 +82,8 @@ name in the store, for example `org/repo`.
 
 - Size a phase by component: the modules that change together, with the
   callers their acceptance can turn red. A document of eight phases or fewer
-  mints as one contract unless its phasing says `unit: phase`.
+  mints as one contract unless its phasing says `unit: phase` or two of its
+  phases name different seats (`tier_variant` or `character`).
 - A phase owns every file its acceptance can turn red — the tests that
   enumerate artifacts, generated snapshots, docs pages a test compares
   against, and re-export modules. Grep for every caller of what it changes

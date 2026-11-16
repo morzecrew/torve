@@ -632,7 +632,7 @@ A run of test files over a checkout — the evidence package's per-test runs at 
 
 ### S-0128/D-3 — `ASSUMED` (One session per document)
 
-After a session revision turn whose gates are green, the engine judges the turn by `critic.recheck` before any second critic call: each finding blocker of the verdict the turn was handed is re-run, its `repro.command` with the probes that review stored, through `runner.reproduce` against the revised candidate as S-0127/D-1 and S-0127/D-10 say; a re-run that executes clears a `weak_test` at any exit but 42 and any other kind at exit 0, and keeps it otherwise; a re-run that does not execute (no exit, 126, 127, a probe the review did not store) clears nothing, and a blocker that blocked on located evidence alone (a `gaming` finding, a LOCKED row's `violated` verdict) has nothing to re-run; the turn is clean when every blocker cleared, blocked when one kept a measured failure, which re-raises it (S-0127/D-4) and escalates `blocker_finding`, and otherwise goes to the critic's re-review as S-0124/D-8 describes it
+After a session revision turn whose gates are green, the engine judges the turn by `critic.recheck` before any second critic call: each finding blocker of the verdict the turn was handed is re-run, its `repro.command` with the probes that review stored, through `runner.reproduce` against the revised candidate as S-0127/D-1 and S-0127/D-10 say; a re-run that executes clears a `weak_test` at any exit but 42 and any other kind at exit 0, and keeps any other kind otherwise; a re-run that does not execute (no exit, 126, 127, a probe the review did not store) clears nothing, nor does a `weak_test` probe's 42, which runs only the tests the review named and so cannot see a test the turn added, and a blocker that blocked on located evidence alone (a `gaming` finding, a LOCKED row's `violated` verdict) has nothing to re-run; the turn is clean when every blocker cleared, blocked when one kept a measured failure, which re-raises it (S-0127/D-4) and escalates `blocker_finding`, and otherwise goes to the critic's re-review as S-0124/D-8 describes it
 
 - Paths: `src/torve/application/critic.py` `src/torve/application/runner.py`
 - Consequence: a session turn whose blockers all re-ran costs its own tokens and the re-runs' seconds, no critic call and no reviewer spend, and nothing reads its diff but the gates; a turn left with a blocker no re-run measured is read by the critic as today, and a fresh revision is new code whose review stays a full critic call
@@ -640,9 +640,9 @@ After a session revision turn whose gates are green, the engine judges the turn 
 
 ### S-0128/D-4 — `ASSUMED` (One session per document)
 
-`ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that made the finding block; after a session turn `review_step` emits `review.recorded` for the rechecked verdict, each blocker an item with `blocked_exit` and the turn's re-run exit as `rerun_exit`, and the `unit.closed` record's `revision` block gains `by`, `rerun` for a rechecked turn and `critic` for a reviewed one
+`ReviewItem` gains `blocked_exit: int | None = None`, the re-run exit that made the finding block; after a session turn `review_step` emits `review.recorded` for the rechecked verdict, each re-run blocker an item with the turn's re-run exit as `rerun_exit` and each one that re-run cleared with `blocked_exit` too, and the `unit.closed` record's `revision` block gains `by`, `rerun` for a rechecked turn and `critic` for a reviewed one
 
-- Paths: `src/torve/domain/events.py` `src/torve/application/review.py` `src/torve/application/selection.py`
+- Paths: `src/torve/domain/events.py` `src/torve/application/review.py` `src/torve/application/selection.py` `src/torve/application/critic.py`
 - Consequence: the blocking review reaches the board, as the review a revision re-measured, and an item or a record written before these fields reads as one with no blocker cleared and no `by`
 - Check: `uv run pytest -q tests/test_review_run.py tests/test_selection.py -k "blocked_exit or rerun"` (shadow; runs as `decision:S-0128/D-4`)
 

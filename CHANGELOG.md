@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   evidence stay in the review record.
 
 - A review's recorded items carry `blocked_exit` for a blocker a revision's re-run
-  re-measured, and the review-thread leg opens no thread for it. The `revision` block of
+  cleared, and the review-thread leg opens no thread for it. The `revision` block of
   `unit.closed` says whether re-runs (`rerun`) or the critic (`critic`) judged the round.
 
 ### Changed
@@ -53,12 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `revision_variant` tier with 2 rounds; classic mode keeps `off`.
 
 - After a session revision turn the engine re-runs the blockers' repro commands against the
-  revised tree instead of asking the critic again. A blocker no re-run can measure still goes
-  to the critic. A re-raise must repeat the earlier blocker's row, or its kind, span and
-  claim.
+  revised tree instead of asking the critic again. A blocker no re-run can measure, or a weak
+  test whose probe still exits 42, goes to the critic. A re-raise must repeat the earlier
+  blocker's row, or its kind, span and claim.
 
 - A document of eight phases or fewer now mints one contract for the whole document unless
-  its phasing says `unit: phase`. The line was three phases.
+  its phasing says `unit: phase` or two of its phases name different `tier_variant`s or
+  `character`s. The line was three phases.
 
 - After red gates the next attempt is now a new session from the tree the red attempt started
   from. The red session gets no follow-up turn, and its tree is no longer committed.

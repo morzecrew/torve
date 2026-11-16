@@ -5515,6 +5515,68 @@ def test_session_revision_stopped_by_the_budget_still_writes_the_unit_record(
     }
 
 
+def test_session_revision_stopped_by_the_clock_asks_no_critic(
+    review_rig,  # noqa: F811
+    monkeypatch,
+):
+    """S-0127/D-9, S-0124/D-7: a session turn whose blocker's re-run measured
+    nothing (S-0128/D-3) goes to the critic only while the unit's clock lasts.
+    A turn and its re-runs that spent it stop the attempt on the clock before
+    the re-review."""
+
+    from test_critic import answer, finding
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    from torve.application import runner as run_module
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+
+    repo, _runtime, deps_for = review_rig
+    _scripted_reruns(monkeypatch, 1, None)
+    turned: list[str] = []
+    monkeypatch.setattr(run_module, "_elapsed_minutes", lambda _state: 1e6 if turned else 0.0)
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            (ctx.workspace / "src").mkdir(parents=True, exist_ok=True)
+            (ctx.workspace / "src" / "app.py").write_text("a\nb\nc\n", encoding="utf-8")
+
+            return AgentResult(exit_code=0, output="first", cost_usd=0.25)
+
+        def follow_up(self, ctx, previous, text):
+            turned.append(text)
+
+            return AgentResult(exit_code=0, output="second", cost_usd=0.25)
+
+    config = RunnerConfig(
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=2
+        )
+    )
+    critic = SequencedReviewer([answer(findings=[finding()])] * 3)
+    deps = deps_for(critic)
+    deps.agent = SessionHarness([])
+
+    state = run_task(repo.root, _unit_task(), config, deps)
+
+    assert turned
+    assert state.escalation is not None
+    assert state.escalation.reason == "budget_exhausted"
+    assert state.escalation.detail.startswith(run_module._WALLCLOCK_MARKER)
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    [unit] = [row for row in rows if row.get("kind") == "unit.closed"]
+
+    assert unit["critic_calls"] == 1
+    assert unit["revision"]["rereview"] == "stopped"
+
+
 def test_a_unit_cap_stop_on_a_revision_keeps_the_revision(
     review_rig,  # noqa: F811
     monkeypatch,
