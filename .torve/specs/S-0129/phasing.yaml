@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=../../schemas/phasing.json
+after: [S-0128]
+phasing:
+  - phase: 1
+    title: The compile seat and its store
+    intent: >-
+      `ReviewConfig` gains `compile: bool = False`, refused at load with `mode: classic`.
+      The new module `torve.application.acceptance` holds `CompileDocument` (the seat's
+      answer: `probes`, each `row`, `quote`, `claim`, `file`, `command`, read under
+      the frozen prompt pair `prompts/compile-v1.md` and `compile-v1.schema.json`,
+      the schema generated from the model as `critic-v1.schema.json` is), `ACCEPTANCE_CAP
+      = 12`, `Probe` (one kept probe: row, quote, claim, file, command, text, base
+      exit), `Acceptance` (the kept probes and the dropped ones with their reasons)
+      and `compile_acceptance(run, state) -> Acceptance`. It returns the unit's store
+      under `layout.task_dir(root, task)/acceptance/` when one exists. Otherwise it
+      runs one `review.run_seat` call on the reviewer tier, staged the document's
+      files and the contract's rows, harvests the files under `probes/acceptance/`,
+      keeps a probe when its row is carried, its quote occurs in the document with
+      whitespace collapsed, its file is under the cap and its command run through
+      `runner.reproduce` over the start tree executes and exits non-zero, writes the
+      store, records the spend and a `review` with `mode: compile`, and returns. A
+      seat that refuses, errs or is unparseable gives an empty `Acceptance` and a
+      fact. Tests: `tests/test_acceptance.py` (the keep rule as a Hypothesis property
+      over row, quote and base exit; the cap; a stored unit not compiled again; a
+      refusing seat) and `tests/test_runconfig.py` (the key's default and its refusal
+      under `classic`).
+    scope:
+      - src/torve/config/runconfig.py
+      - tests/test_runconfig.py
+      - src/torve/application/acceptance.py
+      - src/torve/application/prompts/compile-v1.md
+      - src/torve/application/prompts/compile-v1.schema.json
+      - tests/test_acceptance.py
+      - .torve/schemas/config.json
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_acceptance.py tests/test_runconfig.py
+      - uv run mypy src
+    delivers: [D-1, D-2]
+  - phase: 2
+    title: The probes in the session and in the verdict
+    intent: >-
+      `runner.select_attempt` calls `acceptance.compile_acceptance` before the first
+      candidate launches when `review.compile` is on, and appends each kept probe's
+      command to `run.contract_acceptance` and the shown task's acceptance. `session.run_agent_session`
+      plants the store's files in the worktree and excludes `/probes/acceptance/`.
+      `harness.build_prompt` adds the probes' paragraph when a shown command runs
+      a file under `probes/acceptance/`. `critic.run_critic` takes `acceptance`, and
+      `critic.decide` gains `acceptance: Sequence[Probe] = ()`: each probe is re-run
+      with its stored text, and one that exits non-zero is a `contract` blocker of
+      severity `blocker` on its row, never carried and never filtered, while the others
+      are recorded passed or unmeasured; the probes' texts join the verdict's `probes`,
+      so `recheck` re-runs them. `selection.unit_record` gains `acceptance` with `kept`,
+      `dropped`, `failed_first`, `spend_usd` and `wall_s`, and `close_unit` fills
+      it. Tests: `tests/test_critic.py` (a probe blocks exactly when it executed and
+      exited non-zero, at any `blocks_at`, critic document and revision; `recheck`
+      clears it at exit 0), `tests/test_runner.py` (a failing probe after a clean
+      critic is revised in session and lands on the recheck; the unit record's block),
+      `tests/test_session.py` (planted, excluded, absent from the judge checkout),
+      `tests/test_tiering.py` (the paragraph) and `tests/test_selection.py`. The skills,
+      `pages/docs/operating.md` and the changelog describe it.
+    scope:
+      - src/torve/application/runner.py
+      - tests/test_runner.py
+      - src/torve/application/session.py
+      - tests/test_session.py
+      - src/torve/adapters/agent/harness.py
+      - tests/test_tiering.py
+      - src/torve/application/critic.py
+      - tests/test_critic.py
+      - src/torve/application/selection.py
+      - tests/test_selection.py
+      - src/torve/application/acceptance.py
+      - tests/test_acceptance.py
+      - skills/torve/**
+      - skills/spec-writer/**
+      - pages/docs/operating.md
+      - /CHANGELOG.md
+      - src/torve/**/AGENTS.md
+    acceptance:
+      - >-
+        uv run pytest -q tests/test_critic.py tests/test_runner.py tests/test_session.py
+        tests/test_tiering.py tests/test_selection.py tests/test_acceptance.py
+      - uv run mypy src
+    depends_on:
+      - 1
+    delivers: [D-3, D-4, D-5]
