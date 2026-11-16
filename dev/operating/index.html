@@ -2300,7 +2300,7 @@ exit accordingly.</p>
 </tr>
 <tr>
 <td><code>blocker_finding</code></td>
-<td>review ended with a blocker surviving — on the review path a blocker that reaches you has already had its fresh attempt on the seat (S-0127/D-5), or, under <code>review.revision: fresh</code> or <code>session</code> with a <code>revision_variant</code>, its revision on that rung (S-0117/D-1); a red whole-suite battery, or <code>blocker_revisions: 0</code>, escalates one unrevised</td>
+<td>review ended with a blocker surviving — on the review path a blocker that reaches you has already had its revision: a turn in its own session whose re-run still failed (S-0128/D-3), its fresh attempt on the seat under <code>review.revision: off</code> (S-0127/D-5), or, under <code>fresh</code> with a <code>revision_variant</code>, its revision on that rung (S-0117/D-1); a red whole-suite battery, or <code>blocker_revisions: 0</code>, escalates one unrevised</td>
 <td>2</td>
 </tr>
 <tr>
@@ -2540,11 +2540,16 @@ owner. The terms that make the run survive what its owner would have answered:</
 </span><span id="__span-9-25"><a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="w">  </span><span class="nt">approve_comment</span><span class="p">:</span><span class="w"> </span><span class="s">"..."</span><span class="w">                </span><span class="c1"># posted once the wave is green; unset posts nothing</span>
 </span></code></pre></div>
 <p><code>revision_variant</code> names a configured tier, dotted, refused at load when it
-resolves to none (S-0117/D-1). Under <code>review.revision: off</code>, the default, a
-surviving blocker gets one fresh attempt on the seat itself and the tier is not
-used (S-0127/D-5). Under <code>fresh</code> or <code>session</code> the revision attempt runs on that
-tier in the same run, worktree and critique, so a blocker that escalates has
-already had the stronger seat's attempt; empty keeps the revision on the seat.</p>
+resolves to none (S-0117/D-1). <code>review.revision</code> unset is <code>session</code> in critic
+mode and <code>off</code> in classic mode (S-0128/D-2). Under <code>session</code> a blocked
+candidate gets one more turn in its own session, and the engine re-runs its
+blockers' repros on the turn's tree rather than asking the critic again; only
+a blocker no re-run measured goes back to the critic (S-0128/D-3). Under <code>off</code>
+a surviving blocker gets one fresh attempt on the seat itself and the tier is
+not used (S-0127/D-5). Under <code>fresh</code>, or <code>session</code> on a seat whose harness
+keeps no session, the revision attempt runs on that tier in the same run,
+worktree and critique, so a blocker that escalates has already had the
+stronger seat's attempt; empty keeps the revision on the seat.</p>
 <p>The thread leg needs <code>threads.enabled</code>, the forge's bots in <code>threads.bots</code>, and
 a landing that reads a document's pull request — <code>promotion.landing:
 pull_request</code> with <code>unit: document</code>; it refuses to load otherwise. When every
