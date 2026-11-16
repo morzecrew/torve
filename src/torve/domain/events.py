@@ -482,7 +482,10 @@ class ReviewItem(BaseModel):
     not run the review reads the finding itself rather than a count of them.
 
     A critic's item also carries the finding's kind and, when the engine
-    re-ran its repro, the command and its exit code (S-0127/D-14)."""
+    re-ran its repro, the command and its exit code (S-0127/D-14). An item a
+    session revision's re-run re-measured carries the exit that made it block
+    as `blocked_exit`, and the exit after the turn as `rerun_exit`
+    (S-0128/D-4)."""
 
     model_config = STRICT
 
@@ -496,6 +499,9 @@ class ReviewItem(BaseModel):
     kind: str = ""
     rerun_command: str = ""
     rerun_exit: int | None = None
+    # S-0128/D-4: additive with a default, so an item written before it reads
+    # as one no revision re-measured.
+    blocked_exit: int | None = None
 
 
 # ....................... #

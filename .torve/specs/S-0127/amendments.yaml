@@ -376,3 +376,63 @@ amendments:
       `tests-base.log`, and judged the rows from the acceptance logs instead. The launcher now adds
       the group, or else the extra, that carries pytest, so the run uses the same environment the
       phase's own acceptance commands name. A manifest's `tests.run` still wins.
+  - id: A-12
+    at: '2026-11-15T19:48:47Z'
+    title: >-
+      `off` is the default in classic mode only (S-0128/D-2)
+    changes:
+      - subject: D-5
+        field: text
+        before: >-
+          `review.revision` gains `off`, the default: a surviving blocker sends the
+          unit to one fresh attempt on the task's own seat, never its `revision_variant`,
+          on the blocked candidate's tree with the feedback record D-1's threads fill,
+          and a blocker surviving that attempt escalates `blocker_finding`; under
+          `off`, `review.blocker_revisions` resolves to 1 unless the configuration
+          names a number, and `fresh` and `session` keep their meaning when a configuration
+          names them
+        after: >-
+          `review.revision` gains `off`, the default in classic mode (S-0128/D-2):
+          a surviving blocker sends the unit to one fresh attempt on the task's own
+          seat, never its `revision_variant`, on the blocked candidate's tree with
+          the feedback record D-1's threads fill, and a blocker surviving that attempt
+          escalates `blocker_finding`; under `off`, `review.blocker_revisions` resolves
+          to 1 unless the configuration names a number, and `fresh` and `session`
+          keep their meaning when a configuration names them
+      - subject: D-5
+        field: fingerprint
+        after: 5aa12a1e65452e8e/7158dec0176476f9
+    md: |
+      Amended on 2026-11-15 in the pull request that accepts S-0128.
+      S-0128/D-2 resolves an unset `review.revision` to `session` in critic mode, which the bed measured clearing blocks in less wall time than this row's fresh attempt. `off` still means what this row says when a configuration names it, and it stays the classic mode's default.
+  - id: A-13
+    at: '2026-11-15T19:48:54Z'
+    title: >-
+      The blockers a revision cleared have their own heading (S-0128/D-5)
+    changes:
+      - subject: D-13
+        field: text
+        before: >-
+          The document's pull-request body lists, under each landing, each finding
+          its last task-gated review recorded, by severity, kind, anchor (`path:line`)
+          and, when the engine re-ran it, the re-run's command and exit code, read
+          from the store's `review.recorded` items (D-14) under a heading that names
+          them the critic's advisory findings; no claim or evidence text is listed,
+          and a landed candidate's last review blocked nothing, so every finding listed
+          is advisory
+        after: >-
+          The document's pull-request body lists, under each landing, each finding
+          its last task-gated review recorded, by severity, kind, anchor (`path:line`)
+          and, when the engine re-ran it, the re-run's command and exit code, read
+          from the store's `review.recorded` items (D-14) under a heading that names
+          them the critic's advisory findings, except that an item carrying a `blocked_exit`
+          is listed under a heading that names it a blocker the revision cleared,
+          with its exit before the revision and after (S-0128/D-5); no claim or evidence
+          text is listed, and a landed candidate's last review blocked nothing, so
+          every other finding listed is advisory
+      - subject: D-13
+        field: fingerprint
+        after: ebf927367a5a395f/c38ba547d695ca57
+    md: |
+      Amended on 2026-11-15 in the pull request that accepts S-0128.
+      S-0128/D-4 records the blockers a session revision's re-run measured fixed in the review the turn was handed, and S-0128/D-5 lists them apart from the advisory findings.

@@ -591,13 +591,20 @@
     },
     "ReviewConfig": {
       "additionalProperties": false,
-      "description": "Review triggers (S-0005/triggers). Off by default \u2014 a blocker stopping\nthe run is configuration deciding a consequence (S-0001/D-10), and configuring\nnothing decides nothing. `task_gated` is board-driven; the pull-request\ntriggers admit `torve review pr` as the forge's event delivery.\n`skip_authors` is \u00a74's author skip rule; draft and zero-changed-files\npull requests always skip. `blocker_revisions` (S-0043, S-0001/D-10's framing:\nconfiguration decides the consequence, never the model) bounds how many\nin-run attempts a surviving blocker earns before escalating\n`blocker_finding`; 0 escalates on the first surviving blocker, today's\nbehavior exactly.",
+      "description": "Review triggers (S-0005/triggers). Off by default \u2014 a blocker stopping\nthe run is configuration deciding a consequence (S-0001/D-10), and configuring\nnothing decides nothing. `task_gated` is board-driven; the pull-request\ntriggers admit `torve review pr` as the forge's event delivery.\n`skip_authors` is \u00a74's author skip rule; draft and zero-changed-files\npull requests always skip. `blocker_revisions` (S-0043, S-0001/D-10's framing:\nconfiguration decides the consequence, never the model) bounds how many\nin-run attempts a surviving blocker earns before escalating\n`blocker_finding`; 0 escalates on the first surviving blocker. `None`\nuntil `resolved_blocker_revisions` reads it: a configuration that names\nno number gets two rounds under `revision: fresh` in critic mode and one\notherwise (S-0127/D-5, S-0128/D-2), and that resolution lives here alone.\n`revision` resolves the same way, through `resolved_revision`.",
       "properties": {
         "blocker_revisions": {
-          "default": 1,
-          "description": "The blocker revision budget (S-0043 S-0043/D-1/D-43.3): in-run attempts, same\nworktree, a surviving blocker spends before escalating. Counted per run, spent only by\nsurviving blockers \u2014 a clean review costs nothing against it. 0 escalates on the first\nsurviving blocker, today's behavior exactly.",
-          "title": "Blocker Revisions",
-          "type": "integer"
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The blocker revision budget (S-0043 S-0043/D-1/D-43.3, S-0124/D-2): in-run\nattempts, same worktree, a surviving blocker spends before escalating. Counted per\nrun, spent only by surviving blockers \u2014 a clean review costs nothing against it. 0\nescalates on the first surviving blocker. `None` resolves through\n`resolved_blocker_revisions`: two under `revision: fresh` in critic mode,\nelse one.",
+          "title": "Blocker Revisions"
         },
         "blocks_at": {
           "default": "major",
@@ -640,6 +647,24 @@
           },
           "title": "On",
           "type": "array"
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "enum": [
+                "off",
+                "fresh",
+                "session"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "How a revision round after a critic block continues (S-0124/D-8,\nS-0127/D-5): `off` starts one fresh attempt on the task's own seat, never\nits `revision_variant`; `fresh` starts a new attempt on the seat's\n`revision_variant`; `session` continues the selected candidate in its own\nstill-open session, on that candidate's tier, and falls back to `fresh`\nwhen its harness keeps no session. `None` resolves through\n`resolved_revision` (S-0128/D-2), which every reader reads.",
+          "title": "Revision"
         },
         "skip_authors": {
           "description": "\u00a74's author skip rule: pull requests by these authors are not reviewed; draft and\nzero-changed-files pull requests always skip.",
@@ -879,8 +904,8 @@
           "type": "boolean"
         },
         "findings_per_round": {
-          "default": 15,
-          "description": "How many findings one round carries (S-0097/D-5). A head's findings are minted\ntogether as rounds of at most this many, grouped by file so no two rounds of one\nwave share a file; `rounds_per_pass` still bounds what a pass mints.",
+          "default": 5,
+          "description": "How many findings one round carries (S-0097/D-5, S-0125/D-3). A head's findings\nare minted together as rounds of at most this many, grouped by file so no two\nrounds of one wave share a file; a file carrying more findings than this is one\nround of its own rather than split. `rounds_per_pass` still bounds what a pass mints.\nThe cap applies whether triage ran on the head or not. The default is 5 (S-0125/D-3);\nan operator who wants a larger round sets it explicitly.",
           "title": "Findings Per Round",
           "type": "integer"
         },
@@ -977,7 +1002,8 @@
         },
         "context_window": {
           "default": 0,
-          "description": "S-0064/D-1: the model's window, merged off the roster; 0 is unstated.",
+          "description": "S-0064/D-1, S-0125/D-8: the window this seat's harness compacts against, kept when\nthe seat states one and merged off the roster only when the seat states none; 0 is\nunstated, and a negative window is refused at load rather than handed to a harness.",
+          "minimum": 0,
           "title": "Context Window",
           "type": "integer"
         },
@@ -1126,7 +1152,7 @@
         },
         "revision_variant": {
           "default": "",
-          "description": "S-0117/D-1: the dotted tier a surviving review blocker's revision resolves to \u2014\none rung, as `retry_variant` is after a gate-red. Empty, the default, keeps the\nrevision on the seat. A value naming no configured tier is refused at load.",
+          "description": "S-0117/D-1: the dotted tier a surviving review blocker's revision resolves to \u2014\none rung, as `retry_variant` is after a gate-red \u2014 when `review.revision` names\n`fresh` or `session` (S-0127/D-5). Empty, the default, keeps the revision on the\nseat. A value naming no configured tier is refused at load.",
           "title": "Revision Variant",
           "type": "string"
         },

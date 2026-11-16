@@ -944,6 +944,42 @@ def test_advisory_findings_are_listed_under_their_own_task_without_their_claims(
         assert item.evidence not in body
 
 
+def test_cleared_blockers_are_listed_under_their_own_heading_with_both_exits(tmp_path: Path):
+    """S-0128/D-5, S-0121/D-34: an item carrying a `blocked_exit` is a blocker
+    a revision's re-run measured fixed, listed under its own heading before
+    the advisory findings, with the re-run's exit before the revision and
+    after; a landing with none lists no such heading, and no claim or
+    evidence reaches the body."""
+
+    root = corpus_with_phasing(tmp_path)
+    cleared = advisory_item(
+        kind="bug",
+        path="src/app.py",
+        line=12,
+        rerun_command="uv run pytest -q tests/test_app.py",
+        rerun_exit=0,
+        blocked_exit=1,
+    )
+    advisory = advisory_item(severity="minor", kind="style", path="src/app.py", line=3)
+    landings = [
+        DocumentLanding(task=phase_task("T-8401", 1, "one"), advisory=[advisory, cleared]),
+        DocumentLanding(task=phase_task("T-8403", 2, "two"), advisory=[advisory]),
+    ]
+
+    _, body = compose_document_pr("S-0090", landings, root)
+    own = body[body.index("## T-8401") : body.index("## T-8403")]
+
+    assert (
+        "**Blockers the revision cleared**\n"
+        "- major · bug · `src/app.py:12` · re-run `uv run pytest -q tests/test_app.py` "
+        "exit 1 → 0\n\n"
+        f"{HEADING}\n- minor · style · `src/app.py:3`\n"
+    ) in own
+    assert body.count("**Blockers the revision cleared**") == 1
+    assert body.count(HEADING) == 2
+    assert cleared.claim not in body and cleared.evidence not in body
+
+
 def test_advisory_a_landing_with_none_lists_nothing(tmp_path: Path):
     """S-0127/D-13: a landing whose last review recorded no finding, or that
     no review read, composes the body it composed before."""

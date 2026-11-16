@@ -78,7 +78,7 @@ questions:
 
 ```yaml
 # yaml-language-server: $schema=../../schemas/phasing.json
-unit: phase   # optional: one contract for the whole document is the default at three phases or fewer
+unit: phase   # optional: one contract for the whole document is the default at eight phases or fewer
 phasing:
   - phase: 1
     title: <a short unit name>

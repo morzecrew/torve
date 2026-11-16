@@ -38,9 +38,9 @@ decisions:
       no session falls back to `fresh` as S-0124/D-8 says, which on a seat naming
       no `revision_variant` is the fresh attempt `off` runs
     rationale: >-
-      on the bed the in-session revision cleared 8 of 8 blocks in one round, in 1,258
-      s against 3,240 s for fresh retries, and its arm passed 12 of 13 against 11
-      of 13
+      on the bed the in-session revision cleared 8 of 8 blocks in one round, at 413
+      s a block with its re-review against 540 s for a fresh retry with its re-review,
+      and its arm passed 12 of 13 against 11 of 13
     cites: [S-0127/D-5, S-0124/D-2, S-0124/D-8, S-0122/D-9]
     check: >-
       uv run pytest -q tests/test_runconfig.py -k resolved_revision

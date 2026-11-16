@@ -141,7 +141,7 @@ arrives first, invisibly.
 2a. **Size a phase by component.** A phase is one component a reviewer can
    judge whole: the modules that change together, with the callers their
    acceptance can turn red. One contract for the whole document is the
-   default for three phases or fewer, and `unit: document` in `phasing.yaml`
+   default for eight phases or fewer, and `unit: document` in `phasing.yaml`
    asks for it at any size; `unit: phase` keeps one contract per
    entry. Split a document into phases only where a later one builds on an
    earlier one's landed tree, or where two components run in parallel on

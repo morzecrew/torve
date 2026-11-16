@@ -330,7 +330,9 @@ class DocumentLanding:
     sha: str = ""
     results: list[GateResult] = field(default_factory=list)
     # S-0127/D-13: the landed candidate's last review blocked nothing, so every
-    # item it recorded is advisory; a task with no recorded review has none.
+    # item it recorded is advisory, but for one carrying a `blocked_exit`: a
+    # blocker a revision's re-run measured fixed (S-0128/D-5). A task with no
+    # recorded review has none.
     advisory: list[ReviewItem] = field(default_factory=list)
 
 
@@ -478,11 +480,12 @@ def _code(text: str) -> str:
     return f"{fence}{pad}{text}{pad}{fence}"
 
 
-def _advisory_line(item: ReviewItem) -> str:
-    """One advisory finding as the body lists it (S-0127/D-13): its severity,
+def _finding_line(item: ReviewItem) -> str:
+    """One recorded finding as the body lists it (S-0127/D-13): its severity,
     then its kind, its anchor and the engine's re-run of it, each when the
-    record holds one. Never its claim or its evidence: a person who wants the
-    claim reads the review record."""
+    record holds one; a blocker a revision cleared shows the exit that made it
+    block and the exit after (S-0128/D-5). Never its claim or its evidence: a
+    person who wants the claim reads the review record."""
 
     parts: list[str] = [item.severity]
 
@@ -495,6 +498,10 @@ def _advisory_line(item: ReviewItem) -> str:
     if item.rerun_command:
         # None is a timeout, a refused repro or a command that was not run.
         code = "no exit code" if item.rerun_exit is None else f"exit {item.rerun_exit}"
+
+        if item.blocked_exit is not None:
+            code = f"exit {item.blocked_exit} → {item.rerun_exit}"
+
         parts.append(f"re-run {_code(item.rerun_command)} {code}")
 
     return "- " + " · ".join(parts)
@@ -542,7 +549,9 @@ def compose_document_pr(
     paragraph and is in the open; nothing an agent wrote as prose reaches it.
 
     An advisory finding is listed by severity, kind, anchor and the engine's
-    re-run, inside the same bound as the rest (S-0127/D-13).
+    re-run, inside the same bound as the rest (S-0127/D-13), and a blocker a
+    revision's re-run cleared under its own heading, with its exit before the
+    revision and after (S-0128/D-5).
 
     *phases* is the union the draft flag counts (S-0124/D-10): a phase only
     the branch's phasing names is counted too, untitled, since the root's
@@ -622,15 +631,21 @@ def compose_document_pr(
         for divergence in _divergences(root, task.id):
             lines.append(f"- divergence: {divergence}")
 
-        if landing.advisory:
+        cleared = [item for item in landing.advisory if item.blocked_exit is not None]
+        advisory = [item for item in landing.advisory if item.blocked_exit is None]
+
+        for heading, items in (
+            ("**Blockers the revision cleared**", cleared),
+            ("**The critic's advisory findings**", advisory),
+        ):
+            if not items:
+                continue
+
             # A blank line first, or the heading reads as the list item above.
             if lines[-1]:
                 lines.append("")
 
-            lines += [
-                "**The critic's advisory findings**",
-                *(_advisory_line(item) for item in landing.advisory),
-            ]
+            lines += [heading, *(_finding_line(item) for item in items)]
 
         lines.append("")
 

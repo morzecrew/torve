@@ -170,8 +170,9 @@ def _document_pr_text(
     The gate results are read from the record's `gates.evaluated` events
     (S-0101/D-6), the board the caller opened: the body is composed the same
     from any host, and a host whose stream is empty lists the same results.
-    Each task's advisory findings are the items of its last task-gated
-    `review.recorded` event on the same board (S-0127/D-13).
+    Each task's advisory findings, and the blockers a revision cleared, are
+    the items of its last task-gated `review.recorded` event on the same
+    board (S-0127/D-13, S-0128/D-5).
     """
 
     from torve.application.forge import (

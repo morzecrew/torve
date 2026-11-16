@@ -2409,6 +2409,53 @@ def test_rerun_item_a_critic_reviews_items_carry_kind_and_rerun(review_rig):
     ]
 
 
+def test_a_blocker_a_session_turn_cleared_is_recorded_with_its_blocked_exit(
+    review_rig, monkeypatch
+):
+    """S-0128/D-4: after a session turn its blocker's re-run cleared, the
+    review recorded is the one the turn was handed, re-measured: the blocker
+    is an item carrying the exit that made it block as `blocked_exit` and the
+    exit after the turn as `rerun_exit`, and it blocks nothing."""
+
+    from test_critic import REPRO, answer, finding
+
+    from torve.domain.events import ReviewRecorded
+
+    repo, _runtime, deps_for = review_rig
+    exits = iter([1, 0])
+    monkeypatch.setattr(
+        run_module,
+        "reproduce",
+        lambda run, state, commands, probes: [
+            CommandRun(command, code, "") for command, code in zip(commands, exits, strict=False)
+        ],
+    )
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def follow_up(self, ctx, previous, text):
+            return AgentResult(exit_code=0, output="fixed")
+
+    critic = SequencedReviewer([answer(findings=[finding()])])
+    config = _critic_unit(repo, critic, revision="session")
+    deps = deps_for(critic)
+    deps.agent = SessionHarness([OK])
+    facts: list = []
+    deps.facts = facts.append
+
+    state = run_task(repo.root, task_for(repo), config, deps)
+
+    assert state.state is TaskState.READY
+    [fact] = [fact for fact in facts if fact.kind == "review_recorded"]
+    recorded = ReviewRecorded.model_validate(fact.payload)
+    assert (recorded.findings, recorded.blockers) == (1, 0)
+    assert [
+        (item.kind, item.rerun_command, item.blocked_exit, item.rerun_exit)
+        for item in recorded.items
+    ] == [("bug", REPRO, 1, 0)]
+
+
 def test_rerun_item_a_classic_reviews_items_carry_no_kind(review_rig):
     """S-0127/D-14: the classic reviewer's items keep their shape; the fields
     the critic's items gain stay at their defaults."""

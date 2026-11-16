@@ -112,12 +112,13 @@ decisions:
   - id: D-5
     grade: ASSUMED
     text: >-
-      `review.revision` gains `off`, the default: a surviving blocker sends the unit
-      to one fresh attempt on the task's own seat, never its `revision_variant`, on
-      the blocked candidate's tree with the feedback record D-1's threads fill, and
-      a blocker surviving that attempt escalates `blocker_finding`; under `off`, `review.blocker_revisions`
-      resolves to 1 unless the configuration names a number, and `fresh` and `session`
-      keep their meaning when a configuration names them
+      `review.revision` gains `off`, the default in classic mode (S-0128/D-2): a surviving
+      blocker sends the unit to one fresh attempt on the task's own seat, never its
+      `revision_variant`, on the blocked candidate's tree with the feedback record
+      D-1's threads fill, and a blocker surviving that attempt escalates `blocker_finding`;
+      under `off`, `review.blocker_revisions` resolves to 1 unless the configuration
+      names a number, and `fresh` and `session` keep their meaning when a configuration
+      names them
     paths: [src/torve/config/runconfig.py, src/torve/application/session.py]
     consequence: >-
       no Opus revision runs unless a configuration asks for one, and a unit blocked
@@ -128,6 +129,7 @@ decisions:
     cites: [S-0122/D-8, S-0124/D-1, S-0124/D-2, S-0124/D-8, S-0117/D-1]
     check: >-
       uv run pytest -q tests/test_runconfig.py tests/test_session.py -k revision_off
+    fingerprint: 5aa12a1e65452e8e/7158dec0176476f9
   - id: D-6
     grade: ASSUMED
     text: >-
@@ -298,8 +300,11 @@ decisions:
       last task-gated review recorded, by severity, kind, anchor (`path:line`) and,
       when the engine re-ran it, the re-run's command and exit code, read from the
       store's `review.recorded` items (D-14) under a heading that names them the critic's
-      advisory findings; no claim or evidence text is listed, and a landed candidate's
-      last review blocked nothing, so every finding listed is advisory
+      advisory findings, except that an item carrying a `blocked_exit` is listed under
+      a heading that names it a blocker the revision cleared, with its exit before
+      the revision and after (S-0128/D-5); no claim or evidence text is listed, and
+      a landed candidate's last review blocked nothing, so every other finding listed
+      is advisory
     paths: [src/torve/application/forge.py, src/torve/cli/merge.py]
     consequence: >-
       a person merging sees where the critic found something and what the engine measured
@@ -312,6 +317,7 @@ decisions:
       stands unamended (Q-2)
     cites: [S-0121/D-34, S-0083/D-8, D-1, D-14]
     check: uv run pytest -q tests/test_forge.py -k advisory
+    fingerprint: ebf927367a5a395f/c38ba547d695ca57
   - id: D-14
     grade: ASSUMED
     text: >-

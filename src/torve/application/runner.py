@@ -1885,7 +1885,8 @@ def _width(run: Dispatch, state: RunState) -> tuple[int, str]:
     """The unit's width and class (S-0122/D-7, S-0124/D-1). Several candidates
     only when a critic judges the unit; a revision attempt — one whose
     task has a feedback record at the root — is class S and runs one. A review
-    round runs one, and `review.max_width` caps the rest."""
+    round runs one, and `review.max_width` caps the rest; a contract covering
+    more than one phase reads an unset cap as 1 (S-0128/D-6)."""
 
     revision = feedback.feedback_file(run.root, run.task.id).is_file()
     size = selection.unit_class(
@@ -1894,6 +1895,9 @@ def _width(run: Dispatch, state: RunState) -> tuple[int, str]:
     critic = run.config.review.mode == "critic" and review_gated(run.config, run.task, run.shadow)
     width = selection.WIDTHS[size] if critic and run.task.round is None else 1
     cap = run.config.review.max_width
+
+    if cap is None and len(run.task.covered) > 1:
+        cap = 1
 
     return (width if cap is None else min(width, cap)), size
 
@@ -2201,7 +2205,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             and critic
             and chosen_round.winner is None
             and not chosen_round.exhausted
-            and run.config.review.revision == "session"
+            and run.config.review.resolved_revision() == "session"
             and _blocker_revisions_spent(state) < run.config.review.resolved_blocker_revisions()
             and winner.reviewed
             and not winner.clean
@@ -2414,6 +2418,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                     # A tree whose gates are red is read by no critic.
                     rereview = "failed"
                     rereviewed = False
+                    judged_by: str | None = None
 
                     if (
                         state.escalation is None
@@ -2422,8 +2427,36 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                     ):
                         member.green = True
                         member.patch = crun.last_pass.patch
+                        # S-0128/D-3: the blockers the turn was handed are
+                        # re-run against its tree first. Every one cleared,
+                        # or one still failing, decides the turn with no
+                        # critic call; a blocker no re-run measured goes on
+                        # to the critic's re-review.
+                        from torve.application.critic import CriticVerdict, recheck
+
+                        rechecked = (
+                            await asyncio.to_thread(
+                                recheck, verdict, partial(reproduce, crun, state), crun.worktree
+                            )
+                            if isinstance(verdict, CriticVerdict)
+                            else None
+                        )
+
+                        if rechecked is not None and (
+                            not rechecked.blockers
+                            or (rechecked.decision is not None and rechecked.decision.reraised)
+                        ):
+                            member.verdict = rechecked
+                            member.clean = not rechecked.blockers
+                            member.reviewed = rereviewed = True
+                            rereview = "clean" if member.clean else "blocked"
+                            judged_by = "rerun"
+
+                            if member.clean:
+                                chosen_round.winner = member
+
                         # The critic call is new work too (S-0124/D-7).
-                        if _unit_spend(state) >= budget_usd:
+                        elif _unit_spend(state) >= budget_usd:
                             state.escalate(
                                 EscalationReason.BUDGET_EXHAUSTED,
                                 f"{selection.UNIT_BUDGET_MARKER}: ${_unit_spend(state):.2f} spent of "
@@ -2441,15 +2474,16 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                             stopped = True
                             break
 
-                        member.clean = await review(member)
-                        chosen_round.critic_calls += 1
-                        chosen_round.spent_usd = max(chosen_round.spent_usd, _unit_spend(state))
-                        member.reviewed = True
-                        rereviewed = True
-                        rereview = "clean" if member.clean else "blocked"
+                        else:
+                            member.clean = await review(member)
+                            chosen_round.critic_calls += 1
+                            chosen_round.spent_usd = max(chosen_round.spent_usd, _unit_spend(state))
+                            member.reviewed = rereviewed = True
+                            rereview = "clean" if member.clean else "blocked"
+                            judged_by = "critic"
 
-                        if member.clean:
-                            chosen_round.winner = member
+                            if member.clean:
+                                chosen_round.winner = member
 
                     session_revision = selection.Revision(
                         kind="session",
@@ -2458,6 +2492,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                         reraised=revision_reraised(member),
                         spend_usd=turn_spend,
                         wall_s=round(wall_s, 3),
+                        by=judged_by,
                     )
 
                     # Another round in this session only when the critic read
@@ -2515,6 +2550,8 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                 reraised=(revision_reraised(winner) if chosen_round.winner is None else False),
                 spend_usd=round(max(0.0, chosen_round.spent_usd - budget_spent), 6),
                 wall_s=round(time.monotonic() - attempt_started, 3),
+                # A fresh revision is new code, so the critic reads it (S-0128/D-3).
+                by="critic" if winner.reviewed else None,
             )
 
         close_unit()

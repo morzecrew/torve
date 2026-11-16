@@ -54,8 +54,8 @@ from torve.domain.vocabulary import (
 SCHEMA_VERSION = 4  # S-0058/D-4: the typed anatomy and phasing.yaml; 3 was the flat section list
 
 # A document with this many phases or fewer mints one contract unless its
-# phasing says `unit: phase` (S-0122/D-13).
-WHOLE_UNTIL = 3
+# phasing says `unit: phase` (S-0122/D-13, S-0128/D-1).
+WHOLE_UNTIL = 8
 
 FINGERPRINT_LENGTH = 16
 
@@ -602,7 +602,7 @@ class Document(Item):
     decision inheritance, and says nothing about trees."""
     unit: Literal["phase", "document"] | None = None
     """What one contract covers (S-0122/D-13): a phasing entry, or the whole
-    document. Unset is `document` for three phases or fewer, `phase` beyond."""
+    document. Unset is `document` for eight phases or fewer, `phase` beyond."""
     phasing: list[Phase] = Field(default_factory=list)
     """The mintable units `torve plan` derives contracts from."""
     contract_example: Task | None = None

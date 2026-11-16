@@ -88,9 +88,15 @@ The issue intake leg is off until `intake.issue_label` names a label, drafts onl
 
 ### S-0122/D-7 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
 
-A unit's class sets its width (S one candidate, M two, L three, never more); among one attempt's candidates the first to finish green wins, the others are cut when it does, and the critic reads only it (S-0127/D-6)
+A unit's class sets its width (S one candidate, M two, L three, never more), except that a contract covering more than one phase runs one unless `review.max_width` names a cap (S-0128/D-6); among one attempt's candidates the first to finish green wins, the others are cut when it does, and the critic reads only it (S-0127/D-6)
 
 - Paths: `src/torve/application/selection.py` `src/torve/config/runconfig.py`
+
+### S-0122/D-9 — `ASSUMED` (Judge-and-select rebuild) — implementation: partial
+
+An in-session revision replaces the fresh attempt after a critic block as the default in critic mode (S-0128/D-2): on the evaluation bed it cleared 15 of 17 blocks in one round (88%), past the 70% this row set, in less wall time than a fresh attempt
+
+- Paths: `src/torve/config/runconfig.py`
 
 ### S-0122/D-21 — `OPEN` (Judge-and-select rebuild) — implementation: partial
 
@@ -108,7 +114,7 @@ What makes intake demand a document now that one charter is the only standing do
 
 ### S-0124/D-2 — `ASSUMED` (Candidates side by side, and S-0122's revision)
 
-Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions` revision rounds when the configuration names it, else 1 under `review.revision: off`, the default (S-0127/D-5), and 2 under `fresh` or `session`; classic mode keeps 1
+Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions` revision rounds when the configuration names it, else 2 under `review.revision: fresh` and 1 under `off` and `session`, the default (S-0127/D-5, S-0128/D-2); classic mode keeps 1
 
 - Paths: `src/torve/config/runconfig.py` `src/torve/application/review.py`
 - Consequence: a unit gets one fresh attempt after a block by default (S-0127/D-5), and the two rounds when a configuration names `fresh` or `session`
@@ -116,7 +122,7 @@ Under `review.mode: critic` a surviving blocker spends `review.blocker_revisions
 
 ### S-0124/D-8 — `ASSUMED` (Candidates side by side, and S-0122's revision)
 
-Under `review.revision: session` a revision round continues the selected candidate in its own still-open session, on that candidate's tier and not `revision_variant`, with the blocking findings, after the same spend and clock checks a fresh attempt passes, then judges its gates and asks the critic again, in place of a fresh revision attempt; `off` is the default (S-0127/D-5), under which neither revision mode runs, and a seat whose harness keeps no session falls back to `fresh`
+Under `review.revision: session`, the default in critic mode (S-0128/D-2), a revision round continues the selected candidate in its own still-open session, on that candidate's tier and not `revision_variant`, with the blocking findings, after the same spend and clock checks a fresh attempt passes, then judges its gates and re-runs its blockers, asking the critic again only when a blocker was left with no re-run that measured it (S-0128/D-3), in place of a fresh revision attempt; under `off` neither revision mode runs, and a seat whose harness keeps no session falls back to `fresh`
 
 - Paths: `src/torve/application/runner.py` `src/torve/application/session.py` `src/torve/config/runconfig.py`
 - Consequence: the night can run the in-session arm S-0122/D-9 asks about, one configuration key away
@@ -147,7 +153,7 @@ Whether dsh compacts against the context window torve passes and at what fractio
 
 ### S-0127/D-5 — `ASSUMED` (A verdict comes from what ran)
 
-`review.revision` gains `off`, the default: a surviving blocker sends the unit to one fresh attempt on the task's own seat, never its `revision_variant`, on the blocked candidate's tree with the feedback record D-1's threads fill, and a blocker surviving that attempt escalates `blocker_finding`; under `off`, `review.blocker_revisions` resolves to 1 unless the configuration names a number, and `fresh` and `session` keep their meaning when a configuration names them
+`review.revision` gains `off`, the default in classic mode (S-0128/D-2): a surviving blocker sends the unit to one fresh attempt on the task's own seat, never its `revision_variant`, on the blocked candidate's tree with the feedback record D-1's threads fill, and a blocker surviving that attempt escalates `blocker_finding`; under `off`, `review.blocker_revisions` resolves to 1 unless the configuration names a number, and `fresh` and `session` keep their meaning when a configuration names them
 
 - Paths: `src/torve/config/runconfig.py` `src/torve/application/session.py`
 - Consequence: no Opus revision runs unless a configuration asks for one, and a unit blocked twice reaches the owner after two executor sessions
@@ -160,5 +166,13 @@ A run of test files over a checkout — the evidence package's per-test runs at 
 - Paths: `src/torve/config/manifest.py` `src/torve/gates/evidence_package.py` `src/torve/gates/suite.py` `src/torve/application/reviewleg.py`
 - Consequence: a uv project's tests run in its own environment whichever copy of the manifest judged the attempt, the merge base's included
 - Check: `uv run pytest -q tests/test_manifest.py tests/test_evidence_package.py tests/test_suite.py -k 'uv_checkout or launcher_of_the_checkout'` (shadow; runs as `decision:S-0127/D-16`)
+
+### S-0128/D-2 — `ASSUMED` (One session per document)
+
+`review.revision` defaults to none and every reader reads `ReviewConfig.resolved_revision()`: what a configuration names, else `session` under `review.mode: critic` and `off` under `classic`; `review.blocker_revisions` left unset resolves to one round under `off` and `session`, two under `fresh` in critic mode, and one in classic mode
+
+- Paths: `src/torve/config/runconfig.py` `src/torve/application/session.py` `src/torve/application/runner.py`
+- Consequence: a critic-mode configuration that names no revision continues a blocked candidate in its own session for one round, on its own tier; a seat whose harness keeps no session falls back to `fresh` as S-0124/D-8 says, which on a seat naming no `revision_variant` is the fresh attempt `off` runs
+- Check: `uv run pytest -q tests/test_runconfig.py -k resolved_revision` (shadow; runs as `decision:S-0128/D-2`)
 
 <!-- /torve:managed -->

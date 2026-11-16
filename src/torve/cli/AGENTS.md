@@ -94,11 +94,19 @@ A document is complete when its landings cover every phase the root's phasing or
 
 ### S-0127/D-13 — `ASSUMED` (A verdict comes from what ran)
 
-The document's pull-request body lists, under each landing, each finding its last task-gated review recorded, by severity, kind, anchor (`path:line`) and, when the engine re-ran it, the re-run's command and exit code, read from the store's `review.recorded` items (D-14) under a heading that names them the critic's advisory findings; no claim or evidence text is listed, and a landed candidate's last review blocked nothing, so every finding listed is advisory
+The document's pull-request body lists, under each landing, each finding its last task-gated review recorded, by severity, kind, anchor (`path:line`) and, when the engine re-ran it, the re-run's command and exit code, read from the store's `review.recorded` items (D-14) under a heading that names them the critic's advisory findings, except that an item carrying a `blocked_exit` is listed under a heading that names it a blocker the revision cleared, with its exit before the revision and after (S-0128/D-5); no claim or evidence text is listed, and a landed candidate's last review blocked nothing, so every other finding listed is advisory
 
 - Paths: `src/torve/application/forge.py` `src/torve/cli/merge.py`
 - Consequence: a person merging sees where the critic found something and what the engine measured of it, reads the claim in the review record, and the body stays composed from records and bounded by `BODY_LIMIT`
 - Check: `uv run pytest -q tests/test_forge.py -k advisory` (shadow; runs as `decision:S-0127/D-13`)
+
+### S-0128/D-5 — `ASSUMED` (One session per document)
+
+The document's pull-request body lists, under each landing, every item of its last task-gated review that carries a `blocked_exit`, under a heading that names them the blockers a revision cleared, by severity, kind, anchor and the re-run's command with its exit before and after; every other item stays in the advisory list S-0127/D-13 describes, and no claim or evidence text is listed
+
+- Paths: `src/torve/application/forge.py` `src/torve/cli/merge.py`
+- Consequence: a person merging sees what the critic blocked, that the engine measured it fixed, and by which command, read from records alone as S-0121/D-34 requires
+- Check: `uv run pytest -q tests/test_forge.py -k cleared` (shadow; runs as `decision:S-0128/D-5`)
 
 <!-- /torve:managed -->
 
