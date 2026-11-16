@@ -1,0 +1,114 @@
+# yaml-language-server: $schema=../../schemas/decisions.json
+decisions:
+  - id: D-1
+    grade: ASSUMED
+    text: >-
+      With `review.compile: true`, refused outside `review.mode: critic` and off by
+      default, a unit compiles its document into acceptance probes once, before its
+      first candidate: one reviewer-tier seat call under its own frozen prompt `compile/v1`,
+      staged the document whole and the contract's rows, asked for probes that each
+      name a row the contract carries, quote the passage stating the behaviour, write
+      one file under `probes/acceptance/` and give one command exiting 0 when the
+      behaviour holds
+    paths:
+      - src/torve/config/runconfig.py
+      - src/torve/application/acceptance.py
+      - src/torve/application/prompts/compile-v1.md
+      - src/torve/application/prompts/compile-v1.schema.json
+    consequence: >-
+      a document's stated rules are executable before any code, at about one critic
+      call's cost per unit; a configuration that does not name the key runs as before
+    rationale: >-
+      on the bed both library-form misses (spoolman-nfc's `reader_id` pattern, ps-variadic's
+      `NoDecode` case) are rules the document states in prose that the executor dropped
+      and the critic never looked for; A0 passed both, so the detail is within reach
+      when attended to
+    cites: [S-0128, S-0122/D-19]
+    check: >-
+      uv run pytest -q tests/test_acceptance.py tests/test_runconfig.py -k "compile"
+  - id: D-2
+    grade: ASSUMED
+    text: >-
+      A compiled probe is kept only when its row is one the contract carries, its
+      quote occurs in the document's text with whitespace collapsed, its file is under
+      `probes/acceptance/` and at most `PROBE_CAP`, and its command, re-run over a
+      judge checkout of the unit's start tree as a repro is (S-0127/D-10), executes
+      and exits non-zero; at most `ACCEPTANCE_CAP = 12` are kept in the seat's order,
+      every other probe is recorded with why it was dropped, and a compile that refuses,
+      errs, is unparseable or keeps nothing leaves the unit to run without probes
+    paths: [src/torve/application/acceptance.py]
+    consequence: >-
+      a probe that passes before any work, cannot run, or pins words the document
+      does not hold never reaches the executor or the verdict
+    rationale: >-
+      red on the start tree is the one property of a probe the engine can execute
+      before an implementation exists; a verbatim quote ties the probe to a rule somebody
+      wrote
+    cites: [S-0127/D-10]
+    check: >-
+      uv run pytest -q tests/test_acceptance.py -k "kept"
+  - id: D-3
+    grade: ASSUMED
+    text: >-
+      The kept probes are stored once per unit under its task directory, and a resumed
+      or requeued unit reads the store and never compiles again; every candidate's
+      worktree gets the stored files planted at their paths with `/probes/acceptance/`
+      excluded from what the judge commits, their commands are appended to the acceptance
+      the executor is shown and never to the declared acceptance the gates run, and
+      the prompt says the probes were compiled from the document, fail on the base,
+      should pass, and that an edit to one changes nothing
+    paths:
+      - src/torve/application/session.py
+      - src/torve/application/runner.py
+      - src/torve/adapters/agent/harness.py
+    consequence: >-
+      every candidate and revision turn works against the same probes, and nothing
+      it writes can change the copy that judges it
+    rationale: >-
+      `reproduce` refuses a probe path the judge checkout already holds, and the planted
+      revision record already shows that an excluded file stays out of the judged
+      tree
+    cites: [S-0005/D-13, S-0127/D-7]
+    check: >-
+      uv run pytest -q tests/test_session.py tests/test_tiering.py tests/test_runner.py
+      -k "acceptance"
+  - id: D-4
+    grade: ASSUMED
+    text: >-
+      The critic's decision re-runs every kept probe against the candidate with the
+      stored text; one that executes and exits non-zero blocks as a `contract` finding
+      of severity `blocker` on its row, with the probe as its repro, whatever the
+      critic's document says, at every `blocks_at` and on a revision attempt, and
+      is never carried; one that exits 0 is recorded passed, and one with no exit,
+      126 or 127 is recorded unmeasured and never blocks
+    paths: [src/torve/application/critic.py]
+    consequence: >-
+      a stated rule the candidate breaks blocks on executed evidence even when the
+      critic is clean, and the session revision and its recheck (S-0128/D-3) clear
+      it like any other blocker
+    rationale: >-
+      the critic missed both standing rules with the document in hand; a probe is
+      no critic finding, so the carries S-0127/D-1 reads first never reach it, and
+      it blocks as that row asks of every blocker, only when its re-run against the
+      candidate exits non-zero
+    cites: [S-0127/D-1, S-0128/D-3]
+    check: >-
+      uv run pytest -q tests/test_critic.py -k "acceptance"
+  - id: D-5
+    grade: ASSUMED
+    text: >-
+      The compile's spend is a unit spend fact and its wall time is on the unit's
+      clock, but it is not a critic call; it is recorded as a `review` with `mode:
+      compile`, its prompt sha and every probe's row, quote, claim, command, base
+      exit and whether it was kept or why not, and `unit.closed` gains `acceptance`
+      with `kept`, `dropped`, `failed_first`, `spend_usd` and `wall_s`
+    paths: [src/torve/application/selection.py, src/torve/application/acceptance.py]
+    consequence: >-
+      the unit's budget bounds the compile, and the bed reads from records what the
+      compiler caught (`failed_first`) and what it cost
+    rationale: >-
+      S-0127/D-9 bounds every call a unit makes by its budget, and the bed can only
+      weigh the compiler by what its records say it did
+    cites: [S-0127/D-9]
+    check: >-
+      uv run pytest -q tests/test_runner.py tests/test_selection.py -k "acceptance"

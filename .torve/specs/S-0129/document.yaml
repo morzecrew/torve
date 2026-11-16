@@ -1,0 +1,273 @@
+# yaml-language-server: $schema=../../schemas/document.json
+id: S-0129
+title: Acceptance compiled before the session
+kind: design
+change:
+  type: feat
+  scope: review
+status: draft
+implementation: none
+depends_on: [S-0127, S-0128]
+informed_by: [S-0122]
+supersedes: []
+superseded_by: null
+owner: misery7100
+schema_version: 4
+summary: |
+  Before a unit's first candidate, the reviewer seat compiles its document into acceptance probes,
+  each a file and a command tied to one row and kept only when it fails on the start tree. The
+  executor is shown them. After a green candidate the engine re-runs every one, and a probe that
+  still fails blocks the candidate whatever the critic said, so the session revision and its
+  recheck (S-0128/D-3) handle it as any other blocker. This is the acceptance half of the library
+  form that S-0128 left out of scope.
+motivation: |
+  The library form judges a session after it ends: the critic reads the diff and blocks on what
+  its repros execute. On the eval bed that judge misses rules the document states in plain
+  words. `library-recheck-k1` (the S-0128 engine, deepseek-v4.1-flash through dsh, one trial
+  per document on the bed's 13 documents) passed 11 of 13. The two failures are the same ones
+  earlier library runs failed.
+
+  - **spoolman-nfc, P3:** a `reader_id` with a space must be a 422 and is a 200. The
+    document gives the pattern, `^[A-Za-z0-9._:-]{1,64}$`, in its interface section
+    (`document.yaml:80` of the bed's copy). All three session-revision runs fail it. The
+    critic raised a finding about archived spools each time and never this one.
+  - **ps-variadic, P2:** a bare `--param` on a `NoDecode` field with `env_ignore_empty=True`
+    and an environment value gives the string `'[]'`, not an empty list. The document states
+    this case in its design and again in its phasing intent. `library-k1` failed it with no
+    finding at all. `library-recheck-k1` failed it after the critic's only blocker, on a
+    tuple's repr, cleared on its re-run.
+
+  In both, the executor dropped one detail of a row and the critic did not look for it. A0,
+  one bare session per document, passed both at one trial, so the detail is within the
+  executor's reach when it is attended to. The pinned-behaviour plan set this as the
+  engine's one move a session cannot make for itself: turn the document's stated behaviour
+  into executable checks before any code. S-0128 left it out of scope only until the bed
+  could show a gain. The library arms now sit two documents under the ceiling, and these are
+  the two.
+current_state: |
+  - **Nothing executes the document's rules before code.** A contract carries its rows
+    (`Task.decisions`) and the acceptance commands its phases name. A row's `check` runs only
+    in the completion battery (S-0122/D-4), and the executor is not shown it
+    (`harness.build_prompt`). The verify role was a per-phase task that wrote tests before
+    the implementing phase; 0.9.0 removed it (S-0122/D-17), since no night used it and its
+    gates convicted nothing.
+  - **The critic's probes are the one executed judgment.** A finding's repro names files
+    under `probes/`. The critic's copy keeps them (`_keep_probes`), and
+    `runner.reproduce` writes them into a fresh judge checkout of the candidate and runs the
+    command there, read-only, in the gates sandbox (S-0127/D-10). `decide` blocks on a re-run
+    that exits non-zero, and `critic.recheck` re-runs the blockers after a session turn
+    (S-0128/D-3).
+  - **The executor is shown more than the gates run.** `dispatch.shown_acceptance` gives the
+    executor the contract's commands plus the manifest's cheap blocking gates as
+    `run.contract_acceptance`. The `acceptance` gate runs only the declared commands
+    (S-0127/D-7).
+  - **A planted file can stay out of the judged tree.** `session.run_agent_session` plants
+    the revision record at `.torve/feedback.md` and lists it in the worktree's
+    `.git/info/exclude`. `judge_checkout` commits what `git add -A` stages, so the judged
+    candidate never holds it.
+goals: |
+  - Each row's stated behaviour is an executable probe before the first candidate starts,
+    and the probe fails on the tree the unit starts from.
+  - The executor sees the probes as acceptance and cannot change what judges it.
+  - A probe that still fails on a green candidate blocks it on executed evidence. The
+    session revision and the recheck clear it like any blocker.
+  - The compile's cost is bounded by the unit's budget, and the record shows every probe,
+    kept or dropped, and what it exited.
+  - On the bed, both standing misses land, passes do not fall below `library-recheck`, and
+    reviewer cost stays within 1.3× of it.
+non_goals: |
+  - Replacing the critic. It still reviews every green candidate, under its frozen prompt
+    (S-0122/D-19), and its findings block as S-0127 says.
+  - Landing the probes in the repository as tests. They judge a unit and stay in its record;
+    Q-1 asks whether they should land.
+  - Questions at acceptance. The plan's ambiguity detection, a compiler that raises `Q-n`
+    for the owner before a document is accepted, needs a probe that can be wrong first. It
+    gets its own document once the bed has measured how often one is.
+design:
+  - key: the-compile-seat
+    md: |
+      `review.compile: true` turns it on; it is off by default and refused outside
+      `review.mode: critic`, whose verdict is where a probe's failure goes. The new module
+      `torve.application.acceptance` runs it once per unit, from `runner.select_attempt`,
+      before the first candidate launches. `compile_acceptance(run, state)` loads the
+      unit's store when one exists and compiles otherwise, so a resumed or requeued unit
+      never compiles twice.
+
+      The compile is one call to the reviewer tier. It uses `review.run_seat`, as the
+      critic does, over a writable copy of the start tree, with its own frozen prompt pair,
+      `prompts/compile-v1.md` and `compile-v1.schema.json`, recorded by sha as the critic's
+      is. It is staged the unit's document whole (every file of `.torve/specs/S-NNNN/`, the
+      prose included, since both standing misses live in the prose) and the rows the
+      contract carries. It is asked for one probe per behaviour the document states for
+      those rows, each with:
+
+      - `row`: the row it pins, one the contract carries;
+      - `quote`: the passage of the document that states the behaviour, verbatim;
+      - `claim`: one sentence on what the probe asserts;
+      - `file`: a path under `probes/acceptance/`, which the seat writes in its copy;
+      - `command`: the command that runs it, exiting 0 when the behaviour holds.
+
+      A probe drives the public surface the document names: a CLI, an HTTP route, an
+      importable function. It never drives a private helper the executor is free to name
+      differently. The seat can run its probes in its copy, which is the start tree, and is
+      told that a probe passing there is dropped.
+  - key: what-a-probe-keeps
+    md: |
+      The engine keeps a probe when all of these hold:
+
+      - its `row` is one the contract carries;
+      - its `quote`, with whitespace collapsed, occurs in the document's text, with
+        whitespace collapsed;
+      - its file was written under `probes/acceptance/` and is at most `PROBE_CAP`;
+      - its command, run by `runner.reproduce` over a judge checkout of the start tree with
+        the probe written in, executes and exits non-zero (not 126 or 127, no timeout, not
+        refused).
+
+      A probe that passes on the start tree pins nothing the unit must add. A probe whose
+      quote is not in the document pins a rule nobody wrote. At most `ACCEPTANCE_CAP = 12`
+      are kept, in the seat's order. Every dropped probe is recorded with its reason.
+
+      On a continuation or a checkpoint resume the start tree is not the base, but the
+      store already exists by then, so the probes were measured on the tree the unit first
+      started from. A compile that refuses, is unparseable, errs or keeps nothing leaves
+      the unit to run as it would without one, and the fact is recorded.
+  - key: the-probes-in-the-session
+    md: |
+      The store is `layout.task_dir(root, task)/acceptance/`: the kept files at their paths,
+      plus `acceptance.yaml`, which lists each probe's row, quote, claim, command and base
+      exit. `run_agent_session` plants every stored file in the candidate's worktree at its
+      path and excludes `/probes/acceptance/` there, as it does `.torve/feedback.md`. Every
+      candidate and every revision turn then sees the same probes, and the judge checkout
+      never holds them.
+
+      Each kept command is appended to `run.contract_acceptance`, which is what the executor
+      is shown, and never to the declared acceptance the `acceptance` gate runs. A red
+      probe therefore does not make an attempt red; the verdict reads it. `build_prompt`
+      says, when any shown command runs a file under `probes/acceptance/`, that these
+      probes were compiled from the document before the work began, that they fail on the
+      base tree, and that the work should make them pass. It also says that editing one
+      changes nothing, since the engine runs its own copy, and that a probe the executor
+      believes contradicts the document is left failing, with the reason in its log.
+  - key: the-probes-in-the-verdict
+    md: |
+      `run_critic` is handed the kept probes, and `decide` gains an `acceptance` argument.
+      After the critic's own findings are read, `decide` re-runs every kept probe against
+      the candidate with the stored text, through the same `reproduce` and the same
+      once-per-command cache. A probe that executes and exits non-zero becomes a blocker:
+      a `contract` finding of severity `blocker` on its row, with the probe's claim, the
+      command's exit and tail as evidence, and the probe as its repro. It blocks at every
+      `blocks_at`, on a revision attempt too, and is never carried, because it is the
+      engine's measurement and not the critic's claim. A probe that exits 0 is recorded
+      passed. One that cannot be measured (no exit, 126, 127, a timeout) is recorded
+      unmeasured and never blocks.
+
+      The probe's text joins the verdict's `probes`, so `_store_probes` keeps it with the
+      review. `critic.recheck` re-runs it after a session turn, and the pull request lists
+      it among the blockers a revision cleared (S-0128/D-4) with its exit before and after.
+      A probe that still fails after the round is re-raised and escalates `blocker_finding`,
+      as any surviving blocker does.
+  - key: the-record-and-the-budget
+    md: |
+      The compile's spend is a unit spend fact (`_record_spend`, what `compile`). Its wall
+      time is on the unit's clock. It is not a critic call, so `selection.CRITIC_CALLS` is
+      unchanged. The base run of the probes takes the `acceptance` gate's timeout per probe
+      within the unit's clock, as every re-run does.
+
+      The compile is recorded as a `review` with `mode: compile`, its prompt sha and every
+      probe: row, quote, claim, command, base exit, and kept or why dropped. `unit.closed`
+      gains `acceptance: {kept, dropped, failed_first, spend_usd, wall_s}`. `failed_first`
+      counts the kept probes that blocked the unit's first critic decision, which is the
+      bed's direct measure of what the compiler caught.
+  - key: measuring-it
+    md: |
+      The bed gets an arm `library-compile`: `library-recheck`'s configuration with
+      `review.compile: true`, on an engine built from this document's landing. It runs
+      first on the 13 documents at one trial. The two arms then run at three trials each
+      to settle the noise between them. The document's goal holds when spoolman-nfc and
+      ps-variadic both pass, passes are at least `library-recheck`'s, and reviewer cost is
+      at most 1.3× its cost. The bed's hidden check also reads every escalation: a unit
+      that escalated on a probe the hidden check passes is a wrong probe, and Q-2 waits for
+      that rate.
+tests: |
+  - `tests/test_acceptance.py` (new): a Hypothesis property over a probe's row, quote and
+    base exit, which holds that a probe is kept exactly when its row is carried, its quote
+    occurs in the document and its base run executed non-zero. Example tests cover the cap, a
+    store a second call reads without compiling, and a seat that refuses or errs leaving no
+    probes.
+  - `tests/test_runconfig.py`: `review.compile` loads, defaults off, and is refused outside
+    `mode: critic`.
+  - `tests/test_critic.py`: a Hypothesis property over a probe's exit, the critic's findings,
+    `blocks_at` and a revision, which holds that a probe blocks exactly when it executed and
+    exited non-zero. The blocker's repro carries the probe, and `recheck` clears it at exit 0.
+  - `tests/test_runner.py`: a failing probe after a clean critic sends the unit to the
+    session revision, and the recheck lands it; a probe passing on the first candidate leaves
+    the critic's verdict as it was; `unit.closed` carries the `acceptance` block.
+  - `tests/test_session.py`: stored probes are planted in the worktree and kept out of the
+    judge checkout. `tests/test_tiering.py`: the prompt says what the probes are when one is
+    shown.
+docs: |
+  - `skills/torve/SKILL.md` and `skills/spec-writer/SKILL.md`: the compiler, and what it
+    means for how a row is written. The spec-writer's sentence on the removed verify pilot
+    is replaced: a phase's intent names the public surface, and now a compiler drives it.
+  - `CHANGELOG.md`: one `Added` entry.
+  - `torve spec project` refreshes the `AGENTS.md` projections.
+out_of_scope: |
+  - **Width across documents.** The time the owner wants back comes from running documents
+    side by side. That still needs a port per sealed lease, and its own document.
+  - **Probes in the pull request beyond blockers.** The pull request lists a probe only as a
+    blocker a revision cleared. A table of every probe and its final exit would show the
+    owner what the unit was held to. It waits until a night has run this.
+risks: |
+  - **A wrong probe.** The compiler can misread a rule, and a probe that fails on the base
+    is not thereby right. The executor is told to leave such a probe failing and say why. It
+    then survives its round and escalates `blocker_finding`, which costs the owner an act.
+    The bed measures how often this happens, and Q-2 waits for that number.
+  - **Cost and clock.** The compile is about one critic call, and the base run adds one
+    re-run per kept probe. On the bed a critic call runs at about $0.6 and ten minutes. Both
+    count against the unit's budget, which bounds the worst case.
+  - **Teaching to the probe.** An executor shown 12 probes may make them pass and stop. The
+    critic still reviews the whole diff, and the probes are the document's own rules, so
+    passing them is the work.
+  - **Probes that cannot run in the gates sandbox.** A probe that needs the network or
+    docker exits 126, 127 or fails the same way on every tree. One that fails on the base
+    for the wrong reason is kept, but it cannot block a correct candidate unless it also
+    fails there, which is the wrong-probe risk above.
+alternatives:
+  - option: >-
+      Stage the probes' results for the critic and let it raise what fails.
+    rejected_because: >-
+      The critic had the document in hand and missed both standing rules. A stated
+      rule that executes red needs no second judge, and a critic prompt that reads
+      probe results is a new frozen prompt (S-0122/D-19) whose corpus replay this
+      change does not need.
+  - option: >-
+      Compile when the document is accepted, so the owner reads the probes in the
+      document's pull request.
+    rejected_because: >-
+      That is an owner act per document, and probes measured against the base at acceptance
+      go stale when the base moves before a night runs them. Compiling against the
+      unit's own start tree measures what the executor starts from.
+  - option: >-
+      Run the probes as gates: append them to the declared acceptance.
+    rejected_because: >-
+      The gates read the judge checkout, so the probe files would have to be in it,
+      and `reproduce` refuses a probe path the checkout already holds. A red gate
+      also sends the attempt to repair with a gate log, where a blocker sends it to
+      the revision with the probe's claim, row and output.
+  - option: Bring back the verify role.
+    rejected_because: >-
+      It was a minted task per phase, with held-out tests and its own gates, and S-0122/D-17
+      removed it because no night used it and its gates convicted nothing. The compiler
+      is one seat call inside the unit, and its probes judge through the verdict that
+      already exists.
+questions:
+  - id: Q-1
+    text: >-
+      Should a unit's kept probes land with the document as tests in the repository,
+      beside the executor's own? They are black-box checks pinned to rows, which is
+      what the evidence matrix once wanted, but they are written in the probe's form
+      and not the repository's test style.
+  - id: Q-2
+    text: >-
+      Should `review.compile` default to true under `review.mode: critic`? It waits
+      for the three-trial bed runs and the wrong-probe rate they show.
