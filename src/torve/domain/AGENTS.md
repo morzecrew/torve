@@ -86,11 +86,11 @@ Each item a critic review's `review.recorded` event carries holds the finding's 
 
 ### S-0128/D-1 — `ASSUMED` (One session per document)
 
-A document whose phasing sets no `unit` mints one contract for the whole document when it has eight phases or fewer (`WHOLE_UNTIL = 8`) and no two of its phases name different `tier_variant`s or `character`s, and one per phase otherwise; `unit: phase` and `unit: document` keep their meaning, and `--refresh` keeps the shape a document was minted in
+A document whose phasing sets no `unit` mints one contract for the whole document when it has eight phases or fewer (`WHOLE_UNTIL = 8`) and every phase that names a seat names the same one, a phase's seat being its `tier_variant`, or its `character` when it names no variant (S-0034/D-3), and one per phase otherwise; `unit: phase` and `unit: document` keep their meaning, and `--refresh` keeps the shape a document was minted in
 
 - Paths: `src/torve/domain/spec.py`
 - Consequence: a document of four to eight phases runs as one session with one critic review and one landing, where it ran as a chain of up to eight units, each on the critical path
-- Check: `uv run pytest -q tests/test_plan.py -k "larger_document_mints_per_phase or small_document_mints_one"` (shadow; runs as `decision:S-0128/D-1`)
+- Check: `uv run pytest -q tests/test_plan.py -k "larger_document_mints_per_phase or small_document_mints_one or phases_naming_two_seats"` (shadow; runs as `decision:S-0128/D-1`)
 
 ### S-0128/D-4 — `ASSUMED` (One session per document)
 
