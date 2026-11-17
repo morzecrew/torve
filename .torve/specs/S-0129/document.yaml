@@ -119,9 +119,11 @@ design:
       - its `quote`, with whitespace collapsed, occurs in one of the document's files, with
         whitespace collapsed;
       - its file was written under `probes/acceptance/` and is at most `PROBE_CAP`;
-      - its command, run by `runner.reproduce` over a judge checkout of the start tree with
-        its own file alone written in, as every later re-run writes it, executes and exits non-zero (not 126 or 127, no timeout, not
-        refused).
+      - its command is one simple command, with no shell operators, that runs its own
+        file alone;
+      - that command, run by `runner.reproduce` over a judge checkout of the start tree
+        with its own file alone written in, as every later re-run writes it, executes
+        and exits non-zero (not 126 or 127, no timeout, not refused).
 
       A probe that passes on the start tree pins nothing the unit must add. A probe whose
       quote is not in the document pins a rule nobody wrote. At most `ACCEPTANCE_CAP = 12`
@@ -131,8 +133,9 @@ design:
       store already exists by then, so the probes were measured on the tree the unit first
       started from. A compile that refuses, is unparseable, errs or keeps nothing leaves
       the unit to run as it would without one, and the fact is recorded. A seat that
-      could not run, or whose answer is the provider's error, stores nothing, so the next
-      attempt compiles again; every other answer is stored, so it is paid once.
+      gave no answer, whether a provider error or a harness that never ran, stores
+      nothing, so the next attempt compiles again; an answer is stored, so it is paid
+      once. A unit already at its spend cap or clock compiles nothing.
   - key: the-probes-in-the-session
     md: |
       The store is `layout.task_dir(root, task)/acceptance/`: the kept files at their paths,
@@ -164,10 +167,11 @@ design:
       unmeasured and never blocks.
 
       The probe's text joins the verdict's `probes`, so `_store_probes` keeps it with the
-      review. `critic.recheck` re-runs it after a session turn, and the pull request lists
-      it among the blockers a revision cleared (S-0128/D-4) with its exit before and after.
-      A probe that still fails after the round is re-raised and escalates `blocker_finding`,
-      as any surviving blocker does.
+      review. After a session turn `critic.recheck` re-runs every kept probe, not only the
+      blockers, since the turn may break one that passed; one that now fails stands
+      among the re-raised. The pull request lists a cleared probe among the blockers a
+      revision cleared (S-0128/D-4) with its exit before and after. A probe that still
+      fails after the round escalates `blocker_finding`, as any surviving blocker does.
   - key: the-record-and-the-budget
     md: |
       The compile's spend is a unit spend fact (`_record_spend`, what `compile`). Its wall

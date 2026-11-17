@@ -1981,8 +1981,14 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
 
     # S-0129/D-1, S-0129/D-3: the unit's probes, compiled once over the tree its
     # first candidate starts from, are shown to every candidate as acceptance
-    # and never added to what the gates run. The compile is unit spend.
-    if critic and run.config.review.compile:
+    # and never added to what the gates run. The compile is unit spend, so a
+    # unit already at its cap or clock skips it and the selection escalates.
+    if (
+        critic
+        and run.config.review.compile
+        and budget_spent < budget_usd
+        and _elapsed_minutes(state) < unit_minutes
+    ):
         from torve.application.acceptance import compile_acceptance
 
         def compile_spend(usage: Mapping[str, Any]) -> float | None:
@@ -1996,11 +2002,17 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         compiled = await asyncio.to_thread(
             compile_acceptance, run, state, partial(reproduce, run, state), compile_spend
         )
-        shown = tuple(dict.fromkeys([*run.contract_acceptance, *compiled.commands]))
-
+        # Added to what each is shown, so a repair command `_route_repair` put
+        # there stays, and to the baseline that routing resets to.
         for each in (run, start):
-            each.contract_acceptance = shown
-            each.task = each.task.model_copy(update={"acceptance": list(shown)})
+            each.contract_acceptance = tuple(
+                dict.fromkeys([*each.contract_acceptance, *compiled.commands])
+            )
+            each.task = each.task.model_copy(
+                update={
+                    "acceptance": list(dict.fromkeys([*each.task.acceptance, *compiled.commands]))
+                }
+            )
 
         budget_spent = _unit_spend(state)
 
@@ -2470,11 +2482,23 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                         # or one still failing, decides the turn with no
                         # critic call; a blocker no re-run measured goes on
                         # to the critic's re-review.
+                        from torve.application.acceptance import load as stored_acceptance
                         from torve.application.critic import CriticVerdict, recheck
 
+                        # S-0129/D-4: every compiled probe, so a turn that
+                        # breaks one that passed is judged by it too.
+                        probes = (
+                            stored_acceptance(run.root, run.task.id)
+                            if run.config.review.compile
+                            else None
+                        )
                         rechecked = (
                             await asyncio.to_thread(
-                                recheck, verdict, partial(reproduce, crun, state), crun.worktree
+                                recheck,
+                                verdict,
+                                partial(reproduce, crun, state),
+                                crun.worktree,
+                                probes.kept if probes is not None else (),
                             )
                             if isinstance(verdict, CriticVerdict)
                             else None

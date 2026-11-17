@@ -1051,7 +1051,12 @@ def _cleared(finding: CriticFinding, run: CommandRun) -> bool | None:
     return run.exit_code == 0
 
 
-def recheck(verdict: CriticVerdict, reproduce: Reproduce | None, root: Path) -> CriticVerdict:
+def recheck(
+    verdict: CriticVerdict,
+    reproduce: Reproduce | None,
+    root: Path,
+    acceptance: Sequence[Probe] = (),
+) -> CriticVerdict:
     """The verdict a session revision turn is judged by (S-0128/D-3):
     *verdict*, the one the turn was handed, with each finding that blocked it
     re-run against the revised tree at *root* — its `repro.command`, with the
@@ -1069,7 +1074,12 @@ def recheck(verdict: CriticVerdict, reproduce: Reproduce | None, root: Path) -> 
     Each re-run blocker, in `blockers` and `kept` alike, carries the new exit
     as `rerun_exit`, and a cleared one the exit that made it block as
     `blocked_exit` (S-0128/D-4). *verdict*'s findings are read in the order
-    `verdict_findings` built them, which is how each one here finds its own."""
+    `verdict_findings` built them, which is how each one here finds its own.
+
+    Every one of *acceptance*, the unit's compiled probes, that was not a
+    blocker is re-run too, with its stored text (S-0129/D-4): the turn may
+    break one that passed. One that now fails is a measured failure, so it
+    stands among the re-raised and the turn is blocked."""
 
     decision = verdict.decision
 
@@ -1124,23 +1134,64 @@ def recheck(verdict: CriticVerdict, reproduce: Reproduce | None, root: Path) -> 
         if cleared is False:
             reraised.append(finding)
 
+    handed = {finding.id for finding in decision.blockers}
+    broken: list[CriticFinding] = []
+    probes = dict(verdict.probes)
+
+    for probe in acceptance:
+        if probe.id in handed:
+            continue
+
+        given = {probe.file: probe.text}
+        key = (probe.command, frozenset(given.items()))
+
+        if key not in measured:
+            measured[key] = _rerun_once(reproduce, probe.command, given)
+
+        run = measured[key]
+
+        if not _failed(run):
+            continue
+
+        finding = _probe_finding(probe, run)
+        reruns.append((finding, run))
+        standing.append(finding)
+        reraised.append(finding)
+        broken.append(finding)
+        probes[probe.file] = probe.text
+        rechecked[id(finding)] = JudgedFinding(
+            severity=finding.severity,
+            claim=finding.claim,
+            evidence=finding.evidence,
+            kind=finding.kind,
+            row=finding.row,
+            rerun_command=run.command,
+            rerun_exit=run.exit_code,
+        )
+
     rows = verdict.blockers[len(decision.blockers) :]
     kept = [
         rechecked.get(id(one), shown)
         for one, shown in zip(decision.kept, verdict.kept, strict=False)
     ]
     kept += verdict.kept[len(decision.kept) :]
-    blockers = [rechecked.get(id(one), judged[id(one)]) for one in standing] + rows
-    cleared_count = len(decision.blockers) - len(standing)
+    kept += [rechecked[id(one)] for one in broken]
+    blockers = [
+        rechecked[id(one)] if id(one) in rechecked else judged[id(one)] for one in standing
+    ] + rows
+    cleared_count = len(decision.blockers) + len(broken) - len(standing)
+    fact = f"re-run cleared {cleared_count} of {len(decision.blockers) + len(rows)} blocker(s)"
     outcome = replace(
         verdict,
-        fact=f"re-run cleared {cleared_count} of {len(decision.blockers) + len(rows)} blocker(s)",
+        fact=fact + (f"; the turn broke {len(broken)} probe(s)" if broken else ""),
         blockers=blockers,
         kept=kept,
+        probes=probes,
         decision=replace(
             decision,
             blocked=bool(standing or decision.violated),
             blockers=standing,
+            kept=[*decision.kept, *broken],
             reraised=reraised,
             reruns=[*reruns, *decision.reruns],
         ),

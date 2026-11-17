@@ -180,6 +180,11 @@ class Acceptance:
         return {probe.file: probe.text for probe in self.kept}
 
 
+#: What makes a command more than one simple command: a list, a pipe, a
+#: redirection, a substitution or a second line.
+_COMPOUND = re.compile(r"[;&|<>`\n]|\$\(")
+
+
 def _collapsed(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
@@ -216,6 +221,11 @@ def _written_reason(
 
     if _probe_names(probe.command, None) != [own]:
         return "its command does not run its own file alone"
+
+    # A command another command can fail before the probe runs would fail on
+    # every tree, a correct one included.
+    if _COMPOUND.search(probe.command):
+        return "its command is not one simple command"
 
     return None
 
@@ -621,9 +631,9 @@ def compile_acceptance(
     )
     close_review(run.root, run.worktree, session, record, fact)
 
-    # A provider error is no answer, so the next attempt asks again; any
-    # answer the seat gave, readable or not, is kept, so it is paid once.
-    if seat_error is None:
+    # Only an answer is kept, so it is paid once. A seat that gave none, a
+    # provider error or a harness that never ran, is asked again next attempt.
+    if document is not None or refusal is not None:
         save(run.root, run.task.id, acceptance)
 
     _fact(state, f"{COMPILED_MARKER}{review.id}: {fact}")

@@ -10,8 +10,9 @@ What you have:
 - .torve/compile/rows.yaml, the rows this unit must satisfy. Every probe names one.
 
 What a probe is:
-1. One file under probes/acceptance/ and one command, run from the workspace root, that
-   exits 0 when the behaviour holds and non-zero when it does not.
+1. One file under probes/acceptance/ and one simple command that runs it, from the
+   workspace root, with no shell operators, and exits 0 when the behaviour holds and
+   non-zero when it does not.
 2. It pins one behaviour the document states for one of the rows: an input and the
    output or error the document gives for it, a validation rule, a default, a
    precedence, an edge case the text names. The behaviour a quick implementation skips
@@ -22,11 +23,17 @@ What a probe is:
    behaviour, write no probe for it.
 4. It asserts what the document says and nothing more: no exact message the document
    does not give, no order it does not fix, no value it does not state.
-5. It is fast, quiet and self-contained: seconds, no network, no docker, its own
+5. It builds what it drives exactly as the document states it: the declarations,
+   annotations, configuration and inputs the text names, and nothing of its own. A
+   validator, converter, default or wrapper the document does not name can turn the
+   very output the probe checks into a pass, so it never adds one. A setup the stated
+   case cannot run without such an addition is a case for no probe. No check of its
+   own setup either: the probe asserts the one behaviour.
+6. It is fast, quiet and self-contained: seconds, no network, no docker, its own
    temporary files. Start the project's tools the way its own tests are started, such
    as `uv run python probes/acceptance/p01_name.py` where the repository holds uv.lock,
    never by a path into .venv/.
-6. It fails here, on this tree, because the behaviour is not built yet. Run it. A probe
+7. It fails here, on this tree, because the behaviour is not built yet. Run it. A probe
    that passes here is dropped. A failure because a named module or function does not
    exist yet is the expected one.
 

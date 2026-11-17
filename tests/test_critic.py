@@ -2170,3 +2170,59 @@ def test_a_failing_probe_blocks_a_clean_critic_and_its_recheck_clears_it(repo):
 
     assert rechecked.blockers == []
     assert rechecked.decision is not None and rechecked.decision.reraised == []
+
+
+def test_the_recheck_re_runs_every_probe_so_a_turn_that_breaks_one_is_blocked(repo):
+    """S-0129/D-4 with S-0128/D-3: after a session turn every compiled probe
+    is re-run, not only the blockers; one that passed before and fails now is
+    a measured failure, so the turn is blocked, and one still passing leaves
+    it clean."""
+
+    worktree, target = _candidate(repo)
+    ctx = build_context(worktree, load_manifest(worktree / ".torve" / "gates.yaml"), base="main")
+    ctx.task = target
+    evidence = build_evidence(ctx, [], candidate=TASK_ID)
+    first, second = _compiled(1), _compiled(2)
+
+    class Clean:
+        kind = "harness"
+
+        def run(self, ctx):
+            return AgentResult(exit_code=0, output=answer())
+
+    verdict = run_critic(
+        repo.root,
+        worktree,
+        target,
+        mint_review_task(repo.root, target),
+        critic_config(compile=True),
+        MockRuntime(),
+        Clean(),
+        ctx.patch,
+        evidence,
+        "digest",
+        reproduce=lambda commands, probes: [
+            CommandRun(c, 1 if c == first.command else 0, "") for c in commands
+        ],
+        acceptance=[first, second],
+    )
+
+    assert [one.claim for one in verdict.blockers] == [
+        critic_module._probe_finding(first, CommandRun("", 1, "")).claim
+    ]
+
+    fixed_first_broke_second = critic_module.recheck(
+        verdict,
+        lambda commands, probes: [
+            CommandRun(c, 1 if c == second.command else 0, "") for c in commands
+        ],
+        worktree,
+        [first, second],
+    )
+    both_pass = critic_module.recheck(verdict, Rerun(0), worktree, [first, second])
+
+    assert fixed_first_broke_second.decision is not None
+    assert [one.id for one in fixed_first_broke_second.decision.reraised] == [second.id]
+    assert len(fixed_first_broke_second.blockers) == 1
+    assert fixed_first_broke_second.probes[second.file] == second.text
+    assert both_pass.blockers == []

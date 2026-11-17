@@ -311,7 +311,11 @@ def test_a_compile_keeps_at_most_the_cap_in_the_seats_order(repo):
     assert len(base.calls) == ACCEPTANCE_CAP
 
 
-def test_a_seat_that_answers_nothing_keeps_nothing_and_never_asks_again(repo):
+def test_a_seat_that_answers_nothing_keeps_nothing_and_is_asked_again(repo):
+    """S-0129/D-2, S-0129/D-3: a seat with no readable answer keeps nothing
+    and stores nothing, so the next attempt asks again; only an answer is
+    paid for once."""
+
     agent = Compiler([probe()], output="I could not do it")
     run, state = _unit(repo, agent)
     base = Base()
@@ -319,9 +323,36 @@ def test_a_seat_that_answers_nothing_keeps_nothing_and_never_asks_again(repo):
     acceptance = compile_acceptance(run, state, base, lambda usage: None)
 
     assert acceptance.kept == [] and "unparseable" in acceptance.fact
-    assert base.calls == []
-    assert compile_acceptance(run, state, base, lambda usage: None) == acceptance
-    assert agent.calls == 2  # the seat's own second ask of an unreadable answer, once
+    assert base.calls == [] and load(repo.root, TASK_ID) is None
+    asked = agent.calls  # the seat's own second ask of an unreadable answer included
+
+    compile_acceptance(run, state, base, lambda usage: None)
+
+    assert agent.calls == 2 * asked
+
+
+def test_a_command_that_is_more_than_one_simple_command_is_dropped():
+    """S-0129/D-2: a command another command can fail before the probe runs
+    fails on every tree, a correct one included."""
+
+    red = CommandRun("", 1, "")
+
+    for command in (
+        "false && uv run python probes/acceptance/p01.py",
+        "uv sync; uv run python probes/acceptance/p01.py",
+        "uv run python probes/acceptance/p01.py | tail -1",
+        "uv run python probes/acceptance/p01.py > /dev/null",
+        "uv run python probes/acceptance/p01.py $(true)",
+    ):
+        compiled = CompiledProbe(**probe(command=command))
+
+        assert drop_reason(compiled, [ROW], [RULE], "x", red) == (
+            "its command is not one simple command"
+        ), command
+
+    simple = CompiledProbe(**probe(command="uv run pytest -q probes/acceptance/p01.py -k 'a or b'"))
+
+    assert drop_reason(simple, [ROW], [RULE], "x", red) is None
 
 
 def test_the_stored_probes_are_planted_at_their_paths(repo, tmp_path: Path):

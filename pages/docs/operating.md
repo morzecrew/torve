@@ -1083,7 +1083,12 @@ only when that command fails on the unit's start tree, at most twelve
 (S-0129/D-2). The kept probes are planted in every candidate's worktree and
 shown as acceptance, never run as gates (S-0129/D-3); the critic's decision
 re-runs each against the candidate with the stored text, and one that fails
-blocks on its row whatever the critic said (S-0129/D-4). The compile is unit
+blocks on its row whatever the critic said (S-0129/D-4); after a session turn the
+recheck re-runs every probe, so a turn that breaks one that passed is blocked. A
+probe whose re-run times out or exits 126 or 127 measured nothing and blocks
+nothing. A seat that gave no answer, whether a provider error or a harness that
+never ran, stores nothing: that attempt runs without probes and the next one
+compiles again, so not every attempt is covered. The compile is unit
 spend, recorded as a `review` with `mode: compile`, and `unit.closed` carries
 an `acceptance` block whose `failed_first` counts the probes that blocked the
 first decision (S-0129/D-5).

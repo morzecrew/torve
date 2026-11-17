@@ -37,7 +37,7 @@ The engine drives a dsh session through headless `--json` and continues it with 
 
 ### S-0129/D-3 — `ASSUMED` (Acceptance compiled before the session)
 
-The kept probes are stored once per unit under its task directory, and a resumed or requeued unit reads the store and never compiles again, except after a seat that failed to run or answered with a provider error, which stores nothing; every candidate's worktree gets the stored files planted at their paths with `/probes/acceptance/` excluded from what the judge commits, their commands are appended to the acceptance the executor is shown and never to the declared acceptance the gates run, and the prompt says the probes were compiled from the document, fail on the base, should pass, and that an edit to one changes nothing
+The kept probes are stored once per unit under its task directory, and a resumed or requeued unit reads the store and never compiles again, except after a seat that gave no answer, a provider error or a harness that never ran included, which stores nothing, or a unit at its spend cap or clock, which compiles nothing; every candidate's worktree gets the stored files planted at their paths with `/probes/acceptance/` excluded from what the judge commits, their commands are appended to the acceptance the executor is shown and never to the declared acceptance the gates run, and the prompt says the probes were compiled from the document, fail on the base, should pass, and that an edit to one changes nothing
 
 - Paths: `src/torve/application/session.py` `src/torve/application/runner.py` `src/torve/adapters/agent/harness.py`
 - Consequence: every candidate and revision turn works against the same probes, and nothing it writes can change the copy that judges it
