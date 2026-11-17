@@ -1131,7 +1131,7 @@ def test_rejected_claim_judge_reads_the_attempt_under_review(monkeypatch):
         root=Path("."),
         worktree=Path("."),
         task=None,
-        config=None,
+        config=RunnerConfig(),
         deps=SimpleNamespace(runtime=None, broker=None),
         last_pass=SimpleNamespace(patch="", evidence=None, digest=""),
         broker_handle=None,
@@ -1160,7 +1160,7 @@ def test_reproduced_judge_reruns_through_the_runs_reproduce(monkeypatch):
         root=Path("."),
         worktree=Path("."),
         task=None,
-        config=None,
+        config=RunnerConfig(),
         deps=SimpleNamespace(runtime=None, broker=None),
         last_pass=SimpleNamespace(patch="", evidence=None, digest=""),
         broker_handle=None,
@@ -2044,3 +2044,185 @@ def test_a_triage_dismissal_on_a_command_it_never_ran_is_applied(repo):
     )
 
     assert document is not None and document.threads[0].verdict == "apply"
+
+
+# ....................... #
+# The compiled probes in the decision (S-0129/D-4).
+
+
+def _compiled(number: int = 1, text: str = "raise SystemExit(1)\n"):
+    from torve.application.acceptance import Probe
+
+    return Probe(
+        id=f"acceptance:{number}",
+        row=OWNED,
+        quote="the bound is exclusive",
+        claim="bound(1) is 0.",
+        file=f"probes/acceptance/p{number}.py",
+        command=f"uv run python probes/acceptance/p{number}.py",
+        text=text,
+        base_exit=1,
+    )
+
+
+@given(
+    exit_code=st.one_of(st.none(), st.sampled_from([0, 1, 2, 42, 126, 127])),
+    bar=st.sampled_from(["blocker", "major"]),
+    critic_finds=st.booleans(),
+    revised=st.booleans(),
+)
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+def test_a_compiled_probe_blocks_exactly_when_its_re_run_fails(
+    tmp_path, exit_code, bar, critic_finds, revised
+):
+    """S-0129/D-4: whatever the critic said, at any bar and on a revision
+    attempt, a compiled probe blocks exactly when its re-run executed and
+    exited non-zero, as a `contract` blocker on its row whose repro is the
+    probe; it re-runs with the text the unit stored, never a copy the
+    critic's harvest kept; and every probe's outcome is recorded."""
+
+    probe = _compiled()
+    document = CriticDocument.model_validate(
+        {"rows": [], "findings": [finding("minor", kind="style")] if critic_finds else []}
+    )
+    handed: list[dict] = []
+
+    def reproduce(commands, probes):
+        handed.append(dict(probes))
+        return [CommandRun(command, exit_code, "the tail") for command in commands]
+
+    decision = decide(
+        document,
+        {OWNED: True},
+        tmp_path,
+        bar,
+        revision=Revision(diff=REVISION_DIFF) if revised else None,
+        reproduce=reproduce,
+        probes={probe.file: "edited in the worktree\n"},
+        acceptance=[probe],
+    )
+
+    failed = exit_code is not None and exit_code not in (0, 126, 127)
+    blocking = [one for one in decision.blockers if one.id == probe.id]
+    assert bool(blocking) is failed
+    assert decision.blocked is failed
+    assert handed[-1] == {probe.file: probe.text}
+    assert decision.acceptance == [
+        {
+            "id": probe.id,
+            "row": OWNED,
+            "file": probe.file,
+            "exit": exit_code,
+            "outcome": "failed" if failed else "passed" if exit_code == 0 else "unmeasured",
+        }
+    ]
+
+    if failed:
+        (one,) = blocking
+        assert (one.kind, one.severity, one.row) == ("contract", "blocker", OWNED)
+        assert one.repro is not None and one.repro.file == probe.file
+        assert one in decision.kept and decision.rerun(one) is not None
+        assert "the bound is exclusive" in one.claim
+
+
+def test_a_failing_probe_blocks_a_clean_critic_and_its_recheck_clears_it(repo):
+    """S-0129/D-4 with S-0128/D-3: a probe that fails blocks even a clean
+    review, the verdict keeps its stored text, and the recheck after a
+    session turn clears it when it passes."""
+
+    worktree, target = _candidate(repo)
+    ctx = build_context(worktree, load_manifest(worktree / ".torve" / "gates.yaml"), base="main")
+    ctx.task = target
+    evidence = build_evidence(ctx, [], candidate=TASK_ID)
+    review = mint_review_task(repo.root, target)
+    probe = _compiled()
+
+    class Clean:
+        kind = "harness"
+
+        def run(self, ctx):
+            return AgentResult(
+                exit_code=0,
+                output=answer(rows=[{"row": OWNED, "verdict": "holds", "evidence": LOCATED}]),
+            )
+
+    verdict = run_critic(
+        repo.root,
+        worktree,
+        target,
+        review,
+        critic_config(compile=True),
+        MockRuntime(),
+        Clean(),
+        ctx.patch,
+        evidence,
+        "digest",
+        reproduce=Rerun(1),
+        acceptance=[probe],
+    )
+
+    assert [one.claim for one in verdict.blockers] == [
+        "bound(1) is 0. The document: “the bound is exclusive”"
+    ]
+    assert verdict.probes == {probe.file: probe.text}
+
+    rechecked = critic_module.recheck(verdict, Rerun(0), worktree)
+
+    assert rechecked.blockers == []
+    assert rechecked.decision is not None and rechecked.decision.reraised == []
+
+
+def test_the_recheck_re_runs_every_probe_so_a_turn_that_breaks_one_is_blocked(repo):
+    """S-0129/D-4 with S-0128/D-3: after a session turn every compiled probe
+    is re-run, not only the blockers; one that passed before and fails now is
+    a measured failure, so the turn is blocked, and one still passing leaves
+    it clean."""
+
+    worktree, target = _candidate(repo)
+    ctx = build_context(worktree, load_manifest(worktree / ".torve" / "gates.yaml"), base="main")
+    ctx.task = target
+    evidence = build_evidence(ctx, [], candidate=TASK_ID)
+    first, second = _compiled(1), _compiled(2)
+
+    class Clean:
+        kind = "harness"
+
+        def run(self, ctx):
+            return AgentResult(exit_code=0, output=answer())
+
+    verdict = run_critic(
+        repo.root,
+        worktree,
+        target,
+        mint_review_task(repo.root, target),
+        critic_config(compile=True),
+        MockRuntime(),
+        Clean(),
+        ctx.patch,
+        evidence,
+        "digest",
+        reproduce=lambda commands, probes: [
+            CommandRun(c, 1 if c == first.command else 0, "") for c in commands
+        ],
+        acceptance=[first, second],
+    )
+
+    assert [one.claim for one in verdict.blockers] == [
+        critic_module._probe_finding(first, CommandRun("", 1, "")).claim
+    ]
+
+    fixed_first_broke_second = critic_module.recheck(
+        verdict,
+        lambda commands, probes: [
+            CommandRun(c, 1 if c == second.command else 0, "") for c in commands
+        ],
+        worktree,
+        [first, second],
+    )
+    both_pass = critic_module.recheck(verdict, Rerun(0), worktree, [first, second])
+
+    assert fixed_first_broke_second.decision is not None
+    assert [one.id for one in fixed_first_broke_second.decision.reraised] == [second.id]
+    assert len(fixed_first_broke_second.blockers) == 1
+    assert fixed_first_broke_second.probes[second.file] == second.text
+    assert both_pass.blockers == []

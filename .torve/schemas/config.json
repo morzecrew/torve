@@ -616,6 +616,12 @@
           "title": "Blocks At",
           "type": "string"
         },
+        "compile": {
+          "default": false,
+          "description": "Whether a unit compiles its document into acceptance probes before its\nfirst candidate (S-0129/D-1): one reviewer-seat call whose kept probes the\nexecutor is shown and the critic's decision re-runs, a failing one\nblocking. Only `mode: critic` has the decision a probe's failure goes to,\nso `classic` refuses it.",
+          "title": "Compile",
+          "type": "boolean"
+        },
         "max_width": {
           "anyOf": [
             {

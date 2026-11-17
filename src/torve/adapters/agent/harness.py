@@ -53,6 +53,17 @@ if TYPE_CHECKING:
 PROMPT_RELPATH = ".torve/tmp/prompt.md"
 # A follow-up turn's task, beside the prompt it continues (S-0122/D-8).
 FOLLOW_UP_RELPATH = ".torve/tmp/follow-up.md"
+# Where a unit's compiled probes sit (S-0129/D-3): `acceptance.ACCEPTANCE_DIR`,
+# spelled here because an agent adapter never reads the document format the
+# compiler's module does.
+COMPILED_PROBES = "probes/acceptance/"
+COMPILED_NOTE = (
+    "The commands that run a file under `probes/acceptance/` are the document's rules,"
+    " compiled into probes before this work began; each fails on the base tree, and the"
+    " engine re-runs them on what you leave, where one that fails blocks the work. Make"
+    " them pass. Editing a probe changes nothing: the engine runs its own copy. A probe"
+    " you find contradicts the document stays failing; say why in your log."
+)
 # The working rules, staged where a harness reads them in system position
 # (S-0073/D-2) and named to the image as `TORVE_SYSTEM_PROMPT`. One text, one
 # file; which channel carries it is the image's own — claude appends it with
@@ -428,6 +439,9 @@ def build_prompt(
 
     lines += ["", "## Acceptance", ""]
     lines += [f"- `{command}`" for command in task.acceptance] or ["- none declared."]
+
+    if any(COMPILED_PROBES in command for command in task.acceptance):
+        lines += ["", COMPILED_NOTE]
 
     # The engine's own facts after the contract and before the rules
     # (S-0076/D-1): the contract governs, this is what was known about it, and

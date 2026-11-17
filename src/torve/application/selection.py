@@ -429,11 +429,13 @@ def unit_record(
     size: str,
     at: str,
     revision: Any = None,
+    acceptance: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The `unit.closed` record (S-0122/D-16, S-0124/D-9): the unit's class
     and width, every candidate with its tier, model, wall time, cost, gate
     outcome, whether it was cut and the critic's verdict, the one selected,
-    the outcome and — when this was a revision — the round it spent."""
+    the outcome and — when this was a revision — the round it spent. A unit
+    that compiled probes adds its *acceptance* block (S-0129/D-5)."""
 
     block = _revision_block(selection.revision if revision is None else revision)
 
@@ -471,5 +473,8 @@ def unit_record(
 
     if block is not None:
         record["revision"] = block
+
+    if acceptance is not None:
+        record["acceptance"] = dict(acceptance)
 
     return record

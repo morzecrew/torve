@@ -6438,3 +6438,163 @@ def test_rerun_bound_under_the_critic_is_the_class_s_clock(tmp_path, monkeypatch
 
     assert [one.exit_code for one in runs] == [None]
     assert runtime.specs == []
+
+
+# ....................... #
+# The compiled probes in a unit (S-0129/D-1, D-3, D-4, D-5).
+
+PROBE_ROW = "S-0900/D-1"
+PROBE_COMMAND = "uv run python probes/acceptance/p01.py"
+
+
+def _compiling_unit(review_rig, monkeypatch, critic_outputs, *reruns):  # noqa: F811
+    """A one-candidate critic unit under `review.compile`, over a document
+    stating one rule: the reviewer seat compiles one probe for it, then
+    judges as the critic with *critic_outputs*. *reruns* are the probe's
+    exits in order: on the start tree, at the first decision, after the
+    session turn. Returns the state, the reviewer, what the executor saw and
+    the unit record."""
+
+    from test_review_run import SequencedReviewer
+    from test_run_loop import ScriptedAgent
+
+    from torve.application.acceptance import compile_prompt
+    from torve.application.ports import AgentResult
+    from torve.application.runner import run_task
+    from torve.config.runconfig import ReviewConfig
+    from torve.domain.task import Budget, InheritedDecision
+
+    repo, _runtime, deps_for = review_rig
+    # The skeleton `torve spec new` writes, stating the one rule.
+    repo.write(
+        ".torve/specs/S-0900/document.yaml",
+        "id: S-0900\ntitle: Readers\nkind: design\nstatus: draft\nimplementation: none\n"
+        "depends_on: []\ninformed_by: []\nsupersedes: []\nsuperseded_by: null\n"
+        "owner: someone\nschema_version: 4\n"
+        "summary: |\n  A reader_id with a space is refused with a 422.\n",
+    )
+    repo.write(".torve/specs/S-0900/decisions.yaml", "decisions: []\n")
+    calls = _scripted_reruns(monkeypatch, *reruns)
+    seen: dict[str, object] = {}
+
+    class CompilingReviewer:
+        kind = "harness"
+
+        def __init__(self) -> None:
+            self.critic = SequencedReviewer(critic_outputs)
+            self.compiles = 0
+
+        def run(self, ctx):
+            if ctx.system != compile_prompt():
+                return self.critic.run(ctx)
+
+            self.compiles += 1
+            probe = ctx.workspace / "probes" / "acceptance" / "p01.py"
+            probe.parent.mkdir(parents=True, exist_ok=True)
+            probe.write_text("raise SystemExit(1)\n", encoding="utf-8")
+            compiled = {
+                "row": PROBE_ROW,
+                "quote": "A reader_id with a space is refused with a 422.",
+                "claim": "a reader_id with a space is a 422",
+                "file": "probes/acceptance/p01.py",
+                "command": PROBE_COMMAND,
+            }
+
+            return AgentResult(
+                exit_code=0,
+                output=json.dumps({"schema": "torve.compile/v1", "probes": [compiled]}),
+            )
+
+    class SessionHarness(ScriptedAgent):
+        kind = "harness"
+
+        def run(self, ctx):
+            planted = ctx.workspace / "probes" / "acceptance" / "p01.py"
+            seen["acceptance"] = list(ctx.task.acceptance)
+            seen["planted"] = planted.read_text() if planted.is_file() else None
+            (ctx.workspace / "README.md").write_text("readers\n", encoding="utf-8")
+
+            return AgentResult(exit_code=0, output="first", cost_usd=0.1)
+
+        def follow_up(self, ctx, previous, text):
+            seen["follow_up"] = text
+
+            return AgentResult(exit_code=0, output="second", cost_usd=0.1)
+
+    config = RunnerConfig(
+        review=ReviewConfig(
+            on=["task_gated"], mode="critic", revision="session", blocker_revisions=1, compile=True
+        )
+    )
+    reviewer = CompilingReviewer()
+    deps = deps_for(reviewer)
+    deps.agent = SessionHarness([])
+    task = Task(
+        id="T-9001",
+        spec="S-0900",
+        decisions=[InheritedDecision(id=PROBE_ROW, grade="ASSUMED", text="readers are validated")],
+        scope=Scope(files=["README.md"]),
+        budget=Budget(iterations=1),
+    )
+
+    state = run_task(repo.root, task, config, deps)
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+    [unit] = [row for row in rows if row.get("kind") == "unit.closed"][:1]
+
+    return state, reviewer, seen, unit, calls
+
+
+def test_a_probe_failing_after_a_clean_critic_is_revised_in_session_and_lands(
+    review_rig,  # noqa: F811
+    monkeypatch,
+):
+    """S-0129: the probe compiled once over the start tree is planted and
+    shown to the executor; it fails on the candidate the critic found clean,
+    so the unit is revised in its session with the probe's claim, and the
+    recheck re-runs the probe, which passes, and the unit lands."""
+
+    from test_critic import answer
+
+    from torve.domain.states import TaskState
+
+    state, reviewer, seen, unit, calls = _compiling_unit(
+        review_rig, monkeypatch, [answer()], 1, 1, 0
+    )
+
+    assert state.state is TaskState.READY and state.escalation is None
+    assert reviewer.compiles == 1 and reviewer.critic.calls == 1
+    assert calls == [[PROBE_COMMAND]] * 3
+    assert PROBE_COMMAND in seen["acceptance"]  # type: ignore[operator]
+    assert seen["planted"] == "raise SystemExit(1)\n"
+    assert "a reader_id with a space is a 422" in str(seen["follow_up"])
+    assert unit["revision"]["by"] == "rerun"
+    assert unit["acceptance"] == {
+        "kept": 1,
+        "dropped": 0,
+        "failed_first": 1,
+        "spend_usd": None,
+        "wall_s": unit["acceptance"]["wall_s"],
+    }
+
+
+def test_a_probe_passing_on_the_first_candidate_leaves_the_verdict_clean(
+    review_rig,  # noqa: F811
+    monkeypatch,
+):
+    """S-0129/D-4: a probe that passes blocks nothing, so a clean critic
+    lands the unit with no revision, and the record says none failed."""
+
+    from test_critic import answer
+
+    from torve.domain.states import TaskState
+
+    state, reviewer, seen, unit, calls = _compiling_unit(review_rig, monkeypatch, [answer()], 1, 0)
+
+    assert state.state is TaskState.READY
+    assert reviewer.critic.calls == 1 and "follow_up" not in seen
+    assert len(calls) == 2
+    assert "revision" not in unit
+    assert unit["acceptance"]["failed_first"] == 0

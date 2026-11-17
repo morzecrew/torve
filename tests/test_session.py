@@ -1206,3 +1206,55 @@ def test_a_seat_that_cannot_follow_up_is_judged_with_its_never_send_files(
     run_task(repo.root, task, config, deps)
 
     assert seen[:2] == [("agent", False), ("gates", True)]
+
+
+def test_compiled_probes_are_planted_and_never_committed(tmp_path):
+    """S-0129/D-3: the unit's stored probes land in the worktree at their
+    paths for the executor, and `git add -A`, which is what the judge commits,
+    never stages them. A unit with no store plants nothing."""
+
+    import subprocess
+
+    from torve.application.acceptance import Acceptance, Probe, save
+    from torve.application.session import plant_probes
+
+    main = tmp_path / "repo"
+    main.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "main", str(main)], check=True)
+    (main / "seed").write_text("x", encoding="utf-8")
+    subprocess.run(["git", "-C", str(main), "add", "-A"], check=True)
+    subprocess.run(
+        [
+            *("git", "-C", str(main), "-c", "user.name=t", "-c", "user.email=t@t"),
+            *("commit", "-q", "--no-gpg-sign", "-m", "seed"),
+        ],
+        check=True,
+    )
+    worktree = tmp_path / "wt"
+    subprocess.run(["git", "-C", str(main), "worktree", "add", "-q", str(worktree)], check=True)
+    probe = Probe(
+        id="acceptance:1",
+        row="S-0900/D-1",
+        quote="q",
+        claim="c",
+        file="probes/acceptance/p01.py",
+        command="python probes/acceptance/p01.py",
+        text="raise SystemExit(1)\n",
+        base_exit=1,
+    )
+
+    plant_probes(main, "T-0001", worktree)
+
+    assert not (worktree / "probes").exists()
+
+    save(main, "T-0001", Acceptance(kept=[probe]))
+    plant_probes(main, "T-0001", worktree)
+
+    assert (worktree / probe.file).read_text(encoding="utf-8") == probe.text
+    status = subprocess.run(
+        ["git", "-C", str(worktree), "status", "--porcelain", "-uall"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "probes" not in status
