@@ -109,6 +109,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A critic probe that imports a module the critic wrote beside it under `probes/` now gets
+  that module when the engine re-runs it. The re-run used to fail on the missing import, so
+  the finding blocked whatever the candidate did, and a correct revision could not clear it.
+
 - In a repository with `uv.lock` whose gate manifest names no `tests.run`, the engine now runs
   tests through `uv run`. It used the image's bare `python3`, which has none of the project's
   packages, so the evidence the critic reads showed every test erroring.

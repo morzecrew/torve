@@ -310,9 +310,125 @@ def test_reproduced_a_probe_its_command_names_is_kept_beside_its_file(tmp_path):
     repro = {"command": "sh probes/run.sh range", "file": "probes/edge.py"}
     document = CriticDocument.model_validate({"rows": [], "findings": [finding(repro=repro)]})
 
-    kept = critic_module._keep_probes(tmp_path, document)
+    kept = critic_module._keep_probes(tmp_path, document, tmp_path / "candidate")
 
     assert sorted(kept) == ["probes/edge.py", "probes/run.sh"]
+
+
+def test_reproduced_a_file_a_kept_probe_reads_is_kept_beside_it(tmp_path):
+    """S-0127/D-10: beside the probes its findings name, the copy keeps each
+    text file the critic wrote under `probes/` that a kept probe reads — a
+    module it imports, one that module imports, a conftest pytest loads for
+    it — and never a file no probe reads, one the candidate's worktree holds,
+    a link, one over the cap, one that is not text, or the named probe again
+    under another spelling."""
+
+    copy, worktree = tmp_path / "copy", tmp_path / "worktree"
+    files = {
+        "probes/note.py": "# the note\nfrom dividends import report\nimport big\n",
+        "probes/dividends.py": "from common import rows\n",
+        "probes/common.py": "rows = []\n",
+        "probes/conftest.py": "import pytest\n",
+        "probes/other/conftest.py": "import pytest\n",
+        "probes/stray.py": "named by nobody\n",
+        "probes/big.py": "#" * (critic_module.PROBE_CAP + 1),
+        "probes/acceptance/report.py": "planted\n",
+    }
+
+    for name, text in files.items():
+        (copy / name).parent.mkdir(parents=True, exist_ok=True)
+        (copy / name).write_text(text)
+
+    (worktree / "probes" / "acceptance").mkdir(parents=True)
+    (worktree / "probes" / "acceptance" / "report.py").write_text("planted\n")
+    (copy / "probes" / "rows.py").symlink_to(copy / "probes" / "stray.py")
+    (copy / "probes" / "report.bin").write_bytes(b"\xff\xfe report")
+    repro = {"command": "uv run python ./probes/note.py", "file": "./probes/note.py"}
+    document = CriticDocument.model_validate({"rows": [], "findings": [finding(repro=repro)]})
+
+    kept = critic_module._keep_probes(copy, document, worktree)
+
+    assert sorted(kept) == [
+        "./probes/note.py",
+        "probes/common.py",
+        "probes/conftest.py",
+        "probes/dividends.py",
+    ]
+
+
+def test_reproduced_nothing_is_kept_through_a_linked_probe_directory(tmp_path):
+    """S-0127/D-10: a `probes/` the critic made a link is read for nothing a
+    kept probe imports, so no host file reaches a re-run."""
+
+    copy, outside = tmp_path / "copy", tmp_path / "outside"
+    outside.mkdir()
+    (outside / "dividends.py").write_text("a host file\n")
+    copy.mkdir()
+    (copy / "check.py").write_text("import dividends\n")
+    (copy / "probes").symlink_to(outside)
+    repro = {"command": "uv run python check.py", "file": "check.py"}
+    document = CriticDocument.model_validate({"rows": [], "findings": [finding(repro=repro)]})
+
+    kept = critic_module._keep_probes(copy, document, tmp_path / "worktree")
+
+    assert kept == {"check.py": "import dividends\n"}
+
+
+def test_reproduced_the_files_kept_beside_a_probe_stop_at_their_cap(tmp_path):
+    """S-0127/D-10: however many files a probe reads, the copy keeps at most
+    `HELPER_CAP` beside it."""
+
+    (tmp_path / "probes").mkdir()
+    names = [f"helper{index:02}" for index in range(critic_module.HELPER_CAP + 3)]
+    (tmp_path / "probes" / "note.py").write_text("".join(f"import {name}\n" for name in names))
+
+    for name in names:
+        (tmp_path / "probes" / f"{name}.py").write_text("x = 1\n")
+
+    repro = {"command": "uv run python probes/note.py", "file": "probes/note.py"}
+    document = CriticDocument.model_validate({"rows": [], "findings": [finding(repro=repro)]})
+
+    kept = critic_module._keep_probes(tmp_path, document, tmp_path / "candidate")
+
+    assert len(kept) == 1 + critic_module.HELPER_CAP
+
+
+# A probe that imports a module the critic wrote beside it (S-0127/D-10).
+NOTE = {"command": "uv run python probes/note.py", "file": "probes/note.py"}
+NOTE_PROBES = {
+    "probes/note.py": "from dividends import report\nraise SystemExit(1)\n",
+    "probes/dividends.py": "def report(): ...\n",
+}
+
+
+def test_reproduced_a_critic_probe_is_handed_what_it_reads_and_a_compiled_one_runs_alone(
+    tmp_path,
+):
+    """S-0127/D-10: a critic finding's re-run is handed the probes it names
+    and the files its copy kept beside them, as the probe ran in the copy, so
+    an import of the critic's own module never fails it; a compiled probe
+    runs alone (S-0129/D-2)."""
+
+    _app(tmp_path)
+    document = CriticDocument.model_validate({"rows": [], "findings": [finding(repro=NOTE)]})
+    probe = _compiled()
+    rerun = Rerun()
+
+    decision = decide(
+        document,
+        {OWNED: True},
+        tmp_path,
+        "major",
+        reproduce=rerun,
+        probes=NOTE_PROBES,
+        acceptance=[probe],
+    )
+
+    assert rerun.calls == [
+        ([NOTE["command"]], NOTE_PROBES),
+        ([probe.command], {probe.file: probe.text}),
+    ]
+    assert [one.id for one in decision.blockers] == ["F1", probe.id]
 
 
 def test_reproduced_a_pytest_selector_names_its_probe_file(tmp_path):
@@ -1775,7 +1891,7 @@ def test_the_probes_are_read_only_once_the_critics_sandbox_is_gone(repo, monkeyp
     runtime = MockRuntime()
     destroyed_at_harvest: list[list[str]] = []
 
-    def harvest(copy, document):
+    def harvest(copy, document, worktree):
         destroyed_at_harvest.append(list(runtime.destroyed))
         return {}
 
@@ -2226,3 +2342,54 @@ def test_the_recheck_re_runs_every_probe_so_a_turn_that_breaks_one_is_blocked(re
     assert len(fixed_first_broke_second.blockers) == 1
     assert fixed_first_broke_second.probes[second.file] == second.text
     assert both_pass.blockers == []
+
+
+def test_a_probe_s_helpers_are_stored_handed_to_its_recheck_and_shown_in_its_thread(repo):
+    """S-0127/D-10 with S-0128/D-3: the review stores the module a kept
+    finding's probe imports beside the probe, the recheck after a session
+    turn hands both again, and the blocker's thread shows both; a compiled
+    probe's re-run and thread get neither."""
+
+    worktree, target = _candidate(repo)
+    ctx = build_context(worktree, load_manifest(worktree / ".torve" / "gates.yaml"), base="main")
+    ctx.task = target
+    review = mint_review_task(repo.root, target)
+    probe = _compiled()
+
+    class Importing:
+        kind = "harness"
+
+        def run(self, ctx):
+            for name, text in NOTE_PROBES.items():
+                (ctx.workspace / name).parent.mkdir(parents=True, exist_ok=True)
+                (ctx.workspace / name).write_text(text, encoding="utf-8")
+
+            return AgentResult(exit_code=0, output=answer(findings=[finding(repro=NOTE)]))
+
+    verdict = run_critic(
+        repo.root,
+        worktree,
+        target,
+        review,
+        critic_config(compile=True),
+        MockRuntime(),
+        Importing(),
+        ctx.patch,
+        build_evidence(ctx, [], candidate=TASK_ID),
+        "digest",
+        reproduce=Rerun(),
+        acceptance=[probe],
+    )
+    rerun = Rerun()
+
+    critic_module.recheck(verdict, rerun, worktree, [probe])
+
+    stored = repo.root / ".torve" / "tasks" / review.id / "probes"
+    assert sorted(p.name for p in stored.iterdir()) == ["acceptance", "dividends.py", "note.py"]
+    assert rerun.calls == [
+        ([NOTE["command"]], NOTE_PROBES),
+        ([probe.command], {probe.file: probe.text}),
+    ]
+    critic_thread, compiled_thread = (one["comments"][0]["body"] for one in verdict.threads)
+    assert "def report(): ..." in critic_thread
+    assert "def report(): ..." not in compiled_thread
