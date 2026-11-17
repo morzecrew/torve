@@ -1,0 +1,75 @@
+# yaml-language-server: $schema=../../schemas/amendments.json
+amendments:
+  - id: A-1
+    at: '2026-11-17T11:34:09Z'
+    title: Twenty-four probes, every row first
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          A compiled probe is kept only when its row is one the contract carries,
+          its quote occurs in one of the document's files with whitespace collapsed,
+          its file is under `probes/acceptance/` and at most `PROBE_CAP`, and its
+          command, one simple command with no shell operators that runs its own file
+          alone, re-run alone with its own file over a judge checkout of the unit's
+          start tree as a repro is (S-0127/D-10), executes and exits non-zero; at
+          most `ACCEPTANCE_CAP = 12` are kept in the seat's order, every other probe
+          is recorded with why it was dropped, and a compile that refuses, errs, is
+          unparseable or keeps nothing leaves the unit to run without probes
+        after: >-
+          A compiled probe is kept only when its row is one the contract carries,
+          its quote occurs in one of the document's files with whitespace collapsed,
+          its file is under `probes/acceptance/` and at most `PROBE_CAP`, and its
+          command, one simple command with no shell operators that runs its own file
+          alone, re-run alone with its own file over a judge checkout of the unit's
+          start tree as a repro is (S-0127/D-10), executes and exits non-zero; at
+          most `ACCEPTANCE_CAP = 24` are kept in the seat's order, every other probe
+          is recorded with why it was dropped, and a compile that refuses, errs, is
+          unparseable or keeps nothing leaves the unit to run without probes
+      - subject: D-2
+        field: fingerprint
+        after: 41da1e26e19f0b14/96a8cd04ffe1834e
+    md: |-
+      Amended on 2026-11-17 after the bed's second smoke run of `library-compile`.
+      On spoolman-nfc the compiler wrote exactly twelve probes for the document's thirteen rows, one for nearly every row, and none for the rule the library arms keep missing: a `reader_id` with a space is a 422. That rule lives in the document's interface schema, not in a row's text, and the cap left no room for a second probe on its row. Twenty-four leaves room for the rules a schema states once every row has its probe. Each probe adds one re-run per decision, a few seconds on the bed.
+  - id: A-2
+    at: '2026-11-17T11:34:15Z'
+    title: The compiler's prompt is compile/v2
+    changes:
+      - subject: D-1
+        field: paths
+        before:
+          - src/torve/config/runconfig.py
+          - src/torve/application/acceptance.py
+          - src/torve/application/prompts/compile-v1.md
+          - src/torve/application/prompts/compile-v1.schema.json
+        after:
+          - src/torve/config/runconfig.py
+          - src/torve/application/acceptance.py
+          - src/torve/application/prompts/compile-v2.md
+          - src/torve/application/prompts/compile-v1.schema.json
+      - subject: D-1
+        field: text
+        before: >-
+          With `review.compile: true`, refused outside `review.mode: critic` and off
+          by default, a unit compiles its document into acceptance probes once, before
+          its first candidate: one reviewer-tier seat call under its own frozen prompt
+          `compile/v1`, staged the document whole and the contract's rows, asked for
+          probes that each name a row the contract carries, quote the passage stating
+          the behaviour, write one file under `probes/acceptance/` and give one command
+          exiting 0 when the behaviour holds
+        after: >-
+          With `review.compile: true`, refused outside `review.mode: critic` and off
+          by default, a unit compiles its document into acceptance probes once, before
+          its first candidate: one reviewer-tier seat call under its own frozen prompt
+          `compile/v2`, staged the document whole and the contract's rows, asked for
+          probes that each name a row the contract carries, quote the passage stating
+          the behaviour, write one file under `probes/acceptance/` and give one command
+          exiting 0 when the behaviour holds, every row its probe before any row a
+          second
+      - subject: D-1
+        field: fingerprint
+        after: 844a2d271e087fd0/2fbd5612d90bc5b4
+    md: |-
+      Amended on 2026-11-17 with A-1.
+      `compile/v1` asked for probes ordered by how likely an implementation is to get them wrong, and the cap it named was twelve. `compile/v2` names twenty-four, gives every row its probe first, then the constraints an interface or a schema in the document states, with the status or error each answers. The answer's shape is unchanged, so its schema stays `torve.compile/v1`.

@@ -371,7 +371,7 @@ def test_the_compile_prompt_is_frozen_with_its_own_schema():
     assert compile_prompt().startswith("You are the acceptance compiler for a coding engine.")
     assert ".torve/compile/compile.schema.json" in compile_prompt()
     assert json.loads(SCHEMA_FILE.read_text(encoding="utf-8")) == compile_schema()
-    assert PROMPT_FILE.name == "compile-v1.md"
+    assert PROMPT_FILE.name == "compile-v2.md"
 
 
 def test_a_seat_that_fails_to_run_leaves_the_unit_without_probes_and_no_store(repo):
