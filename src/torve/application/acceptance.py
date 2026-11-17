@@ -42,9 +42,12 @@ if TYPE_CHECKING:
 # ....................... #
 
 _PROMPTS = Path(__file__).with_name("prompts")
-PROMPT_FILE = _PROMPTS / "compile-v1.md"
+PROMPT_FILE = _PROMPTS / "compile-v2.md"
 SCHEMA_FILE = _PROMPTS / "compile-v1.schema.json"
-PROMPT_VERSION = "compile/v1"
+# v2 (S-0129/A-2): every row its probe first, then the rules a schema in the
+# document states. The answer's shape is unchanged, so its schema is still
+# `torve.compile/v1`.
+PROMPT_VERSION = "compile/v2"
 
 #: Where the compiler's inputs sit in its copy, as the frozen prompt names them.
 COMPILE_DIR = ".torve/compile"
@@ -54,7 +57,7 @@ COMPILE_DIR = ".torve/compile"
 ACCEPTANCE_DIR = "probes/acceptance"
 
 #: The most probes a unit keeps, in the seat's order (S-0129/D-2).
-ACCEPTANCE_CAP = 12
+ACCEPTANCE_CAP = 24
 
 #: The unit's store, beside its contract.
 STORE_FILE = "acceptance.yaml"
@@ -114,7 +117,8 @@ class CompileDocument(BaseModel):
 
     schema_name: Literal["torve.compile/v1"] = Field(default="torve.compile/v1", alias="schema")
     probes: list[CompiledProbe]
-    """Every probe, most likely to catch a wrong implementation first."""
+    """Every probe: one for each row first, then the rest; each group most likely to catch
+    a wrong implementation first."""
 
 
 def compile_schema() -> dict[str, Any]:
