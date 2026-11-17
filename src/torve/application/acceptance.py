@@ -468,22 +468,33 @@ def compile_acceptance(
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding="utf-8")
 
-    session = run_seat(
-        run.root,
-        run.worktree,
-        run.task,
-        review,
-        run.config,
-        run.deps.runtime,
-        agent,
-        build_compile_prompt(run.task),
-        stage=stage,
-        read=read_compile,
-        harvest=_keep_files,
-        system=compile_prompt(),
-        broker=run.deps.broker,
-        broker_handle=run.broker_handle,
-    )
+    try:
+        session = run_seat(
+            run.root,
+            run.worktree,
+            run.task,
+            review,
+            run.config,
+            run.deps.runtime,
+            agent,
+            build_compile_prompt(run.task),
+            stage=stage,
+            read=read_compile,
+            harvest=_keep_files,
+            system=compile_prompt(),
+            broker=run.deps.broker,
+            broker_handle=run.broker_handle,
+        )
+
+    except Exception as exc:
+        # S-0129/D-2: a seat that could not run leaves the unit to run without
+        # probes rather than not at all. Nothing is stored, so the next
+        # attempt, from the same start tree, compiles again.
+        failed = Acceptance(fact=f"the compile seat failed: {exc!r}")
+        _fact(state, f"{COMPILED_MARKER}{failed.fact}")
+
+        return failed
+
     document, refusal = session.verdict, session.refusal
     texts: dict[str, str] = session.harvested or {}
     carried = [row.id for row in run.task.decisions]
@@ -511,14 +522,14 @@ def compile_acceptance(
         taken_files.add(own)
         candidates.append((compiled, own))
 
-    runs = (
-        reproduce(
-            [compiled.command for compiled, _ in candidates],
-            {own: texts[own] for _, own in candidates},
-        )
-        if candidates
-        else []
-    )
+    commands = [compiled.command for compiled, _ in candidates]
+
+    try:
+        runs = reproduce(commands, {own: texts[own] for _, own in candidates}) if candidates else []
+
+    except Exception as exc:
+        # A checkout or sandbox that would not open measured nothing.
+        runs = [CommandRun(command, None, f"not run: {exc!r}") for command in commands]
 
     for (compiled, own), base in zip(candidates, runs, strict=True):
         why = _base_reason(base)

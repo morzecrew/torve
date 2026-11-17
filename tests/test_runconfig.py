@@ -200,7 +200,7 @@ def test_compile_is_off_by_default_and_needs_the_critic():
     assert RunnerConfig().review.compile is False
     assert ReviewConfig(mode="critic", compile=True).compile is True
 
-    with pytest.raises(ValidationError, match="review.compile needs review.mode: critic"):
+    with pytest.raises(ValidationError, match=r"review\.compile needs review\.mode: critic"):
         ReviewConfig(compile=True)
 
 

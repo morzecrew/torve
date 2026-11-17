@@ -339,3 +339,36 @@ def test_the_compile_prompt_is_frozen_with_its_own_schema():
     assert ".torve/compile/compile.schema.json" in compile_prompt()
     assert json.loads(SCHEMA_FILE.read_text(encoding="utf-8")) == compile_schema()
     assert PROMPT_FILE.name == "compile-v1.md"
+
+
+def test_a_seat_that_fails_to_run_leaves_the_unit_without_probes_and_no_store(repo):
+    """S-0129/D-2: a compile seat whose sandbox would not open runs the unit
+    without probes, and stores nothing, so the next attempt compiles again."""
+
+    class Broken:
+        kind = "harness"
+
+        def run(self, ctx):
+            raise RuntimeError("no sandbox")
+
+    run, state = _unit(repo, Broken())
+
+    acceptance = compile_acceptance(run, state, Base(), lambda usage: None)
+
+    assert acceptance.kept == [] and "the compile seat failed" in acceptance.fact
+    assert load(repo.root, TASK_ID) is None
+
+
+def test_a_base_run_that_cannot_open_drops_every_probe(repo):
+    """S-0129/D-2: probes whose run on the start tree never happened measured
+    nothing, so none is kept, each with the reason."""
+
+    run, state = _unit(repo, Compiler([probe()]))
+
+    def broken(commands, probes):
+        raise OSError("checkout would not open")
+
+    acceptance = compile_acceptance(run, state, broken, lambda usage: None)
+
+    assert acceptance.kept == []
+    assert acceptance.dropped[0]["why"].startswith("its run on the start tree measured nothing")

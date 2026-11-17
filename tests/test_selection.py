@@ -916,3 +916,20 @@ def test_a_gate_pass_that_raises_inside_selection_escalates_the_run(
     # first escalation is the run's, and a sibling's pass that raises too does
     # not transition the state again.
     assert 1 in passes and set(passes) <= {1, 2}
+
+
+def test_unit_record_carries_the_acceptance_block_only_when_a_unit_compiled():
+    """S-0129/D-5: a unit that compiled probes says how many it kept and
+    dropped, how many blocked its first decision, and what the compile cost."""
+
+    one = _candidate(1, green=True, patch="+a")
+    chosen = selection.Selection([one], one, spent_usd=0.4)
+    block = {"kept": 3, "dropped": 2, "failed_first": 1, "spend_usd": 0.5, "wall_s": 40.0}
+
+    record = selection.unit_record(
+        chosen, task_id="T-0001", attempt=1, width=1, size="L", at="t", acceptance=block
+    )
+    bare = selection.unit_record(chosen, task_id="T-0001", attempt=1, width=1, size="L", at="t")
+
+    assert record["acceptance"] == block
+    assert "acceptance" not in bare

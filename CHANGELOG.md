@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `review.compile: true` turns a unit's document into probes before its first candidate, in
+  critic mode only. Each probe pins one row and must fail on the starting tree. The executor
+  is shown them, and one that still fails on a candidate blocks it, even when the critic
+  finds nothing.
+
 - A phase can name the decisions it settles in `delivers`. The critic then holds that phase's
   tasks to those rows alone, so an earlier phase that edits the same file as a later one is
   no longer blocked for the later phase's work. `torve spec check` refuses a `delivers` entry

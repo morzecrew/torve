@@ -680,6 +680,8 @@ async def run_agent_session(run: Dispatch, state: RunState) -> AgentResult:
         # before the record leaves the tree, and the judge commits.
         _exclude(worktree, "/.torve/feedback.md", "the planted revision record (S-0005/D-13)")
 
+    plant_probes(root, task.id, worktree)
+
     env_passthrough, volumes = (
         _sandbox_auth(config, run.tier, config.worker_slot) if run_real else ((), {})
     )
@@ -1004,6 +1006,18 @@ def _exclude(worktree: Path, line: str, why: str) -> None:
 
     with exclude.open("a", encoding="utf-8") as handle:
         handle.write(f"# torve: {why}\n{line}\n")
+
+
+def plant_probes(root: Path, task_id: str, worktree: Path) -> None:
+    """The unit's compiled probes, at their paths, for the executor to run
+    (S-0129/D-3). The judge never commits them, and a re-run writes the
+    stored text, so nothing the session does to this copy reaches what
+    judges it."""
+
+    from torve.application.acceptance import ACCEPTANCE_DIR, plant
+
+    if plant(root, task_id, worktree):
+        _exclude(worktree, f"/{ACCEPTANCE_DIR}/", "the compiled acceptance probes (S-0129/D-3)")
 
 
 # ....................... #

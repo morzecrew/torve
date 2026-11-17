@@ -71,7 +71,7 @@ decisions:
     cites: [S-0005/D-13, S-0127/D-7]
     check: >-
       uv run pytest -q tests/test_session.py tests/test_tiering.py tests/test_runner.py
-      -k "acceptance"
+      -k "compiled_probes or probe_failing or probe_passing"
   - id: D-4
     grade: ASSUMED
     text: >-
@@ -93,7 +93,7 @@ decisions:
       candidate exits non-zero
     cites: [S-0127/D-1, S-0128/D-3]
     check: >-
-      uv run pytest -q tests/test_critic.py -k "acceptance"
+      uv run pytest -q tests/test_critic.py -k "compiled_probe or failing_probe"
   - id: D-5
     grade: ASSUMED
     text: >-
@@ -111,4 +111,5 @@ decisions:
       weigh the compiler by what its records say it did
     cites: [S-0127/D-9]
     check: >-
-      uv run pytest -q tests/test_runner.py tests/test_selection.py -k "acceptance"
+      uv run pytest -q tests/test_runner.py tests/test_selection.py -k "acceptance_block
+      or probe_failing"

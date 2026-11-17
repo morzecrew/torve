@@ -1075,6 +1075,19 @@ keeps no session, the revision attempt runs on that tier in the same run,
 worktree and critique, so a blocker that escalates has already had the
 stronger seat's attempt; empty keeps the revision on the seat.
 
+`review.compile: true`, off by default and refused outside `mode: critic`, has
+the reviewer seat compile a unit's document into probes before its first
+candidate (S-0129/D-1). A probe is a file under `probes/acceptance/` and one
+command, tied to a row and quoting the passage it pins; the engine keeps one
+only when that command fails on the unit's start tree, at most twelve
+(S-0129/D-2). The kept probes are planted in every candidate's worktree and
+shown as acceptance, never run as gates (S-0129/D-3); the critic's decision
+re-runs each against the candidate with the stored text, and one that fails
+blocks on its row whatever the critic said (S-0129/D-4). The compile is unit
+spend, recorded as a `review` with `mode: compile`, and `unit.closed` carries
+an `acceptance` block whose `failed_first` counts the probes that blocked the
+first decision (S-0129/D-5).
+
 The thread leg needs `threads.enabled`, the forge's bots in `threads.bots`, and
 a landing that reads a document's pull request — `promotion.landing:
 pull_request` with `unit: document`; it refuses to load otherwise. When every

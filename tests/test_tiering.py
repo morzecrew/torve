@@ -2101,3 +2101,21 @@ def test_one_tool_result_is_capped_where_every_tool_crosses_the_boundary():
     assert tokens < 25_000
     # One cap in two units, at four bytes to the token.
     assert chars == tokens * 4
+
+
+def test_the_prompt_says_what_compiled_probes_are_when_one_is_shown():
+    """S-0129/D-3: an attempt shown a command that runs a compiled probe is
+    told what it is, that editing it changes nothing and that one which
+    contradicts the document stays failing; one shown none is told nothing."""
+
+    from torve.adapters.agent.harness import COMPILED_NOTE
+
+    shown = Task(
+        id="T-0001",
+        decisions=[],
+        acceptance=["uv run pytest -q", "uv run python probes/acceptance/p01.py"],
+    )
+
+    assert COMPILED_NOTE in build_prompt(shown)
+    assert "changes nothing" in COMPILED_NOTE and "stays failing" in COMPILED_NOTE
+    assert COMPILED_NOTE not in build_prompt(Task(id="T-0001", decisions=[], acceptance=["x"]))

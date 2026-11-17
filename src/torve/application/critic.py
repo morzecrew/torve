@@ -90,6 +90,7 @@ from torve.gates.evidence_package import (
 from torve.gates.suite import archive_tree
 
 if TYPE_CHECKING:
+    from torve.application.acceptance import Probe
     from torve.application.runstate import RunState
     from torve.application.threads import TriageDocument
 
@@ -303,7 +304,9 @@ class Decision:
     kept finding whose re-run did not fail, and `advisory_rows` every located `violated` row
     other than a LOCKED one, which has no repro to re-run (S-0127/D-1,
     S-0127/A-5, S-0127/D-2); `reruns` is each re-run the engine made, beside
-    the finding it measured."""
+    the finding it measured. `acceptance` is each compiled probe's re-run
+    (S-0129/D-4): its id, row, file and exit, and whether it `failed`,
+    `passed` or was `unmeasured`; a failed one is among the blockers."""
 
     blocked: bool
     blockers: list[CriticFinding]
@@ -317,6 +320,7 @@ class Decision:
     advisory: list[CriticFinding] = field(default_factory=list)
     advisory_rows: list[RowVerdict] = field(default_factory=list)
     reruns: list[tuple[CriticFinding, CommandRun]] = field(default_factory=list)
+    acceptance: list[dict[str, Any]] = field(default_factory=list)
 
     def rerun(self, one: CriticFinding | RowVerdict) -> CommandRun | None:
         """The engine's re-run of *one*, or None when it made none."""
@@ -536,6 +540,7 @@ def decide(
     reproduce: Reproduce | None = None,
     probes: Mapping[str, str] | None = None,
     earlier: Iterable[Mapping[str, Any]] | None = None,
+    acceptance: Sequence[Probe] = (),
 ) -> Decision:
     """Block or pass, from what ran and never from the critic's words
     (S-0122/D-1, S-0127/D-1, both LOCKED).
@@ -571,6 +576,12 @@ def decide(
     row whose evidence locates is recorded advisory: a row carries no repro,
     so its breach blocks through a finding that names it (S-0127/A-5).
 
+    Each of *acceptance*, the unit's compiled probes (S-0129/D-4), is re-run
+    with the text the unit stored, whatever the document says: one whose
+    re-run fails blocks as a `contract` finding of severity `blocker` on its
+    row, at any *blocks_at* and on a revision attempt alike, and is never
+    carried, since it is the engine's measurement and not the critic's claim.
+
     A blocker or a blocking row is re-raised when it repeats an earlier
     round's blocker (`repeats_blocker`, S-0127/D-4): one of *earlier*, every
     round's blockers in the current tree's coordinates, else of the
@@ -579,7 +590,8 @@ def decide(
     kept, discarded = filter_findings(document.findings, root)
     stopping = STOPS_AT[blocks_at]
     spots = list(rejected)
-    held = probes or {}
+    # The stored text wins over any copy of a probe the critic kept.
+    held = {**(probes or {}), **{probe.file: probe.text for probe in acceptance}}
     lock = set(locked)
     carried: list[CriticFinding] = []
     rejected_findings: list[CriticFinding] = []
@@ -587,20 +599,24 @@ def decide(
     # One review re-runs one command over the same probes once.
     measured: dict[tuple[str, frozenset[tuple[str, str | None]]], CommandRun] = {}
 
+    def measure(command: str, named: str | None) -> CommandRun:
+        """*command* re-run with the probes it names, once per review."""
+
+        if not command:
+            return CommandRun(command="", exit_code=None, tail="not run: no command to re-run")
+
+        given = {name: held.get(name) for name in _probe_names(command, named)}
+        key = (command, frozenset(given.items()))
+
+        if key not in measured:
+            measured[key] = _rerun_once(reproduce, command, given)
+
+        return measured[key]
+
     def rerun(one: CriticFinding, command: str, named: str | None) -> CommandRun:
         """*one*'s *command* re-run with the probes it names, and recorded."""
 
-        if not command:
-            run = CommandRun(command="", exit_code=None, tail="not run: no command to re-run")
-        else:
-            given = {name: held.get(name) for name in _probe_names(command, named)}
-            key = (command, frozenset(given.items()))
-
-            if key not in measured:
-                measured[key] = _rerun_once(reproduce, command, given)
-
-            run = measured[key]
-
+        run = measure(command, named)
         reruns.append((one, run))
 
         return run
@@ -668,6 +684,28 @@ def decide(
         if id(finding) in unreproduced
         or (finding.kind == "weak_test" and id(finding) not in blocked_ids)
     ]
+    probe_runs: list[dict[str, Any]] = []
+
+    for probe in acceptance:
+        run = measure(probe.command, probe.file)
+        outcome = "failed" if _failed(run) else "passed" if run.exit_code == 0 else "unmeasured"
+        probe_runs.append(
+            {
+                "id": probe.id,
+                "row": probe.row,
+                "file": probe.file,
+                "exit": run.exit_code,
+                "outcome": outcome,
+            }
+        )
+
+        if outcome != "failed":
+            continue
+
+        compiled = _probe_finding(probe, run)
+        reruns.append((compiled, run))
+        blockers.append(compiled)
+        kept.append(compiled)
 
     def weight(verdict: RowVerdict) -> tuple[bool, bool, bool]:
         located = bool(verdict.evidence) and locate(verdict.evidence, root) is None
@@ -769,6 +807,26 @@ def decide(
         advisory=advisory,
         advisory_rows=advisory_rows,
         reruns=reruns,
+        acceptance=probe_runs,
+    )
+
+
+def _probe_finding(probe: Probe, run: CommandRun) -> CriticFinding:
+    """A compiled probe whose re-run failed, as the blocker it is (S-0129/D-4):
+    the engine measured it, so it is `executed` at `high` confidence, and its
+    repro is the probe the recheck re-runs (S-0128/D-3)."""
+
+    return CriticFinding(
+        id=probe.id,
+        severity="blocker",
+        kind="contract",
+        row=probe.row,
+        claim=f"{probe.claim} The document: “{probe.quote}”",
+        evidence=f"`{probe.command}` exited {run.exit_code}: {run.tail}",
+        verified="executed",
+        confidence="high",
+        repro=Repro(command=probe.command, file=probe.file),
+        fix_hint="The probe was compiled from the document before the work began.",
     )
 
 
@@ -1286,6 +1344,7 @@ def run_critic(
     attempt: int = 1,
     reproduce: Reproduce | None = None,
     earlier: Sequence[Mapping[str, Any]] | None = None,
+    acceptance: Sequence[Probe] = (),
 ) -> CriticVerdict:
     """One critic call over one candidate (S-0122/D-6). Everything the critic
     reads is composed here, before the copy exists; the copy is then scrubbed
@@ -1302,7 +1361,10 @@ def run_critic(
     critic's session has ended, so nothing it measures reaches the critic
     (S-0122/D-2); with none, nothing is re-run and no finding that needs a
     re-run blocks. *earlier* is every earlier round's blockers a blocker
-    re-raises, when they are not the revision's own (S-0127/D-4)."""
+    re-raises, when they are not the revision's own (S-0127/D-4).
+    *acceptance* is the unit's compiled probes, which `decide` re-runs and a
+    revision's recheck re-runs again (S-0129/D-4); nothing of them is staged
+    for the critic."""
 
     manifest_path = layout.gates_file(root)
     manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
@@ -1398,6 +1460,7 @@ def run_critic(
             reproduce=reproduce,
             probes=harvested,
             earlier=earlier,
+            acceptance=acceptance,
         )
         if document is not None
         else None
@@ -1411,14 +1474,15 @@ def run_critic(
         blockers, kept = verdict_findings(decision, grades, worktree)
         # Every probe a kept finding's re-run is handed, the ones its command
         # alone names included, so a revision's recheck re-runs it whole
-        # (S-0127/D-10, S-0128/D-3).
+        # (S-0127/D-10, S-0128/D-3); a compiled probe by its stored text.
         named = {
             name
             for f in decision.kept
             if f.repro is not None
             for name in _probe_names(f.repro.command, f.repro.file)
         }
-        probes = {name: text for name, text in harvested.items() if name in named}
+        available = {**harvested, **{probe.file: probe.text for probe in acceptance}}
+        probes = {name: text for name, text in available.items() if name in named}
         _store_probes(root, review.id, probes)
 
     if refusal is not None:
@@ -1460,6 +1524,7 @@ def run_critic(
             ),
             "unknowns": document.unknowns if document is not None else [],
             "probes": sorted(probes),
+            "acceptance": decision.acceptance if decision else [],
             "evidence": {
                 "base": package.base,
                 "head": package.head,
@@ -1624,6 +1689,7 @@ def judge(run: Dispatch, review: Task, state: RunState | None = None) -> CriticV
     (S-0127/D-1). The battery's judge checkout is gone by then: the gate pass
     removes it before its verdict returns, and the re-run opens its own."""
 
+    from torve.application.acceptance import load as stored_acceptance
     from torve.application.runner import reproduce
 
     revision = revision_for(run, state) if state is not None else None
@@ -1634,6 +1700,9 @@ def judge(run: Dispatch, review: Task, state: RunState | None = None) -> CriticV
         if state is not None and revision is None
         else None
     )
+    # S-0129/D-4: the unit's compiled probes, read from its store, so every
+    # candidate and every round is judged against the same ones.
+    compiled = stored_acceptance(run.root, run.task.id) if run.config.review.compile else None
 
     return run_critic(
         run.root,
@@ -1652,6 +1721,7 @@ def judge(run: Dispatch, review: Task, state: RunState | None = None) -> CriticV
         attempt=state.attempts if state is not None else 1,
         reproduce=partial(reproduce, run, state) if state is not None else None,
         earlier=earlier,
+        acceptance=compiled.kept if compiled is not None else (),
     )
 
 
