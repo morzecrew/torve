@@ -182,6 +182,12 @@ class HarnessManifest(BaseModel):
     torve's own keys, never a harness's spelling: `openai` means Chat Completions, and an
     image maps it to whatever its harness calls it. A harness naming none speaks none,
     which is what `fake` is."""
+    session: bool = False
+    """Whether this image's `run` continues the session `TORVE_SESSION_ID` names, with
+    `TORVE_PROMPT` as the next turn's task (S-0124/D-14). A seat whose harness keeps its
+    session is revised in it under `review.revision: session` (S-0124/D-8); any other
+    falls back to `fresh`. dsh keeps one whatever this says, through its own driver
+    (S-0122/D-11)."""
     auth_volume: str = "torve-auth"
     """The subscription route's volume; one per worker slot, `-<slot>` appended."""
     auth_mount: str = "/auth"

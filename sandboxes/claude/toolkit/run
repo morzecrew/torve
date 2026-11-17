@@ -92,6 +92,15 @@ if [ -n "${CLAUDE_TOOLS:-}" ]; then
     set -- "$@" --tools "$CLAUDE_TOOLS"
 fi
 
+# A later turn of the same attempt (S-0124/D-14): the engine names the session
+# the first turn opened, and `--resume` continues it with the task on stdin, so
+# a revision reads the findings beside everything the first turn already did.
+# The session lives under HOME, which is this container's, so it is only ever
+# resumed in the sandbox that opened it. A first turn names none.
+if [ -n "${TORVE_SESSION_ID:-}" ]; then
+    set -- "$@" --resume "$TORVE_SESSION_ID"
+fi
+
 # The night knobs (S-0079/D-9). The night seat's manifest declares them and
 # torve interprets none; this is where they mean something. A fallback model
 # finishes an attempt its own model is too overloaded for, and a tool nobody

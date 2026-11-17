@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A Claude Code seat now revises a blocked candidate in its own session under
+  `review.revision: session`, as a dsh seat does. The engine re-runs the blockers on the
+  revised tree instead of starting a new attempt and asking the critic again. A harness
+  manifest opts in with `session: true`; the Claude Code manifests in this repository do.
+
 - `review.compile: true` turns a unit's document into probes before its first candidate, in
   critic mode only. Each probe pins one row and must fail on the starting tree. The executor
   is shown them, and one that still fails on a candidate blocks it, even when the critic

@@ -117,8 +117,13 @@ EQUIP = "/opt/torve/equip"
 RUN = "/opt/torve/run"
 
 # The harness whose attempts run as a session the engine drives and can
-# continue (S-0122/D-11).
+# continue (S-0122/D-11). Any other continues one only when its manifest
+# declares `session` (S-0124/D-14).
 SESSION_HARNESS = "dsh"
+
+# What one turn's envelope counts, so a resumed turn's result adds the turns
+# before it (S-0124/D-14).
+COUNTS = ("cost_usd", "input_tokens", "cache_read_tokens", "cache_creation_tokens", "output_tokens")
 
 # Where `run` leaves the result — named to the image rather than assumed by it.
 # The equipment mount is `application.equipment.EQUIPMENT_MOUNT`, because the
@@ -1708,6 +1713,12 @@ class HarnessResult(AgentResult):
 RAW_TRACE_RELPATH = ".torve/tmp/harness-output.a{attempt}.raw"
 
 
+def _together(before: Any, turn: Any) -> Any:
+    """One count over two turns: their sum, or whichever turn reported one."""
+
+    return turn if before is None else before if turn is None else before + turn
+
+
 def _only(tier: TierConfig) -> str:
     """The dialect a seat reaches when it names none: the single one its harness
     and its provider share. More than one is refused when the seat resolves, so
@@ -1971,18 +1982,27 @@ class HarnessAgent:
 
             return self._settle(ctx, result)
 
-        command = self._command(ctx)
+        result, stream = self._captured(ctx, self._command(ctx))
+        trace.write_bytes(stream)
+
+        return self._settle(ctx, result)
+
+    # ....................... #
+
+    def _captured(self, ctx: AgentContext, command: str) -> tuple[ExecResult, bytes]:
+        """*command* run under `_capture`, and the bytes the trace keeps of it.
+
+        The trace goes to the durable store verbatim (S-0039/D-5) through the
+        one helper that owns the home (S-0039/D-1), and is recorded from there
+        root-relative — an absolute path is machine-specific while it lives
+        and dangling once retention takes the file, the ref is neither.
+        The verbatim bytes are the captured stream when the sandbox wrote
+        one (the wrapper's raw file, synced back for runtimes that copy
+        rather than mount); only a runtime that never ran the wrapper
+        leaves the adapter the exec output, clipped like every exec result."""
+
         raw_relpath = RAW_TRACE_RELPATH.replace("{attempt}", str(ctx.attempt))
         result = ctx.runtime.exec(ctx.handle, _capture(command, raw_relpath), ctx.timeout_s)
-
-        # The trace goes to the durable store verbatim (S-0039/D-5) through the
-        # one helper that owns the home (S-0039/D-1), and is recorded from there
-        # root-relative — an absolute path is machine-specific while it lives
-        # and dangling once retention takes the file, the ref is neither.
-        # The verbatim bytes are the captured stream when the sandbox wrote
-        # one (the wrapper's raw file, synced back for runtimes that copy
-        # rather than mount); only a runtime that never ran the wrapper
-        # leaves the adapter the exec output, clipped like every exec result.
         raw = ctx.workspace / raw_relpath
 
         if not raw.is_file():
@@ -1991,13 +2011,13 @@ class HarnessAgent:
             # would otherwise do lines later (T-0249's read point).
             ctx.runtime.sync_out(ctx.handle, ctx.workspace)
 
-        if raw.is_file():
-            trace.write_bytes(raw.read_bytes())
-            raw.unlink()
-        else:
-            trace.write_text(result.output, encoding="utf-8")
+        if not raw.is_file():
+            return result, result.output.encode("utf-8")
 
-        return self._settle(ctx, result)
+        stream = raw.read_bytes()
+        raw.unlink()
+
+        return result, stream
 
     # ....................... #
 
@@ -2005,12 +2025,15 @@ class HarnessAgent:
         """One more turn in the session *previous* ran, in the same live
         sandbox, with *text* as its task (S-0122/D-8). Its events join the
         attempt's trace, and the result is the attempt's whole: the totals
-        line counts the session. None when the seat runs no session, or the
-        first turn named none."""
+        line counts the session. None when the seat keeps no session
+        (S-0124/D-14), or the first turn named none."""
+
+        if self.tier.harness != SESSION_HARNESS:
+            return self._resumed(ctx, previous, text) if self.tier.session else None
 
         opened = session_id(previous.output)
 
-        if self.tier.harness != SESSION_HARNESS or opened is None:
+        if opened is None:
             return None
 
         (ctx.workspace / FOLLOW_UP_RELPATH).write_text(text, encoding="utf-8")
@@ -2022,6 +2045,57 @@ class HarnessAgent:
             trace.write("\n" + result.output)
 
         return self._settle(ctx, result)
+
+    # ....................... #
+
+    def _resumed(self, ctx: AgentContext, previous: AgentResult, text: str) -> AgentResult | None:
+        """The turn of a seat whose image resumes by `TORVE_SESSION_ID`
+        (S-0124/D-14): the session the attempt's trace names, `run` alone so
+        nothing is equipped again, its stream captured as the first turn's was
+        and appended to the trace. Its envelope counts this turn alone, so the
+        result's cost and token counts are *previous*'s and this turn's
+        together, and so is the receipt the context curve is checked against."""
+
+        trace = naming.trace_file(ctx.workspace, ctx.attempt)
+        opened = (
+            parse_metadata(trace.read_text(encoding="utf-8", errors="replace")).session_id
+            if trace.is_file()
+            else None
+        )
+
+        if opened is None:
+            return None
+
+        (ctx.workspace / FOLLOW_UP_RELPATH).write_text(text, encoding="utf-8")
+        env = {
+            **self._env(ctx),
+            "TORVE_SESSION_ID": opened,
+            "TORVE_PROMPT": f"{ctx.workdir}/{FOLLOW_UP_RELPATH}",
+        }
+        exported = " ".join(f"{name}={shlex.quote(value)}" for name, value in env.items())
+        result, stream = self._captured(ctx, f"export {exported}; {RUN}")
+
+        with trace.open("ab") as out:
+            out.write(b"\n" + stream)
+
+        turn = self._settle(ctx, result)
+        curve, before = turn.context, getattr(previous, "context", None)
+
+        # The curve sums every turn's requests but read this turn's envelope as
+        # its receipt; the receipt the sum is checked against is every turn's.
+        if curve is not None and curve.receipt_total is not None and before is not None:
+            receipt = _together(before.receipt_total, curve.receipt_total)
+            curve = replace(curve, receipt_total=receipt, matches_receipt=receipt == curve.sum)
+            record_context(ctx.task.id, curve.as_block())
+
+        return replace(
+            turn,
+            context=curve,
+            **{
+                name: _together(getattr(previous, name, None), getattr(turn, name))
+                for name in COUNTS
+            },
+        )
 
     # ....................... #
 

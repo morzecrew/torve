@@ -640,6 +640,18 @@ def test_the_claude_seat_feeds_the_prompt_on_stdin_not_as_an_argument() -> None:
     assert '< "$TORVE_PROMPT"' in run
 
 
+def test_the_claude_seat_resumes_the_session_the_engine_names() -> None:
+    """S-0124/D-14: a later turn names the session the first one opened, and
+    the image continues it with `--resume`; a first turn names none, so the
+    flag is added only when the variable is set."""
+
+    run = (DEFINITIONS / "claude" / "toolkit" / "run").read_text(encoding="utf-8")
+    code = [line.strip() for line in run.splitlines() if not line.lstrip().startswith("#")]
+
+    assert 'if [ -n "${TORVE_SESSION_ID:-}" ]; then' in code
+    assert 'set -- "$@" --resume "$TORVE_SESSION_ID"' in code
+
+
 def test_no_seat_hands_the_prompt_over_as_one_argument() -> None:
     """The claude seat's limit is every seat's: the dsh seat handed the prompt
     over as one argument after the claude seat stopped, and the same prompt
