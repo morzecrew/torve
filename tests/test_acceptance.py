@@ -115,7 +115,7 @@ def test_a_probe_is_kept_exactly_when_it_is_carried_quoted_its_own_and_red(broke
     base = None if exit_code is None else CommandRun(compiled.command, exit_code, "")
     text = None if "text" in broken else "print(1)\n"
 
-    why = drop_reason(compiled, [ROW], document, text, base)
+    why = drop_reason(compiled, [ROW], [document], text, base)
 
     red = exit_code is not None and exit_code not in (0, 126, 127)
     assert (why is None) == (not broken and red), why
@@ -125,7 +125,7 @@ def test_a_probe_outside_its_directory_is_never_kept():
     for name in ("probes/x.py", "/probes/acceptance/x.py", "probes/acceptance/../../x.py"):
         compiled = CompiledProbe(**{**probe(), "file": name, "command": f"python {name}"})
 
-        why = drop_reason(compiled, [ROW], RULE, "x", CommandRun("", 1, ""))
+        why = drop_reason(compiled, [ROW], [RULE], "x", CommandRun("", 1, ""))
 
         assert why is not None and "no file under probes/acceptance/" in why
 
@@ -256,10 +256,12 @@ def test_a_compile_keeps_the_red_probes_and_records_why_it_dropped_the_rest(repo
         "p05.py": "it exits 127 on the start tree, so it cannot run",
         "p06.py": "its command does not run its own file alone",
     }
-    # Only what survived the written checks costs a run, all in one call.
-    ((commands, given),) = base.calls
-    assert [c.rsplit("/", 1)[1] for c in commands] == ["p01.py", "p02.py", "p05.py"]
-    assert sorted(given) == [f"probes/acceptance/p0{n}.py" for n in (1, 2, 5)]
+    # Only what survived the written checks costs a run, each alone with its
+    # own file, as every later re-run hands it.
+    assert [(commands, sorted(given)) for commands, given in base.calls] == [
+        ([f"uv run python probes/acceptance/p0{n}.py"], [f"probes/acceptance/p0{n}.py"])
+        for n in (1, 2, 5)
+    ]
     # Its inputs, and nothing of an executor's (S-0122/D-2).
     assert agent.seen["system"] == compile_prompt()
     assert ROW in str(agent.seen["prompt"])
@@ -306,7 +308,7 @@ def test_a_compile_keeps_at_most_the_cap_in_the_seats_order(repo):
     assert [d["why"] for d in acceptance.dropped] == [
         f"the cap of {ACCEPTANCE_CAP} was reached"
     ] * 2
-    assert len(base.calls[0][0]) == ACCEPTANCE_CAP
+    assert len(base.calls) == ACCEPTANCE_CAP
 
 
 def test_a_seat_that_answers_nothing_keeps_nothing_and_never_asks_again(repo):
@@ -372,3 +374,45 @@ def test_a_base_run_that_cannot_open_drops_every_probe(repo):
 
     assert acceptance.kept == []
     assert acceptance.dropped[0]["why"].startswith("its run on the start tree measured nothing")
+
+
+def test_a_quote_must_sit_within_one_of_the_documents_files():
+    """S-0129/D-2: a quote spanning the end of one file and the start of the
+    next is in none of them."""
+
+    compiled = CompiledProbe(**probe(quote="the end. The start"))
+    red = CommandRun(compiled.command, 1, "")
+
+    assert drop_reason(compiled, [ROW], ["at the end.", "The start of it."], "x", red) == (
+        "its quote is not in the document"
+    )
+    assert drop_reason(compiled, [ROW], ["at the end. The start"], "x", red) is None
+
+
+def test_a_provider_error_is_not_stored_so_the_next_attempt_asks_again(repo):
+    """S-0129/D-2: a seat whose answer is the provider's error kept nothing
+    and is asked again; it is not the unit's compile."""
+
+    error = json.dumps({"type": "result", "is_error": True, "result": "API Error: 529 overloaded"})
+    agent = Compiler([probe()], output=error)
+    run, state = _unit(repo, agent)
+
+    acceptance = compile_acceptance(run, state, Base(), lambda usage: None)
+
+    assert acceptance.kept == [] and "gave no answer" in acceptance.fact
+    assert load(repo.root, TASK_ID) is None
+
+
+def test_planting_never_writes_through_a_link(repo, tmp_path: Path):
+    """S-0129/D-3: a link on a probe's path would carry the write out of the
+    worktree, so that probe is not planted."""
+
+    run, state = _unit(repo, Compiler([probe()]))
+    compile_acceptance(run, state, Base(), lambda usage: None)
+    tree, outside = tmp_path / "tree", tmp_path / "outside"
+    tree.mkdir()
+    outside.mkdir()
+    (tree / "probes").symlink_to(outside)
+
+    assert plant(repo.root, TASK_ID, tree) == []
+    assert list(outside.iterdir()) == []

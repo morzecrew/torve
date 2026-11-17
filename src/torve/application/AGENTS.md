@@ -672,7 +672,7 @@ With `review.compile: true`, refused outside `review.mode: critic` and off by de
 
 ### S-0129/D-2 — `ASSUMED` (Acceptance compiled before the session)
 
-A compiled probe is kept only when its row is one the contract carries, its quote occurs in the document's text with whitespace collapsed, its file is under `probes/acceptance/` and at most `PROBE_CAP`, and its command, re-run over a judge checkout of the unit's start tree as a repro is (S-0127/D-10), executes and exits non-zero; at most `ACCEPTANCE_CAP = 12` are kept in the seat's order, every other probe is recorded with why it was dropped, and a compile that refuses, errs, is unparseable or keeps nothing leaves the unit to run without probes
+A compiled probe is kept only when its row is one the contract carries, its quote occurs in one of the document's files with whitespace collapsed, its file is under `probes/acceptance/` and at most `PROBE_CAP`, and its command, re-run alone with its own file over a judge checkout of the unit's start tree as a repro is (S-0127/D-10), executes and exits non-zero; at most `ACCEPTANCE_CAP = 12` are kept in the seat's order, every other probe is recorded with why it was dropped, and a compile that refuses, errs, is unparseable or keeps nothing leaves the unit to run without probes
 
 - Paths: `src/torve/application/acceptance.py`
 - Consequence: a probe that passes before any work, cannot run, or pins words the document does not hold never reaches the executor or the verdict
@@ -680,7 +680,7 @@ A compiled probe is kept only when its row is one the contract carries, its quot
 
 ### S-0129/D-3 — `ASSUMED` (Acceptance compiled before the session)
 
-The kept probes are stored once per unit under its task directory, and a resumed or requeued unit reads the store and never compiles again; every candidate's worktree gets the stored files planted at their paths with `/probes/acceptance/` excluded from what the judge commits, their commands are appended to the acceptance the executor is shown and never to the declared acceptance the gates run, and the prompt says the probes were compiled from the document, fail on the base, should pass, and that an edit to one changes nothing
+The kept probes are stored once per unit under its task directory, and a resumed or requeued unit reads the store and never compiles again, except after a seat that failed to run or answered with a provider error, which stores nothing; every candidate's worktree gets the stored files planted at their paths with `/probes/acceptance/` excluded from what the judge commits, their commands are appended to the acceptance the executor is shown and never to the declared acceptance the gates run, and the prompt says the probes were compiled from the document, fail on the base, should pass, and that an edit to one changes nothing
 
 - Paths: `src/torve/application/session.py` `src/torve/application/runner.py` `src/torve/adapters/agent/harness.py`
 - Consequence: every candidate and revision turn works against the same probes, and nothing it writes can change the copy that judges it

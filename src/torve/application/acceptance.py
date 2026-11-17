@@ -197,7 +197,7 @@ def _own_file(name: str) -> str | None:
 
 
 def _written_reason(
-    probe: CompiledProbe, carried: Iterable[str], document_text: str, text: str | None
+    probe: CompiledProbe, carried: Iterable[str], documents: Iterable[str], text: str | None
 ) -> str | None:
     """Why *probe* is dropped before anything runs it, or None."""
 
@@ -206,7 +206,7 @@ def _written_reason(
 
     quote = _collapsed(probe.quote)
 
-    if not quote or quote not in _collapsed(document_text):
+    if not quote or not any(quote in _collapsed(one) for one in documents):
         return "its quote is not in the document"
 
     own = _own_file(probe.file)
@@ -239,18 +239,19 @@ def _base_reason(base: CommandRun | None) -> str | None:
 def drop_reason(
     probe: CompiledProbe,
     carried: Iterable[str],
-    document_text: str,
+    documents: Iterable[str],
     text: str | None,
     base: CommandRun | None,
 ) -> str | None:
     """Why the engine drops *probe*, or None when it keeps it (S-0129/D-2):
-    its row must be one the contract *carried*, its quote must occur in the
-    document with whitespace collapsed, its *text* must have been kept from
+    its row must be one the contract *carried*, its quote must occur in one
+    of the document's files, *documents*, with whitespace collapsed, its
+    *text* must have been kept from
     a file under `probes/acceptance/` that its command alone runs, and its
     command, run over the unit's start tree as *base*, must have executed and
     exited non-zero. *base* is None when that run never happened."""
 
-    return _written_reason(probe, carried, document_text, text) or _base_reason(base)
+    return _written_reason(probe, carried, documents, text) or _base_reason(base)
 
 
 # ----------------------- #
@@ -301,12 +302,23 @@ def plant(root: Path, task_id: str, worktree: Path) -> list[str]:
     if stored is None:
         return []
 
+    planted: list[str] = []
+
     for probe in stored.kept:
+        parts = PurePosixPath(probe.file).parts
+
+        # A tracked link on the path would carry the write outside the tree.
+        if any(
+            worktree.joinpath(*parts[:depth]).is_symlink() for depth in range(1, len(parts) + 1)
+        ):
+            continue
+
         path = worktree / probe.file
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(probe.text, encoding="utf-8")
+        planted.append(probe.file)
 
-    return [probe.file for probe in stored.kept]
+    return planted
 
 
 # ----------------------- #
@@ -498,7 +510,7 @@ def compile_acceptance(
     document, refusal = session.verdict, session.refusal
     texts: dict[str, str] = session.harvested or {}
     carried = [row.id for row in run.task.decisions]
-    document_text = "\n".join(files.values())
+    documents = list(files.values())
     kept: list[Probe] = []
     dropped: list[dict[str, Any]] = []
     candidates: list[tuple[CompiledProbe, str]] = []
@@ -507,7 +519,7 @@ def compile_acceptance(
     for compiled in document.probes if document is not None else []:
         own = _own_file(compiled.file) or ""
         # Everything but the base run, which only a survivor of the rest costs.
-        why = _written_reason(compiled, carried, document_text, texts.get(own))
+        why = _written_reason(compiled, carried, documents, texts.get(own))
 
         if why is None and own in taken_files:
             why = "another probe took its file"
@@ -522,14 +534,20 @@ def compile_acceptance(
         taken_files.add(own)
         candidates.append((compiled, own))
 
-    commands = [compiled.command for compiled, _ in candidates]
+    runs: list[CommandRun] = []
 
-    try:
-        runs = reproduce(commands, {own: texts[own] for _, own in candidates}) if candidates else []
+    # Each probe alone with its own file, as the decision and the recheck
+    # re-run it: a probe that leans on a sibling's file measures the same
+    # on every tree.
+    for compiled, own in candidates:
+        try:
+            (base,) = reproduce([compiled.command], {own: texts[own]})
 
-    except Exception as exc:
-        # A checkout or sandbox that would not open measured nothing.
-        runs = [CommandRun(command, None, f"not run: {exc!r}") for command in commands]
+        except Exception as exc:
+            # A checkout or sandbox that would not open measured nothing.
+            base = CommandRun(compiled.command, None, f"not run: {exc!r}")
+
+        runs.append(base)
 
     for (compiled, own), base in zip(candidates, runs, strict=True):
         why = _base_reason(base)
@@ -602,7 +620,12 @@ def compile_acceptance(
         run.deps.broker,
     )
     close_review(run.root, run.worktree, session, record, fact)
-    save(run.root, run.task.id, acceptance)
+
+    # A provider error is no answer, so the next attempt asks again; any
+    # answer the seat gave, readable or not, is kept, so it is paid once.
+    if seat_error is None:
+        save(run.root, run.task.id, acceptance)
+
     _fact(state, f"{COMPILED_MARKER}{review.id}: {fact}")
 
     return acceptance
