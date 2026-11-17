@@ -40,8 +40,9 @@ What a probe is:
 Rules:
 - `quote` is the passage of the document that states the behaviour, copied verbatim
   from one of its files. A probe whose quote is not in the document is dropped.
-- At most twenty-four probes are kept, in your order. Give every row its probe first.
-  Then pin the rest of what the document states: each constraint an interface or a
+- At most twenty-four probes are kept, in your order. First give each row that states a
+  behaviour on a surface the document names one probe, as far as the cap allows; a row
+  with no such surface gets none (rule 3). Then pin the rest of what the document states: each constraint an interface or a
   schema in it gives (a pattern, a length, a required field, an allowed value) with
   the status or error it answers, each precedence, each edge case said in passing. A
   rule stated only in a schema is the one an implementation skips most often. Order

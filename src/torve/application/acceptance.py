@@ -117,7 +117,8 @@ class CompileDocument(BaseModel):
 
     schema_name: Literal["torve.compile/v1"] = Field(default="torve.compile/v1", alias="schema")
     probes: list[CompiledProbe]
-    """Every probe, most likely to catch a wrong implementation first."""
+    """Every probe: one for each row first, then the rest; each group most likely to catch
+    a wrong implementation first."""
 
 
 def compile_schema() -> dict[str, Any]:
