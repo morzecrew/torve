@@ -67,6 +67,12 @@
       "description": "The manifest's own shape version.",
       "title": "Schema Version",
       "type": "integer"
+    },
+    "session": {
+      "default": false,
+      "description": "Whether this image's `run` continues the session `TORVE_SESSION_ID` names, with\n`TORVE_PROMPT` as the next turn's task (S-0124/D-14). A seat whose harness keeps its\nsession is revised in it under `review.revision: session` (S-0124/D-8); any other\nfalls back to `fresh`. dsh keeps one whatever this says, through its own driver\n(S-0122/D-11).",
+      "title": "Session",
+      "type": "boolean"
     }
   },
   "title": "HarnessManifest",

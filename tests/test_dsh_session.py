@@ -11,6 +11,7 @@ import pytest
 
 from torve.adapters.agent.dsh_session import DshSession
 from torve.adapters.agent.harness import HarnessAgent, parse_burn, parse_tool_calls
+from torve.application import telemetry
 from torve.application.ports import AgentContext, AgentResult, ExecResult, SandboxHandle
 from torve.base import naming
 from torve.config.runconfig import TierConfig
@@ -231,3 +232,128 @@ def test_a_seat_that_runs_no_session_has_no_follow_up(tmp_path):
 
     assert agent.follow_up(ctx, first, "red") is None
     assert runtime.commands == []
+
+
+# ....................... #
+# A seat whose image resumes by `TORVE_SESSION_ID` (S-0124/D-14).
+
+
+def _claude(session: str, cost: float, cache_read: int, output: int, tool: str) -> str:
+    """One `claude -p --output-format stream-json` run: its opening `init`, a
+    message calling *tool*, and the envelope counting this run alone."""
+
+    usage = {
+        "input_tokens": 5,
+        "cache_read_input_tokens": cache_read,
+        "cache_creation_input_tokens": 10,
+        "output_tokens": output,
+    }
+
+    return _lines(
+        {"type": "system", "subtype": "init", "session_id": session, "model": "claude-haiku-5-5"},
+        {
+            "type": "assistant",
+            "session_id": session,
+            "message": {
+                "id": f"msg-{tool}",
+                "usage": usage,
+                "content": [{"type": "tool_use", "id": tool, "name": tool, "input": {}}],
+            },
+        },
+        {
+            "type": "result",
+            "subtype": "success",
+            "session_id": session,
+            "total_cost_usd": cost,
+            "num_turns": 2,
+            "usage": usage,
+        },
+    )
+
+
+class _Exec:
+    """Hands each exec the next scripted stream and keeps the command."""
+
+    def __init__(self, *outputs: str) -> None:
+        self.outputs = list(outputs)
+        self.commands: list[str] = []
+
+    def exec(self, handle: SandboxHandle, command: str, timeout_s: float) -> ExecResult:
+        self.commands.append(command)
+        return ExecResult(exit_code=0, output=self.outputs.pop(0), duration_s=0.1)
+
+    def sync_out(self, handle: SandboxHandle, workspace) -> None:
+        pass
+
+
+def _resuming(tmp_path, runtime: _Exec, session: bool = True):
+    ctx, _ = _agent(tmp_path, runtime)  # type: ignore[arg-type]
+
+    return ctx, HarnessAgent(
+        TierConfig(
+            adapter="subscription",
+            harness="claude-subscription",
+            provider="p",
+            model="m",
+            session=session,
+        )
+    )
+
+
+def test_a_seat_that_keeps_its_session_resumes_it_and_counts_both_turns(tmp_path):
+    """S-0124/D-14: the turn resumes the session the attempt's trace names,
+    runs `run` alone with the turn's task as its prompt, joins the trace, and
+    its result counts both turns, since each envelope counts its own run."""
+
+    first_stream = _claude("claude-1", 0.5, 1000, 50, "Read")
+    runtime = _Exec(first_stream, _claude("claude-1", 0.25, 2000, 30, "Edit"))
+    ctx, agent = _resuming(tmp_path, runtime)
+    first = agent.run(ctx)
+
+    result = agent.follow_up(ctx, first, "tests/test_app.py::test_x failed")
+
+    assert result is not None
+    assert "TORVE_SESSION_ID=claude-1" in runtime.commands[1]
+    assert "TORVE_PROMPT=/work/.torve/tmp/follow-up.md" in runtime.commands[1]
+    assert "; /opt/torve/equip && /opt/torve/run\n" in runtime.commands[0]
+    assert "/opt/torve/equip && " not in runtime.commands[1]
+    assert "; /opt/torve/run\n" in runtime.commands[1]
+    assert (ctx.workspace / ".torve" / "tmp" / "follow-up.md").read_text(
+        encoding="utf-8"
+    ) == "tests/test_app.py::test_x failed"
+    assert result.cost_usd == 0.75
+    assert (result.input_tokens, result.cache_read_tokens) == (10, 3000)  # type: ignore[attr-defined]
+    assert (result.cache_creation_tokens, result.output_tokens) == (20, 80)  # type: ignore[attr-defined]
+
+    trace = naming.trace_file(ctx.workspace, 1).read_text(encoding="utf-8")
+    assert trace.startswith(first_stream) and '"id": "Edit"' in trace
+
+    # The curve sums both turns' requests and is checked against both receipts.
+    curve = result.context  # type: ignore[attr-defined]
+    assert (curve.sum, curve.receipt_total, curve.matches_receipt) == (3030, 3030, True)
+    booked = telemetry._drain_context(ctx.task.id)["context"]
+    assert (booked["receipt_total"], booked["matches_receipt"]) == (3030, True)
+
+
+def test_a_seat_that_keeps_its_session_resumes_none_its_trace_does_not_name(tmp_path):
+    """S-0124/D-14: a first turn whose stream named no session leaves nothing
+    to resume, so the round falls back to `fresh` and nothing runs."""
+
+    runtime = _Exec("claude: could not start\n")
+    ctx, agent = _resuming(tmp_path, runtime)
+    first = agent.run(ctx)
+
+    assert agent.follow_up(ctx, first, "red") is None
+    assert len(runtime.commands) == 1
+
+
+def test_a_claude_seat_that_declares_no_session_keeps_none(tmp_path):
+    """S-0124/D-14: an image whose manifest does not say it resumes is never
+    asked to, whatever its trace names."""
+
+    runtime = _Exec(_claude("claude-1", 0.5, 1000, 50, "Read"))
+    ctx, agent = _resuming(tmp_path, runtime, session=False)
+    first = agent.run(ctx)
+
+    assert agent.follow_up(ctx, first, "red") is None
+    assert len(runtime.commands) == 1

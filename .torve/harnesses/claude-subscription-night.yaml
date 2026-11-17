@@ -42,6 +42,10 @@ adapter: subscription
 image: claude-sandbox:{torve}
 equip_root: ~/.claude/skills
 kinds: [skill, plugin, mcp, hook, agent]
+# The image's `run` resumes the session `TORVE_SESSION_ID` names with
+# `claude -p --resume`, so a critic's revision continues the selected
+# candidate in its own session (S-0124/D-14).
+session: true
 env:
   CLAUDE_PERMISSION_MODE: bypassPermissions
   BASH_MAX_OUTPUT_LENGTH: "20000"

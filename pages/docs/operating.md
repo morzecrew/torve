@@ -1073,7 +1073,11 @@ a surviving blocker gets one fresh attempt on the seat itself and the tier is
 not used (S-0127/D-5). Under `fresh`, or `session` on a seat whose harness
 keeps no session, the revision attempt runs on that tier in the same run,
 worktree and critique, so a blocker that escalates has already had the
-stronger seat's attempt; empty keeps the revision on the seat.
+stronger seat's attempt; empty keeps the revision on the seat. A dsh seat
+keeps its session, and so does a seat whose harness manifest says
+`session: true`, as this repository's Claude Code manifests do: their image
+resumes the turn with `claude -p --resume` (S-0124/D-14). A manifest written
+before that key keeps no session until it declares one.
 
 `review.compile: true`, off by default and refused outside `mode: critic`, has
 the reviewer seat compile a unit's document into probes before its first

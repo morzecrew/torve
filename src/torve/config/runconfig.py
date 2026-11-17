@@ -193,6 +193,10 @@ class TierConfig(BaseModel):
     """S-0063/D-10: the knobs this seat's image reads, merged off the manifest. Set
     into the sandbox and never interpreted here."""
 
+    session: bool = False
+    """S-0124/D-14: whether this seat's image continues a session by `TORVE_SESSION_ID`,
+    merged off the manifest; a dsh seat keeps one whatever it says."""
+
     prepare: str = ""
     """S-0062/D-7: the command run in the sandbox before the agent, on its own clock —
     a non-zero exit is an infrastructure failure and convicts nothing."""

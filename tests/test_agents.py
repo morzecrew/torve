@@ -386,6 +386,32 @@ def test_a_profile_contributes_what_it_wrote_and_not_its_model_s_defaults(root: 
     assert bare.tiers["executor"].skills is None
 
 
+def test_a_manifest_that_keeps_its_session_says_so_on_the_seat(root: Path):
+    """S-0124/D-14: `session` is the manifest's to declare and reaches the seat
+    merged, and a manifest that does not write it keeps no session."""
+
+    write(harnesses_dir(root) / "resuming.yaml", "adapter: fake\nsession: true\n")
+    config = load(
+        root,
+        "tiers:\n  executor:\n    harness: resuming\n  reviewer:\n    harness: fake\n",
+    )
+
+    assert config.tiers["executor"].session is True
+    assert config.tiers["reviewer"].session is False
+
+
+def test_this_repository_s_claude_seats_keep_their_session():
+    """S-0124/D-14: the Claude Code manifests declare the session their image's
+    `run` resumes; dsh keeps one through its own driver and declares nothing."""
+
+    for name, keeps in (
+        ("claude-subscription", True),
+        ("claude-subscription-night", True),
+        ("dsh", False),
+    ):
+        assert load_harness(REPO, name).session is keeps, name
+
+
 def test_a_harness_contributes_what_it_wrote_too(root: Path):
     """The same rule at the other file: a manifest naming no image leaves the
     seat's empty so `image_for` falls through to the runtime global, rather

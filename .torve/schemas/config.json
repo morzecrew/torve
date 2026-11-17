@@ -1181,6 +1181,12 @@
           "description": "S-0035/the-tier-clock, S-0035/D-6: the tier's own sandbox lifecycle clock. `None`\n(absent) falls through to the RuntimeConfig global, exactly as today; a named value \u2014\neven 0 \u2014 is the tier's. Rides the profile merge like every other field; read through\n`sandbox_timeout_for` where the review lane takes its timeout.",
           "title": "Sandbox Timeout"
         },
+        "session": {
+          "default": false,
+          "description": "S-0124/D-14: whether this seat's image continues a session by `TORVE_SESSION_ID`,\nmerged off the manifest; a dsh seat keeps one whatever it says.",
+          "title": "Session",
+          "type": "boolean"
+        },
         "skills": {
           "anyOf": [
             {
