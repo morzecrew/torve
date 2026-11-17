@@ -126,6 +126,10 @@ SCRUBBED = (
 #: The largest probe a finding may keep, in bytes.
 PROBE_CAP = 64_000
 
+#: The most files the critic's copy keeps under `probes/` beside the ones its
+#: findings name: the modules those probes import (S-0127/D-10).
+HELPER_CAP = 8
+
 #: How long the host may spend extracting the base tree into the copy.
 BASE_TIMEOUT = 120.0
 
@@ -395,10 +399,11 @@ def _repro_command(finding: CriticFinding) -> str:
 
 
 def _probe_names(command: str, named: str | None) -> list[str]:
-    """The probes a re-run of *command* is handed (S-0127/D-10): the one its
-    repro names, and each path under `probes/` the command itself names. A
-    probe the critic's copy did not keep is handed as None, which refuses the
-    re-run, so a command never fails for want of a file the critic wrote."""
+    """The probes a re-run of *command* names (S-0127/D-10): the one its
+    repro names, and each path under `probes/` the command itself names; a
+    critic finding's re-run gets `_helpers` beside them. A probe the critic's
+    copy did not keep is handed as None, which refuses the re-run, so a
+    command never fails for want of a file the critic wrote."""
 
     names = [named] if named else []
 
@@ -409,6 +414,22 @@ def _probe_names(command: str, named: str | None) -> list[str]:
             names.append(path)
 
     return names
+
+
+def _helpers(probes: Mapping[str, str], findings: Iterable[CriticFinding]) -> dict[str, str]:
+    """The files among *probes* that none of *findings* names: the modules
+    the critic's probes import, written beside every critic finding's re-run
+    so a probe meets what it ran with in the critic's copy (S-0127/D-10). A
+    compiled probe is never handed them; it runs alone (S-0129/D-2)."""
+
+    named = {
+        name
+        for finding in findings
+        if finding.repro is not None
+        for name in _probe_names(finding.repro.command, finding.repro.file)
+    }
+
+    return {name: text for name, text in probes.items() if name not in named}
 
 
 def _rerun_once(
@@ -598,14 +619,17 @@ def decide(
     reruns: list[tuple[CriticFinding, CommandRun]] = []
     # One review re-runs one command over the same probes once.
     measured: dict[tuple[str, frozenset[tuple[str, str | None]]], CommandRun] = {}
+    helpers = _helpers(probes or {}, document.findings)
 
-    def measure(command: str, named: str | None) -> CommandRun:
-        """*command* re-run with the probes it names, once per review."""
+    def measure(command: str, named: str | None, alone: bool = False) -> CommandRun:
+        """*command* re-run with the probes it names, and the critic's
+        helpers unless it runs *alone*, once per review."""
 
         if not command:
             return CommandRun(command="", exit_code=None, tail="not run: no command to re-run")
 
         given = {name: held.get(name) for name in _probe_names(command, named)}
+        given = given if alone else {**helpers, **given}
         key = (command, frozenset(given.items()))
 
         if key not in measured:
@@ -687,7 +711,7 @@ def decide(
     probe_runs: list[dict[str, Any]] = []
 
     for probe in acceptance:
-        run = measure(probe.command, probe.file)
+        run = measure(probe.command, probe.file, alone=True)
         outcome = "failed" if _failed(run) else "passed" if run.exit_code == 0 else "unmeasured"
         probe_runs.append(
             {
@@ -988,6 +1012,9 @@ def revision_threads(verdict: CriticVerdict, root: Path) -> list[dict[str, Any]]
     if decision is None:
         return threads
 
+    helpers = _helpers(verdict.probes, decision.kept)
+    compiled = {entry["id"] for entry in decision.acceptance}
+
     for finding in decision.blockers:
         lines = [finding.claim, "", finding.evidence, ""]
         lines.append(
@@ -998,13 +1025,17 @@ def revision_threads(verdict: CriticVerdict, root: Path) -> list[dict[str, Any]]
             lines.append(f"repro: `{finding.repro.command}`")
 
             # Every probe the re-run was handed, the ones the command alone
-            # names included: a weak test's revision reads the wrong
-            # implementation its test passed (S-0127/D-2).
+            # names and the critic's helpers included: a weak test's revision
+            # reads the wrong implementation its test passed (S-0127/D-2).
             for name in _probe_names(finding.repro.command, finding.repro.file):
                 probe = verdict.probes.get(name)
 
                 if probe is not None:
                     lines += ["", f"{name}:", "```", probe.rstrip(), "```"]
+
+            if finding.id not in compiled:
+                for name, helper in sorted(helpers.items()):
+                    lines += ["", f"{name}:", "```", helper.rstrip(), "```"]
 
         lines += _rerun_lines(decision.rerun(finding))
 
@@ -1092,6 +1123,8 @@ def recheck(
     standing: list[CriticFinding] = []
     judged = dict(zip(map(id, decision.blockers), verdict.blockers, strict=False))
     rechecked: dict[int, JudgedFinding] = {}
+    helpers = _helpers(verdict.probes, decision.kept)
+    compiled = {entry["id"] for entry in decision.acceptance}
 
     for finding in decision.blockers:
         if finding.kind == "gaming":
@@ -1103,6 +1136,7 @@ def recheck(
             name: verdict.probes.get(name)
             for name in _probe_names(command, finding.repro.file if finding.repro else None)
         }
+        given = given if finding.id in compiled else {**helpers, **given}
         key = (command, frozenset(given.items()))
 
         if key not in measured:
@@ -1337,11 +1371,17 @@ into `.venv/`. A command the checkout cannot start exits 127, and never blocks.
 """
 
 
-def _keep_probes(copy: Path, document: CriticDocument | None) -> dict[str, str]:
+def _keep_probes(copy: Path, document: CriticDocument | None, worktree: Path) -> dict[str, str]:
     """The probe files the critic's findings name as repros, by `repro.file`
     or in the command, read before the copy dies, so a re-run is handed every
     probe `_probe_names` asks for; a path that leaves the copy, a link or a
-    file over the cap is left there."""
+    file over the cap is left there.
+
+    Beside them, up to `HELPER_CAP` other text files under `probes/` that
+    the critic wrote — at a path *worktree*, the candidate the copy was taken
+    from, does not hold — and that a kept probe reads (`_read_by`): the
+    modules its probes import, which `_helpers` hands every critic re-run
+    (S-0127/D-10)."""
 
     if document is None:
         return {}
@@ -1371,7 +1411,64 @@ def _keep_probes(copy: Path, document: CriticDocument | None) -> dict[str, str]:
         except OSError:
             continue
 
+    written = copy / "probes"
+
+    if written.is_symlink() or not written.is_dir():
+        return kept
+
+    taken = {posixpath.normpath(name) for name in names}
+    # A path the candidate holds is the candidate's, a compiled probe among
+    # them, never a file the critic wrote.
+    others = [
+        name
+        for name in (path.relative_to(copy).as_posix() for path in sorted(written.rglob("*")))
+        if name not in taken and not (worktree / name).exists(follow_symlinks=False)
+    ]
+    helpers = 0
+    grew = True
+
+    # Until a pass adds none, since a helper may import another.
+    while grew and helpers < HELPER_CAP:
+        grew = False
+
+        for name in others:
+            if helpers == HELPER_CAP:
+                break
+
+            if name in kept or not _read_by(name, kept):
+                continue
+
+            path = copy / name
+
+            try:
+                # `rglob` never enters a linked directory, so a link is this
+                # file itself; `is_file` leaves a fifo unread.
+                if path.is_symlink() or not path.is_file() or path.stat().st_size > PROBE_CAP:
+                    continue
+
+                kept[name] = path.read_bytes().decode("utf-8")
+                helpers += 1
+                grew = True
+
+            except (OSError, UnicodeDecodeError):
+                continue
+
     return kept
+
+
+def _read_by(name: str, probes: Mapping[str, str]) -> bool:
+    """Whether a file at *name* under `probes/` is one *probes* read: its
+    module or file name in a probe's text, or a `conftest.py` pytest loads
+    for a probe at or below its directory."""
+
+    folder, base = posixpath.split(name)
+
+    if base == "conftest.py":
+        return any(posixpath.normpath(probe).startswith(folder + "/") for probe in probes)
+
+    stem = re.compile(rf"\b{re.escape(posixpath.splitext(base)[0])}\b")
+
+    return any(stem.search(text) for text in probes.values())
 
 
 # ....................... #
@@ -1485,7 +1582,7 @@ def run_critic(
         prompt,
         stage=stage,
         read=read_critic,
-        harvest=_keep_probes,
+        harvest=partial(_keep_probes, worktree=worktree),
         system=system,
         broker=broker,
         broker_handle=broker_handle,
@@ -1521,11 +1618,12 @@ def run_critic(
     kept: list[Finding] = []
     probes: dict[str, str] = {}
 
-    if decision is not None:
+    if decision is not None and document is not None:
         blockers, kept = verdict_findings(decision, grades, worktree)
         # Every probe a kept finding's re-run is handed, the ones its command
-        # alone names included, so a revision's recheck re-runs it whole
-        # (S-0127/D-10, S-0128/D-3); a compiled probe by its stored text.
+        # alone names and the critic's helpers included, so a revision's
+        # recheck re-runs it whole (S-0127/D-10, S-0128/D-3); a compiled probe
+        # by its stored text.
         named = {
             name
             for f in decision.kept
@@ -1534,6 +1632,7 @@ def run_critic(
         }
         available = {**harvested, **{probe.file: probe.text for probe in acceptance}}
         probes = {name: text for name, text in available.items() if name in named}
+        probes |= _helpers(harvested, document.findings)
         _store_probes(root, review.id, probes)
 
     if refusal is not None:
