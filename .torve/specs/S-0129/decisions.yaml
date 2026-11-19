@@ -35,10 +35,11 @@ decisions:
       is under `probes/acceptance/` and at most `PROBE_CAP`, and its command, one
       simple command with no shell operators that runs its own file alone, re-run
       alone with its own file over a judge checkout of the unit's start tree as a
-      repro is (S-0127/D-10), executes and exits non-zero; at most `ACCEPTANCE_CAP
-      = 24` are kept in the seat's order, every other probe is recorded with why it
-      was dropped, and a compile that refuses, errs, is unparseable or keeps nothing
-      leaves the unit to run without probes
+      repro is (S-0127/D-10), executes and exits non-zero, and not for want of a module
+      the start tree holds, as a module, a package or a namespace package at its root
+      or under `src/`; at most `ACCEPTANCE_CAP = 24` are kept in the seat's order,
+      every other probe is recorded with why it was dropped, and a compile that refuses,
+      errs, is unparseable or keeps nothing leaves the unit to run without probes
     paths: [src/torve/application/acceptance.py]
     consequence: >-
       a probe that passes before any work, cannot run, or pins words the document
@@ -50,7 +51,7 @@ decisions:
     cites: [S-0127/D-10]
     check: >-
       uv run pytest -q tests/test_acceptance.py -k "kept or simple_command or quote_must_sit"
-    fingerprint: 41da1e26e19f0b14/96a8cd04ffe1834e
+    fingerprint: f35c1d0b21ee9516/96a8cd04ffe1834e
   - id: D-3
     grade: ASSUMED
     text: >-

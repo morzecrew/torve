@@ -114,6 +114,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- With `review.compile` on, a compiled probe that fails on the start tree only because it
+  cannot import the project's own code is now dropped, with that reason. It used to be kept,
+  then fail the same way on every candidate, so a correct unit could not land.
+
 - A critic probe that imports a module the critic wrote beside it under `probes/` now gets
   that module when the engine re-runs it. The re-run used to fail on the missing import, so
   the finding blocked whatever the candidate did, and a correct revision could not clear it.

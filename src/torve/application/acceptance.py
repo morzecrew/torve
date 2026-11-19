@@ -234,9 +234,69 @@ def _written_reason(
     return None
 
 
-def _base_reason(base: CommandRun | None) -> str | None:
-    """Why a probe whose command ran as *base* on the start tree is dropped,
-    or None when it executed and failed there."""
+#: Python's report of an import that found nothing on the path.
+_NOT_FOUND = re.compile(r"ModuleNotFoundError: No module named '([\w.]+)'")
+#: The header Python prints above an uncaught exception's frames.
+_TRACEBACK = "Traceback (most recent call last):"
+#: pytest's heading for a test file it could not import, which ends the session.
+_COLLECTING = "ERROR collecting"
+#: pytest's mark on the lines of the exception it reports.
+_MARKED = re.compile(r"^E +(\S.*)$", re.MULTILINE)
+
+
+def _uncaught(tail: str) -> str | None:
+    """The exception line of what ended the run in *tail*, whichever comes
+    last: Python's last traceback, whose exception is the first line after
+    its header that is not an indented frame (a chained traceback prints the
+    one that ended the run last), or pytest's last collection error, whose
+    exception is its first line marked `E`. None for neither."""
+
+    traceback, collecting = tail.rfind(_TRACEBACK), tail.rfind(_COLLECTING)
+
+    if collecting > traceback:
+        marked = _MARKED.search(tail, collecting)
+
+        return marked[1] if marked else None
+
+    if traceback < 0:
+        return None
+
+    frames = tail[traceback + len(_TRACEBACK) :].splitlines()[1:]
+
+    return next((line for line in frames if line[:1].strip()), None)
+
+
+def _held_unimported(tail: str, tree: Path | None) -> str | None:
+    """The module whose import ended the probe's run in *tail* although
+    *tree*, the start tree, holds it, or None. Running a file puts its own
+    folder on the import path, not the repository's root, so a probe written
+    as if it did cannot see a project that is not installed, on any tree. A
+    message the probe printed or caught before failing otherwise is not the
+    failure."""
+
+    found = _NOT_FOUND.match(_uncaught(tail) or "")
+
+    if tree is None or found is None:
+        return None
+
+    name = found[1]
+
+    # shortcut: the root and `src/` only, so a monorepo's `packages/x/src`
+    # keeps such a probe; read the project's own path config if one appears.
+    for root in (tree, tree / "src"):
+        path = root.joinpath(*name.split("."))
+
+        # A namespace package is a folder holding modules, at any depth,
+        # with no `__init__`.
+        if path.with_suffix(".py").is_file() or (path.is_dir() and any(path.rglob("*.py"))):
+            return name
+
+    return None
+
+
+def _base_reason(base: CommandRun | None, tree: Path | None = None) -> str | None:
+    """Why a probe whose command ran as *base* on the start tree, *tree*, is
+    dropped, or None when it executed and failed there."""
 
     if base is None or base.exit_code is None:
         return f"its run on the start tree measured nothing: {base.tail if base else 'not run'}"
@@ -247,6 +307,11 @@ def _base_reason(base: CommandRun | None) -> str | None:
     if base.exit_code == 0:
         return "it passes on the start tree, so it pins nothing the unit adds"
 
+    held = _held_unimported(base.tail, tree)
+
+    if held is not None:
+        return f"it cannot import {held}, which the start tree holds, so it fails on every tree"
+
     return None
 
 
@@ -256,6 +321,7 @@ def drop_reason(
     documents: Iterable[str],
     text: str | None,
     base: CommandRun | None,
+    tree: Path | None = None,
 ) -> str | None:
     """Why the engine drops *probe*, or None when it keeps it (S-0129/D-2):
     its row must be one the contract *carried*, its quote must occur in one
@@ -263,9 +329,10 @@ def drop_reason(
     *text* must have been kept from
     a file under `probes/acceptance/` that its command alone runs, and its
     command, run over the unit's start tree as *base*, must have executed and
-    exited non-zero. *base* is None when that run never happened."""
+    exited non-zero, and not for want of a module the start tree, *tree*,
+    holds (S-0129/A-3). *base* is None when that run never happened."""
 
-    return _written_reason(probe, carried, documents, text) or _base_reason(base)
+    return _written_reason(probe, carried, documents, text) or _base_reason(base, tree)
 
 
 # ----------------------- #
@@ -381,7 +448,9 @@ def build_compile_prompt(target: Task) -> str:
 
 It keeps a probe when its row is one above, its quote occurs in the document, its file is
 under `{ACCEPTANCE_DIR}/` within {PROBE_CAP} bytes, its command names that file and no other
-probe, and the command exits non-zero, but not 126 or 127, on this tree. It keeps at most
+probe, and the command exits non-zero, but not 126 or 127, on this tree, and not because it
+could not import a module this tree holds: running a file puts its own folder on the import
+path, not the repository's root. It keeps at most
 {ACCEPTANCE_CAP}, in your order. The re-run reads a fresh checkout with the probe written in:
 no `.venv`, no build output.
 
@@ -564,7 +633,7 @@ def compile_acceptance(
         runs.append(base)
 
     for (compiled, own), base in zip(candidates, runs, strict=True):
-        why = _base_reason(base)
+        why = _base_reason(base, run.worktree)
 
         if why is not None or base.exit_code is None:
             dropped.append({**compiled.model_dump(), "base_exit": base.exit_code, "why": why})
