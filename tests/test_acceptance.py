@@ -145,28 +145,57 @@ MISSES = {
 }
 
 
-@settings(max_examples=60, deadline=None)
+def traceback(line: str) -> str:
+    """What Python prints for an uncaught exception ending in *line*."""
+
+    return (
+        "Traceback (most recent call last):\n"
+        '  File "/work/probes/acceptance/p01.py", line 3, in <module>\n'
+        "    import readers\n"
+        f"{line}\n"
+    )
+
+
+FAILED = "AssertionError: a reader_id with a space is a 422"
+#: Where the import failure sits in a base run's output, and whether it ended
+#: the run: printed or caught, it did not, whatever failed after.
+SHAPES = {
+    "uncaught": (lambda failure: "Installed 51 packages\n" + traceback(failure), True),
+    "then stdout": (lambda failure: traceback(failure) + "checked 3 readers\n", True),
+    "caught, then failed": (
+        lambda failure: (
+            traceback(failure)
+            + "\nDuring handling of the above exception, another exception occurred:\n\n"
+            + traceback(FAILED)
+        ),
+        False,
+    ),
+    "printed, then failed": (lambda failure: f"{failure}\n" + traceback(FAILED), False),
+}
+
+
+@settings(max_examples=80, deadline=None)
 @given(
     st.lists(st.sampled_from(["readers", "scan", "api", "v1"]), min_size=1, max_size=3),
     st.sampled_from(sorted({**HOLDS, **MISSES})),
     st.sampled_from(["", "src"]),
     st.sampled_from(["ModuleNotFoundError", "ImportError"]),
+    st.sampled_from(sorted(SHAPES)),
 )
 def test_a_probe_that_cannot_import_a_module_the_start_tree_holds_is_never_kept(
-    parts, layout, under, error
+    parts, layout, under, error, shape
 ):
-    """S-0129/A-3: a red base run that could not import a module the start
-    tree holds, as a module, a package or a namespace package, at its root
+    """S-0129/A-3: a red base run that an import of a module the start tree
+    holds ended, as a module, a package or a namespace package, at its root
     or under `src/`, is a probe that cannot see the project; one that could
-    not import what the tree lacks is red for want of the unit's work."""
+    not import what the tree lacks is red for want of the unit's work, and
+    one that printed or caught the failure and then failed otherwise is red
+    for that."""
 
     name = ".".join(parts)
     compiled = CompiledProbe(**probe())
-    base = CommandRun(
-        compiled.command,
-        1,
-        f"Traceback (most recent call last):\n{error}: No module named '{name}'\n",
-    )
+    output, ended = SHAPES[shape]
+    base = CommandRun(compiled.command, 1, output(f"{error}: No module named '{name}'"))
 
     with tempfile.TemporaryDirectory() as folder:
         tree = Path(folder)
@@ -177,7 +206,7 @@ def test_a_probe_that_cannot_import_a_module_the_start_tree_holds_is_never_kept(
 
         why = drop_reason(compiled, [ROW], [RULE], "x", base, tree)
 
-    if layout in HOLDS and error == "ModuleNotFoundError":
+    if layout in HOLDS and error == "ModuleNotFoundError" and ended:
         assert (
             why == f"it cannot import {name}, which the start tree holds, so it fails on every tree"
         )
@@ -346,15 +375,20 @@ def test_a_compile_keeps_the_red_probes_and_records_why_it_dropped_the_rest(repo
 def test_a_probe_that_cannot_see_the_project_is_not_kept(repo):
     """S-0129/A-3: the compile reads the unit's start tree for the module a
     red base run could not import, so a probe that cannot import the
-    project is dropped and one red for a module the unit adds is kept."""
+    project is dropped and one whose run ended on a module the unit adds is
+    kept, whatever its output named before."""
 
     run, state = _unit(repo, Compiler([probe("p01.py"), probe("p02.py")]))
     (run.worktree / "readers").mkdir()
     (run.worktree / "readers" / "__init__.py").write_text("", encoding="utf-8")
+    held = traceback("ModuleNotFoundError: No module named 'readers'")
     base = Base(
         tails={
-            "p01.py": "ModuleNotFoundError: No module named 'readers'",
-            "p02.py": "ModuleNotFoundError: No module named 'readers.scan'",
+            "p01.py": held,
+            # Retried with the root on its path, it fails on what the unit adds.
+            "p02.py": held
+            + "\nDuring handling of the above exception, another exception occurred:\n\n"
+            + traceback("ModuleNotFoundError: No module named 'readers.scan'"),
         }
     )
 

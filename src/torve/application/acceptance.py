@@ -236,29 +236,47 @@ def _written_reason(
 
 #: Python's report of an import that found nothing on the path.
 _NOT_FOUND = re.compile(r"ModuleNotFoundError: No module named '([\w.]+)'")
+#: The header Python prints above an uncaught exception's frames.
+_TRACEBACK = "Traceback (most recent call last):"
+
+
+def _uncaught(tail: str) -> str | None:
+    """The exception line of the last traceback in *tail*: the first line
+    after its header that is not an indented frame. A chained traceback
+    prints the exception that ended the run last."""
+
+    _, header, frames = tail.rpartition(_TRACEBACK)
+
+    if not header:
+        return None
+
+    return next((line for line in frames.splitlines()[1:] if line[:1].strip()), None)
 
 
 def _held_unimported(tail: str, tree: Path | None) -> str | None:
-    """A module *tail* says the probe could not import although *tree*, the
-    start tree, holds it, or None. Running a file puts its own folder on the
-    import path, not the repository's root, so a probe written as if it did
-    cannot see a project that is not installed, on any tree."""
+    """The module whose import ended the probe's run in *tail* although
+    *tree*, the start tree, holds it, or None. Running a file puts its own
+    folder on the import path, not the repository's root, so a probe written
+    as if it did cannot see a project that is not installed, on any tree. A
+    message the probe printed or caught before failing otherwise is not the
+    failure."""
 
-    if tree is None:
+    found = _NOT_FOUND.match(_uncaught(tail) or "")
+
+    if tree is None or found is None:
         return None
 
-    names: list[str] = _NOT_FOUND.findall(tail)
+    name = found[1]
 
-    for name in names:
-        # shortcut: the root and `src/` only, so a monorepo's `packages/x/src`
-        # keeps such a probe; read the project's own path config if one appears.
-        for root in (tree, tree / "src"):
-            path = root.joinpath(*name.split("."))
+    # shortcut: the root and `src/` only, so a monorepo's `packages/x/src`
+    # keeps such a probe; read the project's own path config if one appears.
+    for root in (tree, tree / "src"):
+        path = root.joinpath(*name.split("."))
 
-            # A namespace package is a folder holding modules, at any depth,
-            # with no `__init__`.
-            if path.with_suffix(".py").is_file() or (path.is_dir() and any(path.rglob("*.py"))):
-                return name
+        # A namespace package is a folder holding modules, at any depth,
+        # with no `__init__`.
+        if path.with_suffix(".py").is_file() or (path.is_dir() and any(path.rglob("*.py"))):
+            return name
 
     return None
 
