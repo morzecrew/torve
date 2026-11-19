@@ -250,11 +250,14 @@ def _held_unimported(tail: str, tree: Path | None) -> str | None:
     names: list[str] = _NOT_FOUND.findall(tail)
 
     for name in names:
+        # shortcut: the root and `src/` only, so a monorepo's `packages/x/src`
+        # keeps such a probe; read the project's own path config if one appears.
         for root in (tree, tree / "src"):
             path = root.joinpath(*name.split("."))
 
-            # A namespace package is a folder of modules with no `__init__`.
-            if path.with_suffix(".py").is_file() or (path.is_dir() and any(path.glob("*.py"))):
+            # A namespace package is a folder holding modules, at any depth,
+            # with no `__init__`.
+            if path.with_suffix(".py").is_file() or (path.is_dir() and any(path.rglob("*.py"))):
                 return name
 
     return None

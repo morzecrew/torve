@@ -136,11 +136,12 @@ HOLDS = {
     "module": lambda path: [path.with_suffix(".py")],
     "package": lambda path: [path / "__init__.py"],
     "namespace": lambda path: [path / "part.py"],
+    "nested namespace": lambda path: [path / "sub" / "part.py"],
 }
 MISSES = {
     "nothing": lambda path: [],
     "data file": lambda path: [path.with_suffix(".txt")],
-    "data folder": lambda path: [path / "rows.csv"],
+    "data folder": lambda path: [path / "rows" / "rows.csv"],
 }
 
 
