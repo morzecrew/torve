@@ -73,3 +73,39 @@ amendments:
     md: |-
       Amended on 2026-11-17 with A-1.
       `compile/v1` asked for probes ordered by how likely an implementation is to get them wrong, and the cap it named was twelve. `compile/v2` names twenty-four, gives every row its probe first, then the constraints an interface or a schema in the document states, with the status or error each answers. The answer's shape is unchanged, so its schema stays `torve.compile/v1`.
+  - id: A-3
+    at: '2026-11-19T05:51:14Z'
+    title: >-
+      A probe that cannot import the project is dropped
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          A compiled probe is kept only when its row is one the contract carries,
+          its quote occurs in one of the document's files with whitespace collapsed,
+          its file is under `probes/acceptance/` and at most `PROBE_CAP`, and its
+          command, one simple command with no shell operators that runs its own file
+          alone, re-run alone with its own file over a judge checkout of the unit's
+          start tree as a repro is (S-0127/D-10), executes and exits non-zero; at
+          most `ACCEPTANCE_CAP = 24` are kept in the seat's order, every other probe
+          is recorded with why it was dropped, and a compile that refuses, errs, is
+          unparseable or keeps nothing leaves the unit to run without probes
+        after: >-
+          A compiled probe is kept only when its row is one the contract carries,
+          its quote occurs in one of the document's files with whitespace collapsed,
+          its file is under `probes/acceptance/` and at most `PROBE_CAP`, and its
+          command, one simple command with no shell operators that runs its own file
+          alone, re-run alone with its own file over a judge checkout of the unit's
+          start tree as a repro is (S-0127/D-10), executes and exits non-zero, and
+          not for want of a module the start tree holds, as a module, a package or
+          a namespace package at its root or under `src/`; at most `ACCEPTANCE_CAP
+          = 24` are kept in the seat's order, every other probe is recorded with why
+          it was dropped, and a compile that refuses, errs, is unparseable or keeps
+          nothing leaves the unit to run without probes
+      - subject: D-2
+        field: fingerprint
+        before: 41da1e26e19f0b14/96a8cd04ffe1834e
+        after: f35c1d0b21ee9516/96a8cd04ffe1834e
+    md: |-
+      Amended on 2026-11-19 with A-3.
+      A probe's command runs `python` on its own file, which puts the file's folder on the import path, not the repository's root. In a project that is not installed, a probe written as if the root were there exits 1 with `ModuleNotFoundError` on the start tree, so D-2 kept it, and then on every candidate, so D-4 blocked every one, a correct one included. In a bed trial all twenty-four of a unit's probes failed this way and escalated it. A red base run that could not import a module the start tree holds is now a probe that cannot see the project, and is dropped with that reason; one that could not import a module the tree lacks is still red for want of the unit's work. The compile prompt says so beside the other keep rules.

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -130,6 +131,59 @@ def test_a_probe_outside_its_directory_is_never_kept():
         assert why is not None and "no file under probes/acceptance/" in why
 
 
+#: Where a tree may hold a module, and the near misses that hold none.
+HOLDS = {
+    "module": lambda path: [path.with_suffix(".py")],
+    "package": lambda path: [path / "__init__.py"],
+    "namespace": lambda path: [path / "part.py"],
+}
+MISSES = {
+    "nothing": lambda path: [],
+    "data file": lambda path: [path.with_suffix(".txt")],
+    "data folder": lambda path: [path / "rows.csv"],
+}
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    st.lists(st.sampled_from(["readers", "scan", "api", "v1"]), min_size=1, max_size=3),
+    st.sampled_from(sorted({**HOLDS, **MISSES})),
+    st.sampled_from(["", "src"]),
+    st.sampled_from(["ModuleNotFoundError", "ImportError"]),
+)
+def test_a_probe_that_cannot_import_a_module_the_start_tree_holds_is_never_kept(
+    parts, layout, under, error
+):
+    """S-0129/A-3: a red base run that could not import a module the start
+    tree holds, as a module, a package or a namespace package, at its root
+    or under `src/`, is a probe that cannot see the project; one that could
+    not import what the tree lacks is red for want of the unit's work."""
+
+    name = ".".join(parts)
+    compiled = CompiledProbe(**probe())
+    base = CommandRun(
+        compiled.command,
+        1,
+        f"Traceback (most recent call last):\n{error}: No module named '{name}'\n",
+    )
+
+    with tempfile.TemporaryDirectory() as folder:
+        tree = Path(folder)
+
+        for file in {**HOLDS, **MISSES}[layout]((tree / under).joinpath(*parts)):
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text("", encoding="utf-8")
+
+        why = drop_reason(compiled, [ROW], [RULE], "x", base, tree)
+
+    if layout in HOLDS and error == "ModuleNotFoundError":
+        assert (
+            why == f"it cannot import {name}, which the start tree holds, so it fails on every tree"
+        )
+    else:
+        assert why is None, why
+
+
 # ....................... #
 # The compile (S-0129/D-1).
 
@@ -181,8 +235,11 @@ class Base:
     """A scripted run over the start tree: each command's exit by its probe's
     name, 1 when unnamed."""
 
-    def __init__(self, exits: dict[str, int | None] | None = None):
+    def __init__(
+        self, exits: dict[str, int | None] | None = None, tails: dict[str, str] | None = None
+    ):
         self.exits = exits or {}
+        self.tails = tails or {}
         self.calls: list[tuple[list[str], dict[str, str | None]]] = []
 
     def __call__(self, commands, probes):
@@ -191,9 +248,8 @@ class Base:
 
         for command in commands:
             name = re.search(r"probes/acceptance/(\S+)", command)
-            runs.append(
-                CommandRun(command, self.exits.get(name.group(1) if name else "", 1), "ran")
-            )
+            key = name.group(1) if name else ""
+            runs.append(CommandRun(command, self.exits.get(key, 1), self.tails.get(key, "ran")))
 
         return runs
 
@@ -284,6 +340,32 @@ def test_a_compile_keeps_the_red_probes_and_records_why_it_dropped_the_rest(repo
     assert [p["file"] for p in record["kept"]] == ["probes/acceptance/p01.py"]
     assert "text" not in record["kept"][0] and len(record["dropped"]) == 5
     assert any("acceptance compiled" in str(e.get("fact")) for e in state.history)
+
+
+def test_a_probe_that_cannot_see_the_project_is_not_kept(repo):
+    """S-0129/A-3: the compile reads the unit's start tree for the module a
+    red base run could not import, so a probe that cannot import the
+    project is dropped and one red for a module the unit adds is kept."""
+
+    run, state = _unit(repo, Compiler([probe("p01.py"), probe("p02.py")]))
+    (run.worktree / "readers").mkdir()
+    (run.worktree / "readers" / "__init__.py").write_text("", encoding="utf-8")
+    base = Base(
+        tails={
+            "p01.py": "ModuleNotFoundError: No module named 'readers'",
+            "p02.py": "ModuleNotFoundError: No module named 'readers.scan'",
+        }
+    )
+
+    acceptance = compile_acceptance(run, state, base, lambda usage: None)
+
+    assert [p.file for p in acceptance.kept] == ["probes/acceptance/p02.py"]
+    assert [(d["file"], d["why"]) for d in acceptance.dropped] == [
+        (
+            "probes/acceptance/p01.py",
+            "it cannot import readers, which the start tree holds, so it fails on every tree",
+        )
+    ]
 
 
 def test_a_stored_unit_never_compiles_again(repo):
