@@ -39,10 +39,12 @@ decisions:
     grade: ASSUMED
     text: >-
       A `weak_test` finding at or above `review.blocks_at` blocks only when its repro
-      names a probe under `probes/` and the engine's re-run of its `repro.command`
-      exits 42, the code the per-call prompt tells the probe to exit with when the
-      changed test passes a plausible wrong implementation the probe built without
-      editing a tracked file; any other exit, a crash's 1 included, records it `advisory:
+      names a probe under `probes/`, the engine's re-run of its `repro.command` exits
+      42, the code the per-call prompt tells the probe to exit with when the changed
+      test passes a plausible wrong implementation the probe built without editing
+      a tracked file, and a revision is left to send the unit to: once the run's blocker
+      revisions are spent it is recorded `advisory: true`, and a `weak_test` finding
+      is never a re-raise; any other exit, a crash's 1 included, records it `advisory:
       true`, a `weak_test` finding whose repro names no probe is never re-run, and
       every one that does not block is recorded advisory
     paths: [src/torve/application/critic.py]
@@ -62,7 +64,7 @@ decisions:
     cites: [S-0122/D-1, D-1]
     check: >-
       uv run pytest -q tests/test_critic.py -k weak_test
-    fingerprint: 62b7c1325cacd9d0/e65c5af0a246a016
+    fingerprint: 5781c04e4fc446f4/e65c5af0a246a016
   - id: D-3
     grade: ASSUMED
     text: >-

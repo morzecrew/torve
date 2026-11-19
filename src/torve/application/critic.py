@@ -562,6 +562,7 @@ def decide(
     probes: Mapping[str, str] | None = None,
     earlier: Iterable[Mapping[str, Any]] | None = None,
     acceptance: Sequence[Probe] = (),
+    revisions_left: bool = True,
 ) -> Decision:
     """Block or pass, from what ran and never from the critic's words
     (S-0122/D-1, S-0127/D-1, both LOCKED).
@@ -587,7 +588,10 @@ def decide(
     that locates, block on that evidence alone. A `weak_test` finding whose
     repro names no probe is never re-run: only a probe can hold the wrong
     implementation the changed test still passes. One that names a probe
-    blocks only when the re-run exits `WRONG_PASSES`. Any other finding at or
+    blocks only when the re-run exits `WRONG_PASSES` and *revisions_left*
+    says a revision is left to send it to (S-0127/A-14): with none it is
+    recorded advisory, so a weak test spends revisions but never escalates a
+    unit, and it is never a re-raise. Any other finding at or
     above *blocks_at*
     blocks only when *reproduce* re-runs its `repro.command` against the
     candidate, with the probes *probes* kept for it, and the command exits
@@ -684,13 +688,16 @@ def decide(
         elif finding.kind == "weak_test":
             # S-0127/D-2: a test that proves too little blocks only when a
             # probe says it passed a wrong implementation; one only read is
-            # advisory unrun.
+            # advisory unrun. S-0127/A-14: it blocks to buy a revision, so
+            # with none left it lands advisory over code no defect was shown in.
             named = finding.repro.file if finding.repro else None
 
             if not _probe_names(_repro_command(finding), named):
                 continue
 
-            if rerun(finding, _repro_command(finding), named).exit_code == WRONG_PASSES:
+            exit_code = rerun(finding, _repro_command(finding), named).exit_code
+
+            if exit_code == WRONG_PASSES and revisions_left:
                 blockers.append(finding)
             else:
                 unreproduced.add(id(finding))
@@ -804,7 +811,12 @@ def decide(
         recorded_blockers = list(revision.blockers)
 
     if recorded_blockers:
-        blocking: list[CriticFinding | RowVerdict] = [*blockers, *violated]
+        # S-0127/A-14: a weak test repeated spends another revision, never
+        # the escalation a re-raise is.
+        blocking: list[CriticFinding | RowVerdict] = [
+            *(one for one in blockers if one.kind != "weak_test"),
+            *violated,
+        ]
 
         for one in blocking:
             kind, named, claim = (
@@ -1493,6 +1505,7 @@ def run_critic(
     reproduce: Reproduce | None = None,
     earlier: Sequence[Mapping[str, Any]] | None = None,
     acceptance: Sequence[Probe] = (),
+    revisions_left: bool = True,
 ) -> CriticVerdict:
     """One critic call over one candidate (S-0122/D-6). Everything the critic
     reads is composed here, before the copy exists; the copy is then scrubbed
@@ -1609,6 +1622,7 @@ def run_critic(
             probes=harvested,
             earlier=earlier,
             acceptance=acceptance,
+            revisions_left=revisions_left,
         )
         if document is not None
         else None
@@ -1837,9 +1851,12 @@ def judge(run: Dispatch, review: Task, state: RunState | None = None) -> CriticV
     judged and the blockers it was asked to fix (S-0125/D-2), and over which
     `runner.reproduce` re-runs the findings' repros against the candidate
     (S-0127/D-1). The battery's judge checkout is gone by then: the gate pass
-    removes it before its verdict returns, and the re-run opens its own."""
+    removes it before its verdict returns, and the re-run opens its own. The
+    rounds *state* has spent say whether a revision is left for a weak test
+    to buy (S-0127/A-14)."""
 
     from torve.application.acceptance import load as stored_acceptance
+    from torve.application.review import _blocker_revisions_spent
     from torve.application.runner import reproduce
 
     revision = revision_for(run, state) if state is not None else None
@@ -1872,6 +1889,8 @@ def judge(run: Dispatch, review: Task, state: RunState | None = None) -> CriticV
         reproduce=partial(reproduce, run, state) if state is not None else None,
         earlier=earlier,
         acceptance=compiled.kept if compiled is not None else (),
+        revisions_left=state is None
+        or _blocker_revisions_spent(state) < run.config.review.resolved_blocker_revisions(),
     )
 
 

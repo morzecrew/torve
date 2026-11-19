@@ -707,6 +707,121 @@ def test_weak_test_a_blocking_probe_named_only_in_its_command_reaches_the_thread
     assert f"the engine re-ran `{probe}` on this candidate: exit 42" in body
 
 
+@given(
+    drawn=st.lists(
+        st.tuples(
+            st.sampled_from(["bug", "weak_test", "gaming"]),
+            st.sampled_from(["blocker", "major", "minor"]),
+            st.sampled_from([42, 1, 0, 127, None]),
+        ),
+        min_size=1,
+        max_size=5,
+    ),
+    repeated=st.booleans(),
+)
+@settings(max_examples=80, suppress_health_check=[HealthCheck.function_scoped_fixture])
+def test_weak_test_with_no_revision_left_lands_advisory_and_is_never_a_reraise(
+    tmp_path, drawn, repeated
+):
+    """S-0127/A-14: a weak test blocks to buy a revision. Whatever the
+    findings' kinds, severities and re-run exits, the decision with no
+    revision left is the one with a revision left less its `weak_test`
+    blockers, each of which is recorded advisory; and a weak test is never a
+    re-raise, even one naming the row an earlier round's blocker named."""
+
+    _app(tmp_path)
+    exits: dict[str, int | None] = {}
+    probes: dict[str, str] = {}
+    findings = []
+
+    for index, (kind, severity, code) in enumerate(drawn):
+        probe = f"probes/p{index}.py"
+        command = f"uv run python {probe}"
+        exits[command] = code
+        probes[probe] = f"# probe {index}\n"
+        findings.append(
+            finding(
+                severity,
+                id=f"F{index}",
+                kind=kind,
+                claim=f"claim {index}",
+                repro={"command": command, "file": probe},
+                **({"row": OWNED} if repeated else {}),
+            )
+        )
+
+    def scripted(commands, given):
+        return [CommandRun(command, exits[command], f"{command}: ran") for command in commands]
+
+    earlier = [{"round": 1, "claim": "an earlier defect", "kind": "bug", "row": OWNED}]
+
+    def judged(revisions_left: bool):
+        return decide(
+            CriticDocument.model_validate({"rows": [], "findings": findings}),
+            {},
+            tmp_path,
+            "major",
+            reproduce=scripted,
+            probes=probes,
+            earlier=earlier if repeated else None,
+            revisions_left=revisions_left,
+        )
+
+    left, spent = judged(True), judged(False)
+    weak = [one.id for one in left.blockers if one.kind == "weak_test"]
+
+    assert weak == [
+        f"F{index}"
+        for index, (kind, severity, code) in enumerate(drawn)
+        if kind == "weak_test" and severity != "minor" and code == 42
+    ]
+    assert [one.id for one in spent.blockers] == [
+        one.id for one in left.blockers if one.kind != "weak_test"
+    ]
+    assert spent.blocked is bool(spent.blockers)
+    assert set(weak) <= {one.id for one in spent.advisory}
+    assert all(
+        not (isinstance(one, CriticFinding) and one.kind == "weak_test")
+        for one in [*left.reraised, *spent.reraised]
+    )
+
+    if repeated:
+        assert [one.id for one in left.reraised if isinstance(one, CriticFinding)] == [
+            one.id for one in left.blockers if one.kind != "weak_test"
+        ]
+
+
+@pytest.mark.parametrize("spent", [0, 1, 2])
+def test_weak_test_judge_says_whether_a_revision_is_left(monkeypatch, spent):
+    """S-0127/A-14: `judge` tells `run_critic` a revision is left exactly
+    while the rounds the run's history spent are fewer than its budget."""
+
+    from types import SimpleNamespace
+
+    seen: dict = {}
+    monkeypatch.setattr(critic_module, "run_critic", lambda *a, **kw: seen.update(kw))
+    monkeypatch.setattr(critic_module, "reviewer_for", lambda run: None)
+    monkeypatch.setattr(critic_module, "revision_for", lambda run, state: None)
+    monkeypatch.setattr(critic_module, "mapped_blocker_anchors", lambda worktree, state: [])
+    config = RunnerConfig()
+    run = SimpleNamespace(
+        root=Path("."),
+        worktree=Path("."),
+        task=None,
+        config=config,
+        deps=SimpleNamespace(runtime=None, broker=None),
+        last_pass=SimpleNamespace(patch="", evidence=None, digest=""),
+        broker_handle=None,
+    )
+    history = [{"fact": "attempt 1 dispatched"}] + [
+        {"fact": f"review blocker (revision {n} of 9): R-{n}: x"} for n in range(1, spent + 1)
+    ]
+
+    critic_module.judge(run, None, SimpleNamespace(attempts=1, history=history))  # type: ignore[arg-type]
+
+    assert seen["revisions_left"] is (spent < config.review.resolved_blocker_revisions())
+
+
 def test_weak_test_the_per_call_prompt_says_a_probe_must_pass_the_wrong_implementation():
     """S-0127/D-2: the per-call prompt says how a weak test blocks — a probe
     that runs the changed test against a wrong implementation it builds, in a
@@ -1253,7 +1368,7 @@ def test_rejected_claim_judge_reads_the_attempt_under_review(monkeypatch):
         broker_handle=None,
     )
 
-    critic_module.judge(run, None, SimpleNamespace(attempts=3))  # type: ignore[arg-type]
+    critic_module.judge(run, None, SimpleNamespace(attempts=3, history=[]))  # type: ignore[arg-type]
 
     assert seen["attempt"] == 3
 
@@ -1281,7 +1396,7 @@ def test_reproduced_judge_reruns_through_the_runs_reproduce(monkeypatch):
         last_pass=SimpleNamespace(patch="", evidence=None, digest=""),
         broker_handle=None,
     )
-    state = SimpleNamespace(attempts=1)
+    state = SimpleNamespace(attempts=1, history=[])
 
     critic_module.judge(run, None, state)  # type: ignore[arg-type]
     seen["reproduce"](["uv run pytest -q"], {"probes/p.py": None})
