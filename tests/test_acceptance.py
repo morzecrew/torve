@@ -172,6 +172,14 @@ SHAPES = {
     ),
     "printed, then failed": (lambda failure: f"{failure}\n" + traceback(FAILED), False),
     "pytest collecting": (lambda failure: collecting(failure), True),
+    "pytest collecting, chained, ending on it": (
+        lambda failure: collecting(ELSEWHERE, ELSEWHERE, failure),
+        True,
+    ),
+    "pytest collecting, chained, ending elsewhere": (
+        lambda failure: collecting(failure, ELSEWHERE),
+        False,
+    ),
     "pytest, printed, then failed": (
         lambda failure: (
             "=================================== FAILURES ===================================\n"
@@ -186,18 +194,31 @@ SHAPES = {
 }
 
 
-def collecting(line: str) -> str:
-    """What pytest prints for a test file whose import ends in *line*."""
+#: An import failure for a module no layout writes.
+ELSEWHERE = "ModuleNotFoundError: No module named 'elsewhere'"
+
+
+def collecting(*lines: str) -> str:
+    """What pytest prints for a test file whose import failed with each of
+    *lines* in turn, each while handling the one before."""
+
+    link = (
+        "\nDuring handling of the above exception, another exception occurred:\n"
+        "/usr/lib/python3.14/importlib/__init__.py:88: in import_module\n"
+        "    return _bootstrap._gcd_import(name[level:], package, level)\n"
+    )
+    raised = [
+        f"probes/acceptance/p01.py:{n + 2}: in <module>\n    import x\nE   {line}\n"
+        for n, line in enumerate(lines)
+    ]
 
     return (
         "==================================== ERRORS ====================================\n"
         "_____________________ ERROR collecting probes/acceptance/p01.py _____________________\n"
         "ImportError while importing test module '/work/probes/acceptance/p01.py'.\n"
         "Traceback:\n"
-        "probes/acceptance/p01.py:3: in <module>\n"
-        "    import readers\n"
-        f"E   {line}\n"
-        "=========================== short test summary info ============================\n"
+        + link.join(raised)
+        + "=========================== short test summary info ============================\n"
         "ERROR probes/acceptance/p01.py\n"
     )
 

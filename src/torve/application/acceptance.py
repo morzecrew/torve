@@ -242,6 +242,12 @@ _TRACEBACK = "Traceback (most recent call last):"
 _COLLECTING = "ERROR collecting"
 #: pytest's mark on the lines of the exception it reports.
 _MARKED = re.compile(r"^E +(\S.*)$", re.MULTILINE)
+#: What Python and pytest print between two exceptions of a chain.
+_CHAINED = re.compile(
+    r"^(?:During handling of the above exception, another exception occurred"
+    r"|The above exception was the direct cause of the following exception):$",
+    re.MULTILINE,
+)
 
 
 def _uncaught(tail: str) -> str | None:
@@ -249,12 +255,14 @@ def _uncaught(tail: str) -> str | None:
     last: Python's last traceback, whose exception is the first line after
     its header that is not an indented frame (a chained traceback prints the
     one that ended the run last), or pytest's last collection error, whose
-    exception is its first line marked `E`. None for neither."""
+    exception is the first line marked `E` after its last link of a chain.
+    None for neither."""
 
     traceback, collecting = tail.rfind(_TRACEBACK), tail.rfind(_COLLECTING)
 
     if collecting > traceback:
-        marked = _MARKED.search(tail, collecting)
+        links = [*_CHAINED.finditer(tail, collecting)]
+        marked = _MARKED.search(tail, links[-1].end() if links else collecting)
 
         return marked[1] if marked else None
 
