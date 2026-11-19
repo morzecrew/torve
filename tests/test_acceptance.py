@@ -171,7 +171,35 @@ SHAPES = {
         False,
     ),
     "printed, then failed": (lambda failure: f"{failure}\n" + traceback(FAILED), False),
+    "pytest collecting": (lambda failure: collecting(failure), True),
+    "pytest, printed, then failed": (
+        lambda failure: (
+            "=================================== FAILURES ===================================\n"
+            "__________________________________ test_scan __________________________________\n"
+            ">       assert scan() == 422\n"
+            "E       AssertionError: assert 200 == 422\n"
+            "----------------------------- Captured stdout call -----------------------------\n"
+            f"{failure}\n"
+        ),
+        False,
+    ),
 }
+
+
+def collecting(line: str) -> str:
+    """What pytest prints for a test file whose import ends in *line*."""
+
+    return (
+        "==================================== ERRORS ====================================\n"
+        "_____________________ ERROR collecting probes/acceptance/p01.py _____________________\n"
+        "ImportError while importing test module '/work/probes/acceptance/p01.py'.\n"
+        "Traceback:\n"
+        "probes/acceptance/p01.py:3: in <module>\n"
+        "    import readers\n"
+        f"E   {line}\n"
+        "=========================== short test summary info ============================\n"
+        "ERROR probes/acceptance/p01.py\n"
+    )
 
 
 @settings(max_examples=80, deadline=None)

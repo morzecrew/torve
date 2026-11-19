@@ -238,19 +238,32 @@ def _written_reason(
 _NOT_FOUND = re.compile(r"ModuleNotFoundError: No module named '([\w.]+)'")
 #: The header Python prints above an uncaught exception's frames.
 _TRACEBACK = "Traceback (most recent call last):"
+#: pytest's heading for a test file it could not import, which ends the session.
+_COLLECTING = "ERROR collecting"
+#: pytest's mark on the lines of the exception it reports.
+_MARKED = re.compile(r"^E +(\S.*)$", re.MULTILINE)
 
 
 def _uncaught(tail: str) -> str | None:
-    """The exception line of the last traceback in *tail*: the first line
-    after its header that is not an indented frame. A chained traceback
-    prints the exception that ended the run last."""
+    """The exception line of what ended the run in *tail*, whichever comes
+    last: Python's last traceback, whose exception is the first line after
+    its header that is not an indented frame (a chained traceback prints the
+    one that ended the run last), or pytest's last collection error, whose
+    exception is its first line marked `E`. None for neither."""
 
-    _, header, frames = tail.rpartition(_TRACEBACK)
+    traceback, collecting = tail.rfind(_TRACEBACK), tail.rfind(_COLLECTING)
 
-    if not header:
+    if collecting > traceback:
+        marked = _MARKED.search(tail, collecting)
+
+        return marked[1] if marked else None
+
+    if traceback < 0:
         return None
 
-    return next((line for line in frames.splitlines()[1:] if line[:1].strip()), None)
+    frames = tail[traceback + len(_TRACEBACK) :].splitlines()[1:]
+
+    return next((line for line in frames if line[:1].strip()), None)
 
 
 def _held_unimported(tail: str, tree: Path | None) -> str | None:
