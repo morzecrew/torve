@@ -436,3 +436,35 @@ amendments:
     md: |
       Amended on 2026-11-15 in the pull request that accepts S-0128.
       S-0128/D-4 records the blockers a session revision's re-run measured fixed in the review the turn was handed, and S-0128/D-5 lists them apart from the advisory findings.
+  - id: A-14
+    at: '2026-11-19T15:06:10Z'
+    title: A weak test spends a revision, never the unit
+    changes:
+      - subject: D-2
+        field: text
+        before: >-
+          A `weak_test` finding at or above `review.blocks_at` blocks only when its
+          repro names a probe under `probes/` and the engine's re-run of its `repro.command`
+          exits 42, the code the per-call prompt tells the probe to exit with when
+          the changed test passes a plausible wrong implementation the probe built
+          without editing a tracked file; any other exit, a crash's 1 included, records
+          it `advisory: true`, a `weak_test` finding whose repro names no probe is
+          never re-run, and every one that does not block is recorded advisory
+        after: >-
+          A `weak_test` finding at or above `review.blocks_at` blocks only when its
+          repro names a probe under `probes/`, the engine's re-run of its `repro.command`
+          exits 42, the code the per-call prompt tells the probe to exit with when
+          the changed test passes a plausible wrong implementation the probe built
+          without editing a tracked file, and a revision is left to send the unit
+          to: once the run's blocker revisions are spent it is recorded `advisory:
+          true`, and a `weak_test` finding is never a re-raise; any other exit, a
+          crash's 1 included, records it `advisory: true`, a `weak_test` finding whose
+          repro names no probe is never re-run, and every one that does not block
+          is recorded advisory
+      - subject: D-2
+        field: fingerprint
+        before: 62b7c1325cacd9d0/e65c5af0a246a016
+        after: 5781c04e4fc446f4/e65c5af0a246a016
+    md: |
+      Amended on 2026-11-19 from the bed's k=3 run of the Haiku arms.
+      Across 78 trials, three units escalated in their last round on `weak_test` blockers alone. The bed's hidden checks passed all three candidates, and re-running each finding against the code showed the implementation correct: what the probe measured was the strength of the unit's own test. A weak test blocks so the unit is sent to a revision that can strengthen it, which held in the 14 first-round reviews it blocked alone; with no revision left there is nothing for the block to buy, and escalating discards a unit no defect was shown in. The weak test now lands advisory, in the review record and the document's pull request, and a repeated one spends another revision instead of escalating as a re-raise.
