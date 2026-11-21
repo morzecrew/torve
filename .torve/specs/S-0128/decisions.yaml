@@ -59,15 +59,15 @@ decisions:
       but 42 and any other kind at exit 0, and keeps any other kind otherwise; a re-run
       that measures nothing of the candidate (no exit, 126, 127, a probe the review
       did not store, or a pytest whose selector finds no test in the revised tree:
-      exit 4 or 5 beside pytest's own `not found`, `no tests ran` or `deselected`
-      line, as when a fix that adds lines renames a case keyed by its line span) clears
-      nothing, nor does a `weak_test` probe's 42, which runs only the tests the review
-      named and so cannot see a test the turn added, and a blocker that blocked on
-      located evidence alone (a `gaming` finding, a LOCKED row's `violated` verdict)
-      has nothing to re-run; the turn is clean when every blocker cleared, blocked
-      when one kept a measured failure, which re-raises it (S-0127/D-4) and escalates
-      `blocker_finding`, and otherwise goes to the critic's re-review as S-0124/D-8
-      describes it
+      exit 4 beside pytest's own `ERROR: ... not found:` line, or exit 5 beside its
+      whole `no tests ran` or `N deselected` summary line, as when a fix that adds
+      lines renames a case keyed by its line span) clears nothing, nor does a `weak_test`
+      probe's 42, which runs only the tests the review named and so cannot see a test
+      the turn added, and a blocker that blocked on located evidence alone (a `gaming`
+      finding, a LOCKED row's `violated` verdict) has nothing to re-run; the turn
+      is clean when every blocker cleared, blocked when one kept a measured failure,
+      which re-raises it (S-0127/D-4) and escalates `blocker_finding`, and otherwise
+      goes to the critic's re-review as S-0124/D-8 describes it
     paths: [src/torve/application/critic.py, src/torve/application/runner.py]
     consequence: >-
       a session turn whose blockers all re-ran costs its own tokens and the re-runs'
@@ -83,7 +83,7 @@ decisions:
     cites: [S-0127/D-1, S-0127/D-2, S-0127/D-4, S-0127/D-10, S-0124/D-8]
     check: >-
       uv run pytest -q tests/test_critic.py tests/test_runner.py -k "recheck or session_revision"
-    fingerprint: c9ec286092070f5a/e20b63a95c8a18bd
+    fingerprint: cc15816e5806accc/e20b63a95c8a18bd
   - id: D-4
     grade: ASSUMED
     text: >-

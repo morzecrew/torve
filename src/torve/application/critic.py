@@ -280,13 +280,15 @@ Reproduce = Callable[[Sequence[str], Mapping[str, str | None]], list[CommandRun]
 #: not run the command (S-0127/D-1).
 NOT_RUNNABLE = frozenset({126, 127})
 
-#: What pytest prints when a selector finds nothing in the tree it runs on
-#: (S-0128/D-3, S-0128/A-5): a test id, file or `-k` match the revision renamed or moved,
-#: as a fix that adds lines renames a case keyed by its line span. pytest then
-#: exits 4 or 5 and has run no test of the candidate.
-_SELECTED_NOTHING = re.compile(
-    r"^ERROR: (?:file or directory )?not found: |\bno tests ran\b|\bdeselected\b", re.M
-)
+#: What pytest prints, by its exit, when a selector finds nothing in the tree
+#: it runs on (S-0128/D-3, S-0128/A-5): a test id or file the revision renamed
+#: or moved, as a fix that adds lines renames a case keyed by its line span,
+#: exits 4 beside its `not found` line, and a selection left empty exits 5
+#: beside its whole summary line. pytest has then run no test of the candidate.
+_SELECTED_NOTHING = {
+    4: re.compile(r"^ERROR: (?:file or directory )?not found: ", re.M),
+    5: re.compile(r"^[= ]*(?:no tests ran|\d+ deselected)(?: in [\d.]+s)?[= ]*$", re.M),
+}
 
 #: The one exit a `weak_test` probe blocks with (S-0127/D-2): the changed test
 #: passed the wrong implementation the probe built. A crashed probe exits 1,
@@ -1097,7 +1099,9 @@ def _cleared(finding: CriticFinding, run: CommandRun) -> bool | None:
     if run.exit_code is None or run.exit_code in NOT_RUNNABLE:
         return None
 
-    if run.exit_code in (4, 5) and _SELECTED_NOTHING.search(run.tail):
+    selected_nothing = _SELECTED_NOTHING.get(run.exit_code)
+
+    if selected_nothing is not None and selected_nothing.search(run.tail):
         return None
 
     if finding.kind == "weak_test":

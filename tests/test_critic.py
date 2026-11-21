@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 from test_review_run import SequencedReviewer, review_rig  # noqa: F401 — the fixture, by name
 from test_run_loop import OK, MockRuntime, ScriptedAgent, task_for
@@ -1905,15 +1905,25 @@ _SELECTED_NOTHING = [
     (4, "Results (0.01s):\n        no tests ran\nERROR: file or directory not found: tests/x.py\n"),
     (5, "Results (0.01s):\n        76 deselected"),
     (5, "\nno tests ran in 0.00s"),
+    (
+        5,
+        "collected 76 items / 76 deselected / 0 selected\n\n"
+        + "=" * 20
+        + " 76 deselected in 0.01s ==",
+    ),
 ]
 
-#: Exits that measured the candidate: the same codes from anything but a
-#: pytest that selected nothing still fail.
+#: Exits that measured the candidate: the same codes beside anything but the
+#: line pytest prints for that exit still fail, a probe's own words among them.
 _RAN = [
     (None, ""),
     *((code, "") for code in (0, 1, 2, critic_module.WRONG_PASSES, 126, 127, 4, 5)),
     (4, "usage: probe [-h]\nprobe: error: unrecognized arguments: --seed"),
     (1, "FAILED tests/test_app.py::test_bound - AssertionError: 3 deselected"),
+    (4, "unsupported state: deselected"),
+    (5, "unsupported state: deselected\nno tests ran for this state"),
+    (5, "ERROR: not found: the cached value"),
+    (1, "no tests ran in 0.00s\nprobe: the second run failed"),
 ]
 
 
@@ -1928,6 +1938,14 @@ _RAN = [
         max_size=4,
     ),
     locked_row=st.booleans(),
+)
+# The bed's escalation, an exit pytest's line does not belong to, and a
+# probe's own words beside pytest's exit.
+@example(handed=[("bug", _SELECTED_NOTHING[0], True)], locked_row=False)
+@example(handed=[("weak_test", _RAN[-1], True)], locked_row=False)
+@example(
+    handed=[("bug", (5, "unsupported state: deselected\nno tests ran for this state"), True)],
+    locked_row=False,
 )
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 def test_recheck_clears_a_blocker_exactly_when_its_re_run_shows_it_fixed(
