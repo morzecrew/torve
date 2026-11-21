@@ -468,3 +468,78 @@ amendments:
     md: |
       Amended on 2026-11-19 from the bed's k=3 run of the Haiku arms.
       Across 78 trials, three units escalated in their last round on `weak_test` blockers alone. The bed's hidden checks passed all three candidates, and re-running each finding against the code showed the implementation correct: what the probe measured was the strength of the unit's own test. A weak test blocks so the unit is sent to a revision that can strengthen it, which held in the 14 first-round reviews it blocked alone; with no revision left there is nothing for the block to buy, and escalating discards a unit no defect was shown in. The weak test now lands advisory, in the review record and the document's pull request, and a repeated one spends another revision instead of escalating as a re-raise.
+  - id: A-15
+    at: '2026-11-21T09:28:33Z'
+    title: >-
+      A re-run's sandbox syncs a uv project before its first command
+    changes:
+      - subject: D-10
+        field: text
+        before: >-
+          `runner.reproduce(run, state, commands, probes)` runs each command in a
+          fresh gates sandbox (`_gates_spec`: the battery's image and cache) over
+          a fresh judge checkout of the candidate, with each probe's text written
+          at its path first, but only at a path that is new to the checkout — no file
+          there, tracked or not — and lies under the review's probe directory with
+          no component a link, a probe at any other path, or one a finding names that
+          the critic's copy did not keep (missing, a link, outside the copy or over
+          the cap), refusing the whole repro so its finding is advisory; once the
+          probes are written the checkout is mounted read-only (`workspace_read_only`),
+          with the project environment, bytecode and the common tool caches pointed
+          under the sandbox's own temporary directory (`UV_PROJECT_ENVIRONMENT`, `PYTHONPYCACHEPREFIX`,
+          `PYTEST_ADDOPTS=-p no:cacheprovider`, `MYPY_CACHE_DIR`, `RUFF_CACHE_DIR`),
+          so no command's read-only run can change the candidate, and a command whose
+          output reports `Read-only file system` runs once more over the checkout
+          mounted writable, in a sandbox of its own that starts only after the read-only
+          one is closed and gets only what is left of the command's timeout and the
+          unit's clock, that run's exit the one recorded unless it changed or removed
+          a file the checkout held, which refuses the repro the same way, an end-state
+          check that a change restored before the command exits passes, so a denied
+          write never blocks, a printed marker alone never refuses, and only a command
+          the read-only mount denied ever runs writable; each command is bounded by
+          the timeout of the `acceptance` gate in the attempt's manifest (`run.manifest_file`),
+          or by the runtime's `sandbox_timeout` when the manifest has no such gate,
+          and all of one review's re-runs together by what is left of the unit's clock
+          (D-9), a command the clock leaves no time for not run; it returns one `CommandRun`
+          per command, its exit `None` on a timeout or when it was not run, and the
+          checkout and the sandbox are removed when it returns, whatever happened
+        after: >-
+          `runner.reproduce(run, state, commands, probes)` runs each command in a
+          fresh gates sandbox (`_gates_spec`: the battery's image and cache) over
+          a fresh judge checkout of the candidate, with each probe's text written
+          at its path first, but only at a path that is new to the checkout — no file
+          there, tracked or not — and lies under the review's probe directory with
+          no component a link, a probe at any other path, or one a finding names that
+          the critic's copy did not keep (missing, a link, outside the copy or over
+          the cap), refusing the whole repro so its finding is advisory; once the
+          probes are written the checkout is mounted read-only (`workspace_read_only`),
+          with the project environment, bytecode and the common tool caches pointed
+          under the sandbox's own temporary directory (`UV_PROJECT_ENVIRONMENT`, `PYTHONPYCACHEPREFIX`,
+          `PYTEST_ADDOPTS=-p no:cacheprovider`, `MYPY_CACHE_DIR`, `RUFF_CACHE_DIR`),
+          so no command's read-only run can change the candidate; over a checkout
+          holding `uv.lock` every sandbox a re-run opens, read-only or writable, first
+          runs `uv sync --frozen --quiet` into that environment within the bound of
+          the command it opens for, its exit never read, so a repro written for an
+          environment that exists (`uv run --no-sync`) imports the project and its
+          dependencies as a plain `uv run` would; and a command whose output reports
+          `Read-only file system` runs once more over the checkout mounted writable,
+          in a sandbox of its own that starts only after the read-only one is closed
+          and gets only what is left of the command's timeout and the unit's clock,
+          that run's exit the one recorded unless it changed or removed a file the
+          checkout held, which refuses the repro the same way, an end-state check
+          that a change restored before the command exits passes, so a denied write
+          never blocks, a printed marker alone never refuses, and only a command the
+          read-only mount denied ever runs writable; each command is bounded by the
+          timeout of the `acceptance` gate in the attempt's manifest (`run.manifest_file`),
+          or by the runtime's `sandbox_timeout` when the manifest has no such gate,
+          and all of one review's re-runs together by what is left of the unit's clock
+          (D-9), a command the clock leaves no time for not run; it returns one `CommandRun`
+          per command, its exit `None` on a timeout or when it was not run, and the
+          checkout and the sandbox are removed when it returns, whatever happened
+      - subject: D-10
+        field: fingerprint
+        before: abb36f1e777fff0c/14bd8ed0a79735ba
+        after: 099a82753074196b/14bd8ed0a79735ba
+    md: |
+      Amended on 2026-11-21 from the bed's k=3 run of the Sonnet arms.
+      A re-run sandbox points `UV_PROJECT_ENVIRONMENT` at an empty directory, so a repro written for an environment that exists, `uv run --no-sync python probes/...`, failed on its first import (`No module named 'pydantic'`, or the project's own package) on every tree. That exit 1 confirmed the blockers at the first review and re-raised them after the revision, though the revision had fixed each one: the same probes pass on the final tree once the environment is synced. Three units escalated this way, and the bed's hidden checks passed all three. Every sandbox a re-run opens over a uv project now syncs that environment first, as a plain `uv run` would, so the exit measures the candidate. The command itself is unchanged (D-1).

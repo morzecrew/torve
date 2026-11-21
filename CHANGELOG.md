@@ -115,6 +115,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- In a uv project, a critic repro written as `uv run --no-sync` now runs in the project's
+  environment when the engine re-runs it. That environment used to start empty, so the probe
+  failed on its first import on every tree, and a revision that fixed the finding still escalated.
+
 - With `review.compile` on, a compiled probe that fails on the start tree only because it
   cannot import the project's own code is now dropped, with that reason. It used to be kept,
   then fail the same way on every candidate, so a correct unit could not land.
