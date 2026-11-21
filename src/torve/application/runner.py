@@ -978,6 +978,13 @@ REPRO_ENV = {
     "RUFF_CACHE_DIR": f"{_REPRO_TMP}/ruff",
 }
 
+# What a re-run's sandbox runs as it opens over a checkout holding `uv.lock`
+# (S-0127/D-10): the project environment `REPRO_ENV` points at, synced as a
+# plain `uv run` syncs it. A repro written for an environment that already
+# exists, `uv run --no-sync`, otherwise fails on its first import, which
+# measures the empty environment and nothing of the candidate.
+REPRO_SYNC = "uv sync --frozen --quiet"
+
 
 def _repro_timeout(run: Dispatch) -> float:
     """What one re-run may take: a repro is a test command, so the timeout of
@@ -1101,16 +1108,18 @@ def reproduce_over(
     """Each of *commands* re-run over *checkout*, a fresh copy of the
     candidate its caller removes, in sandboxes of spec *gates* under the
     controls `reproduce` names (S-0127/D-10): the probe refusals, the
-    read-only mount and `REPRO_ENV`, and the one writable run a denied write
-    earns. The corpus replay reads its repros through this too, so a case
-    measures one as a night would.
+    read-only mount and `REPRO_ENV`, the `REPRO_SYNC` each sandbox opens
+    with over a uv project, and the one writable run a denied write earns.
+    The corpus replay reads its repros through this too, so a case measures
+    one as a night would.
 
     Each run is bounded by *timeout* and, given a *deadline* on
     `time.monotonic()`, by what is left before it, the writable run's bound
-    read again once the read-only run has spent its share; a command the
-    clock leaves no time for is not run. The read-only sandbox is closed
-    before a writable run opens, so no two are ever up at once, and every
-    sandbox is removed when this returns, whatever happened."""
+    read again once the read-only run has spent its share; a sandbox's sync
+    shares the bound of the command it opens for, and its exit is not read.
+    A command the clock leaves no time for is not run. The read-only sandbox
+    is closed before a writable run opens, so no two are ever up at once,
+    and every sandbox is removed when this returns, whatever happened."""
 
     def refused(why: str) -> list[CommandRun]:
         return [
@@ -1134,6 +1143,28 @@ def reproduce_over(
     def unrun(command: str, why: str = "the unit's clock is spent") -> CommandRun:
         return CommandRun(command=command, exit_code=None, tail=f"not run: {why}")
 
+    def spent() -> str:
+        """Which bound a command that has started its share ran out of."""
+
+        if deadline is not None and deadline <= time.monotonic():
+            return "the unit's clock is spent"
+
+        return "its timeout is spent"
+
+    def synced(one: SandboxExecutor, limit: float, started: float) -> float | None:
+        """The command's *limit* once *one*, a sandbox about to open, has run
+        `REPRO_SYNC`: what is left of the bound from *started*, or None when
+        nothing is. An open sandbox is synced already and a checkout with no
+        `uv.lock` has nothing to sync, so *limit* stands. A failed sync leaves
+        the command to run as it would have without one."""
+
+        if sync is None or one.handle is not None:
+            return limit
+
+        one(sync, limit)
+
+        return bound(started)
+
     for name, text in probes.items():
         if text is None:
             return refused(f"probe {name} was not kept from the critic's copy")
@@ -1152,6 +1183,7 @@ def reproduce_over(
         except OSError as exc:
             return refused(f"probe {name} could not be written: {exc}")
 
+    sync = REPRO_SYNC if (checkout / "uv.lock").is_file() else None
     spec = replace(gates, env={**gates.env, **REPRO_ENV}, workspace_read_only=True)
     executor = SandboxExecutor(runtime, spec, checkout)
     runs: list[CommandRun] = []
@@ -1165,6 +1197,12 @@ def reproduce_over(
                 continue
 
             started = time.monotonic()
+            limit = synced(executor, limit, started)
+
+            if limit is None:
+                runs.append(unrun(command, spent()))
+                continue
+
             code, output = executor(command, limit)
 
             if _READ_ONLY in output:
@@ -1173,13 +1211,7 @@ def reproduce_over(
                 limit = bound(started)
 
                 if limit is None:
-                    spent = deadline is not None and deadline <= time.monotonic()
-                    runs.append(
-                        unrun(
-                            command,
-                            "the unit's clock is spent" if spent else "its timeout is spent",
-                        )
-                    )
+                    runs.append(unrun(command, spent()))
                     continue
 
                 held = _held_files(checkout)
@@ -1195,7 +1227,10 @@ def reproduce_over(
                 )
 
                 try:
-                    code, output = writable(command, limit)
+                    limit = synced(writable, limit, started)
+
+                    if limit is not None:
+                        code, output = writable(command, limit)
 
                 finally:
                     writable.close()
@@ -1207,6 +1242,10 @@ def reproduce_over(
 
                 if changed is not None:
                     return refused(f"`{command}` changed {changed} in the checkout")
+
+                if limit is None:
+                    runs.append(unrun(command, spent()))
+                    continue
 
             runs.append(CommandRun(command=command, exit_code=code, tail=clip(output, TAIL_BYTES)))
 

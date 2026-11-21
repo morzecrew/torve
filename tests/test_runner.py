@@ -9,6 +9,8 @@ from pathlib import Path
 import pytest
 import yaml
 from conftest import context_for
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from test_review_run import review_rig  # noqa: F401 — the fixture, by name
 
 import torve.application.runner as run_module
@@ -6275,6 +6277,108 @@ def test_reproduce_a_writable_run_that_only_adds_files_stands(tmp_path):
     [one] = reproduce(run, state, ["uv run pytest -q"], {})
 
     assert (one.exit_code, one.tail) == (1, "1 failed")
+
+
+class _Logged(_ReproRuntime):
+    """A `_ReproRuntime` that also records which sandbox ran each command."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.log: list[tuple[str, str]] = []
+
+    def exec(self, handle, command, timeout_s):
+        self.log.append((handle.id, command))
+        return super().exec(handle, command, timeout_s)
+
+
+_OUTCOMES = {
+    "passes": ((0, "ok"), (0, "ok")),
+    "fails": ((1, "1 failed"), (1, "1 failed")),
+    "denied, then passes": ({"ro": (1, DENIED), "rw": (0, "ok")}, (0, "ok")),
+    "denied, then fails": ({"ro": (1, DENIED), "rw": (1, "1 failed")}, (1, "1 failed")),
+}
+
+
+@given(
+    outcomes=st.lists(st.sampled_from(sorted(_OUTCOMES)), min_size=1, max_size=5),
+    locked=st.booleans(),
+    sync_exit=st.sampled_from([0, 1, 2, 127]),
+)
+@settings(max_examples=80, deadline=None)
+def test_reproduce_opens_each_sandbox_over_a_uv_project_with_its_sync(outcomes, locked, sync_exit):
+    """S-0127/D-10: over a checkout holding `uv.lock`, every sandbox a re-run
+    opens, read-only or writable, runs `REPRO_SYNC` before its first command
+    and never again, so `uv run --no-sync` finds the project's environment.
+    The sync's own exit is never read: each command's exit and tail are what
+    they are with no sync at all. A checkout without the lock syncs nothing."""
+
+    import tempfile
+
+    from torve.application.runner import REPRO_SYNC, reproduce
+
+    commands = [f"uv run --no-sync python probes/p{n}.py" for n in range(len(outcomes))]
+    outputs = {
+        command: _OUTCOMES[outcome][0] for command, outcome in zip(commands, outcomes, strict=True)
+    }
+    outputs[REPRO_SYNC] = (sync_exit, "" if sync_exit == 0 else "error: the sync failed")
+    runtime = _Logged(outputs)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        files = {"uv.lock": "version = 1\n"} if locked else {}
+        opener = _Checkouts(Path(tmp) / "checkouts", files)
+        run, state, _ = _repro_run(Path(tmp), runtime, opener)
+
+        runs = reproduce(run, state, commands, {})
+
+    assert [(one.exit_code, one.tail) for one in runs] == [_OUTCOMES[one][1] for one in outcomes]
+
+    by_sandbox: dict[str, list[str]] = {}
+
+    for handle, command in runtime.log:
+        by_sandbox.setdefault(handle, []).append(command)
+
+    for ran in by_sandbox.values():
+        if locked:
+            assert ran[0] == REPRO_SYNC and ran.count(REPRO_SYNC) == 1
+        else:
+            assert REPRO_SYNC not in ran
+
+
+def test_rerun_bound_a_sandbox_s_sync_shares_the_command_s_timeout(tmp_path, monkeypatch):
+    """S-0127/D-10: the sync a sandbox opens with over a uv project takes its
+    time out of the command it opens for, so the command gets what is left
+    of its timeout, and does not start when the sync took all of it."""
+
+    from types import SimpleNamespace
+
+    from torve.application.runner import REPRO_SYNC, reproduce
+
+    now = [1000.0]
+    monkeypatch.setattr(run_module, "time", SimpleNamespace(monotonic=lambda: now[0]))
+    locked = {"uv.lock": "version = 1\n"}
+
+    # A 120s command timeout: the sync takes 70 of it, the command the 50 left.
+    runtime = _ReproRuntime(clock=now)
+    gates = [{**ACCEPTANCE_GATE, "timeout": 120}]
+    opener = _Checkouts(tmp_path / "left" / "checkouts", locked)
+    run, state, _ = _repro_run(tmp_path / "left", runtime, opener, gates=gates)
+
+    [one] = reproduce(run, state, ["first"], {})
+
+    assert runtime.ran == [(REPRO_SYNC, 120.0), ("first", 50.0)]
+    assert one.exit_code == 0
+
+    # A 60s timeout the sync outlasted: the command does not start.
+    now[0] = 1000.0
+    spent = _ReproRuntime(clock=now)
+    gates = [{**ACCEPTANCE_GATE, "timeout": 60}]
+    opener = _Checkouts(tmp_path / "spent" / "checkouts", locked)
+    run, state, _ = _repro_run(tmp_path / "spent", spent, opener, gates=gates)
+
+    [one] = reproduce(run, state, ["first"], {})
+
+    assert spent.ran == [(REPRO_SYNC, 60.0)]
+    assert (one.exit_code, one.tail) == (None, "not run: its timeout is spent")
 
 
 def test_reproduce_removes_its_checkout_and_sandbox_when_a_command_raises(tmp_path):
