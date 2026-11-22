@@ -462,6 +462,50 @@ def test_a_stored_unit_never_compiles_again(repo):
     assert agent.calls == 1 and again == first
 
 
+def test_a_store_from_another_document_or_other_rows_compiles_again(repo):
+    """S-0129/D-7: an amended document or a refreshed contract's rows compile
+    again and replace the store; the same document and rows reuse it."""
+
+    agent = Compiler([probe()])
+    run, state = _unit(repo, agent)
+    compile_acceptance(run, state, Base(), lambda usage: None)
+    repo.write(".torve/specs/S-0900/document.yaml", DOCUMENT + "risks: |\n  Readers drift.\n")
+
+    amended = compile_acceptance(run, state, Base(), lambda usage: None)
+
+    assert agent.calls == 2 and load(repo.root, TASK_ID) == amended
+    run.task = run.task.model_copy(
+        update={"decisions": [InheritedDecision(id=ROW, grade="ASSUMED", text="readers refuse")]}
+    )
+
+    refreshed = compile_acceptance(run, state, Base(), lambda usage: None)
+
+    assert agent.calls == 3 and refreshed.source != amended.source
+    assert compile_acceptance(run, state, Base(), lambda usage: None) == refreshed
+    assert agent.calls == 3
+
+
+def test_a_stale_store_is_gone_before_a_seat_that_fails(repo):
+    """S-0129/D-7: a seat that cannot run after an amendment leaves the unit
+    without probes, never with the old document's."""
+
+    run, state = _unit(repo, Compiler([probe()]))
+    compile_acceptance(run, state, Base(), lambda usage: None)
+    repo.write(".torve/specs/S-0900/document.yaml", DOCUMENT + "risks: |\n  Readers drift.\n")
+
+    class Broken:
+        kind = "harness"
+
+        def run(self, ctx):
+            raise RuntimeError("no sandbox")
+
+    run.deps.review_agent = Broken()
+
+    acceptance = compile_acceptance(run, state, Base(), lambda usage: None)
+
+    assert acceptance.kept == [] and load(repo.root, TASK_ID) is None
+
+
 def test_a_compile_keeps_at_most_the_cap_in_the_seats_order(repo):
     probes = [probe(f"p{n:02d}.py") for n in range(ACCEPTANCE_CAP + 2)]
     run, state = _unit(repo, Compiler(probes))

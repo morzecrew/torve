@@ -142,3 +142,22 @@ decisions:
       uv run pytest -q tests/test_runconfig.py tests/test_plan.py tests/test_rfc_emit.py
       tests/test_runner.py -k "asks_to_compile or one_rule or probe_failing_after_a_clean_critic"
     fingerprint: 811552410512f868/3fea44d725a7f6f5
+  - id: D-7
+    grade: ASSUMED
+    text: >-
+      A stored compile serves only the document and rows it was compiled from: the
+      store records a digest of the document's files and the contract's rows as they
+      are staged for the seat, and a unit whose digest differs, an amendment or a
+      refresh since, removes the store before its seat runs and compiles again; a
+      store written before the digest was recorded differs
+    paths: [src/torve/application/acceptance.py]
+    rationale: >-
+      a refresh (S-0088/D-1) rewrites a contract's rows and an amendment its document,
+      while the store, kept by task, outlived both; a digest of what was staged is
+      read wherever the unit is served, which a refresh deleting the store would not
+      reach
+    cites: [D-1, D-4, S-0088/D-1]
+    check: >-
+      uv run pytest -q tests/test_acceptance.py -k "another_document or stale_store
+      or never_compiles_again"
+    fingerprint: fb6aca227ef77bdd/96a8cd04ffe1834e

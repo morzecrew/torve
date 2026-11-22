@@ -119,6 +119,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A unit's compiled probes now follow its document. After an amendment or a `torve plan
+  --refresh` changes the document or the contract's rows, the next attempt compiles again,
+  instead of judging candidates by probes that quote text no longer there.
+
 - A revision that fixes a critic's finding no longer escalates because the fix moved the test
   the repro names. A pytest re-run whose selector finds no test, such as an example id that
   carries its line span, now goes to the critic's re-review instead of counting as a failure.

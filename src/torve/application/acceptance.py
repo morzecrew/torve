@@ -174,6 +174,9 @@ class Acceptance:
     fact: str = ""
     spend_usd: float | None = None
     wall_s: float = 0.0
+    #: The digest of the document files and contract rows it was compiled
+    #: from (S-0129/D-7); None on a store written before it was recorded.
+    source: str | None = None
 
     @property
     def commands(self) -> list[str]:
@@ -352,8 +355,9 @@ def store_file(root: Path, task_id: str) -> Path:
 
 
 def load(root: Path, task_id: str) -> Acceptance | None:
-    """The unit's stored compile, or None when it has none: a unit with a
-    store never compiles again, whether it kept probes or not."""
+    """The unit's stored compile, or None when it has none: a unit whose
+    store was compiled from the document and rows it reads now never compiles
+    again, whether it kept probes or not (S-0129/D-7)."""
 
     path = store_file(root, task_id)
 
@@ -369,6 +373,7 @@ def load(root: Path, task_id: str) -> Acceptance | None:
         fact=data.get("fact", ""),
         spend_usd=data.get("spend_usd"),
         wall_s=data.get("wall_s", 0.0),
+        source=data.get("source"),
     )
 
 
@@ -521,8 +526,9 @@ def compile_acceptance(
     reproduce: Reproduce,
     price: Callable[[Mapping[str, Any]], float | None],
 ) -> Acceptance:
-    """The unit's probes (S-0129/D-1, S-0129/D-2): its store when it has one,
-    else one compile over the tree the unit starts from, kept and stored.
+    """The unit's probes (S-0129/D-1, S-0129/D-2): its store when that was
+    compiled from the document and rows the unit reads now (S-0129/D-7), else
+    one compile over the tree the unit starts from, kept and stored.
 
     *reproduce* runs the probes' commands over a judge checkout of that tree;
     *price* turns the seat's agent block into the unit spend it records, and
@@ -532,16 +538,22 @@ def compile_acceptance(
 
     from torve.application.telemetry import config_hash
 
+    files = _document_files(run.root / run.config.specs.path, run.task.spec)
+    rows = yaml.safe_dump(_rows_document(run.task.decisions), sort_keys=False, allow_unicode=True)
+    source = hashlib.sha256(yaml.safe_dump([files, rows]).encode("utf-8")).hexdigest()
     stored = load(run.root, run.task.id)
 
-    if stored is not None:
+    if stored is not None and stored.source == source:
         return stored
 
+    # S-0129/D-7: a store from another document or other rows, an amendment
+    # or a refresh since, goes before the seat runs, so a seat that fails
+    # leaves the unit without probes rather than with stale ones.
+    store_file(run.root, run.task.id).unlink(missing_ok=True)
     started = time.monotonic()
-    files = _document_files(run.root / run.config.specs.path, run.task.spec)
 
     if not files:
-        acceptance = Acceptance(fact=f"no document to compile for {run.task.spec}")
+        acceptance = Acceptance(fact=f"no document to compile for {run.task.spec}", source=source)
         save(run.root, run.task.id, acceptance)
         _fact(state, f"{COMPILED_MARKER}{acceptance.fact}")
 
@@ -557,9 +569,7 @@ def compile_acceptance(
     agent = reviewer_for(run)
     staged = {
         **{f"document/{name}": text for name, text in files.items()},
-        "rows.yaml": yaml.safe_dump(
-            _rows_document(run.task.decisions), sort_keys=False, allow_unicode=True
-        ),
+        "rows.yaml": rows,
         "compile.schema.json": SCHEMA_FILE.read_text(encoding="utf-8"),
     }
 
@@ -686,6 +696,7 @@ def compile_acceptance(
         fact=fact,
         spend_usd=spend,
         wall_s=round(time.monotonic() - started, 3),
+        source=source,
     )
     record = review_record(
         session,

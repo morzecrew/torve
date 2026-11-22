@@ -148,3 +148,48 @@ amendments:
       - **Wrong probes:** the compile kept 2,378 probes over 103 units, and none of the 16 escalations ended on one.
 
       So compile costs about twice the reviewer spend for a gain neither run separates from noise, and Q-2 is settled: `review.compile` stays false. Its one gain that repeats is a rule a document states only outside its rows: spoolman-nfc's `reader_id` pattern sits in its interface section, every trial without compile failed it, and every Sonnet trial with compile passed it. That is a fact about a document, which its author knows, so D-6 lets a document ask for its own compile.
+  - id: A-5
+    at: '2026-11-22T20:01:29Z'
+    title: A stored compile serves the document it read
+    changes:
+      - subject: D-7
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-7
+        field: paths
+        before: []
+        after: [src/torve/application/acceptance.py]
+      - subject: D-7
+        field: text
+        before: <decision>
+        after: >-
+          A stored compile serves only the document and rows it was compiled from:
+          the store records a digest of the document's files and the contract's rows
+          as the seat is staged them, and a unit whose digest differs, an amendment
+          or a refresh since, removes the store before its seat runs and compiles
+          again; a store written before the digest was recorded differs
+      - subject: D-7
+        field: fingerprint
+        after: e465645927644f6e/96a8cd04ffe1834e
+    md: |
+      Amended on 2026-11-22 from a review of the change that let a document ask for its own compile. A unit's store was kept by task and read before anything else, so after a refresh rewrote the contract's rows, or an amendment changed the document, the next attempt still planted and re-ran the probes compiled from the old text. A probe pinning a passage amended away then blocked on its row whatever the critic said (D-4). D-7 ties the store to what it was compiled from, so D-1's one compile per unit holds per document and rows.
+editorial:
+  - subject: D-7
+    field: text
+    before: >-
+      A stored compile serves only the document and rows it was compiled from: the
+      store records a digest of the document's files and the contract's rows as the
+      seat is staged them, and a unit whose digest differs, an amendment or a refresh
+      since, removes the store before its seat runs and compiles again; a store written
+      before the digest was recorded differs
+    after: >-
+      A stored compile serves only the document and rows it was compiled from: the
+      store records a digest of the document's files and the contract's rows as they
+      are staged for the seat, and a unit whose digest differs, an amendment or a
+      refresh since, removes the store before its seat runs and compiles again; a
+      store written before the digest was recorded differs
+  - subject: D-7
+    field: fingerprint
+    before: e465645927644f6e/96a8cd04ffe1834e
+    after: fb6aca227ef77bdd/96a8cd04ffe1834e

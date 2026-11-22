@@ -132,9 +132,10 @@ arrives first, invisibly.
    If `torve plan` cannot derive a task from an entry, the entry was written
    wrong. **The intent names the public surface the phase's tests drive** —
    the functions, types or commands the phase introduces or changes. Under
-   `review.compile`, or the document's own `compile: true` beside `unit` in
-   `phasing.yaml`, a compiler turns every behaviour the document states into
-   a probe before any code exists, driving only a surface the document names
+   `review.mode: critic`, with `review.compile` or the document's own
+   `compile: true` beside `unit` in `phasing.yaml`, a compiler turns the
+   behaviours the document states into probes before any code exists, every
+   row first and at most twenty-four, driving only a surface the document names
    and quoting the passage it pins: an edge case stated in passing,
    beside the surface it is reached through, is a probe; one with no named
    surface is none. Ask for it when the document states rules no row names,
