@@ -109,3 +109,42 @@ amendments:
     md: |-
       Amended on 2026-11-19 with A-3.
       A probe's command runs `python` on its own file, which puts the file's folder on the import path, not the repository's root. In a project that is not installed, a probe written as if the root were there exits 1 with `ModuleNotFoundError` on the start tree, so D-2 kept it, and then on every candidate, so D-4 blocked every one, a correct one included. In a bed trial all twenty-four of a unit's probes failed this way and escalated it. A red base run whose last traceback ends on an import of a module the start tree holds is now a probe that cannot see the project, and is dropped with that reason. One that ends on a module the tree lacks is still red for want of the unit's work, and an import failure the probe printed or caught before failing otherwise is not what ended it. The compile prompt says so beside the other keep rules.
+  - id: A-4
+    at: '2026-11-22T18:46:52Z'
+    title: Compile stays off by default; a document opts in
+    changes:
+      - subject: D-6
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-6
+        field: paths
+        before: []
+        after:
+          - src/torve/domain/spec.py
+          - src/torve/domain/task.py
+          - src/torve/config/spec_emit.py
+          - src/torve/application/planner.py
+          - src/torve/config/runconfig.py
+      - subject: D-6
+        field: text
+        before: <decision>
+        after: >-
+          A document asks for its own compile with `compile: true` in its phasing
+          file beside `unit`, false by default and written only when set: `torve plan`
+          copies it onto every contract the document mints, a refresh carries a change
+          to it, and a unit compiles as D-1 says when the repository's `review.compile`
+          is true or its contract's `compile` is, under `review.mode: critic` alone,
+          `ReviewConfig.compiles` being the one rule every reader asks; under `review.mode:
+          classic` a document's `compile` compiles nothing and refuses nothing
+      - subject: D-6
+        field: fingerprint
+        after: 811552410512f868/3fea44d725a7f6f5
+    md: |
+      Amended on 2026-11-22 from the bed's three-trial runs, which Q-2 waited for. Both ran the bed's 13 documents three times on each arm, the arms differing only in `review.compile`.
+
+      - **Haiku executor:** compile passed 26 of 39 trials and 112 of 162 units at $83.6; without it, 28 of 39 and 126 at $44.8. With the engine bugs those runs found fixed since (#344, #346), the two come out level, about 29 and 30 trials.
+      - **Sonnet executor:** compile passed 34 of 39 and 141 units at $70.0; without it, 29 and 138 at $30.8. With #347 the estimate is 36 and 150 against 30 and 144. Per document the difference is +0.04 of units, 95% interval −0.06 to +0.13, sign-flip p = 0.63.
+      - **Wrong probes:** the compile kept 2,378 probes over 103 units, and none of the 16 escalations ended on one.
+
+      So compile costs about twice the reviewer spend for a gain neither run separates from noise, and Q-2 is settled: `review.compile` stays false. Its one gain that repeats is a rule a document states only outside its rows: spoolman-nfc's `reader_id` pattern sits in its interface section, every trial without compile failed it, and every Sonnet trial with compile passed it. That is a fact about a document, which its author knows, so D-6 lets a document ask for its own compile.

@@ -2024,7 +2024,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
     # unit already at its cap or clock skips it and the selection escalates.
     if (
         critic
-        and run.config.review.compile
+        and run.config.review.compiles(run.task.compile)
         and budget_spent < budget_usd
         and _elapsed_minutes(state) < unit_minutes
     ):
@@ -2202,7 +2202,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         )
         state.save()
 
-        if critic and run.config.review.compile and verdict.decision is not None:
+        if critic and run.config.review.compiles(run.task.compile) and verdict.decision is not None:
             from torve.application.acceptance import note_first_decision
 
             # S-0129/D-5: what the compiler caught is what blocked the first decision.
@@ -2329,7 +2329,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                     revision=session_revision,
                     acceptance=(
                         acceptance_block(run.root, state, run.task.id)
-                        if run.config.review.compile
+                        if run.config.review.compiles(run.task.compile)
                         else None
                     ),
                 ),
@@ -2528,7 +2528,7 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
                         # breaks one that passed is judged by it too.
                         probes = (
                             stored_acceptance(run.root, run.task.id)
-                            if run.config.review.compile
+                            if run.config.review.compiles(run.task.compile)
                             else None
                         )
                         rechecked = (

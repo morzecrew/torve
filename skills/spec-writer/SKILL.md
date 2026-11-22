@@ -132,11 +132,14 @@ arrives first, invisibly.
    If `torve plan` cannot derive a task from an entry, the entry was written
    wrong. **The intent names the public surface the phase's tests drive** —
    the functions, types or commands the phase introduces or changes. Under
-   `review.compile` a compiler turns every behaviour the document states into
+   `review.compile`, or the document's own `compile: true` beside `unit` in
+   `phasing.yaml`, a compiler turns every behaviour the document states into
    a probe before any code exists, driving only a surface the document names
    and quoting the passage it pins: an edge case stated in passing,
    beside the surface it is reached through, is a probe; one with no named
-   surface is none. A
+   surface is none. Ask for it when the document states rules no row names,
+   such as a schema's constraints or an interface's formats: the critic
+   reviews against the rows and reads past them. A
    phase's clock and model are its seat's: a phase that needs more time than
    the repository's `agent_timeout`, or the stronger model, names a `tier_variant` the operator configures with its own
    `agent_timeout` and `sandbox_timeout`, or a `character` the seat's

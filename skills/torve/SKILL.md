@@ -26,8 +26,9 @@ other skills (`torve guide working-rules`, `torve guide flag-dont-flip`).
    document's pull request stays a draft until its last phase lands.
 5. **Review**: the engine's reviewer, the bots on the pull request and the
    thread leg raise findings. Each one is answered with a fix or a reason.
-   Under `review.compile` the reviewer seat first compiles the document into
-   probes that every candidate is shown and judged by; one that fails blocks.
+   Under `review.compile`, or a document's own `compile: true`, the reviewer
+   seat first compiles the document into probes that every candidate is shown
+   and judged by; one that fails blocks.
 6. **Merge**: the owner merges. Then mark the document
    `implementation: complete` and add its changelog entry in one pull request.
 

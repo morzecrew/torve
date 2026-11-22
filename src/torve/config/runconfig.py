@@ -1363,6 +1363,14 @@ class ReviewConfig(BaseModel):
 
         return self
 
+    def compiles(self, asked: bool) -> bool:
+        """Whether a unit compiles its document into acceptance probes: every
+        unit under `compile` (S-0129/D-1), and one whose document *asked* for
+        it with its own `compile: true` (S-0129/D-6) under `mode: critic`
+        alone, the one mode whose decision a probe's failure goes to."""
+
+        return self.compile or (asked and self.mode == "critic")
+
 
 # ....................... #
 

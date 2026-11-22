@@ -1097,6 +1097,15 @@ spend, recorded as a `review` with `mode: compile`, and `unit.closed` carries
 an `acceptance` block whose `failed_first` counts the probes that blocked the
 first decision (S-0129/D-5).
 
+A document asks for its own compile with `compile: true` in its phasing file,
+beside `unit` (S-0129/D-6). With `review.compile` off, only that document's
+units compile; under `mode: classic` the key does nothing. Leave the
+repository's switch off: on the eval bed's three-trial runs, compiling every
+document cost about twice the reviewer spend for a gain within noise, and the
+one gain that repeated was a rule a document states only outside its rows, a
+format in its interface section (S-0129/A-4). That is what a document's own
+`compile: true` is for.
+
 The thread leg needs `threads.enabled`, the forge's bots in `threads.bots`, and
 a landing that reads a document's pull request — `promotion.landing:
 pull_request` with `unit: document`; it refuses to load otherwise. When every

@@ -97,6 +97,7 @@ def document(
     landings: list[dict[str, Any]] | None = None,
     contract_example: dict[str, Any] | None = None,
     unit: str | None = None,
+    compiles: bool = False,
     schema_version: int = 4,
     extra: dict[str, Any] | None = None,
 ) -> Doc:
@@ -172,6 +173,9 @@ def document(
 
     head.update(extra or {})
     plan: dict[str, Any] = {"unit": unit} if unit else {}
+
+    if compiles:
+        plan["compile"] = True
 
     for name, value in (("phasing", phasing), ("contract_example", contract_example)):
         if value:

@@ -621,6 +621,43 @@ def test_minting_copies_tier_variant_onto_the_contract(plan_repo):
     assert plain.tier_variant is None
 
 
+@pytest.mark.parametrize("unit", ["phase", "document"])
+def test_a_document_that_asks_to_compile_mints_contracts_that_do(plan_repo, unit):
+    """S-0129/D-6: the document's `compile` reaches every contract it mints,
+    one per phase or the one a whole document folds into, and a document
+    that does not ask mints contracts that do not."""
+
+    root, write_doc, git = plan_repo
+    write_doc("0099", "Readers", compiles=True, unit=unit)
+    git("add", "-A")
+    git("commit", "-qm", "readers")
+    asks = plan_document(root, root / ".torve" / "specs", "0099")
+    plain = plan_document(root, root / ".torve" / "specs", "0090")
+
+    assert len(asks.tasks) == (3 if unit == "phase" else 1)
+    assert [one.task.compile for one in asks.tasks] == [True] * len(asks.tasks)
+    assert [one.task.compile for one in plain.tasks] == [False, False, False]
+
+
+def test_a_document_that_asks_to_compile_after_its_mint_refreshes_its_contracts(plan_repo):
+    """S-0129/D-6: a refresh carries the document's new `compile` onto the
+    contracts it already minted."""
+
+    from torve.application.planner import refresh_contracts, refresh_document
+
+    root, write_doc, git = plan_repo
+    minted(root)
+    write_doc("0090", "Widgets", compiles=True)
+    git("add", "-A")
+    git("commit", "-qm", "compile")
+
+    report = refresh_document(root, root / ".torve" / "specs", "0090")
+
+    assert [one.changed for one in report.tasks] == [["compile"]] * 3
+    refresh_contracts(root, report)
+    assert [contract_of(root, f"T-000{n}").compile for n in (1, 2, 3)] == [True] * 3
+
+
 def test_minting_copies_delivers_onto_the_contract_qualified(plan_repo):
     root, write_doc, git = plan_repo
     write_doc("0090", "Widgets", phasing=phasing(delivers=["D-2"]))

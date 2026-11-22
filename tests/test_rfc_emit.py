@@ -95,6 +95,35 @@ def test_a_document_that_names_its_change_dumps_and_loads(tmp_path: Path) -> Non
     assert load_document(directory).change == doc.change
 
 
+def test_a_document_that_asks_to_compile_writes_the_flag_and_no_other_does(
+    tmp_path: Path,
+) -> None:
+    """S-0129/D-6: `compile` sits in the phasing file beside `unit` and is
+    written only when set, so every document that does not ask keeps its
+    canonical form, a contract example included."""
+
+    example = {
+        "id": "T-0001",
+        "spec": "S-0002",
+        "decisions": [],
+        "scope": {"files": ["src/app.py"]},
+    }
+    plain = loaded(
+        tmp_path, document("0002", ROWS, phasing=[PHASE], contract_example=example), "0002"
+    )
+    asks = loaded(tmp_path / "asks", document("0002", ROWS, phasing=[PHASE], compiles=True), "0002")
+
+    assert plain.compile is False and asks.compile is True
+    assert "compile" not in dump_document(plain)["phasing.yaml"]
+    assert "\ncompile: true\n" in dump_document(asks)["phasing.yaml"]
+    assert "compile:" not in dump_document(asks)["document.yaml"]
+
+    directory = tmp_path / "scratch" / "S-0002"
+    write_document(directory, asks)
+
+    assert load_document(directory).compile is True
+
+
 def test_a_document_that_names_its_fixes_dumps_and_loads(tmp_path: Path) -> None:
     """#211: `fixes` is written beside the header only when it lists an issue,
     so every document without one keeps its canonical form."""

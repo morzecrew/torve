@@ -6551,13 +6551,14 @@ PROBE_ROW = "S-0900/D-1"
 PROBE_COMMAND = "uv run python probes/acceptance/p01.py"
 
 
-def _compiling_unit(review_rig, monkeypatch, critic_outputs, *reruns):  # noqa: F811
+def _compiling_unit(review_rig, monkeypatch, critic_outputs, *reruns, by_document=False):  # noqa: F811
     """A one-candidate critic unit under `review.compile`, over a document
     stating one rule: the reviewer seat compiles one probe for it, then
     judges as the critic with *critic_outputs*. *reruns* are the probe's
     exits in order: on the start tree, at the first decision, after the
-    session turn. Returns the state, the reviewer, what the executor saw and
-    the unit record."""
+    session turn. *by_document* asks through the contract's `compile`, the
+    repository's `review.compile` off (S-0129/D-6). Returns the state, the
+    reviewer, what the executor saw and the unit record."""
 
     from test_review_run import SequencedReviewer
     from test_run_loop import ScriptedAgent
@@ -6627,7 +6628,11 @@ def _compiling_unit(review_rig, monkeypatch, critic_outputs, *reruns):  # noqa: 
 
     config = RunnerConfig(
         review=ReviewConfig(
-            on=["task_gated"], mode="critic", revision="session", blocker_revisions=1, compile=True
+            on=["task_gated"],
+            mode="critic",
+            revision="session",
+            blocker_revisions=1,
+            compile=not by_document,
         )
     )
     reviewer = CompilingReviewer()
@@ -6639,6 +6644,7 @@ def _compiling_unit(review_rig, monkeypatch, critic_outputs, *reruns):  # noqa: 
         decisions=[InheritedDecision(id=PROBE_ROW, grade="ASSUMED", text="readers are validated")],
         scope=Scope(files=["README.md"]),
         budget=Budget(iterations=1),
+        compile=by_document,
     )
 
     state = run_task(repo.root, task, config, deps)
@@ -6651,21 +6657,25 @@ def _compiling_unit(review_rig, monkeypatch, critic_outputs, *reruns):  # noqa: 
     return state, reviewer, seen, unit, calls
 
 
+@pytest.mark.parametrize("by_document", [False, True], ids=["repository", "document"])
 def test_a_probe_failing_after_a_clean_critic_is_revised_in_session_and_lands(
     review_rig,  # noqa: F811
     monkeypatch,
+    by_document,
 ):
     """S-0129: the probe compiled once over the start tree is planted and
     shown to the executor; it fails on the candidate the critic found clean,
     so the unit is revised in its session with the probe's claim, and the
-    recheck re-runs the probe, which passes, and the unit lands."""
+    recheck re-runs the probe, which passes, and the unit lands. A document
+    that asks for its own compile gets the same with the repository's
+    `review.compile` off (S-0129/D-6)."""
 
     from test_critic import answer
 
     from torve.domain.states import TaskState
 
     state, reviewer, seen, unit, calls = _compiling_unit(
-        review_rig, monkeypatch, [answer()], 1, 1, 0
+        review_rig, monkeypatch, [answer()], 1, 1, 0, by_document=by_document
     )
 
     assert state.state is TaskState.READY and state.escalation is None

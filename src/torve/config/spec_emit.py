@@ -115,11 +115,11 @@ HEADER_FIELDS = (
 def _value(doc: Document, name: str) -> Any:
     """One field as its file carries it: inside every list entry only what
     differs from the model's default — so a row reads as its author wrote
-    it; a contract example whole."""
+    it; a contract example whole. A flag is written only when it is set."""
 
     value = getattr(doc, name)
 
-    if value is None or value == []:
+    if value is None or value is False or value == []:
         return None
 
     if name == "contract_example":
@@ -132,6 +132,9 @@ def _value(doc: Document, name: str) -> Any:
         # Likewise the rows a phase delivers, which the planner copies from it.
         if not example.get("delivers"):
             example.pop("delivers", None)
+        # And whether its document compiles (S-0129/D-6), copied from the document.
+        if not example.get("compile"):
+            example.pop("compile", None)
         return example
 
     # A header object such as `change` (S-0087/D-1): only what its author set,

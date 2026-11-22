@@ -693,6 +693,7 @@ def plan_document(
             delivers=[qualify(document, row) for row in entry.delivers],
             tier_variant=entry.tier_variant or None,
             character=entry.character or None,
+            compile=doc.compile,
         )
 
         planned.append(
@@ -819,6 +820,7 @@ REFRESHED_FIELDS = (
     "delivers",
     "tier_variant",
     "character",
+    "compile",
 )
 
 

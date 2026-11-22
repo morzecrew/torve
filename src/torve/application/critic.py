@@ -1885,7 +1885,11 @@ def judge(run: Dispatch, review: Task, state: RunState | None = None) -> CriticV
     )
     # S-0129/D-4: the unit's compiled probes, read from its store, so every
     # candidate and every round is judged against the same ones.
-    compiled = stored_acceptance(run.root, run.task.id) if run.config.review.compile else None
+    compiled = (
+        stored_acceptance(run.root, run.task.id)
+        if run.config.review.compiles(run.task.compile)
+        else None
+    )
 
     return run_critic(
         run.root,

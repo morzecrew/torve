@@ -702,4 +702,11 @@ The compile's spend is a unit spend fact and its wall time is on the unit's cloc
 - Consequence: the unit's budget bounds the compile, and the bed reads from records what the compiler caught (`failed_first`) and what it cost
 - Check: `uv run pytest -q tests/test_runner.py tests/test_selection.py -k "acceptance_block or probe_failing"` (shadow; runs as `decision:S-0129/D-5`)
 
+### S-0129/D-6 — `ASSUMED` (Acceptance compiled before the session)
+
+A document asks for its own compile with `compile: true` in its phasing file beside `unit`, false by default and written only when set: `torve plan` copies it onto every contract the document mints, a refresh carries a change to it, and a unit compiles as D-1 says when the repository's `review.compile` is true or its contract's `compile` is, under `review.mode: critic` alone, `ReviewConfig.compiles` being the one rule every reader asks; under `review.mode: classic` a document's `compile` compiles nothing and refuses nothing
+
+- Paths: `src/torve/domain/spec.py` `src/torve/domain/task.py` `src/torve/config/spec_emit.py` `src/torve/application/planner.py` `src/torve/config/runconfig.py`
+- Check: `uv run pytest -q tests/test_runconfig.py tests/test_plan.py tests/test_rfc_emit.py tests/test_runner.py -k "asks_to_compile or one_rule or probe_failing_after_a_clean_critic"` (shadow; runs as `decision:S-0129/D-6`)
+
 <!-- /torve:managed -->

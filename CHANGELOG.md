@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A document can ask for its own acceptance compile with `compile: true` in its
+  `phasing.yaml`, beside `unit`. Its units then compile their probes under `review.mode: critic`
+  with the repository's `review.compile` left off, which stays the default.
+
 - A Claude Code seat now revises a blocked candidate in its own session under
   `review.revision: session`, as a dsh seat does. The engine re-runs the blockers on the
   revised tree instead of starting a new attempt and asking the critic again. A harness
