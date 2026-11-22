@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, example, given, settings
 from hypothesis import strategies as st
 from test_review_run import SequencedReviewer, review_rig  # noqa: F401 — the fixture, by name
 from test_run_loop import OK, MockRuntime, ScriptedAgent, task_for
@@ -1890,17 +1890,62 @@ def _handed(root: Path, kinds: list[str], locked_row: bool = False):
     )
 
 
+#: What pytest printed in the bed when a re-run's selector found nothing in
+#: the revised tree (S-0128/A-5): a test id the fix renamed by moving its line
+#: span, a file it moved, a `-k` that matches nothing, an empty selection.
+_SELECTED_NOTHING = [
+    (
+        4,
+        (
+            "ERROR: not found: /work/tests/test_docs.py::test_docs_examples"
+            "[docs/index.md:1255-1269]\n(no match in any of [<Module test_docs.py>])\n\n"
+            "no tests ran in 0.01s"
+        ),
+    ),
+    (4, "Results (0.01s):\n        no tests ran\nERROR: file or directory not found: tests/x.py\n"),
+    (5, "Results (0.01s):\n        76 deselected"),
+    (5, "\nno tests ran in 0.00s"),
+    (
+        5,
+        "collected 76 items / 76 deselected / 0 selected\n\n"
+        + "=" * 20
+        + " 76 deselected in 0.01s ==",
+    ),
+]
+
+#: Exits that measured the candidate: the same codes beside anything but the
+#: line pytest prints for that exit still fail, a probe's own words among them.
+_RAN = [
+    (None, ""),
+    *((code, "") for code in (0, 1, 2, critic_module.WRONG_PASSES, 126, 127, 4, 5)),
+    (4, "usage: probe [-h]\nprobe: error: unrecognized arguments: --seed"),
+    (1, "FAILED tests/test_app.py::test_bound - AssertionError: 3 deselected"),
+    (4, "unsupported state: deselected"),
+    (5, "unsupported state: deselected\nno tests ran for this state"),
+    (5, "ERROR: not found: the cached value"),
+    (1, "no tests ran in 0.00s\nprobe: the second run failed"),
+]
+
+
 @given(
     handed=st.lists(
         st.tuples(
             st.sampled_from(["bug", "weak_test", "gaming"]),
-            st.sampled_from([None, 0, 1, 2, critic_module.WRONG_PASSES, 126, 127]),
+            st.sampled_from(_RAN + _SELECTED_NOTHING),
             st.booleans(),
         ),
         min_size=1,
         max_size=4,
     ),
     locked_row=st.booleans(),
+)
+# The bed's escalation, an exit pytest's line does not belong to, and a
+# probe's own words beside pytest's exit.
+@example(handed=[("bug", _SELECTED_NOTHING[0], True)], locked_row=False)
+@example(handed=[("weak_test", _RAN[-1], True)], locked_row=False)
+@example(
+    handed=[("bug", (5, "unsupported state: deselected\nno tests ran for this state"), True)],
+    locked_row=False,
 )
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 def test_recheck_clears_a_blocker_exactly_when_its_re_run_shows_it_fixed(
@@ -1909,18 +1954,18 @@ def test_recheck_clears_a_blocker_exactly_when_its_re_run_shows_it_fixed(
     """S-0128/D-3: after a revision turn a blocker clears exactly when its
     re-run executed and exited 0, or anything but `WRONG_PASSES` for a
     `weak_test`; one that executed and still fails is re-raised; no exit, 126,
-    127, a probe the review did not store and a `weak_test` probe's
-    `WRONG_PASSES` measure nothing, since the probe cannot run a test the
-    revision added, and a `gaming` blocker and a LOCKED row's breach are never
-    re-run. Each re-run blocker
-    carries its new exit, and a cleared one the exit that made it block, so
-    a blocker still failing is never read as fixed (S-0128/D-4)."""
+    127, a probe the review did not store, a pytest whose selector found no
+    test in the revised tree and a `weak_test` probe's `WRONG_PASSES` measure
+    nothing, since the probe cannot run a test the revision added, and a
+    `gaming` blocker and a LOCKED row's breach are never re-run. Each re-run
+    blocker carries its new exit, and a cleared one the exit that made it
+    block, so a blocker still failing is never read as fixed (S-0128/D-4)."""
 
-    verdict = _handed(tmp_path, [kind for kind, _code, _stored in handed], locked_row)
-    after: dict[str, int | None] = {}
+    verdict = _handed(tmp_path, [kind for kind, _run, _stored in handed], locked_row)
+    after: dict[str, tuple[int | None, str]] = {}
 
-    for index, (_kind, code, stored) in enumerate(handed):
-        after[f"python probes/p{index}.py"] = code
+    for index, (_kind, run, stored) in enumerate(handed):
+        after[f"python probes/p{index}.py"] = run
 
         if not stored:
             del verdict.probes[f"probes/p{index}.py"]
@@ -1933,19 +1978,26 @@ def test_recheck_clears_a_blocker_exactly_when_its_re_run_shows_it_fixed(
         if any(text is None for text in probes.values()):
             return [CommandRun(c, None, "refused: a probe was not kept") for c in commands]
 
-        return [CommandRun(c, after[c], "") for c in commands]
+        return [CommandRun(c, *after[c]) for c in commands]
 
     rechecked = critic_module.recheck(verdict, reproduce, tmp_path)
 
-    def ran(kind: str, code: int | None, stored: bool) -> bool:
+    def ran(kind: str, run: tuple[int | None, str], stored: bool) -> bool:
+        code = run[0]
         measured = not (kind == "weak_test" and code == critic_module.WRONG_PASSES)
         return (
-            kind != "gaming" and stored and code is not None and code not in (126, 127) and measured
+            kind != "gaming"
+            and stored
+            and code is not None
+            and code not in (126, 127)
+            and run not in _SELECTED_NOTHING
+            and measured
         )
 
-    def cleared(kind: str, code: int | None, stored: bool) -> bool:
+    def cleared(kind: str, run: tuple[int | None, str], stored: bool) -> bool:
+        code = run[0]
         fixed = code != critic_module.WRONG_PASSES if kind == "weak_test" else code == 0
-        return ran(kind, code, stored) and fixed
+        return ran(kind, run, stored) and fixed
 
     assert [one.claim for one in rechecked.blockers] == [
         f"claim {index}" for index, one in enumerate(handed) if not cleared(*one)
@@ -1958,15 +2010,15 @@ def test_recheck_clears_a_blocker_exactly_when_its_re_run_shows_it_fixed(
 
     kept = {one.claim: one for one in rechecked.kept}
 
-    for index, (kind, code, stored) in enumerate(handed):
+    for index, (kind, run, stored) in enumerate(handed):
         one = kept[f"claim {index}"]
 
         if kind == "gaming":
             assert one.blocked_exit is None
         else:
             blocked = critic_module.WRONG_PASSES if kind == "weak_test" else 1
-            assert one.rerun_exit == (code if stored else None)
-            assert one.blocked_exit == (blocked if cleared(kind, code, stored) else None)
+            assert one.rerun_exit == (run[0] if stored else None)
+            assert one.blocked_exit == (blocked if cleared(kind, run, stored) else None)
 
 
 def test_stored_probes_keep_their_path_below_probes(tmp_path):

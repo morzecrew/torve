@@ -115,6 +115,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A revision that fixes a critic's finding no longer escalates because the fix moved the test
+  the repro names. A pytest re-run whose selector finds no test, such as an example id that
+  carries its line span, now goes to the critic's re-review instead of counting as a failure.
+
 - In a uv project, a critic repro written as `uv run --no-sync` now runs in the project's
   environment when the engine re-runs it. That environment used to start empty, so the probe
   failed on its first import on every tree, and a revision that fixed the finding still escalated.

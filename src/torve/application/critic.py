@@ -280,6 +280,16 @@ Reproduce = Callable[[Sequence[str], Mapping[str, str | None]], list[CommandRun]
 #: not run the command (S-0127/D-1).
 NOT_RUNNABLE = frozenset({126, 127})
 
+#: What pytest prints, by its exit, when a selector finds nothing in the tree
+#: it runs on (S-0128/D-3, S-0128/A-5): a test id or file the revision renamed
+#: or moved, as a fix that adds lines renames a case keyed by its line span,
+#: exits 4 beside its `not found` line, and a selection left empty exits 5
+#: beside its whole summary line. pytest has then run no test of the candidate.
+_SELECTED_NOTHING = {
+    4: re.compile(r"^ERROR: (?:file or directory )?not found: ", re.M),
+    5: re.compile(r"^[= ]*(?:no tests ran|\d+ deselected)(?: in [\d.]+s)?[= ]*$", re.M),
+}
+
 #: The one exit a `weak_test` probe blocks with (S-0127/D-2): the changed test
 #: passed the wrong implementation the probe built. A crashed probe exits 1,
 #: and no interpreter, test runner or shell gives this code on its own.
@@ -1081,11 +1091,17 @@ def _cleared(finding: CriticFinding, run: CommandRun) -> bool | None:
     """What *run* measured of *finding* after a revision: True when it ran
     and shows the finding fixed — exit 0, or anything but `WRONG_PASSES` for a
     `weak_test` (S-0127/D-2) — False when it ran and still fails, and None
-    when it measured nothing: no exit, 126 or 127 (S-0127/D-1), or a
-    `weak_test` probe's `WRONG_PASSES`, since the probe runs the tests the
-    review named and a revision may have added the one that catches it."""
+    when it measured nothing: no exit, 126 or 127 (S-0127/D-1), a pytest
+    whose selector found no test in the revised tree, or a `weak_test`
+    probe's `WRONG_PASSES`, since the probe runs the tests the review named
+    and a revision may have added the one that catches it."""
 
     if run.exit_code is None or run.exit_code in NOT_RUNNABLE:
+        return None
+
+    selected_nothing = _SELECTED_NOTHING.get(run.exit_code)
+
+    if selected_nothing is not None and selected_nothing.search(run.tail):
         return None
 
     if finding.kind == "weak_test":
@@ -1107,8 +1123,8 @@ def recheck(
 
     A blocker the re-run shows fixed is cleared; one it shows still failing
     is re-raised (S-0127/D-4); one it measured nothing of — no exit, 126 or
-    127, a probe the review did not store, a `weak_test` probe's
-    `WRONG_PASSES` — stays a blocker. A `gaming`
+    127, a pytest that selected no test, a probe the review did not store, a
+    `weak_test` probe's `WRONG_PASSES` — stays a blocker. A `gaming`
     finding and a violated row blocked on located evidence alone
     (S-0127/D-1), so no re-run measures them and they stay too. The result's
     `blockers` are every blocker not cleared: none is a clean turn, a
