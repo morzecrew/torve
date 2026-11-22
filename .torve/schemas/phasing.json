@@ -859,6 +859,12 @@
           "description": "The phase's declared structural or routine character, copied verbatim from\nthe phasing entry at mint (S-0034/D-1). Absent by default \u2014 a task with no\ncharacter routes on the seat alone, same as one with no tier_variant.",
           "title": "Character"
         },
+        "compile": {
+          "default": false,
+          "description": "Whether its document asked for its unit to compile acceptance probes\n(S-0129/D-6), copied from the document's `compile` at mint.",
+          "title": "Compile",
+          "type": "boolean"
+        },
         "decisions": {
           "description": "The rows inherited at mint, grade and paths copied (S-0007/D-5); an empty\nlist is legal but must be explicit.",
           "items": {
@@ -1028,6 +1034,12 @@
       },
       "title": "After",
       "type": "array"
+    },
+    "compile": {
+      "default": false,
+      "description": "Whether every contract this document mints compiles it into acceptance\nprobes before its first candidate (S-0129/D-6), as the repository's\n`review.compile` asks of every unit; under `review.mode: classic` it asks\nnothing.",
+      "title": "Compile",
+      "type": "boolean"
     },
     "contract_example": {
       "anyOf": [

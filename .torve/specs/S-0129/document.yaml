@@ -277,3 +277,5 @@ questions:
     text: >-
       Should `review.compile` default to true under `review.mode: critic`? It waits
       for the three-trial bed runs and the wrong-probe rate they show.
+    status: settled
+    settled_by: A-4

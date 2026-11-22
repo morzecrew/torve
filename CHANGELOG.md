@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A document can ask for its own acceptance compile with `compile: true` in its
+  `phasing.yaml`, beside `unit`. Its units then compile their probes under `review.mode: critic`
+  with the repository's `review.compile` left off, which stays the default.
+
 - A Claude Code seat now revises a blocked candidate in its own session under
   `review.revision: session`, as a dsh seat does. The engine re-runs the blockers on the
   revised tree instead of starting a new attempt and asking the critic again. A harness
@@ -114,6 +118,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only when the seat states none.
 
 ### Fixed
+
+- A unit's compiled probes now follow its document. After an amendment or a `torve plan
+  --refresh` changes the document or the contract's rows, the next attempt compiles again,
+  instead of judging candidates by probes that quote text no longer there.
 
 - A revision that fixes a critic's finding no longer escalates because the fix moved the test
   the repro names. A pytest re-run whose selector finds no test, such as an example id that

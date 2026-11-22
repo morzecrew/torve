@@ -1092,10 +1092,21 @@ recheck re-runs every probe, so a turn that breaks one that passed is blocked. A
 probe whose re-run times out or exits 126 or 127 measured nothing and blocks
 nothing. A seat that gave no answer, whether a provider error or a harness that
 never ran, stores nothing: that attempt runs without probes and the next one
-compiles again, so not every attempt is covered. The compile is unit
+compiles again, so not every attempt is covered. A store serves only the
+document and rows it was compiled from: after an amendment or a refresh, the
+next attempt removes it and compiles again (S-0129/D-7). The compile is unit
 spend, recorded as a `review` with `mode: compile`, and `unit.closed` carries
 an `acceptance` block whose `failed_first` counts the probes that blocked the
 first decision (S-0129/D-5).
+
+A document asks for its own compile with `compile: true` in its phasing file,
+beside `unit` (S-0129/D-6). With `review.compile` off, only that document's
+units compile; under `mode: classic` the key does nothing. Leave the
+repository's switch off: on the eval bed's three-trial runs, compiling every
+document cost about twice the reviewer spend for a gain within noise, and the
+one gain that repeated was a rule a document states only outside its rows, a
+format in its interface section (S-0129/A-4). That is what a document's own
+`compile: true` is for.
 
 The thread leg needs `threads.enabled`, the forge's bots in `threads.bots`, and
 a landing that reads a document's pull request — `promotion.landing:

@@ -302,6 +302,9 @@ class Task(BaseModel):
     """The phase's declared structural or routine character, copied verbatim from
     the phasing entry at mint (S-0034/D-1). Absent by default — a task with no
     character routes on the seat alone, same as one with no tier_variant."""
+    compile: bool = False
+    """Whether its document asked for its unit to compile acceptance probes
+    (S-0129/D-6), copied from the document's `compile` at mint."""
     _round: RoundRecord | None = PrivateAttr(default=None)
     """A review round's own description (S-0099/D-5), read from the contract's
     `round:` mapping. Kept off the model's field surface on purpose: a task is

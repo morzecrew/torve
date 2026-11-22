@@ -204,6 +204,49 @@ def test_compile_is_off_by_default_and_needs_the_critic():
         ReviewConfig(compile=True)
 
 
+@pytest.mark.parametrize(
+    ("mode", "everywhere", "asked", "compiles"),
+    [
+        ("critic", False, False, False),
+        ("critic", False, True, True),
+        ("critic", True, False, True),
+        ("critic", True, True, True),
+        ("classic", False, False, False),
+        ("classic", False, True, False),
+    ],
+)
+def test_a_document_that_asks_to_compile_is_heard_under_the_critic_alone(
+    mode, everywhere, asked, compiles
+):
+    """S-0129/D-6: a unit compiles when the repository asks for every unit or
+    its document asks for its own, and only `mode: critic` hears the
+    document, since its decision is where a probe's failure goes."""
+
+    from torve.config.runconfig import ReviewConfig
+
+    assert ReviewConfig(mode=mode, compile=everywhere).compiles(asked) is compiles
+
+
+def test_every_reader_of_compile_asks_the_one_rule():
+    """S-0129/D-6: a reader that read `review.compile` itself would compile a
+    unit its document asked for under the repository's switch alone, so no
+    source reads it but through `ReviewConfig.compiles`."""
+
+    import re
+
+    import torve
+
+    source = Path(torve.__file__).parent
+    readers = [
+        f"{path.relative_to(source)}:{number}"
+        for path in sorted(source.rglob("*.py"))
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if re.search(r"\.review\.compile\b", line)
+    ]
+
+    assert readers == []
+
+
 def test_resolved_revision_is_session_under_critic_and_off_under_classic(tmp_path: Path):
     """S-0128/D-2, S-0124/D-8: `review.revision` left unset resolves to
     `session` under `mode: critic` and `off` under `classic`; a mode the

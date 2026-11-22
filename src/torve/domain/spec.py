@@ -603,6 +603,11 @@ class Document(Item):
     unit: Literal["phase", "document"] | None = None
     """What one contract covers (S-0122/D-13): a phasing entry, or the whole
     document. Unset is `document` for eight phases or fewer, `phase` beyond."""
+    compile: bool = False
+    """Whether every contract this document mints compiles it into acceptance
+    probes before its first candidate (S-0129/D-6), as the repository's
+    `review.compile` asks of every unit; under `review.mode: classic` it asks
+    nothing."""
     phasing: list[Phase] = Field(default_factory=list)
     """The mintable units `torve plan` derives contracts from."""
     contract_example: Task | None = None
@@ -798,7 +803,7 @@ FILE_FIELDS: dict[str, tuple[str, ...]] = {
         "questions",
     ),
     DECISIONS_FILE: ("decisions", "invariants", "retired"),
-    PHASING_FILE: ("after", "unit", "phasing", "contract_example"),
+    PHASING_FILE: ("after", "unit", "compile", "phasing", "contract_example"),
     AMENDMENTS_FILE: ("amendments", "editorial"),
 }
 

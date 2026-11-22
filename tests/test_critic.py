@@ -807,7 +807,7 @@ def test_weak_test_judge_says_whether_a_revision_is_left(monkeypatch, spent):
     run = SimpleNamespace(
         root=Path("."),
         worktree=Path("."),
-        task=None,
+        task=SimpleNamespace(compile=False),
         config=config,
         deps=SimpleNamespace(runtime=None, broker=None),
         last_pass=SimpleNamespace(patch="", evidence=None, digest=""),
@@ -1361,7 +1361,7 @@ def test_rejected_claim_judge_reads_the_attempt_under_review(monkeypatch):
     run = SimpleNamespace(
         root=Path("."),
         worktree=Path("."),
-        task=None,
+        task=SimpleNamespace(compile=False),
         config=RunnerConfig(),
         deps=SimpleNamespace(runtime=None, broker=None),
         last_pass=SimpleNamespace(patch="", evidence=None, digest=""),
@@ -1390,7 +1390,7 @@ def test_reproduced_judge_reruns_through_the_runs_reproduce(monkeypatch):
     run = SimpleNamespace(
         root=Path("."),
         worktree=Path("."),
-        task=None,
+        task=SimpleNamespace(compile=False),
         config=RunnerConfig(),
         deps=SimpleNamespace(runtime=None, broker=None),
         last_pass=SimpleNamespace(patch="", evidence=None, digest=""),

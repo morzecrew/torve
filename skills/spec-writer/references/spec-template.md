@@ -79,6 +79,7 @@ questions:
 ```yaml
 # yaml-language-server: $schema=../../schemas/phasing.json
 unit: phase   # optional: one contract for the whole document is the default at eight phases or fewer
+compile: true # optional, review.mode critic only: compile the document into acceptance probes before the first candidate
 phasing:
   - phase: 1
     title: <a short unit name>
