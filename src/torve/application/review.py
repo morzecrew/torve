@@ -34,7 +34,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from torve.application import threads
-from torve.application.dispatch import Dispatch, emit, run_routing
+from torve.application.dispatch import Dispatch, emit, run_routing, tier_cache
 from torve.application.ports import (
     Agent,
     AgentContext,
@@ -1036,6 +1036,9 @@ def run_seat(
             # no budget or timeout of its own exists to widen it.
             timeout_s=sandbox_timeout_for(config, tier),
             env_passthrough=credential_names(config, tier),
+            # S-0129/D-8: the seat's own tier's derived cache, so a seat that
+            # can reach no package index still installs the tree it reviews.
+            volumes=tier_cache(tier, config.worker_slot),
         )
 
         handle = runtime.create(spec, copy)

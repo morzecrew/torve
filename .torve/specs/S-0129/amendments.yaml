@@ -203,6 +203,36 @@ amendments:
         after: 654891728311c342/9e3c30ff6adfab4c
     md: |
       Amended on 2026-11-22 from the second review round of the same change. A task whose own `wallclock_minutes` is longer than its unit's clock runs an attempt after the unit's clock is spent; the compile guard skips that attempt's compile, and A-5's check sat inside the compile, so the planting, the critic and the recheck still read a store from the old document. The check now also runs when the guard skips, and the runner, where the guard is, joins D-7's paths.
+  - id: A-7
+    at: '2026-11-22T21:15:27Z'
+    title: A reviewing seat mounts its own tier's cache
+    changes:
+      - subject: D-8
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-8
+        field: paths
+        before: []
+        after: [src/torve/application/review.py, src/torve/application/dispatch.py]
+      - subject: D-8
+        field: text
+        before: <decision>
+        after: >-
+          A reviewing seat's sandbox mounts the derived cache its own tier names,
+          slot-suffixed at the fixed cache mount as an attempt's is (`tier_cache`),
+          never the executor's or the gate battery's; a tier that names none is cold,
+          and no replay rule applies, since a review never runs under shadow
+      - subject: D-8
+        field: fingerprint
+        after: 9bc1886c86a65ce3/afa7380a7acc4d74
+    md: |
+      Amended on 2026-11-23 from the seats' own traces in the bed's Sonnet three-trial runs. The reviewer tier named a derived cache, which the bed warmed, but no seat mounted it: a seat's sandbox carried no volume, so in a sandbox that reaches no package index its `uv run` could not install the project.
+
+      - **Compile seats:** all 39 met a failing `uv run` (102 of their 159 uv calls), and 19 wrote stubs for missing packages and tried their probes under torve's own interpreter.
+      - **Critic seats:** 57 of 86 met one; they fared better only because the candidate's copy can carry the executor's environment.
+
+      Run in the seat's image with a writable copy of that cache and no network, the same tree installed and its suite passed. D-8 mounts the cache the seat's tier names, as an attempt's tier's is mounted.
 editorial:
   - subject: D-7
     field: text

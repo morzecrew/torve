@@ -119,6 +119,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A reviewing seat now mounts the derived cache its own tier names in `cache_volume`, as an
+  attempt's sandbox does. A compile or critic seat that can reach no package index can
+  install the project and run its tests, instead of stubbing the packages it lacks.
+
 - A unit's compiled probes now follow its document. After an amendment or a `torve plan
   --refresh` changes the document or the contract's rows, the next attempt compiles again,
   instead of judging candidates by probes that quote text no longer there.

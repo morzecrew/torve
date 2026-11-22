@@ -739,12 +739,23 @@ def cache_volumes(run: Dispatch, role: str = "") -> dict[str, str]:
     files there for the next attempt to read (S-0122/D-3).
     """
 
-    if run.shadow or not run.tier.cache_volume:
+    if run.shadow:
+        return {}
+
+    return tier_cache(run.tier, run.config.worker_slot, role)
+
+
+def tier_cache(tier: TierConfig, slot: int, role: str = "") -> dict[str, str]:
+    """*tier*'s derived-cache volume on worker *slot*, as `cache_volumes`
+    names it, with no shadow to read: a reviewing seat, which never runs under
+    shadow, mounts its own tier's (S-0129/D-8)."""
+
+    if not tier.cache_volume:
         return {}
 
     suffix = f"-{role}" if role else ""
 
-    return {f"{run.tier.cache_volume}-{run.config.worker_slot}{suffix}": CACHE_MOUNT}
+    return {f"{tier.cache_volume}-{slot}{suffix}": CACHE_MOUNT}
 
 
 # ....................... #

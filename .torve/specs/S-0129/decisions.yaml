@@ -162,3 +162,20 @@ decisions:
       uv run pytest -q tests/test_acceptance.py tests/test_runner.py -k "another_document
       or stale_store or never_compiles_again or clock_skipped"
     fingerprint: 654891728311c342/9e3c30ff6adfab4c
+  - id: D-8
+    grade: ASSUMED
+    text: >-
+      A reviewing seat's sandbox mounts the derived cache its own tier names, slot-suffixed
+      at the fixed cache mount as an attempt's is (`tier_cache`), never the executor's
+      or the gate battery's; a tier that names none is cold, and no replay rule applies,
+      since a review never runs under shadow
+    paths: [src/torve/application/review.py, src/torve/application/dispatch.py]
+    consequence: >-
+      a compile seat can run the probes it writes against the installed project, and
+      a critic's seat the candidate's tests; code a seat runs can reach only its own
+      tier's cache, which no gate reads (S-0122/D-3)
+    cites: [D-1, S-0122/D-3]
+    check: >-
+      uv run pytest -q tests/test_review_run.py tests/test_runner.py -k "own_tiers_cache
+      or unnamed_cache_mounts_nothing"
+    fingerprint: 9bc1886c86a65ce3/afa7380a7acc4d74
