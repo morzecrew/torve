@@ -174,6 +174,35 @@ amendments:
         after: e465645927644f6e/96a8cd04ffe1834e
     md: |
       Amended on 2026-11-22 from a review of the change that let a document ask for its own compile. A unit's store was kept by task and read before anything else, so after a refresh rewrote the contract's rows, or an amendment changed the document, the next attempt still planted and re-ran the probes compiled from the old text. A probe pinning a passage amended away then blocked on its row whatever the critic said (D-4). D-7 ties the store to what it was compiled from, so D-1's one compile per unit holds per document and rows.
+  - id: A-6
+    at: '2026-11-22T20:15:19Z'
+    title: A skipped compile leaves no stale store
+    changes:
+      - subject: D-7
+        field: paths
+        before: [src/torve/application/acceptance.py]
+        after: [src/torve/application/acceptance.py, src/torve/application/runner.py]
+      - subject: D-7
+        field: text
+        before: >-
+          A stored compile serves only the document and rows it was compiled from:
+          the store records a digest of the document's files and the contract's rows
+          as they are staged for the seat, and a unit whose digest differs, an amendment
+          or a refresh since, removes the store before its seat runs and compiles
+          again; a store written before the digest was recorded differs
+        after: >-
+          A stored compile serves only the document and rows it was compiled from:
+          the store records a digest of the document's files and the contract's rows
+          as they are staged for the seat, and a unit whose digest differs, an amendment
+          or a refresh since, removes the store before anything reads it and compiles
+          again, or runs without probes when its cap or clock skipped the compile;
+          a store written before the digest was recorded differs
+      - subject: D-7
+        field: fingerprint
+        before: fb6aca227ef77bdd/96a8cd04ffe1834e
+        after: 654891728311c342/9e3c30ff6adfab4c
+    md: |
+      Amended on 2026-11-22 from the second review round of the same change. A task whose own `wallclock_minutes` is longer than its unit's clock runs an attempt after the unit's clock is spent; the compile guard skips that attempt's compile, and A-5's check sat inside the compile, so the planting, the critic and the recheck still read a store from the old document. The check now also runs when the guard skips, and the runner, where the guard is, joins D-7's paths.
 editorial:
   - subject: D-7
     field: text

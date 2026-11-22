@@ -2055,6 +2055,13 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
 
         budget_spent = _unit_spend(state)
 
+    elif critic and run.config.review.compiles(run.task.compile):
+        from torve.application.acceptance import discard_stale
+
+        # S-0129/D-7: a task clock longer than the unit's runs an attempt the
+        # guard skipped; no other document's probes are planted or judged in it.
+        await asyncio.to_thread(discard_stale, run)
+
     # What each launched candidate's dispatch is, so a cancelled one's
     # finished turns can still be priced (S-0124/D-7).
     dispatches: dict[int, Dispatch] = {}

@@ -520,6 +520,38 @@ def _fact(state: RunState, fact: str) -> None:
     state.save()
 
 
+def _inputs(run: Dispatch) -> tuple[dict[str, str], str, str]:
+    """The document's files and the contract's rows as the seat is staged
+    them, and the digest of both a store records (S-0129/D-7)."""
+
+    files = _document_files(run.root / run.config.specs.path, run.task.spec)
+    rows = yaml.safe_dump(_rows_document(run.task.decisions), sort_keys=False, allow_unicode=True)
+
+    return files, rows, hashlib.sha256(yaml.safe_dump([files, rows]).encode("utf-8")).hexdigest()
+
+
+def _current(run: Dispatch, source: str) -> Acceptance | None:
+    """The unit's store when it was compiled from *source*; one from another
+    document or other rows, an amendment or a refresh since, is removed, so
+    neither a planting, the critic nor the recheck meets it (S-0129/D-7)."""
+
+    stored = load(run.root, run.task.id)
+
+    if stored is not None and stored.source == source:
+        return stored
+
+    store_file(run.root, run.task.id).unlink(missing_ok=True)
+
+    return None
+
+
+def discard_stale(run: Dispatch) -> None:
+    """A compile the unit's cap or clock skipped leaves no store from another
+    document or other rows behind it (S-0129/D-7)."""
+
+    _current(run, _inputs(run)[2])
+
+
 def compile_acceptance(
     run: Dispatch,
     state: RunState,
@@ -538,18 +570,14 @@ def compile_acceptance(
 
     from torve.application.telemetry import config_hash
 
-    files = _document_files(run.root / run.config.specs.path, run.task.spec)
-    rows = yaml.safe_dump(_rows_document(run.task.decisions), sort_keys=False, allow_unicode=True)
-    source = hashlib.sha256(yaml.safe_dump([files, rows]).encode("utf-8")).hexdigest()
-    stored = load(run.root, run.task.id)
+    files, rows, source = _inputs(run)
+    # S-0129/D-7: a stale store goes before the seat runs, so a seat that
+    # fails leaves the unit without probes rather than with stale ones.
+    stored = _current(run, source)
 
-    if stored is not None and stored.source == source:
+    if stored is not None:
         return stored
 
-    # S-0129/D-7: a store from another document or other rows, an amendment
-    # or a refresh since, goes before the seat runs, so a seat that fails
-    # leaves the unit without probes rather than with stale ones.
-    store_file(run.root, run.task.id).unlink(missing_ok=True)
     started = time.monotonic()
 
     if not files:

@@ -711,9 +711,9 @@ A document asks for its own compile with `compile: true` in its phasing file bes
 
 ### S-0129/D-7 — `ASSUMED` (Acceptance compiled before the session)
 
-A stored compile serves only the document and rows it was compiled from: the store records a digest of the document's files and the contract's rows as they are staged for the seat, and a unit whose digest differs, an amendment or a refresh since, removes the store before its seat runs and compiles again; a store written before the digest was recorded differs
+A stored compile serves only the document and rows it was compiled from: the store records a digest of the document's files and the contract's rows as they are staged for the seat, and a unit whose digest differs, an amendment or a refresh since, removes the store before anything reads it and compiles again, or runs without probes when its cap or clock skipped the compile; a store written before the digest was recorded differs
 
-- Paths: `src/torve/application/acceptance.py`
-- Check: `uv run pytest -q tests/test_acceptance.py -k "another_document or stale_store or never_compiles_again"` (shadow; runs as `decision:S-0129/D-7`)
+- Paths: `src/torve/application/acceptance.py` `src/torve/application/runner.py`
+- Check: `uv run pytest -q tests/test_acceptance.py tests/test_runner.py -k "another_document or stale_store or never_compiles_again or clock_skipped"` (shadow; runs as `decision:S-0129/D-7`)
 
 <!-- /torve:managed -->

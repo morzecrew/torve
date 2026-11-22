@@ -148,9 +148,10 @@ decisions:
       A stored compile serves only the document and rows it was compiled from: the
       store records a digest of the document's files and the contract's rows as they
       are staged for the seat, and a unit whose digest differs, an amendment or a
-      refresh since, removes the store before its seat runs and compiles again; a
-      store written before the digest was recorded differs
-    paths: [src/torve/application/acceptance.py]
+      refresh since, removes the store before anything reads it and compiles again,
+      or runs without probes when its cap or clock skipped the compile; a store written
+      before the digest was recorded differs
+    paths: [src/torve/application/acceptance.py, src/torve/application/runner.py]
     rationale: >-
       a refresh (S-0088/D-1) rewrites a contract's rows and an amendment its document,
       while the store, kept by task, outlived both; a digest of what was staged is
@@ -158,6 +159,6 @@ decisions:
       reach
     cites: [D-1, D-4, S-0088/D-1]
     check: >-
-      uv run pytest -q tests/test_acceptance.py -k "another_document or stale_store
-      or never_compiles_again"
-    fingerprint: fb6aca227ef77bdd/96a8cd04ffe1834e
+      uv run pytest -q tests/test_acceptance.py tests/test_runner.py -k "another_document
+      or stale_store or never_compiles_again or clock_skipped"
+    fingerprint: 654891728311c342/9e3c30ff6adfab4c
