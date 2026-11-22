@@ -994,7 +994,7 @@
         },
         "cache_volume": {
           "default": "",
-          "description": "S-0035/the-derived-cache-volume, S-0035/D-4: a named tier opts its run's sandboxes\ninto the derived-cache volume `cache_volume-<worker_slot>` \u2014 slot-suffixed like the\nauth volume, so two concurrent workers never share a cache \u2014 mounted read-write at\nthe fixed CACHE_MOUNT with the toolchain cache homes pointed at it by the runtime\nadapter. Empty (the default) is cold exactly as today. The volume holds derived state\nonly: deleting it may change nothing but wall clock (S-0035/D-1), and shadow replays\nnever mount it (S-0035/D-3 \u2014 the exclusion is applied where the mount is composed,\nunder the runner's `shadow` flag).",
+          "description": "S-0035/the-derived-cache-volume, S-0035/D-4: a named tier opts its run's sandboxes,\na reviewing seat's under its own tier among them (S-0129/D-8), into the\nderived-cache volume `cache_volume-<worker_slot>` \u2014 slot-suffixed like the\nauth volume, so two concurrent workers never share a cache \u2014 mounted read-write at\nthe fixed CACHE_MOUNT with the toolchain cache homes pointed at it by the runtime\nadapter. Empty (the default) is cold exactly as today. The volume holds derived state\nonly: deleting it may change nothing but wall clock (S-0035/D-1), and shadow replays\nnever mount it (S-0035/D-3 \u2014 the exclusion is applied where the mount is composed,\nunder the runner's `shadow` flag).",
           "title": "Cache Volume",
           "type": "string"
         },

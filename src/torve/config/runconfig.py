@@ -128,8 +128,9 @@ class TierConfig(BaseModel):
     because token refresh writes (§2, S-0004/D-2)."""
 
     cache_volume: str = ""
-    """S-0035/the-derived-cache-volume, S-0035/D-4: a named tier opts its run's sandboxes
-    into the derived-cache volume `cache_volume-<worker_slot>` — slot-suffixed like the
+    """S-0035/the-derived-cache-volume, S-0035/D-4: a named tier opts its run's sandboxes,
+    a reviewing seat's under its own tier among them (S-0129/D-8), into the
+    derived-cache volume `cache_volume-<worker_slot>` — slot-suffixed like the
     auth volume, so two concurrent workers never share a cache — mounted read-write at
     the fixed CACHE_MOUNT with the toolchain cache homes pointed at it by the runtime
     adapter. Empty (the default) is cold exactly as today. The volume holds derived state

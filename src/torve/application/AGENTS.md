@@ -716,4 +716,12 @@ A stored compile serves only the document and rows it was compiled from: the sto
 - Paths: `src/torve/application/acceptance.py` `src/torve/application/runner.py`
 - Check: `uv run pytest -q tests/test_acceptance.py tests/test_runner.py -k "another_document or stale_store or never_compiles_again or clock_skipped"` (shadow; runs as `decision:S-0129/D-7`)
 
+### S-0129/D-8 — `ASSUMED` (Acceptance compiled before the session)
+
+A reviewing seat's sandbox mounts the derived cache its own tier names, slot-suffixed at the fixed cache mount as an attempt's is (`tier_cache`), never the executor's or the gate battery's; a tier that names none is cold, and no replay rule applies, since a review never runs under shadow
+
+- Paths: `src/torve/application/review.py` `src/torve/application/dispatch.py`
+- Consequence: a compile seat can run the probes it writes against the installed project, and a critic's seat the candidate's tests; code a seat runs can reach only its own tier's cache, which no gate reads (S-0122/D-3)
+- Check: `uv run pytest -q tests/test_review_run.py tests/test_runner.py -k "own_tiers_cache or unnamed_cache_mounts_nothing"` (shadow; runs as `decision:S-0129/D-8`)
+
 <!-- /torve:managed -->

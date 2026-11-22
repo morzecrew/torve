@@ -1447,6 +1447,35 @@ def test_a_reviewer_tier_without_clocks_keeps_the_globals(review_rig):
     assert review_specs and all(s.timeout_s == 1500 for s in review_specs)
 
 
+@pytest.mark.parametrize("reviewer_cache", ["torve-review", ""], ids=["named", "unnamed"])
+def test_the_reviewer_seat_mounts_its_own_tiers_cache(review_rig, reviewer_cache):
+    """S-0129/D-8: a reviewing seat mounts the derived cache its own tier
+    names, slot-suffixed, never the executor's; a tier naming none is cold."""
+
+    from torve.config.runconfig import CACHE_MOUNT
+
+    repo, runtime, deps_for = review_rig
+    config = RunnerConfig(
+        review=ReviewConfig(on=["task_gated"]),
+        worker_slot=2,
+        tiers={
+            "planner": TierConfig(),
+            "executor": TierConfig(cache_volume="torve-cache"),
+            "reviewer": TierConfig(cache_volume=reviewer_cache),
+        },
+    )
+
+    state = run_task(repo.root, task_for(repo), config, deps_for(ClockRecordingReviewer()))
+
+    review_specs = _review_sandbox_specs(runtime, state.reviewed_by)
+    expected = {f"{reviewer_cache}-2": CACHE_MOUNT} if reviewer_cache else {}
+    assert review_specs and all(s.volumes == expected for s in review_specs)
+    executor_specs = [s for s in runtime.specs if "t-9001" in s.name and "gates" not in s.name]
+    assert executor_specs and all(
+        s.volumes.get("torve-cache-2") == CACHE_MOUNT for s in executor_specs
+    )
+
+
 # ....................... #
 # S-0054/the-reviewer: what the reviewer reads besides the diff
 
