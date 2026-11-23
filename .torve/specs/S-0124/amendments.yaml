@@ -242,3 +242,41 @@ amendments:
     md: |
       Amended on 2026-11-15 in the pull request that accepts S-0128.
       S-0128/D-3 replaces the turn's second critic call with re-runs of the blockers it was handed. On the bed, the 8 critic re-reviews of session turns took 2,046 s and raised no blocker, and the 14 blockers of those units' first reviews, re-run on the revised trees, all cleared.
+  - id: A-12
+    at: '2026-11-23T10:19:43Z'
+    title: A resumed turn's cost is the session's
+    changes:
+      - subject: D-14
+        field: text
+        before: >-
+          A harness manifest's `session: true` says its image's `run` continues the
+          session `TORVE_SESSION_ID` names, with `TORVE_PROMPT` as the next turn's
+          task, and a seat whose manifest says so keeps its session for D-8's revision
+          turn, as a dsh seat always does through its own driver (S-0122/D-11); any
+          other seat falls back to `fresh` as before. The Claude Code manifests declare
+          it and their image passes the id to `claude -p --resume`; the engine reads
+          the id off the attempt's trace, runs `run` alone so nothing is equipped
+          again, appends the turn's stream to the trace, and adds the turn's cost
+          and token counts, and the receipt its context curve is checked against,
+          to the earlier turns', so those are the attempt's whole as a dsh session's
+          totals are
+        after: >-
+          A harness manifest's `session: true` says its image's `run` continues the
+          session `TORVE_SESSION_ID` names, with `TORVE_PROMPT` as the next turn's
+          task, and a seat whose manifest says so keeps its session for D-8's revision
+          turn, as a dsh seat always does through its own driver (S-0122/D-11); any
+          other seat falls back to `fresh` as before. The Claude Code manifests declare
+          it and their image passes the id to `claude -p --resume`; the engine reads
+          the id off the attempt's trace, runs `run` alone so nothing is equipped
+          again, appends the turn's stream to the trace, and adds the turn's token
+          counts, and the receipt its context curve is checked against, to the earlier
+          turns', while the turn's cost, which claude reports for the whole session,
+          replaces theirs, so those are the attempt's whole as a dsh session's totals
+          are
+      - subject: D-14
+        field: fingerprint
+        after: 3721d5441ffa1ec1/d64cc616a0c2dfed
+    md: |
+      Measured on the bed (13 documents, 3 trials, a Claude Sonnet 5.5 executor on the subscription seat). Each of the 29 session revisions resumed its claude session. On each, the resumed envelope's `total_cost_usd` and `modelUsage` covered the whole session, while its `usage` covered the turn alone. Summing the turns counted the earlier turns' cost twice: a candidate whose first turn cost $2.01 and whose session came to $3.40 recorded $5.41. The token counts were right.
+
+      No cap moved on the bed. A roster-priced seat is costed from its tokens, and a subscription seat's cost reads as unreported. But a seat the roster says nothing about passes the adapter's figure through as its cost, so its revision would have spent the earlier turns against the unit's budget a second time.

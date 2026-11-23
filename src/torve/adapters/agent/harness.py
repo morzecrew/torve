@@ -121,9 +121,10 @@ RUN = "/opt/torve/run"
 # declares `session` (S-0124/D-14).
 SESSION_HARNESS = "dsh"
 
-# What one turn's envelope counts, so a resumed turn's result adds the turns
-# before it (S-0124/D-14).
-COUNTS = ("cost_usd", "input_tokens", "cache_read_tokens", "cache_creation_tokens", "output_tokens")
+# What one turn's envelope counts for its own run, so a resumed turn's result
+# adds the turns before it (S-0124/D-14). Not its cost: claude's resumed
+# `total_cost_usd` is the session's running total.
+COUNTS = ("input_tokens", "cache_read_tokens", "cache_creation_tokens", "output_tokens")
 
 # Where `run` leaves the result — named to the image rather than assumed by it.
 # The equipment mount is `application.equipment.EQUIPMENT_MOUNT`, because the
@@ -2052,9 +2053,11 @@ class HarnessAgent:
         """The turn of a seat whose image resumes by `TORVE_SESSION_ID`
         (S-0124/D-14): the session the attempt's trace names, `run` alone so
         nothing is equipped again, its stream captured as the first turn's was
-        and appended to the trace. Its envelope counts this turn alone, so the
-        result's cost and token counts are *previous*'s and this turn's
-        together, and so is the receipt the context curve is checked against."""
+        and appended to the trace. Its envelope's token counts are this turn's
+        alone, so the result's are *previous*'s and this turn's together, and
+        so is the receipt the context curve is checked against; its
+        `total_cost_usd` prices the whole session, so the result's cost is
+        this turn's (S-0124/D-14)."""
 
         trace = naming.trace_file(ctx.workspace, ctx.attempt)
         opened = (
@@ -2088,9 +2091,12 @@ class HarnessAgent:
             curve = replace(curve, receipt_total=receipt, matches_receipt=receipt == curve.sum)
             record_context(ctx.task.id, curve.as_block())
 
+        cost = getattr(previous, "cost_usd", None) if turn.cost_usd is None else turn.cost_usd
+
         return replace(
             turn,
             context=curve,
+            cost_usd=cost,
             **{
                 name: _together(getattr(previous, name, None), getattr(turn, name))
                 for name in COUNTS

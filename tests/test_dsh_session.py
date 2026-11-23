@@ -240,7 +240,8 @@ def test_a_seat_that_runs_no_session_has_no_follow_up(tmp_path):
 
 def _claude(session: str, cost: float, cache_read: int, output: int, tool: str) -> str:
     """One `claude -p --output-format stream-json` run: its opening `init`, a
-    message calling *tool*, and the envelope counting this run alone."""
+    message calling *tool*, and the envelope: its usage this run's alone, its
+    *cost* the session's so far, as claude prices a resumed session."""
 
     usage = {
         "input_tokens": 5,
@@ -303,10 +304,12 @@ def _resuming(tmp_path, runtime: _Exec, session: bool = True):
 def test_a_seat_that_keeps_its_session_resumes_it_and_counts_both_turns(tmp_path):
     """S-0124/D-14: the turn resumes the session the attempt's trace names,
     runs `run` alone with the turn's task as its prompt, joins the trace, and
-    its result counts both turns, since each envelope counts its own run."""
+    its result counts both turns: the tokens summed, since each envelope's
+    usage is its own run's, and the cost the second envelope's, since that
+    one already prices the first turn."""
 
     first_stream = _claude("claude-1", 0.5, 1000, 50, "Read")
-    runtime = _Exec(first_stream, _claude("claude-1", 0.25, 2000, 30, "Edit"))
+    runtime = _Exec(first_stream, _claude("claude-1", 0.75, 2000, 30, "Edit"))
     ctx, agent = _resuming(tmp_path, runtime)
     first = agent.run(ctx)
 

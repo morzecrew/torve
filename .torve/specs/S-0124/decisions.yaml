@@ -237,8 +237,9 @@ decisions:
       back to `fresh` as before. The Claude Code manifests declare it and their image
       passes the id to `claude -p --resume`; the engine reads the id off the attempt's
       trace, runs `run` alone so nothing is equipped again, appends the turn's stream
-      to the trace, and adds the turn's cost and token counts, and the receipt its
-      context curve is checked against, to the earlier turns', so those are the attempt's
+      to the trace, and adds the turn's token counts, and the receipt its context
+      curve is checked against, to the earlier turns', while the turn's cost, which
+      claude reports for the whole session, replaces theirs, so those are the attempt's
       whole as a dsh session's totals are
     paths:
       - src/torve/adapters/agent/harness.py
@@ -261,3 +262,4 @@ decisions:
     check: >-
       uv run pytest -q tests/test_dsh_session.py tests/test_agents.py tests/test_sandbox_defs.py
       -k "session and (keep or resume)"
+    fingerprint: 3721d5441ffa1ec1/d64cc616a0c2dfed
