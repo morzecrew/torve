@@ -26,3 +26,19 @@ def test_the_measurement_harness_selfcheck_passes() -> None:
 
     assert done.returncode == 0, done.stdout + done.stderr
     assert done.stdout.rstrip().endswith("selfcheck ok")
+
+
+def test_the_failure_mix_selfcheck_passes() -> None:
+    """`scripts/e3_failure_mix.py` folds a re-gated attempt and leaves a replay
+    out (S-0124/D-15); nothing else runs its selfcheck."""
+
+    done = subprocess.run(
+        [sys.executable, "scripts/e3_failure_mix.py", "--selfcheck"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert done.stdout.rstrip().endswith("selfcheck ok")

@@ -21,6 +21,9 @@ def _key(row: dict[str, Any]) -> tuple[str, int, int] | None:
     if "kind" in row or not isinstance(agent, dict) or "attempt" not in agent:
         return None
 
+    if agent.get("shadow"):
+        return None
+
     return (row["task_id"], agent["attempt"], agent.get("candidate", 0))
 
 
@@ -30,6 +33,14 @@ _attempt = st.fixed_dictionaries(
         "agent": st.fixed_dictionaries(
             {"attempt": st.integers(1, 2), "cost_usd": st.floats(0, 5)},
             optional={"candidate": st.integers(1, 2)},
+        ),
+    }
+)
+_shadow = st.fixed_dictionaries(
+    {
+        "task_id": st.sampled_from(["T-1", "T-2"]),
+        "agent": st.fixed_dictionaries(
+            {"attempt": st.integers(1, 2), "shadow": st.just(True), "cost_usd": st.floats(0, 5)}
         ),
     }
 )
@@ -46,7 +57,7 @@ _unstamped = st.fixed_dictionaries(
 _event = st.fixed_dictionaries({"kind": st.just("engine"), "event": st.just("blocked")})
 
 
-@given(st.lists(st.one_of(_attempt, _review, _unstamped, _event), max_size=12))
+@given(st.lists(st.one_of(_attempt, _shadow, _review, _unstamped, _event), max_size=12))
 def test_an_attempt_keeps_its_newest_row_and_every_other_row_passes(rows):
     """S-0124/D-15: whatever the stream holds, the fold keeps, in order, every
     row that is not a stamped attempt row and, of each attempt's rows, the
@@ -70,3 +81,13 @@ def test_a_session_revisions_rows_are_one_attempt_at_its_newest_block():
     other = {"task_id": "T-1", "agent": {"attempt": 1, "candidate": 2, "cost_usd": 1.0}}
 
     assert fold_attempts([first, other, revised]) == [other, revised]
+
+
+def test_a_shadow_replay_is_never_the_newest_row_of_a_live_attempt():
+    """S-0124/D-15: a replay shares the live attempt's stamp, and the readers
+    drop it after the fold, so the fold must not let it replace the live row."""
+
+    live = {"task_id": "T-1", "agent": {"attempt": 1, "cost_usd": 2.0}}
+    replay = {"task_id": "T-1", "agent": {"attempt": 1, "shadow": True, "cost_usd": 0.4}}
+
+    assert fold_attempts([live, replay]) == [live, replay]
