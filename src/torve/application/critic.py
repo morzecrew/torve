@@ -739,6 +739,9 @@ def decide(
         or (finding.kind == "weak_test" and id(finding) not in blocked_ids)
     ]
     probe_runs: list[dict[str, Any]] = []
+    # The first runs of the probes that then passed: a finding blocked on the
+    # very same measurement was blocked on a flake.
+    steadied: set[int] = set()
 
     for probe in acceptance:
         run = measure(probe.command, probe.file, alone=True)
@@ -760,9 +763,16 @@ def decide(
 
         if any(one.exit_code == 0 for one in runs):
             entry["outcome"] = "unsteady"
+            steadied.add(id(run))
             continue
 
-        settled = dispute(probe, runs) if dispute is not None else None
+        # Only a failure every run measured is disputed; one a run could not
+        # measure still blocks as D-4 says, with nothing asked.
+        settled = (
+            dispute(probe, runs)
+            if dispute is not None and all(_failed(one) for one in runs)
+            else None
+        )
 
         if settled is not None:
             entry["dispute"] = _dispute_entry(settled)
@@ -779,6 +789,17 @@ def decide(
         reruns.append((compiled, run))
         blockers.append(compiled)
         kept.append(compiled)
+
+    # A critic finding whose repro is an unsteady probe's command over the
+    # same files shares that probe's cached failure, which its next run
+    # contradicted (S-0129/D-4).
+    for flaky in [
+        one
+        for one in blockers
+        if any(judged is one and id(measured_run) in steadied for judged, measured_run in reruns)
+    ]:
+        blockers.remove(flaky)
+        advisory.append(flaky)
 
     def weight(verdict: RowVerdict) -> tuple[bool, bool, bool]:
         located = bool(verdict.evidence) and locate(verdict.evidence, root) is None
@@ -1242,9 +1263,11 @@ def recheck(
     standing: list[CriticFinding] = []
     judged = dict(zip(map(id, decision.blockers), verdict.blockers, strict=False))
     rechecked: dict[int, JudgedFinding] = {}
-    helpers = _helpers(verdict.probes, decision.kept)
-    compiled = {entry["id"] for entry in decision.acceptance}
     by_id = {probe.id: probe for probe in acceptance}
+    helpers = _helpers(verdict.probes, decision.kept)
+    # The unit's stored probes count too: a counter-probe a dispute kept
+    # (S-0129/D-9) has an id the decision never recorded.
+    compiled = {entry["id"] for entry in decision.acceptance} | set(by_id)
 
     for finding in decision.blockers:
         if finding.kind == "gaming":
@@ -2053,7 +2076,10 @@ def _disputer(run: Dispatch, state: RunState) -> UnitDisputer:
     prices = _list_prices(run.config)
 
     def dispute(probe: Probe, runs: Sequence[CommandRun], critic: Mapping[str, Any]) -> Dispute:
-        cap, clock = selection.UNIT_BUDGETS[_unit_class(run, state)]
+        cap, class_clock = selection.UNIT_BUDGETS[_unit_class(run, state)]
+        # The task's own clock, when it sets one, is the one its re-runs keep.
+        minutes = run.task.budget.wallclock_minutes
+        clock = class_clock if minutes is None else minutes
         # The critic call that asks is spent but not yet recorded.
         asking = selection.notional_spend(critic, prices) or 0.0
 

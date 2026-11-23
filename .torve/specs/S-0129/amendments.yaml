@@ -234,7 +234,7 @@ amendments:
 
       Run in the seat's image with a writable copy of that cache and no network, the same tree installed and its suite passed. D-8 mounts the cache the seat's tier names, as an attempt's tier's is mounted.
   - id: A-8
-    at: '2026-11-23T22:37:53Z'
+    at: '2026-11-23T23:15:52Z'
     title: >-
       A compiled probe's failure stands only when it repeats
     changes:
@@ -253,9 +253,10 @@ amendments:
           The critic's decision re-runs every kept probe against the candidate with
           the stored text; one that executes and exits non-zero runs again until it
           passes or has run three times (`PROBE_RUNS`), and one that passes any run
-          is recorded unsteady and blocks nothing; one that fails every run is put
-          to the dispute D-9 says and, unless the dispute is kept, blocks as a `contract`
-          finding of severity `blocker` on its row, with the probe as its repro, whatever
+          is recorded unsteady and blocks nothing, nor does a critic finding whose
+          re-run was that same first run; one that fails every run is put to the dispute
+          D-9 says and, unless the dispute is kept, blocks as a `contract` finding
+          of severity `blocker` on its row, with the probe as its repro, whatever
           the critic's document says, at every `blocks_at` and on a revision attempt,
           and is never carried; one that exits 0 is recorded passed, and one with
           no exit, 126 or 127 is recorded unmeasured and never blocks; after a session
@@ -263,13 +264,13 @@ amendments:
           broke blocks the turn, and puts nothing to a dispute
       - subject: D-4
         field: fingerprint
-        after: 409aeca27e95d375/e65c5af0a246a016
+        after: 22c625e8b21a06a5/e65c5af0a246a016
     md: |-
       Amended on 2026-11-24 from the bed's replay of the critic over work it had not judged: the 34 trials of the whole-document arm that passed their hidden checks, each attempt's files replayed into the library's critic and compiler unchanged.
 
-      Four of the 771 compiled probes failed against that work. One of them, a probe that orders two processes' exits by `Popen.wait(timeout=...)`, which polls every 50 ms, failed 3 of 6 runs on a correct candidate whose two exits were 8 ms apart. A failure that does not repeat measured the probe, not the candidate, so D-4 now runs a failed probe again, up to three runs in all, and a probe that passes any of them is recorded unsteady and blocks nothing. The recheck after a session turn reads a probe the same way. A failure that repeats on every run goes to the dispute D-9 adds.
+      Four of the 771 compiled probes failed against that work. One of them, a probe that orders two processes' exits by `Popen.wait(timeout=...)`, which polls every 50 ms, failed 3 of 6 runs on a correct candidate whose two exits were 8 ms apart. A failure that does not repeat measured the probe, not the candidate, so D-4 now runs a failed probe again, up to three runs in all, and a probe that passes any of them is recorded unsteady and blocks nothing. A critic finding whose repro is that probe's own command over the same files read the same failed run, so it blocks nothing either. The recheck after a session turn reads a probe the same way. A failure that repeats on every run goes to the dispute D-9 adds.
   - id: A-9
-    at: '2026-11-23T22:37:59Z'
+    at: '2026-11-23T23:15:58Z'
     title: A probe that fails every run is put to a dispute
     changes:
       - subject: D-9

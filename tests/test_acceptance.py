@@ -997,6 +997,43 @@ def test_a_dispute_seat_that_cannot_run_keeps_nothing_and_records_nothing(repo):
     assert not (repo.root / ".torve" / "telemetry.jsonl").exists() or not _records(repo, "dispute")
 
 
+def test_a_dispute_never_writes_through_a_link_in_the_candidate(repo, tmp_path: Path):
+    """S-0129/D-9: the seat's copy is the candidate's, links kept, so a link
+    the executor left on the probe's path refuses the seat rather than carry
+    the staging write outside the copy, and the probe stands."""
+
+    agent = Arbiter()
+    run, state, runs = _disputing(repo, agent)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (run.worktree / "probes").mkdir(exist_ok=True)
+    (run.worktree / "probes" / "acceptance").symlink_to(outside)
+    before = load(repo.root, TASK_ID)
+
+    settled = dispute_probe(run, state, DISPUTED, runs, Base(), Base(), lambda usage: None)
+
+    assert not settled.kept and "passes through a link" in settled.why
+    assert agent.calls == 0 and list(outside.iterdir()) == []
+    assert load(repo.root, TASK_ID) == before
+
+
+def test_planting_leaves_a_folder_at_a_withdrawn_probe_s_path(repo, tmp_path: Path):
+    """S-0129/D-9: a withdrawn probe's planted copy goes, but a folder the
+    executor put at its path is its own and planting goes on past it."""
+
+    _unit(repo, Arbiter())
+    save(
+        repo.root,
+        TASK_ID,
+        Acceptance(kept=[STANDING], withdrawn=[{"id": DISPUTED.id, "file": DISPUTED.file}]),
+    )
+    tree = tmp_path / "tree"
+    (tree / DISPUTED.file).mkdir(parents=True)
+
+    assert plant(repo.root, TASK_ID, tree) == [STANDING.file]
+    assert (tree / DISPUTED.file).is_dir()
+
+
 def test_the_dispute_prompt_is_frozen_with_its_own_schema():
     assert dispute_prompt().startswith("You are the arbiter of one acceptance probe")
     assert ".torve/dispute/dispute.schema.json" in dispute_prompt()

@@ -279,6 +279,15 @@ def _collapsed(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _linked(tree: Path, name: str) -> bool:
+    """Whether a link sits anywhere on *name*'s path under *tree*, which a
+    write would follow out of it."""
+
+    parts = PurePosixPath(name).parts
+
+    return any(tree.joinpath(*parts[:depth]).is_symlink() for depth in range(1, len(parts) + 1))
+
+
 def _own_file(name: str) -> str | None:
     """*name* as a path under `probes/acceptance/`, or None when it is not
     one: absolute, leaving it, or naming the directory itself."""
@@ -504,17 +513,14 @@ def plant(root: Path, task_id: str, worktree: Path) -> list[str]:
     # (S-0129/D-9), so a copy an earlier planting left goes.
     for one in stored.withdrawn:
         name = _own_file(str(one.get("file", "")))
-        parts = PurePosixPath(name).parts if name else ()
 
-        if not name or name in held:
+        # Only a plain file goes: a link is never followed, and a folder the
+        # executor put there is its own.
+        if not name or name in held or _linked(worktree, name):
             continue
 
-        if any(
-            worktree.joinpath(*parts[:depth]).is_symlink() for depth in range(1, len(parts) + 1)
-        ):
-            continue
-
-        (worktree / name).unlink(missing_ok=True)
+        if (worktree / name).is_file():
+            (worktree / name).unlink()
 
     planted: list[str] = []
 
@@ -1117,6 +1123,13 @@ def dispute_probe(
 
     def stage(copy: Path) -> None:
         scrub_copy(copy)
+        written = [f"{DISPUTE_DIR}/{name}" for name in staged] + [probe.file]
+
+        # The copy is the candidate's, links kept: a write through one the
+        # executor left would land outside it, so the seat is refused instead.
+        for name in written:
+            if _linked(copy, name):
+                raise ValueError(f"{name} passes through a link in the candidate")
 
         for name, text in staged.items():
             path = copy / DISPUTE_DIR / name

@@ -2460,6 +2460,52 @@ def test_a_failing_probe_runs_again_and_blocks_only_when_no_run_passes(first, re
     assert decision.advisory == []
 
 
+def test_a_critic_finding_on_an_unsteady_probe_s_own_measurement_blocks_nothing(tmp_path):
+    """S-0129/D-4: a critic finding whose repro is a compiled probe's command
+    over the same files shares that probe's cached first run; when the probe
+    then passes, the finding was blocked on a flake and is advisory."""
+
+    _app(tmp_path)
+    probe = _compiled()
+    flaky = finding(repro={"command": probe.command, "file": probe.file})
+    rerun = Exits(1, 0)
+
+    decision = decide(
+        CriticDocument.model_validate({"rows": [], "findings": [flaky]}),
+        {OWNED: True},
+        tmp_path,
+        "major",
+        reproduce=rerun,
+        acceptance=[probe],
+    )
+
+    (entry,) = decision.acceptance
+    assert entry["outcome"] == "unsteady" and len(rerun.calls) == 2
+    assert not decision.blocked and decision.blockers == []
+    assert [one.id for one in decision.advisory] == ["F1"]
+
+
+def test_a_failure_a_later_run_could_not_measure_is_not_disputed():
+    """S-0129/D-9: only a probe every run measured failing is disputed; one
+    whose later runs measured nothing blocks as D-4 says, with nothing
+    asked."""
+
+    probe = _compiled()
+    asked: list[str] = []
+
+    decision = decide(
+        CriticDocument.model_validate({"rows": [], "findings": []}),
+        {OWNED: True},
+        Path("."),
+        "major",
+        reproduce=Exits(1, None),
+        acceptance=[probe],
+        dispute=lambda one, runs: asked.append(one.id) or _settled(one, True),
+    )
+
+    assert asked == [] and [one.id for one in decision.blockers] == [probe.id]
+
+
 def _settled(probe, kept: bool):
     from torve.application.acceptance import Dispute
 
@@ -2526,23 +2572,32 @@ def test_a_probe_that_fails_every_run_is_disputed_and_a_kept_dispute_blocks_noth
 
 
 @pytest.mark.parametrize(
-    ("spent", "critic_cost", "disputes", "asked"),
+    ("spent", "critic_cost", "disputes", "minutes", "asked"),
     [
-        (0.5, 0.2, 0, True),
-        (0.5, 1.0, 0, False),
-        (1.5, 0.0, 0, False),
-        (0.0, 0.0, 2, False),
-        (0.0, 0.0, 1, True),
+        (0.5, 0.2, 0, None, True),
+        (0.5, 1.0, 0, None, False),
+        (1.5, 0.0, 0, None, False),
+        (0.0, 0.0, 2, None, False),
+        (0.0, 0.0, 1, None, True),
+        (0.0, 0.0, 0, 0, False),
     ],
-    ids=["within", "the-asking-critic-tips-it", "at-the-cap", "two-made", "one-made"],
+    ids=[
+        "within",
+        "the-asking-critic-tips-it",
+        "at-the-cap",
+        "two-made",
+        "one-made",
+        "past-the-task-clock",
+    ],
 )
 def test_a_unit_disputes_within_its_cap_and_at_most_twice(
-    tmp_path, monkeypatch, spent, critic_cost, disputes, asked
+    tmp_path, monkeypatch, spent, critic_cost, disputes, minutes, asked
 ):
     """S-0129/D-9: the unit puts a probe to a dispute only below its cap with
     the critic call that asks counted, though its spend is not yet recorded,
-    and only while it has made fewer than `DISPUTE_CAP` disputes; otherwise
-    the probe blocks with nothing asked."""
+    within the task's own clock when it sets one, and only while it has made
+    fewer than `DISPUTE_CAP` disputes; otherwise the probe blocks with
+    nothing asked."""
 
     from types import SimpleNamespace
 
@@ -2569,14 +2624,13 @@ def test_a_unit_disputes_within_its_cap_and_at_most_twice(
         return Dispute(probe=probe.id, kept=True, why="kept")
 
     monkeypatch.setattr(acceptance_module, "dispute_probe", disputed)
-    run = SimpleNamespace(
-        config=critic_config(), unit_size="S", root=tmp_path, task=SimpleNamespace(id=TASK_ID)
-    )
+    task = SimpleNamespace(id=TASK_ID, budget=SimpleNamespace(wallclock_minutes=minutes))
+    run = SimpleNamespace(config=critic_config(), unit_size="S", root=tmp_path, task=task)
     probe = _compiled()
 
     settled = critic_module._disputer(run, state)(probe, [], {"cost_usd": critic_cost})
 
-    assert (calls == [probe.id]) is asked
+    assert calls == ([probe.id] if asked else [])
     assert settled.kept is asked
 
 
@@ -2721,6 +2775,46 @@ def test_the_recheck_reads_a_compiled_probe_that_passes_any_run_as_passing(repo)
 
     assert rechecked.blockers == []
     assert rechecked.decision is not None and rechecked.decision.reraised == []
+
+
+def test_a_counter_probe_the_recheck_broke_runs_again_at_the_next_recheck(repo):
+    """S-0129/D-9 with S-0129/D-4: a counter-probe a dispute kept has an id
+    no decision recorded; once a turn breaks it, the next recheck still reads
+    it as a compiled probe, alone and run again, so a pass clears it."""
+
+    worktree, target = _candidate(repo)
+    ctx = build_context(worktree, load_manifest(worktree / ".torve" / "gates.yaml"), base="main")
+    ctx.task = target
+    first, counter = _compiled(1), _compiled(3)
+
+    class Clean:
+        kind = "harness"
+
+        def run(self, ctx):
+            return AgentResult(exit_code=0, output=answer())
+
+    verdict = run_critic(
+        repo.root,
+        worktree,
+        target,
+        mint_review_task(repo.root, target),
+        critic_config(compile=True),
+        MockRuntime(),
+        Clean(),
+        ctx.patch,
+        build_evidence(ctx, [], candidate=TASK_ID),
+        "digest",
+        reproduce=Rerun(0),
+        acceptance=[first],
+    )
+    broke = critic_module.recheck(verdict, Rerun(1), worktree, [counter])
+    assert [one.id for one in broke.decision.blockers] == [counter.id]
+    rerun = Exits(1, 0)
+
+    cleared = critic_module.recheck(broke, rerun, worktree, [counter])
+
+    assert cleared.blockers == []
+    assert rerun.calls == [([counter.command], {counter.file: counter.text})] * 2
 
 
 def test_a_probe_s_helpers_are_stored_handed_to_its_recheck_and_shown_in_its_thread(repo):
