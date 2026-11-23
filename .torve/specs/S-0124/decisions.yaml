@@ -271,9 +271,11 @@ decisions:
       carrying the attempt's whole agent block so far. Every reader that counts attempts
       or sums their spend folds an attempt's rows into its newest, keyed by its task,
       attempt stamp and candidate as `torve why` groups them: the ledger's attempts,
-      seats and burn population, the context report's attempt blocks, the harness
-      populations and the bed's trial cost. A row with a kind, or with no attempt
-      stamp, is counted as it stands
+      seats and burn population, the context report's attempt blocks, `torve why`'s
+      regime comparator, the harness populations and the bed's trial cost. A row with
+      a kind, a shadow replay's, or one with no attempt stamp, is counted as it stands:
+      a replay can share a live attempt's stamp, and the readers drop replays only
+      after the fold
     paths:
       - src/torve/application/streams.py
       - src/torve/application/ledger.py
@@ -294,4 +296,4 @@ decisions:
       uv run pytest -q tests/test_streams.py tests/test_ledger.py tests/test_projections.py
       tests/test_intake.py tests/test_measure_harness.py -k "re_gated or session_revision
       or newest_row or selfcheck"
-    fingerprint: 76336cdf82ba390e/89da74ff71f50811
+    fingerprint: 5790c93e2aaa60e8/89da74ff71f50811

@@ -2136,7 +2136,8 @@ def why_report(
         "reviews": _why_reviews(rows, task_id),
         **({"units": closed} if (closed := units(rows, task_id=task_id)) else {}),
         "totals": _why_totals(attempts, human_minutes),
-        "regime": _why_regime(task_rows, rows),
+        # The comparator's population is attempts, not gate passes (S-0124/D-15).
+        "regime": _why_regime(task_rows, streams.fold_attempts(rows)),
     }
 
 

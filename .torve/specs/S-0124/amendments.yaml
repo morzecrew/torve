@@ -315,3 +315,42 @@ amendments:
         after: 76336cdf82ba390e/89da74ff71f50811
     md: |
       Measured on the bed (13 documents, 3 trials, a Claude Sonnet 5.5 executor). 29 of the 39 attempts took a session revision. Each re-ran the gates inside its attempt, so the stream held 68 executor rows for 39 attempts, and the second row of each carried the attempt's whole block. The ledger counted 68 attempts, and the ledger and the bed's trial cost summed both rows, counting 1.09M output tokens twice. `torve why` already folded to the later row.
+  - id: A-14
+    at: '2026-11-23T14:48:02Z'
+    title: >-
+      The attempt fold spares shadow replays and reaches the why regime
+    changes:
+      - subject: D-15
+        field: text
+        before: >-
+          A session revision's turn re-runs the gates inside its attempt (D-8), so
+          the telemetry stream and the record hold a row per gate pass for that attempt,
+          each carrying the attempt's whole agent block so far. Every reader that
+          counts attempts or sums their spend folds an attempt's rows into its newest,
+          keyed by its task, attempt stamp and candidate as `torve why` groups them:
+          the ledger's attempts, seats and burn population, the context report's attempt
+          blocks, the harness populations and the bed's trial cost. A row with a kind,
+          or with no attempt stamp, is counted as it stands
+        after: >-
+          A session revision's turn re-runs the gates inside its attempt (D-8), so
+          the telemetry stream and the record hold a row per gate pass for that attempt,
+          each carrying the attempt's whole agent block so far. Every reader that
+          counts attempts or sums their spend folds an attempt's rows into its newest,
+          keyed by its task, attempt stamp and candidate as `torve why` groups them:
+          the ledger's attempts, seats and burn population, the context report's attempt
+          blocks, `torve why`'s regime comparator, the harness populations and the
+          bed's trial cost. A row with a kind, a shadow replay's, or one with no attempt
+          stamp, is counted as it stands: a replay can share a live attempt's stamp,
+          and the readers drop replays only after the fold
+      - subject: D-15
+        field: fingerprint
+        before: 76336cdf82ba390e/89da74ff71f50811
+        after: 5790c93e2aaa60e8/89da74ff71f50811
+    md: >-
+      Found in review of the first change. A shadow replay's row can carry the stamp
+      of the live attempt it replays. Where it followed the live row, the fold kept
+      the replay, and the ledger then dropped it as a replay, so the live attempt
+      and its spend left the count. A replay now passes the fold untouched. `torve
+      why` folded its task's own attempts, but its regime comparator read the unfolded
+      stream, so a re-gated attempt's earlier pass was a second member of the population
+      at a partial cost.

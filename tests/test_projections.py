@@ -289,3 +289,33 @@ def test_the_context_report_counts_a_re_gated_attempt_once(tmp_path):
 
     assert report["sources"]["attempt_rows"] == 1
     assert [cost["cost_usd"] for cost in report["costs"]] == [3.4]
+
+
+def test_the_why_regime_counts_a_re_gated_attempt_once(tmp_path):
+    """S-0124/D-15: the regime comparator's population is the stream's
+    attempts, so a session revision's earlier gate pass is not a second one."""
+
+    import json
+
+    from torve.application.projections import why_report
+    from torve.config import layout
+
+    root = _repo(tmp_path)
+    contract = layout.task_file(root, "T-0001")
+    contract.parent.mkdir(parents=True, exist_ok=True)
+    contract.write_text("id: T-0001\n", encoding="utf-8")
+    rows = [
+        {
+            "task_id": "T-0001",
+            "config_hash": "hashA",
+            "agent": {"adapter": "claude", "attempt": 1, "cost_usd": cost},
+        }
+        for cost in (2.0, 3.4)
+    ]
+    stream = root / ".torve" / "telemetry.jsonl"
+    stream.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+
+    regime = why_report(root, "T-0001")["regime"]
+
+    assert regime["attempt_cost_n"] == 1
+    assert regime["attempt_cost_median_usd"] == 3.4

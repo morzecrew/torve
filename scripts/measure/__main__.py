@@ -61,7 +61,7 @@ def attempt_key(row: dict) -> tuple | None:
     """An attempt row's task, stamp and candidate, as torve's
     `streams.fold_attempts` keys it (S-0124/D-15); None for any other row."""
     agent = row.get("agent") or {}
-    if row.get("kind") or type(agent.get("attempt")) is not int:
+    if row.get("kind") or agent.get("shadow") is True or type(agent.get("attempt")) is not int:
         return None
     return (row.get("task_id"), agent["attempt"], agent.get("candidate") or 0)
 
