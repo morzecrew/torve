@@ -153,7 +153,7 @@ class FakeAgent:
         script.with_suffix(".py.json").write_text(json.dumps(step), encoding="utf-8")
 
         result = ctx.runtime.exec(
-            ctx.handle, f"python {ctx.workdir}/.torve/tmp/fake_agent.py", ctx.timeout_s
+            ctx.handle, f"python3 {ctx.workdir}/.torve/tmp/fake_agent.py", ctx.timeout_s
         )
 
         return AgentResult(exit_code=result.exit_code, output=result.output)

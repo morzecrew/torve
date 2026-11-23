@@ -120,3 +120,18 @@ def test_a_fake_keeps_a_session_only_when_its_test_scripts_one(tmp_path):
     assert scripted.follow_up is not None
     assert scripted.follow_up(ctx, first, "feedback").exit_code == 0
     assert (ctx.workspace / "src" / "new.py").read_text() == "x = 2\n"
+
+
+def test_the_script_runs_on_python3_which_the_claude_image_has(tmp_path):
+    """The claude sandbox image ships `python3` and no `python` alias, so a
+    fake seat on it exited 127 before writing anything."""
+
+    ctx, agent = ctx_for(tmp_path, [{"exit": 0}])
+    seen = []
+    shell = ctx.runtime.exec
+    ctx.runtime.exec = lambda handle, command, timeout_s: (
+        seen.append(command) or shell(handle, command, timeout_s)
+    )
+
+    assert agent.run(ctx).exit_code == 0
+    assert seen[0].split()[0] == "python3"
