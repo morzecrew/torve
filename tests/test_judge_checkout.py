@@ -148,6 +148,32 @@ def test_the_checkout_is_a_standalone_detached_snapshot(tmp_path):
     assert code(path, "cat-file", "-e", base) != 0
 
 
+def test_a_checkout_of_a_given_commit_holds_that_tree_and_reads_no_worktree(tmp_path):
+    """S-0129/D-9: a counter-probe runs over the unit's start tree, so a
+    checkout given a commit holds that commit, under a key no worktree has,
+    while the task's worktree and its own judge ref are untouched."""
+
+    root = repo(tmp_path)
+    worktree = task_worktree(root, "T-1004")
+    start = out(worktree, "rev-parse", "HEAD")
+    before = out(worktree, "status", "--porcelain")
+    workspace = GitWorkspace(root)
+
+    path = workspace.judge_checkout("T-1004~start", start)
+
+    assert path == root / naming.WORKTREE_DIR / f"T-1004~start{JUDGE_SUFFIX}"
+    assert out(path, "rev-parse", "HEAD") == start
+    assert (path / "tracked.txt").read_text(encoding="utf-8") == "one\n"
+    assert not (path / "added.txt").exists()
+    assert out(worktree, "status", "--porcelain") == before
+    assert code(root, "rev-parse", "--verify", "--quiet", judge_ref("T-1004")) != 0
+
+    workspace.remove_judge("T-1004~start")
+
+    assert not path.exists()
+    assert code(root, "rev-parse", "--verify", "--quiet", judge_ref("T-1004~start")) != 0
+
+
 # ....................... #
 
 

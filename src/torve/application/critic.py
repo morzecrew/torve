@@ -90,7 +90,7 @@ from torve.gates.evidence_package import (
 from torve.gates.suite import archive_tree
 
 if TYPE_CHECKING:
-    from torve.application.acceptance import Probe
+    from torve.application.acceptance import Dispute, Disputer, Probe, UnitDisputer
     from torve.application.runstate import RunState
     from torve.application.threads import TriageDocument
 
@@ -295,6 +295,11 @@ _SELECTED_NOTHING = {
 #: and no interpreter, test runner or shell gives this code on its own.
 WRONG_PASSES = 42
 
+#: How many times a compiled probe runs before its failure stands: once, and
+#: twice more after a failure, so one that passes any run is unsteady and
+#: blocks nothing (S-0129/D-4).
+PROBE_RUNS = 3
+
 #: A path under the probe directory a command names, which the re-run must
 #: be handed from the critic's copy or refuse (S-0127/D-10). It ends at a
 #: colon, so a pytest selector's `::test_bug` is not read into the path.
@@ -319,8 +324,10 @@ class Decision:
     other than a LOCKED one, which has no repro to re-run (S-0127/D-1,
     S-0127/A-5, S-0127/D-2); `reruns` is each re-run the engine made, beside
     the finding it measured. `acceptance` is each compiled probe's re-run
-    (S-0129/D-4): its id, row, file and exit, and whether it `failed`,
-    `passed` or was `unmeasured`; a failed one is among the blockers."""
+    (S-0129/D-4): its id, row, file and exit, the exits of the runs a failure
+    earned, whether it `failed`, `passed`, was `unmeasured`, was `unsteady`
+    or was `disputed`, and what a dispute came to (S-0129/D-9); a failed one
+    is among the blockers, a disputed one among the advisory."""
 
     blocked: bool
     blockers: list[CriticFinding]
@@ -573,6 +580,7 @@ def decide(
     earlier: Iterable[Mapping[str, Any]] | None = None,
     acceptance: Sequence[Probe] = (),
     revisions_left: bool = True,
+    dispute: Disputer | None = None,
 ) -> Decision:
     """Block or pass, from what ran and never from the critic's words
     (S-0122/D-1, S-0127/D-1, both LOCKED).
@@ -612,10 +620,15 @@ def decide(
     so its breach blocks through a finding that names it (S-0127/A-5).
 
     Each of *acceptance*, the unit's compiled probes (S-0129/D-4), is re-run
-    with the text the unit stored, whatever the document says: one whose
-    re-run fails blocks as a `contract` finding of severity `blocker` on its
-    row, at any *blocks_at* and on a revision attempt alike, and is never
-    carried, since it is the engine's measurement and not the critic's claim.
+    with the text the unit stored, whatever the document says. One whose
+    re-run fails runs again until `PROBE_RUNS` runs: one that passes any of
+    them is `unsteady` and blocks nothing. One that fails every run is put to
+    *dispute* (S-0129/D-9): a kept dispute records it advisory, as a `minor`
+    `contract` finding that names the dispute and the counter-probe that now
+    stands in its place. Any other blocks as a `contract` finding of severity
+    `blocker` on its row, at any *blocks_at* and on a revision attempt alike,
+    and is never carried, since it is the engine's measurement and not the
+    critic's claim.
 
     A blocker or a blocking row is re-raised when it repeats an earlier
     round's blocker (`repeats_blocker`, S-0127/D-4): one of *earlier*, every
@@ -726,27 +739,67 @@ def decide(
         or (finding.kind == "weak_test" and id(finding) not in blocked_ids)
     ]
     probe_runs: list[dict[str, Any]] = []
+    # The first runs of the probes that then passed: a finding blocked on the
+    # very same measurement was blocked on a flake.
+    steadied: set[int] = set()
 
     for probe in acceptance:
         run = measure(probe.command, probe.file, alone=True)
         outcome = "failed" if _failed(run) else "passed" if run.exit_code == 0 else "unmeasured"
-        probe_runs.append(
-            {
-                "id": probe.id,
-                "row": probe.row,
-                "file": probe.file,
-                "exit": run.exit_code,
-                "outcome": outcome,
-            }
-        )
+        entry: dict[str, Any] = {
+            "id": probe.id,
+            "row": probe.row,
+            "file": probe.file,
+            "exit": run.exit_code,
+            "outcome": outcome,
+        }
+        probe_runs.append(entry)
 
         if outcome != "failed":
+            continue
+
+        runs = [run, *_again(reproduce, probe)]
+        entry["retries"] = [one.exit_code for one in runs[1:]]
+
+        if any(one.exit_code == 0 for one in runs):
+            entry["outcome"] = "unsteady"
+            steadied.add(id(run))
+            continue
+
+        # Only a failure every run measured is disputed; one a run could not
+        # measure still blocks as D-4 says, with nothing asked.
+        settled = (
+            dispute(probe, runs)
+            if dispute is not None and all(_failed(one) for one in runs)
+            else None
+        )
+
+        if settled is not None:
+            entry["dispute"] = _dispute_entry(settled)
+
+        if settled is not None and settled.kept:
+            entry["outcome"] = "disputed"
+            disputed_probe = _disputed_finding(probe, run, settled)
+            reruns.append((disputed_probe, run))
+            kept.append(disputed_probe)
+            advisory.append(disputed_probe)
             continue
 
         compiled = _probe_finding(probe, run)
         reruns.append((compiled, run))
         blockers.append(compiled)
         kept.append(compiled)
+
+    # A critic finding whose repro is an unsteady probe's command over the
+    # same files shares that probe's cached failure, which its next run
+    # contradicted (S-0129/D-4).
+    for flaky in [
+        one
+        for one in blockers
+        if any(judged is one and id(measured_run) in steadied for judged, measured_run in reruns)
+    ]:
+        blockers.remove(flaky)
+        advisory.append(flaky)
 
     def weight(verdict: RowVerdict) -> tuple[bool, bool, bool]:
         located = bool(verdict.evidence) and locate(verdict.evidence, root) is None
@@ -854,6 +907,62 @@ def decide(
         advisory_rows=advisory_rows,
         reruns=reruns,
         acceptance=probe_runs,
+    )
+
+
+def _again(reproduce: Reproduce | None, probe: Probe) -> list[CommandRun]:
+    """*probe*'s runs after a failed one, until one passes or `PROBE_RUNS`
+    have run in all (S-0129/D-4). Each is a fresh run, never the cached
+    measurement, since what is asked is whether the failure repeats."""
+
+    runs: list[CommandRun] = []
+
+    while len(runs) < PROBE_RUNS - 1:
+        run = _rerun_once(reproduce, probe.command, {probe.file: probe.text})
+        runs.append(run)
+
+        if run.exit_code == 0:
+            break
+
+    return runs
+
+
+def _dispute_entry(settled: Dispute) -> dict[str, Any]:
+    """What a probe's record says of its dispute (S-0129/D-9)."""
+
+    return {
+        "review_id": settled.review_id,
+        "verdict": settled.verdict,
+        "kept": settled.kept,
+        "why": settled.why,
+        "counter": settled.counter.id if settled.counter is not None else None,
+    }
+
+
+def _disputed_finding(probe: Probe, run: CommandRun, settled: Dispute) -> CriticFinding:
+    """A compiled probe a kept dispute withdrew (S-0129/D-9), as the advisory
+    finding it is: the failure it measured, the passage the dispute quotes,
+    and the counter-probe that now judges the row in its place."""
+
+    counter = settled.counter.id if settled.counter is not None else "none"
+
+    return CriticFinding(
+        id=probe.id,
+        severity="minor",
+        kind="contract",
+        row=probe.row,
+        claim=(
+            f"{probe.claim} The document: “{probe.quote}” Disputed: {settled.reason} "
+            f"The document: “{settled.quote}”"
+        ),
+        evidence=f"`{probe.command}` exited {run.exit_code}: {run.tail}",
+        verified="executed",
+        confidence="high",
+        repro=Repro(command=probe.command, file=probe.file),
+        fix_hint=(
+            f"A dispute ({settled.review_id}) withdrew the probe; {counter}, which passes "
+            "here and fails on the start tree, judges the row in its place."
+        ),
     )
 
 
@@ -1138,7 +1247,10 @@ def recheck(
     Every one of *acceptance*, the unit's compiled probes, that was not a
     blocker is re-run too, with its stored text (S-0129/D-4): the turn may
     break one that passed. One that now fails is a measured failure, so it
-    stands among the re-raised and the turn is blocked."""
+    stands among the re-raised and the turn is blocked. A compiled probe,
+    a blocker or not, that fails runs again until `PROBE_RUNS` runs, and one
+    that passes any of them is cleared or left passing, as `decide` reads an
+    unsteady probe; nothing is put to a dispute here."""
 
     decision = verdict.decision
 
@@ -1151,8 +1263,11 @@ def recheck(
     standing: list[CriticFinding] = []
     judged = dict(zip(map(id, decision.blockers), verdict.blockers, strict=False))
     rechecked: dict[int, JudgedFinding] = {}
+    by_id = {probe.id: probe for probe in acceptance}
     helpers = _helpers(verdict.probes, decision.kept)
-    compiled = {entry["id"] for entry in decision.acceptance}
+    # The unit's stored probes count too: a counter-probe a dispute kept
+    # (S-0129/D-9) has an id the decision never recorded.
+    compiled = {entry["id"] for entry in decision.acceptance} | set(by_id)
 
     for finding in decision.blockers:
         if finding.kind == "gaming":
@@ -1175,6 +1290,11 @@ def recheck(
             )
 
         run = measured[key]
+        stored = by_id.get(finding.id) if finding.id in compiled else None
+
+        if stored is not None and _failed(run):
+            run = next((again for again in _again(reproduce, stored) if again.exit_code == 0), run)
+
         before = decision.rerun(finding)
         reruns.append((finding, run))
         cleared = _cleared(finding, run)
@@ -1212,7 +1332,7 @@ def recheck(
 
         run = measured[key]
 
-        if not _failed(run):
+        if not _failed(run) or any(again.exit_code == 0 for again in _again(reproduce, probe)):
             continue
 
         finding = _probe_finding(probe, run)
@@ -1522,6 +1642,7 @@ def run_critic(
     earlier: Sequence[Mapping[str, Any]] | None = None,
     acceptance: Sequence[Probe] = (),
     revisions_left: bool = True,
+    dispute: UnitDisputer | None = None,
 ) -> CriticVerdict:
     """One critic call over one candidate (S-0122/D-6). Everything the critic
     reads is composed here, before the copy exists; the copy is then scrubbed
@@ -1541,7 +1662,9 @@ def run_critic(
     re-raises, when they are not the revision's own (S-0127/D-4).
     *acceptance* is the unit's compiled probes, which `decide` re-runs and a
     revision's recheck re-runs again (S-0129/D-4); nothing of them is staged
-    for the critic."""
+    for the critic. *dispute* is what `decide` puts a probe that failed every
+    run to (S-0129/D-9), after the critic's session has ended, handed that
+    session's agent block so the unit's cap counts the call it just made."""
 
     manifest_path = layout.gates_file(root)
     manifest = load_manifest(manifest_path) if manifest_path.is_file() else None
@@ -1622,6 +1745,15 @@ def run_critic(
     seat_error = seat_api_error(session.result.output) if unparseable else None
     grades = {row.id: row.grade for row, _ in rows}
     harvested: dict[str, str] = session.harvested or {}
+    usage = {
+        "cost_usd": session.result.cost_usd,
+        "provider": session.tier.provider or None,
+        "model": session.tier.model or None,
+        **session.token_counts,
+    }
+    asked: Disputer | None = (
+        (lambda probe, runs: dispute(probe, runs, usage)) if dispute is not None else None
+    )
     # S-0126/D-2: read after staging, from the worktree's log, never from
     # anything the critic was given.
     rejected = rejected_spots(target, worktree, attempt)
@@ -1639,6 +1771,7 @@ def run_critic(
             earlier=earlier,
             acceptance=acceptance,
             revisions_left=revisions_left,
+            dispute=asked,
         )
         if document is not None
         else None
@@ -1911,7 +2044,75 @@ def judge(run: Dispatch, review: Task, state: RunState | None = None) -> CriticV
         acceptance=compiled.kept if compiled is not None else (),
         revisions_left=state is None
         or _blocker_revisions_spent(state) < run.config.review.resolved_blocker_revisions(),
+        dispute=_disputer(run, state) if compiled is not None and state is not None else None,
     )
+
+
+def _disputer(run: Dispatch, state: RunState) -> UnitDisputer:
+    """The dispute `decide` puts a compiled probe that failed every run to
+    (S-0129/D-9): one `dispute_probe` call, its counter-probe run over the
+    candidate and over the unit's start tree as the store records it, and its
+    spend a unit spend fact. A unit that has made `DISPUTE_CAP` disputes, or
+    is at its cap or clock with the critic call that asks counted, disputes
+    nothing, so the probe blocks as D-4 says."""
+
+    from torve.application import selection
+    from torve.application.acceptance import (
+        DISPUTE_CAP,
+        Dispute,
+        dispute_probe,
+        disputes_made,
+        load,
+    )
+    from torve.application.runner import (
+        _elapsed_minutes,
+        _list_prices,
+        _record_spend,
+        _unit_class,
+        _unit_spend,
+        reproduce,
+    )
+
+    prices = _list_prices(run.config)
+
+    def dispute(probe: Probe, runs: Sequence[CommandRun], critic: Mapping[str, Any]) -> Dispute:
+        cap, class_clock = selection.UNIT_BUDGETS[_unit_class(run, state)]
+        # The task's own clock, when it sets one, is the one its re-runs keep.
+        minutes = run.task.budget.wallclock_minutes
+        clock = class_clock if minutes is None else minutes
+        # The critic call that asks is spent but not yet recorded.
+        asking = selection.notional_spend(critic, prices) or 0.0
+
+        if disputes_made(state) >= DISPUTE_CAP:
+            return Dispute(
+                probe=probe.id, kept=False, why=f"the unit has made its {DISPUTE_CAP} disputes"
+            )
+
+        if _unit_spend(state) + asking >= cap or _elapsed_minutes(state) >= clock:
+            return Dispute(probe=probe.id, kept=False, why="the unit's cap or clock is spent")
+
+        def price(usage: Mapping[str, Any]) -> float | None:
+            spend = selection.notional_spend(usage, prices)
+
+            if spend is not None:
+                _record_spend(state, spend, "dispute")
+
+            return spend
+
+        stored = load(run.root, run.task.id)
+        start = stored.start if stored is not None else None
+
+        return dispute_probe(
+            run,
+            state,
+            probe,
+            runs,
+            partial(reproduce, run, state),
+            partial(reproduce, run, state, commit=start) if start is not None else None,
+            price,
+        )
+
+    return dispute
 
 
 # ----------------------- #

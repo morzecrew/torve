@@ -4961,7 +4961,7 @@ def test_one_tier_for_every_candidate(tmp_path: Path) -> None:
 # The in-session revision arm (S-0124/D-8, D-9).
 
 
-def _scripted_reruns(monkeypatch, *exits: int | None) -> list[list[str]]:
+def _scripted_reruns(monkeypatch, *exits: int | None, commits=None) -> list[list[str]]:
     """The rig's re-runs (S-0127/D-1) in order: each call's commands exit the
     next of *exits*, the last one repeated, so a test says what the critic's
     re-run measured and what the turn's recheck did (S-0128/D-3). Returns the
@@ -4971,9 +4971,14 @@ def _scripted_reruns(monkeypatch, *exits: int | None) -> list[list[str]]:
 
     calls: list[list[str]] = []
 
-    def scripted(run, state, commands, probes):
+    def scripted(run, state, commands, probes, *, commit=None):
         code = exits[min(len(calls), len(exits) - 1)]
         calls.append(list(commands))
+
+        # Which tree each call read: None for the candidate, else a commit.
+        if commits is not None:
+            commits.append(commit)
+
         return [CommandRun(command, code, f"exit {code}") for command in commands]
 
     monkeypatch.setattr(run_module, "reproduce", scripted)
@@ -6558,19 +6563,25 @@ def _compiling_unit(
     *reruns,
     by_document=False,
     wallclock_minutes=None,
+    dispute=None,
+    commits=None,
 ):
     """A one-candidate critic unit under `review.compile`, over a document
     stating one rule: the reviewer seat compiles one probe for it, then
     judges as the critic with *critic_outputs*. *reruns* are the probe's
-    exits in order: on the start tree, at the first decision, after the
-    session turn. *by_document* asks through the contract's `compile`, the
-    repository's `review.compile` off (S-0129/D-6). Returns the state, the
-    reviewer, what the executor saw and the unit record."""
+    exits in order: on the start tree, at the first decision and its two
+    further runs when it fails (S-0129/D-4), then any counter-probe's on the
+    candidate and the start tree, then after the session turn. Asked to
+    dispute the probe (S-0129/D-9), the seat answers *dispute*, upheld when
+    None, writing the counter-probe it names. *by_document* asks through the
+    contract's `compile`, the repository's `review.compile` off
+    (S-0129/D-6). Returns the state, the reviewer, what the executor saw and
+    the unit record."""
 
     from test_review_run import SequencedReviewer
     from test_run_loop import ScriptedAgent
 
-    from torve.application.acceptance import compile_prompt
+    from torve.application.acceptance import compile_prompt, dispute_prompt
     from torve.application.ports import AgentResult
     from torve.application.runner import run_task
     from torve.config.runconfig import ReviewConfig
@@ -6586,7 +6597,7 @@ def _compiling_unit(
         "summary: |\n  A reader_id with a space is refused with a 422.\n",
     )
     repo.write(".torve/specs/S-0900/decisions.yaml", "decisions: []\n")
-    calls = _scripted_reruns(monkeypatch, *reruns)
+    calls = _scripted_reruns(monkeypatch, *reruns, commits=commits)
     seen: dict[str, object] = {}
 
     class CompilingReviewer:
@@ -6595,8 +6606,22 @@ def _compiling_unit(
         def __init__(self) -> None:
             self.critic = SequencedReviewer(critic_outputs)
             self.compiles = 0
+            self.disputes = 0
 
         def run(self, ctx):
+            if ctx.system == dispute_prompt():
+                self.disputes += 1
+                answer = dispute or {"verdict": "upheld", "reason": "the probe reads the rule"}
+
+                if answer.get("file"):
+                    counter = ctx.workspace / answer["file"]
+                    counter.parent.mkdir(parents=True, exist_ok=True)
+                    counter.write_text("# derived\n", encoding="utf-8")
+
+                return AgentResult(
+                    exit_code=0, output=json.dumps({"schema": "torve.dispute/v1", **answer})
+                )
+
             if ctx.system != compile_prompt():
                 return self.critic.run(ctx)
 
@@ -6682,12 +6707,15 @@ def test_a_probe_failing_after_a_clean_critic_is_revised_in_session_and_lands(
     from torve.domain.states import TaskState
 
     state, reviewer, seen, unit, calls = _compiling_unit(
-        review_rig, monkeypatch, [answer()], 1, 1, 0, by_document=by_document
+        review_rig, monkeypatch, [answer()], 1, 1, 1, 1, 0, by_document=by_document
     )
 
     assert state.state is TaskState.READY and state.escalation is None
     assert reviewer.compiles == 1 and reviewer.critic.calls == 1
-    assert calls == [[PROBE_COMMAND]] * 3
+    # Every run of the decision failed and the dispute upheld the probe
+    # (S-0129/D-4, S-0129/D-9), so it blocked; the recheck's run passed.
+    assert reviewer.disputes == 1
+    assert calls == [[PROBE_COMMAND]] * 5
     assert PROBE_COMMAND in seen["acceptance"]  # type: ignore[operator]
     assert seen["planted"] == "raise SystemExit(1)\n"
     assert "a reader_id with a space is a 422" in str(seen["follow_up"])
@@ -6699,6 +6727,83 @@ def test_a_probe_failing_after_a_clean_critic_is_revised_in_session_and_lands(
         "spend_usd": None,
         "wall_s": unit["acceptance"]["wall_s"],
     }
+
+
+def test_a_kept_dispute_lands_the_unit_and_its_counter_probe_takes_the_probe_s_place(
+    review_rig,  # noqa: F811
+    monkeypatch,
+):
+    """S-0129/D-9: a probe that fails every run of a clean critic's decision
+    is disputed; the counter-probe passes on the candidate and fails on the
+    start tree, so the dispute is kept, nothing blocks and the unit lands with
+    no revision, and the unit's store now holds the counter-probe."""
+
+    from test_critic import answer
+
+    from torve.application.acceptance import load
+    from torve.domain.states import TaskState
+
+    counter = "uv run python probes/acceptance/c01.py"
+    commits: list[str | None] = []
+    state, reviewer, seen, unit, calls = _compiling_unit(
+        review_rig,
+        monkeypatch,
+        [answer()],
+        1,
+        1,
+        1,
+        1,
+        0,
+        1,
+        dispute={
+            "verdict": "disputed",
+            "reason": "the document refuses it with a 422, as the counter-probe checks",
+            "quote": "A reader_id with a space is refused with a 422.",
+            "file": "probes/acceptance/c01.py",
+            "command": counter,
+        },
+        commits=commits,
+    )
+
+    assert state.state is TaskState.READY and state.escalation is None
+    assert reviewer.disputes == 1 and "follow_up" not in seen
+    assert calls == [[PROBE_COMMAND]] * 4 + [[counter]] * 2
+    stored = load(review_rig[0].root, "T-9001")
+    assert stored is not None and [one.command for one in stored.kept] == [counter]
+    # The compile and the counter-probe's red run read the start tree the
+    # store records; every other run read the candidate.
+    assert stored.start is not None
+    assert commits == [None] * 5 + [stored.start]
+    assert [one["command"] for one in stored.withdrawn] == [PROBE_COMMAND]
+    assert unit["acceptance"]["failed_first"] == 0
+
+
+def test_a_withdrawn_probe_is_shown_no_longer_and_a_kept_one_once():
+    """S-0129/D-9: an attempt's shown acceptance drops a probe a dispute
+    withdrew, which an earlier attempt added, and lists each kept probe once
+    after the contract's own commands."""
+
+    from torve.application.acceptance import Acceptance, Probe
+    from torve.application.runner import _with_probes
+
+    def probe(name: str) -> Probe:
+        return Probe(
+            id=name,
+            row=PROBE_ROW,
+            quote="q",
+            claim="c",
+            file=f"probes/acceptance/{name}.py",
+            command=f"uv run python probes/acceptance/{name}.py",
+            text="",
+            base_exit=1,
+        )
+
+    kept, counter, withdrawn = probe("p01"), probe("c01"), probe("p02")
+    compiled = Acceptance(kept=[kept, counter], withdrawn=[{"command": withdrawn.command}])
+
+    shown = _with_probes(["uv run pytest -q", kept.command, withdrawn.command], compiled)
+
+    assert shown == ["uv run pytest -q", kept.command, counter.command]
 
 
 def test_a_probe_passing_on_the_first_candidate_leaves_the_verdict_clean(

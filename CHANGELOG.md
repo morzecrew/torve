@@ -48,6 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A compiled probe that fails now runs twice more, and blocks only when no run passes. One
+  that fails every run goes to a reviewer call that may dispute it with a passage of the
+  document and a counter-probe. A counter-probe green on the work and red on the starting
+  tree replaces the probe for the rest of the unit.
+
 - A critic finding now blocks a unit only when the engine re-runs its repro command against
   the candidate, in a read-only sandbox, and it fails. Other findings, and row breaches
   unless the row is LOCKED, are recorded as advisory. Integrity findings and LOCKED-row

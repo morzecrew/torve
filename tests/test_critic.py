@@ -424,9 +424,10 @@ def test_reproduced_a_critic_probe_is_handed_what_it_reads_and_a_compiled_one_ru
         acceptance=[probe],
     )
 
+    # A failed compiled probe runs `PROBE_RUNS` times, alone every time (S-0129/D-4).
     assert rerun.calls == [
         ([NOTE["command"]], NOTE_PROBES),
-        ([probe.command], {probe.file: probe.text}),
+        *[([probe.command], {probe.file: probe.text})] * critic_module.PROBE_RUNS,
     ]
     assert [one.id for one in decision.blockers] == ["F1", probe.id]
 
@@ -2390,6 +2391,8 @@ def test_a_compiled_probe_blocks_exactly_when_its_re_run_fails(
     assert bool(blocking) is failed
     assert decision.blocked is failed
     assert handed[-1] == {probe.file: probe.text}
+    # A failure that repeats on every run stands (S-0129/D-4).
+    retries = {"retries": [exit_code] * (critic_module.PROBE_RUNS - 1)} if failed else {}
     assert decision.acceptance == [
         {
             "id": probe.id,
@@ -2397,6 +2400,7 @@ def test_a_compiled_probe_blocks_exactly_when_its_re_run_fails(
             "file": probe.file,
             "exit": exit_code,
             "outcome": "failed" if failed else "passed" if exit_code == 0 else "unmeasured",
+            **retries,
         }
     ]
 
@@ -2406,6 +2410,228 @@ def test_a_compiled_probe_blocks_exactly_when_its_re_run_fails(
         assert one.repro is not None and one.repro.file == probe.file
         assert one in decision.kept and decision.rerun(one) is not None
         assert "the bound is exclusive" in one.claim
+
+
+class Exits:
+    """A scripted `reproduce` whose runs exit *exits* in order, the last one
+    for every run after; every call is recorded."""
+
+    def __init__(self, *exits: int | None):
+        self.exits = list(exits)
+        self.calls: list[tuple[list[str], dict[str, str | None]]] = []
+
+    def __call__(self, commands, probes):
+        self.calls.append((list(commands), dict(probes)))
+        code = self.exits[min(len(self.calls), len(self.exits)) - 1]
+
+        return [CommandRun(command, code, "the tail") for command in commands]
+
+
+#: Exits a run can have: a pass, failures, and ones that measured nothing.
+EXITS = st.sampled_from([0, 1, 2, 42, 126, 127, None])
+
+
+@given(first=st.sampled_from([1, 2, 42]), retries=st.lists(EXITS, min_size=2, max_size=2))
+def test_a_failing_probe_runs_again_and_blocks_only_when_no_run_passes(first, retries):
+    """S-0129/D-4: a compiled probe that fails runs again until it passes or
+    `PROBE_RUNS` have run, alone with its stored text each time; one that
+    passes any run is `unsteady` and blocks nothing, and one that passes none
+    blocks, whatever the runs that measured nothing say."""
+
+    probe = _compiled()
+    rerun = Exits(first, *retries)
+
+    decision = decide(
+        CriticDocument.model_validate({"rows": [], "findings": []}),
+        {OWNED: True},
+        Path("."),
+        "major",
+        reproduce=rerun,
+        acceptance=[probe],
+    )
+
+    passed = 0 in retries
+    ran = 1 + (retries.index(0) + 1 if passed else len(retries))
+    (entry,) = decision.acceptance
+    assert decision.blocked is not passed
+    assert entry["outcome"] == ("unsteady" if passed else "failed")
+    assert entry["exit"] == first and entry["retries"] == retries[: ran - 1]
+    assert rerun.calls == [([probe.command], {probe.file: probe.text})] * ran
+    assert decision.advisory == []
+
+
+def test_a_critic_finding_on_an_unsteady_probe_s_own_measurement_blocks_nothing(tmp_path):
+    """S-0129/D-4: a critic finding whose repro is a compiled probe's command
+    over the same files shares that probe's cached first run; when the probe
+    then passes, the finding was blocked on a flake and is advisory."""
+
+    _app(tmp_path)
+    probe = _compiled()
+    flaky = finding(repro={"command": probe.command, "file": probe.file})
+    rerun = Exits(1, 0)
+
+    decision = decide(
+        CriticDocument.model_validate({"rows": [], "findings": [flaky]}),
+        {OWNED: True},
+        tmp_path,
+        "major",
+        reproduce=rerun,
+        acceptance=[probe],
+    )
+
+    (entry,) = decision.acceptance
+    assert entry["outcome"] == "unsteady" and len(rerun.calls) == 2
+    assert not decision.blocked and decision.blockers == []
+    assert [one.id for one in decision.advisory] == ["F1"]
+
+
+def test_a_failure_a_later_run_could_not_measure_is_not_disputed():
+    """S-0129/D-9: only a probe every run measured failing is disputed; one
+    whose later runs measured nothing blocks as D-4 says, with nothing
+    asked."""
+
+    probe = _compiled()
+    asked: list[str] = []
+
+    decision = decide(
+        CriticDocument.model_validate({"rows": [], "findings": []}),
+        {OWNED: True},
+        Path("."),
+        "major",
+        reproduce=Exits(1, None),
+        acceptance=[probe],
+        dispute=lambda one, runs: asked.append(one.id) or _settled(one, True),
+    )
+
+    assert asked == [] and [one.id for one in decision.blockers] == [probe.id]
+
+
+def _settled(probe, kept: bool):
+    from torve.application.acceptance import Dispute
+
+    counter = _compiled(3, "print('derived')\n") if kept else None
+
+    return Dispute(
+        probe=probe.id,
+        kept=kept,
+        why="kept" if kept else "the seat upheld the probe",
+        review_id="T-0042",
+        verdict="disputed" if kept else "upheld",
+        reason="the document derives an empty one",
+        quote="An empty one is derived",
+        counter=counter,
+    )
+
+
+@given(kept=st.booleans(), passes_again=st.booleans())
+def test_a_probe_that_fails_every_run_is_disputed_and_a_kept_dispute_blocks_nothing(
+    kept, passes_again
+):
+    """S-0129/D-9: only a probe that failed every run is put to the dispute,
+    with every run it failed; a kept dispute records it as an advisory
+    `minor` `contract` finding naming the dispute and its counter-probe, and
+    one not kept leaves it the blocker D-4 says."""
+
+    probe = _compiled()
+    asked: list[tuple[str, list]] = []
+
+    def dispute(one, runs):
+        asked.append((one.id, [run.exit_code for run in runs]))
+
+        return _settled(one, kept)
+
+    decision = decide(
+        CriticDocument.model_validate({"rows": [], "findings": []}),
+        {OWNED: True},
+        Path("."),
+        "major",
+        reproduce=Exits(1, 0) if passes_again else Exits(1),
+        acceptance=[probe],
+        dispute=dispute,
+    )
+
+    (entry,) = decision.acceptance
+
+    if passes_again:
+        assert asked == [] and entry["outcome"] == "unsteady" and not decision.blocked
+        return
+
+    assert asked == [(probe.id, [1] * critic_module.PROBE_RUNS)]
+    assert entry["dispute"]["kept"] is kept and entry["dispute"]["review_id"] == "T-0042"
+    assert decision.blocked is not kept
+
+    if kept:
+        (advisory,) = decision.advisory
+        assert entry["outcome"] == "disputed" and entry["dispute"]["counter"] == "acceptance:3"
+        assert (advisory.id, advisory.kind, advisory.severity) == (probe.id, "contract", "minor")
+        assert advisory in decision.kept and "An empty one is derived" in advisory.claim
+        assert "acceptance:3" in advisory.fix_hint
+    else:
+        assert entry["outcome"] == "failed"
+        assert [one.id for one in decision.blockers] == [probe.id]
+
+
+@pytest.mark.parametrize(
+    ("spent", "critic_cost", "disputes", "minutes", "asked"),
+    [
+        (0.5, 0.2, 0, None, True),
+        (0.5, 1.0, 0, None, False),
+        (1.5, 0.0, 0, None, False),
+        (0.0, 0.0, 2, None, False),
+        (0.0, 0.0, 1, None, True),
+        (0.0, 0.0, 0, 0, False),
+    ],
+    ids=[
+        "within",
+        "the-asking-critic-tips-it",
+        "at-the-cap",
+        "two-made",
+        "one-made",
+        "past-the-task-clock",
+    ],
+)
+def test_a_unit_disputes_within_its_cap_and_at_most_twice(
+    tmp_path, monkeypatch, spent, critic_cost, disputes, minutes, asked
+):
+    """S-0129/D-9: the unit puts a probe to a dispute only below its cap with
+    the critic call that asks counted, though its spend is not yet recorded,
+    within the task's own clock when it sets one, and only while it has made
+    fewer than `DISPUTE_CAP` disputes; otherwise the probe blocks with
+    nothing asked."""
+
+    from types import SimpleNamespace
+
+    from torve.application import acceptance as acceptance_module
+    from torve.application import runner
+    from torve.application.acceptance import DISPUTED_MARKER, Dispute
+    from torve.application.runstate import RunState
+
+    state = RunState(task_id=TASK_ID, path=tmp_path / "state.json")
+    state.history.append({"at": state.heartbeat, "from": "x", "to": "x", "fact": "claimed"})
+
+    if spent:
+        runner._record_spend(state, spent, "candidate 1")
+
+    for number in range(disputes):
+        state.history.append(
+            {"at": state.heartbeat, "from": "x", "to": "x", "fact": f"{DISPUTED_MARKER}{number}"}
+        )
+
+    calls: list[str] = []
+
+    def disputed(run, state, probe, runs, reproduce, reproduce_start, price):
+        calls.append(probe.id)
+        return Dispute(probe=probe.id, kept=True, why="kept")
+
+    monkeypatch.setattr(acceptance_module, "dispute_probe", disputed)
+    task = SimpleNamespace(id=TASK_ID, budget=SimpleNamespace(wallclock_minutes=minutes))
+    run = SimpleNamespace(config=critic_config(), unit_size="S", root=tmp_path, task=task)
+    probe = _compiled()
+
+    settled = critic_module._disputer(run, state)(probe, [], {"cost_usd": critic_cost})
+
+    assert calls == ([probe.id] if asked else [])
+    assert settled.kept is asked
 
 
 def test_a_failing_probe_blocks_a_clean_critic_and_its_recheck_clears_it(repo):
@@ -2511,6 +2737,86 @@ def test_the_recheck_re_runs_every_probe_so_a_turn_that_breaks_one_is_blocked(re
     assert both_pass.blockers == []
 
 
+def test_the_recheck_reads_a_compiled_probe_that_passes_any_run_as_passing(repo):
+    """S-0129/D-4 with S-0128/D-3: after a session turn a compiled blocker
+    that fails its re-run and then passes is cleared, and a passing probe the
+    turn's re-run fails once and then passes is not counted broken."""
+
+    worktree, target = _candidate(repo)
+    ctx = build_context(worktree, load_manifest(worktree / ".torve" / "gates.yaml"), base="main")
+    ctx.task = target
+    first, second = _compiled(1), _compiled(2)
+
+    class Clean:
+        kind = "harness"
+
+        def run(self, ctx):
+            return AgentResult(exit_code=0, output=answer())
+
+    verdict = run_critic(
+        repo.root,
+        worktree,
+        target,
+        mint_review_task(repo.root, target),
+        critic_config(compile=True),
+        MockRuntime(),
+        Clean(),
+        ctx.patch,
+        build_evidence(ctx, [], candidate=TASK_ID),
+        "digest",
+        reproduce=lambda commands, probes: [
+            CommandRun(c, 1 if c == first.command else 0, "") for c in commands
+        ],
+        acceptance=[first, second],
+    )
+    assert [one.id for one in verdict.decision.blockers] == [first.id]
+
+    rechecked = critic_module.recheck(verdict, Exits(1, 0, 1, 0), worktree, [first, second])
+
+    assert rechecked.blockers == []
+    assert rechecked.decision is not None and rechecked.decision.reraised == []
+
+
+def test_a_counter_probe_the_recheck_broke_runs_again_at_the_next_recheck(repo):
+    """S-0129/D-9 with S-0129/D-4: a counter-probe a dispute kept has an id
+    no decision recorded; once a turn breaks it, the next recheck still reads
+    it as a compiled probe, alone and run again, so a pass clears it."""
+
+    worktree, target = _candidate(repo)
+    ctx = build_context(worktree, load_manifest(worktree / ".torve" / "gates.yaml"), base="main")
+    ctx.task = target
+    first, counter = _compiled(1), _compiled(3)
+
+    class Clean:
+        kind = "harness"
+
+        def run(self, ctx):
+            return AgentResult(exit_code=0, output=answer())
+
+    verdict = run_critic(
+        repo.root,
+        worktree,
+        target,
+        mint_review_task(repo.root, target),
+        critic_config(compile=True),
+        MockRuntime(),
+        Clean(),
+        ctx.patch,
+        build_evidence(ctx, [], candidate=TASK_ID),
+        "digest",
+        reproduce=Rerun(0),
+        acceptance=[first],
+    )
+    broke = critic_module.recheck(verdict, Rerun(1), worktree, [counter])
+    assert [one.id for one in broke.decision.blockers] == [counter.id]
+    rerun = Exits(1, 0)
+
+    cleared = critic_module.recheck(broke, rerun, worktree, [counter])
+
+    assert cleared.blockers == []
+    assert rerun.calls == [([counter.command], {counter.file: counter.text})] * 2
+
+
 def test_a_probe_s_helpers_are_stored_handed_to_its_recheck_and_shown_in_its_thread(repo):
     """S-0127/D-10 with S-0128/D-3: the review stores the module a kept
     finding's probe imports beside the probe, the recheck after a session
@@ -2553,9 +2859,10 @@ def test_a_probe_s_helpers_are_stored_handed_to_its_recheck_and_shown_in_its_thr
 
     stored = repo.root / ".torve" / "tasks" / review.id / "probes"
     assert sorted(p.name for p in stored.iterdir()) == ["acceptance", "dividends.py", "note.py"]
+    # The compiled blocker still failing runs `PROBE_RUNS` times, alone (S-0129/D-4).
     assert rerun.calls == [
         ([NOTE["command"]], NOTE_PROBES),
-        ([probe.command], {probe.file: probe.text}),
+        *[([probe.command], {probe.file: probe.text})] * critic_module.PROBE_RUNS,
     ]
     critic_thread, compiled_thread = (one["comments"][0]["body"] for one in verdict.threads)
     assert "def report(): ..." in critic_thread

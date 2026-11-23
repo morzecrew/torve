@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from test_critic import critic_config
@@ -17,16 +18,29 @@ from test_run_loop import MockRuntime
 from torve.application.acceptance import (
     ACCEPTANCE_CAP,
     COMPILE_DIR,
+    DISPUTE_DIR,
+    DISPUTE_PROMPT_FILE,
+    DISPUTE_SCHEMA_FILE,
+    DISPUTED_MARKER,
     PROMPT_FILE,
     SCHEMA_FILE,
+    Acceptance,
     CompiledProbe,
+    DisputeDocument,
+    Probe,
     compile_acceptance,
     compile_prompt,
     compile_schema,
+    dispute_probe,
+    dispute_prompt,
+    dispute_reason,
+    dispute_schema,
+    dispute_sha,
     drop_reason,
     load,
     plant,
     prompt_sha,
+    save,
 )
 from torve.application.ports import AgentResult
 from torve.application.runstate import RunState
@@ -657,3 +671,371 @@ def test_planting_never_writes_through_a_link(repo, tmp_path: Path):
 
     assert plant(repo.root, TASK_ID, tree) == []
     assert list(outside.iterdir()) == []
+
+
+# ....................... #
+# The dispute (S-0129/D-9).
+
+#: The passage a counter-probe pins: the document states it, and the
+#: disputed probe below asserts something else of the same reader.
+PASSAGE = "An empty one is derived from the address."
+
+
+def _kept(number: int, quote: str = "A `reader_id` with a space is refused with a 422.") -> Probe:
+    return Probe(
+        id=f"acceptance:{number}",
+        row=ROW,
+        quote=quote,
+        claim="a reader_id with a space is a 422",
+        file=f"probes/acceptance/p0{number}.py",
+        command=f"uv run python probes/acceptance/p0{number}.py",
+        text=f"raise SystemExit({number})\n",
+        base_exit=1,
+    )
+
+
+#: The unit's store: a probe that stands, and the one put to the dispute.
+STANDING, DISPUTED = _kept(1), _kept(2)
+
+
+def answer(**fields) -> dict:
+    return {
+        "verdict": "disputed",
+        "reason": "the probe wants a 422 for an empty reader_id, which the document derives",
+        "quote": PASSAGE,
+        "file": "probes/acceptance/c01.py",
+        "command": "uv run python probes/acceptance/c01.py",
+        **fields,
+    }
+
+
+#: What a dispute can get wrong, each on its own: an upheld verdict, a
+#: passage the document lacks, no file, a compound command, a kept probe's
+#: file, a counter-probe that fails on the candidate, one that is not red on
+#: the start tree, and one red there for want of a module that tree holds.
+FLAWS = ("verdict", "quote", "text", "command", "file", "candidate", "start", "held")
+
+#: The start tree's files, as a dispute lists them from its commit.
+START_FILES = frozenset({"src/app.py", "README.md"})
+
+
+@settings(max_examples=300)
+@given(
+    st.one_of(
+        st.just(frozenset()),
+        st.sampled_from([frozenset({one}) for one in FLAWS]),
+        st.frozensets(st.sampled_from(FLAWS), min_size=1),
+    ),
+    st.data(),
+)
+def test_a_dispute_is_kept_exactly_when_its_passage_counter_probe_and_runs_hold(flaws, data):
+    """S-0129/D-9: whatever the seat argued, the engine keeps a dispute only
+    when the seat disputed, its passage is in the document, its counter-probe
+    obeys a compiled probe's written rules in a file no kept probe holds, and
+    it passed on the candidate and executed red on the start tree."""
+
+    document, quote = data.draw(passages("quote" not in flaws))
+    fields = answer(quote=quote)
+
+    if "verdict" in flaws:
+        fields["verdict"] = "upheld"
+
+    if "command" in flaws:
+        fields["command"] = "uv run python probes/acceptance/c01.py && true"
+
+    if "file" in flaws:
+        fields["file"] = STANDING.file
+        fields["command"] = STANDING.command
+
+    candidate_exit = (
+        data.draw(st.sampled_from([None, 1, 2, 126, 127])) if "candidate" in flaws else 0
+    )
+    # A module the work adds is missing on the start tree, which is a red
+    # there; one the start tree holds is not.
+    tail = (
+        traceback("ModuleNotFoundError: No module named 'app'")
+        if "held" in flaws
+        else data.draw(
+            st.sampled_from(["", traceback("ModuleNotFoundError: No module named 'readers'")])
+        )
+    )
+    start = (
+        data.draw(
+            st.one_of(
+                st.none(), st.sampled_from([0, 126, 127]).map(lambda e: CommandRun("", e, tail))
+            )
+        )
+        if "start" in flaws
+        else CommandRun("", data.draw(st.sampled_from([1, 2, 4, 42])), tail)
+    )
+    stored = Acceptance(kept=[STANDING, DISPUTED], start="a1b2")
+
+    why = dispute_reason(
+        DisputeDocument.model_validate(fields),
+        DISPUTED,
+        stored,
+        [document],
+        None if "text" in flaws else "print(1)\n",
+        CommandRun("", candidate_exit, ""),
+        start,
+        START_FILES,
+    )
+
+    assert (why is None) == (not flaws), why
+
+
+class Arbiter:
+    """Writes the counter-probe its answer names into its copy and answers,
+    recording what it was staged; or raises, as a seat that cannot open."""
+
+    kind = "harness"
+
+    def __init__(self, fields: dict | None = None, fail: bool = False):
+        self.fields = fields if fields is not None else answer()
+        self.fail = fail
+        self.calls = 0
+        self.seen: dict[str, object] = {}
+
+    def run(self, ctx):
+        self.calls += 1
+
+        if self.fail:
+            raise RuntimeError("the sandbox would not open")
+
+        staged = ctx.workspace / DISPUTE_DIR
+        self.seen = {
+            "system": ctx.system,
+            "prompt": ctx.prompt,
+            "staged": sorted(
+                str(path.relative_to(staged)) for path in staged.rglob("*") if path.is_file()
+            ),
+            "probe": (ctx.workspace / DISPUTED.file).read_text(encoding="utf-8"),
+            "scrubbed": not (ctx.workspace / ".torve" / "context").exists(),
+        }
+
+        if self.fields.get("file"):
+            path = ctx.workspace / self.fields["file"]
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("# the address derives it\n", encoding="utf-8")
+
+        return AgentResult(
+            exit_code=0,
+            output="judged\n" + json.dumps({"schema": "torve.dispute/v1", **self.fields}),
+        )
+
+
+def _disputing(repo, agent, start: bool = True):
+    """A unit whose store holds the two probes and, when *start*, records the
+    repository's head as the tree it was compiled over."""
+
+    import subprocess
+
+    run, state = _unit(repo, agent)
+    head = subprocess.run(
+        ["git", "-C", str(repo.root), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    save(
+        repo.root,
+        TASK_ID,
+        Acceptance(kept=[STANDING, DISPUTED], start=head if start else None, source="s"),
+    )
+    runs = [CommandRun(DISPUTED.command, 1, "AssertionError: 422 != 200")] * 3
+
+    return run, state, runs
+
+
+def _records(repo, mode: str) -> list[dict]:
+    rows = [
+        json.loads(line)
+        for line in (repo.root / ".torve" / "telemetry.jsonl").read_text().splitlines()
+    ]
+
+    return [row for row in rows if row.get("mode") == mode]
+
+
+def test_a_kept_dispute_puts_its_counter_probe_in_the_probe_s_place(repo, tmp_path: Path):
+    """S-0129/D-9: a kept dispute withdraws the probe from the unit's store
+    and keeps the counter-probe at its place under a new id, so planting and
+    every later decision read the counter-probe; the call is staged the
+    document and the probe, recorded as a dispute review, priced as unit
+    spend and left on the unit's history."""
+
+    agent = Arbiter()
+    run, state, runs = _disputing(repo, agent)
+    # The counter-probe imports a module the unit adds: the candidate holds
+    # it, the start tree does not, so its import failure there is the red.
+    (run.worktree / "readers.py").write_text("", encoding="utf-8")
+    (run.worktree / DISPUTED.file).parent.mkdir(parents=True, exist_ok=True)
+    (run.worktree / DISPUTED.file).write_text(DISPUTED.text, encoding="utf-8")
+    candidate = Base({"c01.py": 0})
+    start = Base(
+        {"c01.py": 1}, {"c01.py": traceback("ModuleNotFoundError: No module named 'readers'")}
+    )
+    spent: list[dict] = []
+
+    settled = dispute_probe(
+        run, state, DISPUTED, runs, candidate, start, lambda usage: spent.append(usage) or 0.1
+    )
+
+    assert settled.kept and settled.counter is not None
+    assert (settled.counter.id, settled.counter.row, settled.counter.base_exit) == (
+        "acceptance:3",
+        ROW,
+        1,
+    )
+    stored = load(repo.root, TASK_ID)
+    assert stored is not None
+    assert [one.id for one in stored.kept] == ["acceptance:1", "acceptance:3"]
+    assert stored.kept[1].text == "# the address derives it\n"
+    (withdrawn,) = stored.withdrawn
+    assert withdrawn["id"] == DISPUTED.id and withdrawn["counter"] == "acceptance:3"
+    assert withdrawn["review_id"] == settled.review_id and "text" not in withdrawn
+    # Each run alone with the counter-probe's file, the start tree only after
+    # the candidate passed it.
+    assert (
+        candidate.calls
+        == start.calls
+        == [
+            (
+                ["uv run python probes/acceptance/c01.py"],
+                {"probes/acceptance/c01.py": stored.kept[1].text},
+            )
+        ]
+    )
+    assert agent.seen["system"] == dispute_prompt()
+    assert DISPUTED.id in str(agent.seen["prompt"]) and ROW in str(agent.seen["prompt"])
+    assert agent.seen["staged"] == [
+        "dispute.schema.json",
+        "document/decisions.yaml",
+        "document/document.yaml",
+        "probe.yaml",
+    ]
+    assert agent.seen["probe"] == DISPUTED.text and agent.seen["scrubbed"]
+    (record,) = _records(repo, "dispute")
+    assert record["trigger"] == "dispute" and record["prompt_sha"] == dispute_sha()
+    assert (record["probe"], record["kept"], record["counter"]["id"]) == (
+        DISPUTED.id,
+        True,
+        "acceptance:3",
+    )
+    assert len(spent) == 1
+    assert any(str(e.get("fact")).startswith(DISPUTED_MARKER) for e in state.history)
+    # The candidate's copy follows the store: the counter-probe in, the
+    # withdrawn probe out, so the session's next turn meets the counter-probe.
+    assert (run.worktree / "probes/acceptance/c01.py").is_file()
+    assert not (run.worktree / DISPUTED.file).exists()
+    tree = tmp_path / "tree"
+    tree.mkdir()
+    assert plant(repo.root, TASK_ID, tree) == [STANDING.file, "probes/acceptance/c01.py"]
+
+
+@pytest.mark.parametrize(
+    ("fields", "start_run", "why", "start_runs"),
+    [
+        (answer(verdict="upheld"), (1, ""), "the seat upheld the probe", 0),
+        (answer(), (0, ""), "it passes on the start tree, so it pins nothing the unit adds", 1),
+        (
+            answer(),
+            (1, traceback("ModuleNotFoundError: No module named 'app'")),
+            "it cannot import app, which the start tree holds, so it fails on every tree",
+            1,
+        ),
+    ],
+    ids=["upheld", "green-on-start", "held-module"],
+)
+def test_a_dispute_the_engine_refuses_leaves_the_probe_standing(
+    repo, fields, start_run, why, start_runs
+):
+    """S-0129/D-9: an upheld verdict runs nothing; a counter-probe that also
+    passes on the start tree, or fails there only for want of a module that
+    tree holds, is refused after both runs. The store is as it was, and the
+    answered dispute is paid for and recorded with why it was not kept."""
+
+    run, state, runs = _disputing(repo, Arbiter(fields))
+    candidate = Base({"c01.py": 0})
+    start = Base({"c01.py": start_run[0]}, {"c01.py": start_run[1]})
+    before = load(repo.root, TASK_ID)
+    spent: list[dict] = []
+
+    settled = dispute_probe(
+        run, state, DISPUTED, runs, candidate, start, lambda usage: spent.append(usage)
+    )
+
+    assert not settled.kept and settled.why == why
+    assert load(repo.root, TASK_ID) == before
+    assert len(start.calls) == start_runs and len(spent) == 1
+    assert _records(repo, "dispute")[-1]["why"] == why
+
+
+def test_a_dispute_no_start_tree_could_keep_asks_no_seat(repo):
+    """S-0129/D-9: a store written before it recorded its start tree can keep
+    no dispute, so none is asked or paid for, and the probe blocks."""
+
+    agent = Arbiter()
+    run, state, runs = _disputing(repo, agent, start=False)
+    spent: list[dict] = []
+
+    settled = dispute_probe(
+        run, state, DISPUTED, runs, Base({"c01.py": 0}), Base(), lambda usage: spent.append(usage)
+    )
+
+    assert not settled.kept and "no start tree" in settled.why
+    assert agent.calls == 0 and spent == []
+
+
+def test_a_dispute_seat_that_cannot_run_keeps_nothing_and_records_nothing(repo):
+    run, state, runs = _disputing(repo, Arbiter(fail=True))
+    before = load(repo.root, TASK_ID)
+
+    settled = dispute_probe(run, state, DISPUTED, runs, Base(), Base(), lambda usage: None)
+
+    assert not settled.kept and "the dispute seat failed" in settled.why
+    assert load(repo.root, TASK_ID) == before
+    assert not (repo.root / ".torve" / "telemetry.jsonl").exists() or not _records(repo, "dispute")
+
+
+def test_a_dispute_never_writes_through_a_link_in_the_candidate(repo, tmp_path: Path):
+    """S-0129/D-9: the seat's copy is the candidate's, links kept, so a link
+    the executor left on the probe's path refuses the seat rather than carry
+    the staging write outside the copy, and the probe stands."""
+
+    agent = Arbiter()
+    run, state, runs = _disputing(repo, agent)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (run.worktree / "probes").mkdir(exist_ok=True)
+    (run.worktree / "probes" / "acceptance").symlink_to(outside)
+    before = load(repo.root, TASK_ID)
+
+    settled = dispute_probe(run, state, DISPUTED, runs, Base(), Base(), lambda usage: None)
+
+    assert not settled.kept and "passes through a link" in settled.why
+    assert agent.calls == 0 and list(outside.iterdir()) == []
+    assert load(repo.root, TASK_ID) == before
+
+
+def test_planting_leaves_a_folder_at_a_withdrawn_probe_s_path(repo, tmp_path: Path):
+    """S-0129/D-9: a withdrawn probe's planted copy goes, but a folder the
+    executor put at its path is its own and planting goes on past it."""
+
+    _unit(repo, Arbiter())
+    save(
+        repo.root,
+        TASK_ID,
+        Acceptance(kept=[STANDING], withdrawn=[{"id": DISPUTED.id, "file": DISPUTED.file}]),
+    )
+    tree = tmp_path / "tree"
+    (tree / DISPUTED.file).mkdir(parents=True)
+
+    assert plant(repo.root, TASK_ID, tree) == [STANDING.file]
+    assert (tree / DISPUTED.file).is_dir()
+
+
+def test_the_dispute_prompt_is_frozen_with_its_own_schema():
+    assert dispute_prompt().startswith("You are the arbiter of one acceptance probe")
+    assert ".torve/dispute/dispute.schema.json" in dispute_prompt()
+    assert json.loads(DISPUTE_SCHEMA_FILE.read_text(encoding="utf-8")) == dispute_schema()
+    assert DISPUTE_PROMPT_FILE.name == "dispute-v1.md"

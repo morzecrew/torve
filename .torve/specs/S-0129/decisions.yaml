@@ -83,12 +83,16 @@ decisions:
     grade: ASSUMED
     text: >-
       The critic's decision re-runs every kept probe against the candidate with the
-      stored text; one that executes and exits non-zero blocks as a `contract` finding
-      of severity `blocker` on its row, with the probe as its repro, whatever the
-      critic's document says, at every `blocks_at` and on a revision attempt, and
-      is never carried; one that exits 0 is recorded passed, and one with no exit,
-      126 or 127 is recorded unmeasured and never blocks; after a session turn the
-      recheck re-runs every kept probe, so one the turn broke blocks the turn
+      stored text; one that executes and exits non-zero runs again until it passes
+      or has run three times (`PROBE_RUNS`), and one that passes any run is recorded
+      unsteady and blocks nothing, nor does a critic finding whose re-run was that
+      same first run; one that fails every run is put to the dispute D-9 says and,
+      unless the dispute is kept, blocks as a `contract` finding of severity `blocker`
+      on its row, with the probe as its repro, whatever the critic's document says,
+      at every `blocks_at` and on a revision attempt, and is never carried; one that
+      exits 0 is recorded passed, and one with no exit, 126 or 127 is recorded unmeasured
+      and never blocks; after a session turn the recheck re-runs every kept probe
+      the same way, so one the turn broke blocks the turn, and puts nothing to a dispute
     paths: [src/torve/application/critic.py]
     consequence: >-
       a stated rule the candidate breaks blocks on executed evidence even when the
@@ -103,6 +107,7 @@ decisions:
     check: >-
       uv run pytest -q tests/test_critic.py -k "compiled_probe or failing_probe or
       re_runs_every_probe"
+    fingerprint: 22c625e8b21a06a5/e65c5af0a246a016
   - id: D-5
     grade: ASSUMED
     text: >-
@@ -179,3 +184,49 @@ decisions:
       uv run pytest -q tests/test_review_run.py tests/test_runner.py -k "own_tiers_cache
       or unnamed_cache_mounts_nothing"
     fingerprint: 9bc1886c86a65ce3/afa7380a7acc4d74
+  - id: D-9
+    grade: ASSUMED
+    text: >-
+      A probe that fails every run of a decision is put to one reviewer-tier seat
+      call under its own frozen prompt `dispute/v1`, over a scrubbed copy of the candidate,
+      staged the document whole and the probe with its row, quote, claim, command,
+      file and runs; the seat answers `upheld`, or `disputed` with the passage of
+      the document the probe contradicts and a counter-probe. The engine keeps a dispute
+      only when that passage occurs in one of the document's files with whitespace
+      collapsed, the counter-probe passes a compiled probe's written rules on the
+      probe's row (D-2) in a file no kept probe holds, and its command, run alone
+      with its file, exits 0 on the candidate and executes red on the unit's start
+      tree, which the store records, and not for want of a module that tree's commit
+      holds. A kept dispute records the probe advisory, as a `minor` `contract` finding
+      that names the dispute, withdraws it from the store and from what later attempts
+      are shown and planted, and keeps the counter-probe in its place under a new
+      id, so every later decision and recheck of the unit is judged by the counter-probe.
+      A unit makes at most two disputes, and none at its cap or clock with the asking
+      critic call counted or without a recorded start tree; an upheld or refused dispute,
+      a seat that cannot run and a dispute not made leave the probe blocking. The
+      call is unit spend, counted in its attempt's, and a `review` with `mode: dispute`,
+      its prompt sha, the probe and what came of it
+    paths:
+      - src/torve/application/acceptance.py
+      - src/torve/application/critic.py
+      - src/torve/application/runner.py
+      - src/torve/application/ports.py
+      - src/torve/adapters/workspace/git.py
+      - src/torve/application/prompts/dispute-v1.md
+      - src/torve/application/prompts/dispute-v1.schema.json
+    consequence: >-
+      a probe that misreads the document, a placeholder read as data, a count or an
+      order the document gives differently, no longer escalates correct work: the
+      engine measures the passage's own behaviour on the candidate in its place, and
+      the misread probe never judges the unit again
+    rationale: >-
+      no revision can pass a probe that contradicts the document, and nothing of the
+      probes reaches the critic, whose prompt stays frozen (S-0122/D-19); a dispute
+      stands on a passage the engine finds and two runs it makes, never on the seat's
+      words (S-0122/D-1), and the start tree's red is the one a compiled probe is
+      kept by (D-2)
+    cites: [D-2, D-4, S-0122/D-1, S-0122/D-19]
+    check: >-
+      uv run pytest -q tests/test_acceptance.py tests/test_critic.py tests/test_runner.py
+      tests/test_judge_checkout.py -k "dispute or given_commit"
+    fingerprint: d0d1250a80e03664/2f011dc445071570
