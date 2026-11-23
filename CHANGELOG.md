@@ -119,6 +119,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `torve run --agent fake` now replays its scenario on a sandbox image that has `python3`
+  and no `python`, such as the Claude Code image. It exited 127 there before writing
+  anything.
+
 - `torve ledger`, `torve context`, `torve why`'s cost comparison and the harness facts now
   count an attempt once when a session revision re-ran its gates. They read the attempt at
   its final cost and token counts, where before they added both gate passes and counted the

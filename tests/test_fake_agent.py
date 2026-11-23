@@ -5,6 +5,9 @@ and the integration test both stand on it."""
 from __future__ import annotations
 
 import subprocess
+import sys
+
+import pytest
 
 from torve.adapters.agent.fake import FakeAgent
 from torve.application.ports import AgentContext, ExecResult, SandboxHandle
@@ -15,8 +18,9 @@ class HostShellRuntime:
     """Executes the staged script directly on the host, cwd = workspace. A
     test double for the adapter's script generation, not a Runtime port."""
 
-    def __init__(self, workspace):
+    def __init__(self, workspace, env=None):
         self.workspace = workspace
+        self.env = env
 
     def exec(self, handle, command, timeout_s):
         try:
@@ -28,6 +32,7 @@ class HostShellRuntime:
                 capture_output=True,
                 text=True,
                 check=False,
+                env=self.env,
             )
         except subprocess.TimeoutExpired:
             return ExecResult(exit_code=None, output="timed out", duration_s=timeout_s)
@@ -120,3 +125,18 @@ def test_a_fake_keeps_a_session_only_when_its_test_scripts_one(tmp_path):
     assert scripted.follow_up is not None
     assert scripted.follow_up(ctx, first, "feedback").exit_code == 0
     assert (ctx.workspace / "src" / "new.py").read_text() == "x = 2\n"
+
+
+@pytest.mark.parametrize("name", ["python3", "python"])
+def test_the_script_runs_on_an_image_with_only_one_interpreter_name(tmp_path, name):
+    """The claude sandbox image has `python3` and no `python` alias, and an
+    image may have only `python`: either name alone runs the scenario."""
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / name).symlink_to(sys.executable)
+    ctx, agent = ctx_for(tmp_path, [{"writes": {"out.txt": "ran\n"}, "exit": 0}])
+    ctx.runtime.env = {"PATH": str(bin_dir)}
+
+    assert agent.run(ctx).exit_code == 0
+    assert (ctx.workspace / "out.txt").read_text() == "ran\n"
