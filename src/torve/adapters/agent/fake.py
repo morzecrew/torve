@@ -152,8 +152,11 @@ class FakeAgent:
         script.write_text(SCRIPT, encoding="utf-8")
         script.with_suffix(".py.json").write_text(json.dumps(step), encoding="utf-8")
 
+        # The claude image has python3 and no `python`; an image may have only
+        # `python`. The runtime runs the line through `sh -c`.
+        interpreter = '"$(command -v python3 || command -v python)"'
         result = ctx.runtime.exec(
-            ctx.handle, f"python3 {ctx.workdir}/.torve/tmp/fake_agent.py", ctx.timeout_s
+            ctx.handle, f"{interpreter} {ctx.workdir}/.torve/tmp/fake_agent.py", ctx.timeout_s
         )
 
         return AgentResult(exit_code=result.exit_code, output=result.output)
