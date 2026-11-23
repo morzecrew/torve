@@ -41,7 +41,7 @@ from typing import TYPE_CHECKING, Any, cast
 import yaml
 
 from torve.application.projections import landed
-from torve.application.streams import stream_rows
+from torve.application.streams import fold_attempts, stream_rows
 from torve.base.clock import parse
 from torve.config import layout
 from torve.config.providers import Price, load_providers
@@ -693,7 +693,8 @@ def ledger_report(root: Path, spec_dir: Path | None = None) -> dict[str, Any]:
     from a checkout (S-0065/D-7, decided here and logged).
     """
 
-    rows, excluded = counted_rows(stream_rows(root))
+    # A re-gated attempt is one attempt at its newest block (S-0124/D-15).
+    rows, excluded = counted_rows(fold_attempts(stream_rows(root)))
     shipped = set(landed(root, spec_dir))
     seats = _fold_seats(rows, _list_prices(root))
     # The work-shaped denominators (S-0075/D-3), read from the diffs the

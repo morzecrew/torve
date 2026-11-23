@@ -562,3 +562,40 @@ def test_the_command_prints_the_per_line_rates(repo: Repo) -> None:
     assert "per file in scope" in result.stdout
     assert "src/new.py" in result.stdout
     assert "100,000" in result.stdout
+
+
+def test_a_session_revision_is_one_attempt_at_its_newest_block(repo: Repo) -> None:
+    """S-0124/D-15: a session revision re-runs the gates inside its attempt, and
+    the second row carries the attempt's whole block so far, so the seat counts
+    one attempt at that row's cost rather than both rows summed."""
+
+    repo.seed()
+    _landing(repo, "T-0001")
+    first, revised = _row("T-0001", cost=2.0), _row("T-0001", cost=3.4, at="2026-01-01T00:10:00Z")
+    first["agent"]["attempt"] = revised["agent"]["attempt"] = 1
+    _stream(repo, [first, revised])
+
+    report = ledger_report(repo.root)
+    seat = report["seats"][0]
+
+    assert report["attempts"] == 1
+    assert (seat["attempts"], seat["cost_usd"]) == (1, 3.4)
+
+
+def test_a_session_revision_reads_its_trace_once_for_the_burn_population(repo: Repo) -> None:
+    """S-0124/D-15: the revision's two rows name one trace, and the burn
+    population counts the attempt once."""
+
+    repo.seed()
+    repo.write(".torve/traces/T-0001.1.jsonl", TRACE)
+    rows = [_traced_row("T-0001", ".torve/traces/T-0001.1.jsonl") for _ in range(2)]
+
+    for row in rows:
+        row["agent"]["attempt"] = 1
+
+    _stream(repo, rows)
+
+    result = CliRunner().invoke(app, ["ledger", "--root", str(repo.root), "--format", "json"])
+
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["burn"]["sources"] == {"trace": 1, "recorded": 0, "absent": 0}

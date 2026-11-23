@@ -2143,3 +2143,28 @@ def test_the_lint_refuses_docker_when_the_configuration_is_absent_or_unreadable(
         "reads the host" in e
         for e in lint_drafts(tree, document(draft_dict(acceptance=command)), 4)
     )
+
+
+def test_harness_populations_count_a_re_gated_attempt_once(seeded):
+    """S-0124/D-15: a session revision's second gate pass carries the attempt's
+    whole block, so the tier has one run at that block's cost."""
+
+    telemetry = seeded.root / ".torve" / "telemetry.jsonl"
+    telemetry.write_text(
+        "".join(
+            json.dumps(
+                {
+                    "task_id": "T-0100",
+                    "agent": {"tier": "executor", "adapter": "api", "attempt": 1, "cost_usd": cost},
+                }
+            )
+            + "\n"
+            for cost in (0.40, 0.65)
+        ),
+        encoding="utf-8",
+    )
+
+    facts = execution_facts(seeded.root, RunnerConfig())
+
+    assert "harness tier executor: 1 run(s)" in facts
+    assert "$0.65 self-reported (n=1)" in facts
