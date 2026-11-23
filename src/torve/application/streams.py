@@ -16,6 +16,7 @@ leg's read of the lane's own facts (S-0102/D-3).
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, cast
 
@@ -54,6 +55,44 @@ def stream_rows(root: Path) -> list[dict[str, Any]]:
             found.append(cast("dict[str, Any]", record))
 
     return found
+
+
+def fold_attempts(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """*rows* with each attempt's rows folded into its newest (S-0124/D-15).
+
+    S-0038/D-1 writes one row per attempt, but a session revision's turn
+    re-runs the gates inside its attempt (S-0124/D-8): the attempt then has a
+    row per gate pass, each carrying its whole agent block so far, and a sum
+    over them counts the attempt twice and its earlier turns' spend again. An
+    attempt is its task, its stamp and its candidate (S-0122/D-7), as `torve
+    why` groups it. A row with a kind, or with no stamp, passes through, and
+    the order is the stream's."""
+
+    listed = list(rows)
+    newest = {key: index for index, row in enumerate(listed) if (key := _attempt(row))}
+
+    return [
+        row
+        for index, row in enumerate(listed)
+        if (key := _attempt(row)) is None or newest[key] == index
+    ]
+
+
+def _attempt(row: dict[str, Any]) -> tuple[str, int, int] | None:
+    agent: Any = row.get("agent")
+
+    if row.get("kind") or not isinstance(agent, dict):
+        return None
+
+    stamp, candidate = agent.get("attempt"), agent.get("candidate")
+
+    if not isinstance(stamp, int) or isinstance(stamp, bool):
+        return None
+
+    if not isinstance(candidate, int) or isinstance(candidate, bool):
+        candidate = 0
+
+    return (str(row.get("task_id") or ""), stamp, candidate)
 
 
 def lane_verdicts(root: Path) -> dict[str, str]:

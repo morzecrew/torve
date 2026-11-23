@@ -747,7 +747,8 @@ def harness_populations(
         for name in sorted(config.tiers)
     }
 
-    for row in rows if rows is not None else streams.stream_rows(root):
+    # A re-gated attempt is one run at its newest block (S-0124/D-15).
+    for row in streams.fold_attempts(rows if rows is not None else streams.stream_rows(root)):
         if str(row.get("kind", "")) in _HARNESS_EXCLUDED_KINDS:
             continue
 
@@ -1391,7 +1392,9 @@ def context_report(
     # fallback the task block takes and for the same reason: a record with
     # no attempt in it is a record that was not watching, not a repository
     # where nothing ran.
-    rows = (rows_from_events(recorded) if recorded else []) or streams.stream_rows(root)
+    rows = streams.fold_attempts(
+        (rows_from_events(recorded) if recorded else []) or streams.stream_rows(root)
+    )
     logs = (divergences_from_events(recorded) if recorded else {}) or _stream_divergences(root)
     escalations: dict[str, list[dict[str, Any]]] = {}
 

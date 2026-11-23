@@ -265,3 +265,27 @@ def test_a_unit_s_record_reaches_why_and_the_night_and_is_no_attempt(tmp_path):
     assert shown.exit_code == 0, shown.output
     assert "2 candidate(s) · selected · candidate 2 chosen" in shown.output
     assert "candidate 2: green, critic clean" in shown.output
+
+
+# ....................... #
+# S-0124/D-15: a session revision's rows are one attempt.
+
+
+def test_the_context_report_counts_a_re_gated_attempt_once(tmp_path):
+    import json
+
+    from torve.application.projections import context_report
+
+    root = _repo(tmp_path)
+    rows = [
+        {"task_id": "T-0001", "agent": {"adapter": "claude", "attempt": 1, "cost_usd": cost}}
+        for cost in (2.0, 3.4)
+    ]
+    stream = root / ".torve" / "telemetry.jsonl"
+    stream.parent.mkdir(parents=True, exist_ok=True)
+    stream.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+
+    report = context_report(root, root / ".torve" / "specs")
+
+    assert report["sources"]["attempt_rows"] == 1
+    assert [cost["cost_usd"] for cost in report["costs"]] == [3.4]

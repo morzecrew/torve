@@ -17,7 +17,7 @@ from rich.text import Text
 
 from torve.adapters.agent.harness import parse_tool_calls
 from torve.application.ledger import contract_at, counted_rows, ledger_report
-from torve.application.streams import stream_rows
+from torve.application.streams import fold_attempts, stream_rows
 from torve.application.telemetry import burn_population
 from torve.cli.console import (
     STYLE_DIM,
@@ -123,7 +123,7 @@ def ledger_cmd(
     # classification stays the engine's. The population is the same counted
     # attempts the rates above divide by.
     report["burn"] = burn_population(
-        counted_rows(stream_rows(root))[0],
+        counted_rows(fold_attempts(stream_rows(root)))[0],
         root,
         parse_tool_calls,
         contracts=partial(contract_at, root),
