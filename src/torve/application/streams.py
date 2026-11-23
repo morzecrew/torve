@@ -65,8 +65,9 @@ def fold_attempts(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     row per gate pass, each carrying its whole agent block so far, and a sum
     over them counts the attempt twice and its earlier turns' spend again. An
     attempt is its task, its stamp and its candidate (S-0122/D-7), as `torve
-    why` groups it. A row with a kind, or with no stamp, passes through, and
-    the order is the stream's."""
+    why` groups it. A row with a kind, a shadow replay's, or one with no stamp
+    passes through, so a replay never stands in for the live attempt it
+    shares a stamp with, and the order is the stream's."""
 
     listed = list(rows)
     newest = {key: index for index, row in enumerate(listed) if (key := _attempt(row))}
@@ -81,7 +82,7 @@ def fold_attempts(rows: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
 def _attempt(row: dict[str, Any]) -> tuple[str, int, int] | None:
     agent: Any = row.get("agent")
 
-    if row.get("kind") or not isinstance(agent, dict):
+    if row.get("kind") or not isinstance(agent, dict) or agent.get("shadow") is True:
         return None
 
     stamp, candidate = agent.get("attempt"), agent.get("candidate")

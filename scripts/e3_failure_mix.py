@@ -64,6 +64,14 @@ def shadow_failures(row: dict) -> list[str]:
     return names
 
 
+def attempt_key(row: dict) -> tuple | None:
+    """The attempt a row is a gate pass of; None for a row with no stamp."""
+    agent = row.get("agent") or {}
+    if type(agent.get("attempt")) is not int:
+        return None
+    return (row.get("task_id"), agent["attempt"], agent.get("candidate") or 0)
+
+
 def analyse(data: list[dict], since: str = "") -> dict:
     # A `fake` adapter never ran a model: its attempts are fixture traffic and
     # counting them makes a seat look catastrophic for free.
@@ -73,7 +81,14 @@ def analyse(data: list[dict], since: str = "") -> dict:
         if not r.get("kind")
         and r.get("agent")
         and r["agent"].get("adapter") != "fake"
+        and r["agent"].get("shadow") is not True
         and (not since or r.get("at", "") >= since)
+    ]
+    # A session revision re-gates its attempt, a row per gate pass, and the
+    # newest carries the whole attempt (S-0124/D-15).
+    newest = {attempt_key(r): i for i, r in enumerate(attempts)}
+    attempts = [
+        r for i, r in enumerate(attempts) if attempt_key(r) is None or newest[attempt_key(r)] == i
     ]
 
     seats: dict[str, dict] = defaultdict(
@@ -229,6 +244,18 @@ def selfcheck() -> None:
     assert (
         seat({"tier": "executor", "image": "claude-sandbox:2.1.252"}) == "executor / claude-sandbox"
     )
+
+    def gate(outcome: str) -> list[dict]:
+        return [{"name": "acceptance", "outcome": outcome, "state": "blocking"}]
+
+    agent = {"tier": "executor", "attempt": 1}
+    first = {"task_id": "T-1", "agent": {**agent, "cost_usd": 2.0}, "results": gate("fail")}
+    revised = {"task_id": "T-1", "agent": {**agent, "cost_usd": 3.4}, "results": gate("pass")}
+    replay = {"task_id": "T-1", "agent": {**agent, "shadow": True, "cost_usd": 0.4}}
+    folded = analyse([first, revised, replay])
+    (only,) = folded["seats"].values()
+    assert folded["attempts"] == 1, "a re-gated attempt is one attempt, and a replay is none"
+    assert only["costs"] == [3.4] and only["green"] == 1 and only["red"] == 0
     print("selfcheck ok")
 
 
