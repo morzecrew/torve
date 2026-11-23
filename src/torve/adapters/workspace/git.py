@@ -413,7 +413,7 @@ class GitWorkspace:
 
     # ....................... #
 
-    def judge_checkout(self, task_id: str) -> Path:
+    def judge_checkout(self, task_id: str, commit: str | None = None) -> Path:
         """The candidate the gates read (S-0114/D-1): commit what `git add -A`
         would stage in the task's worktree to `refs/torve/judge/<task>`, then
         build a standalone checkout at `.wt/<task>.judge/` — the way a shadow
@@ -424,9 +424,13 @@ class GitWorkspace:
         the worktree's own index is exactly as it was and its branch never
         moves. The commit's parent is the worktree's HEAD, so its history is
         the candidate's real history, and the fetch at depth 1 transfers only
-        the objects the snapshot reaches."""
+        the objects the snapshot reaches.
 
-        snapshot = _snapshot_commit(naming.worktree(self.root, task_id))
+        Given a *commit*, the checkout holds that commit, a unit's start tree
+        among them (S-0129/D-9), and no worktree is read: *task_id* then only
+        names the checkout and its ref."""
+
+        snapshot = commit or _snapshot_commit(naming.worktree(self.root, task_id))
         # The ref is written directly, never through a checkout.
         self._git("update-ref", judge_ref(task_id), snapshot)
         path = self.root / naming.WORKTREE_DIR / f"{task_id}{JUDGE_SUFFIX}"
@@ -522,13 +526,18 @@ class ShadowWorkspace:
 
     # ....................... #
 
-    def judge_checkout(self, task_id: str) -> Path:
+    def judge_checkout(self, task_id: str, commit: str | None = None) -> Path:
         """A replay's judge checkout (S-0114/D-1, D-2): what `git add -A` would
         stage in the replay's clone, written to the clone's own judge ref and
         fetched into `.wt/shadow-<task>.judge/`. The fetch is unbounded: the
         clone's history already ends at the replayed parent, so the checkout
         holds the base and nothing past it. Named for the replay's run state,
-        so `torve reap` reads its liveness as it reads an attempt's."""
+        so `torve reap` reads its liveness as it reads an attempt's. A replay
+        never runs a review (S-0129/D-8), so it checks out no other commit.
+        """
+
+        if commit is not None:
+            raise WorkspaceError("a shadow replay checks out its own snapshot only")
 
         clone = self.path_for(task_id)
         snapshot = _snapshot_commit(clone)

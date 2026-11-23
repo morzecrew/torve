@@ -199,8 +199,9 @@ class JudgePort(Protocol):
     # the task's worktree — the index and branch untouched — to the task's
     # judge ref, and build a standalone, detached checkout of that snapshot at
     # `.wt/<task>.judge/`, verified before it is returned. A shadow replay's
-    # clone opens its own (S-0114/D-2).
-    def judge_checkout(self, task_id: str) -> Path: ...
+    # clone opens its own (S-0114/D-2). Given a *commit*, the checkout holds
+    # that commit instead, and nothing is snapshotted (S-0129/D-9).
+    def judge_checkout(self, task_id: str, commit: str | None = None) -> Path: ...
 
     def remove_judge(self, task_id: str) -> None: ...
 

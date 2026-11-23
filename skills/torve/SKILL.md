@@ -29,6 +29,9 @@ other skills (`torve guide working-rules`, `torve guide flag-dont-flip`).
    Under `review.mode: critic`, with `review.compile` or a document's own
    `compile: true`, the reviewer seat first compiles the document into probes
    every candidate is shown; a probe whose re-run measures a failure blocks.
+   A failure that does not repeat on two more runs blocks nothing, and one
+   that repeats goes to a dispute: a counter-probe that passes on the work
+   and fails on the start tree replaces a probe that misread the document.
    A compile that fails or keeps none leaves the unit to the critic alone.
 6. **Merge**: the owner merges. Then mark the document
    `implementation: complete` and add its changelog entry in one pull request.

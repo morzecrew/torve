@@ -233,6 +233,98 @@ amendments:
       - **Critic seats:** 57 of 86 met one; they fared better only because the candidate's copy can carry the executor's environment.
 
       Run in the seat's image with a writable copy of that cache and no network, the same tree installed and its suite passed. D-8 mounts the cache the seat's tier names, as an attempt's tier's is mounted.
+  - id: A-8
+    at: '2026-11-23T22:37:53Z'
+    title: >-
+      A compiled probe's failure stands only when it repeats
+    changes:
+      - subject: D-4
+        field: text
+        before: >-
+          The critic's decision re-runs every kept probe against the candidate with
+          the stored text; one that executes and exits non-zero blocks as a `contract`
+          finding of severity `blocker` on its row, with the probe as its repro, whatever
+          the critic's document says, at every `blocks_at` and on a revision attempt,
+          and is never carried; one that exits 0 is recorded passed, and one with
+          no exit, 126 or 127 is recorded unmeasured and never blocks; after a session
+          turn the recheck re-runs every kept probe, so one the turn broke blocks
+          the turn
+        after: >-
+          The critic's decision re-runs every kept probe against the candidate with
+          the stored text; one that executes and exits non-zero runs again until it
+          passes or has run three times (`PROBE_RUNS`), and one that passes any run
+          is recorded unsteady and blocks nothing; one that fails every run is put
+          to the dispute D-9 says and, unless the dispute is kept, blocks as a `contract`
+          finding of severity `blocker` on its row, with the probe as its repro, whatever
+          the critic's document says, at every `blocks_at` and on a revision attempt,
+          and is never carried; one that exits 0 is recorded passed, and one with
+          no exit, 126 or 127 is recorded unmeasured and never blocks; after a session
+          turn the recheck re-runs every kept probe the same way, so one the turn
+          broke blocks the turn, and puts nothing to a dispute
+      - subject: D-4
+        field: fingerprint
+        after: 409aeca27e95d375/e65c5af0a246a016
+    md: |-
+      Amended on 2026-11-24 from the bed's replay of the critic over work it had not judged: the 34 trials of the whole-document arm that passed their hidden checks, each attempt's files replayed into the library's critic and compiler unchanged.
+
+      Four of the 771 compiled probes failed against that work. One of them, a probe that orders two processes' exits by `Popen.wait(timeout=...)`, which polls every 50 ms, failed 3 of 6 runs on a correct candidate whose two exits were 8 ms apart. A failure that does not repeat measured the probe, not the candidate, so D-4 now runs a failed probe again, up to three runs in all, and a probe that passes any of them is recorded unsteady and blocks nothing. The recheck after a session turn reads a probe the same way. A failure that repeats on every run goes to the dispute D-9 adds.
+  - id: A-9
+    at: '2026-11-23T22:37:59Z'
+    title: A probe that fails every run is put to a dispute
+    changes:
+      - subject: D-9
+        field: grade
+        before: OPEN
+        after: ASSUMED
+      - subject: D-9
+        field: paths
+        before: []
+        after:
+          - src/torve/application/acceptance.py
+          - src/torve/application/critic.py
+          - src/torve/application/runner.py
+          - src/torve/application/ports.py
+          - src/torve/adapters/workspace/git.py
+          - src/torve/application/prompts/dispute-v1.md
+          - src/torve/application/prompts/dispute-v1.schema.json
+      - subject: D-9
+        field: text
+        before: <decision>
+        after: >-
+          A probe that fails every run of a decision is put to one reviewer-tier seat
+          call under its own frozen prompt `dispute/v1`, over a scrubbed copy of the
+          candidate, staged the document whole and the probe with its row, quote,
+          claim, command, file and runs; the seat answers `upheld`, or `disputed`
+          with the passage of the document the probe contradicts and a counter-probe.
+          The engine keeps a dispute only when that passage occurs in one of the document's
+          files with whitespace collapsed, the counter-probe passes a compiled probe's
+          written rules on the probe's row (D-2) in a file no kept probe holds, and
+          its command, run alone with its file, exits 0 on the candidate and executes
+          red on the unit's start tree, which the store records, and not for want
+          of a module that tree's commit holds. A kept dispute records the probe advisory,
+          as a `minor` `contract` finding that names the dispute, withdraws it from
+          the store and from what later attempts are shown and planted, and keeps
+          the counter-probe in its place under a new id, so every later decision and
+          recheck of the unit is judged by the counter-probe. A unit makes at most
+          two disputes, and none at its cap or clock with the asking critic call counted
+          or without a recorded start tree; an upheld or refused dispute, a seat that
+          cannot run and a dispute not made leave the probe blocking. The call is
+          unit spend, counted in its attempt's, and a `review` with `mode: dispute`,
+          its prompt sha, the probe and what came of it
+      - subject: D-9
+        field: fingerprint
+        after: d0d1250a80e03664/2f011dc445071570
+    md: |-
+      Amended on 2026-11-24 from the same replay as A-8. The other three probes that failed failed on every run, and two of them misread the document rather than the work:
+
+      - **A placeholder read as data:** a probe matched the refusal line `YYYY-MM-DD,GIFT,SYMBOL,N,<value per unit>,0.00,USD` with a pattern that allows no space, so the candidate printing the document's line exactly failed it.
+      - **A count the document gives differently:** a probe wanted two new shifts where D-9 of that document, "shifts are added while their start is on or before *until*", gives three.
+
+      Each blocked correct work as a `contract` blocker the critic never saw and the executor could not answer: no revision can pass a probe that contradicts the document it implements. The critic's prompt is frozen (S-0122/D-19) and nothing of the probes is staged for it, so the dispute is a call of its own, made only for a probe that failed every run, under its own frozen prompt.
+
+      The verdict still comes from what ran (S-0122/D-1). A dispute is kept only on a passage the engine finds in the document and a counter-probe the engine runs twice: green on the candidate and red on the start tree, the same red that keeps a compiled probe (D-2). The counter-probe then takes the probe's place for the rest of the unit, so the misread probe never judges it again and the behaviour the passage states stays measured.
+
+      A unit makes at most two disputes. A candidate failing many probes is most likely unfinished, and each dispute is a seat call within the unit's cap.
 editorial:
   - subject: D-7
     field: text

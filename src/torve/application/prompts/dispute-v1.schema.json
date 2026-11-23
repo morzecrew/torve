@@ -1,0 +1,49 @@
+{
+  "description": "torve.dispute/v1: the one JSON document your answer ends with.",
+  "properties": {
+    "schema": {
+      "const": "torve.dispute/v1",
+      "default": "torve.dispute/v1",
+      "title": "Schema",
+      "type": "string"
+    },
+    "verdict": {
+      "description": "`upheld` when the probe asserts what the document states, `disputed` when it does not.",
+      "enum": [
+        "upheld",
+        "disputed"
+      ],
+      "title": "Verdict",
+      "type": "string"
+    },
+    "reason": {
+      "description": "Why, in one sentence: what the probe asserts and what the document states.",
+      "title": "Reason",
+      "type": "string"
+    },
+    "quote": {
+      "default": "",
+      "description": "For a dispute: the passage of the document the probe contradicts, copied verbatim.",
+      "title": "Quote",
+      "type": "string"
+    },
+    "file": {
+      "default": "",
+      "description": "For a dispute: the counter-probe's file, a new path under probes/acceptance/.",
+      "title": "File",
+      "type": "string"
+    },
+    "command": {
+      "default": "",
+      "description": "For a dispute: the command that runs it from the workspace root, exiting 0 when the\nbehaviour the passage states holds.",
+      "title": "Command",
+      "type": "string"
+    }
+  },
+  "required": [
+    "verdict",
+    "reason"
+  ],
+  "title": "DisputeDocument",
+  "type": "object"
+}

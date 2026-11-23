@@ -31,7 +31,7 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path, PurePosixPath
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 from forze.application.contracts.durable.function import (
@@ -112,6 +112,9 @@ from torve.gates.context import GateContext, GitError, build_context, git, resol
 from torve.gates.contract import spec
 from torve.gates.evidence_package import TAIL_BYTES, CommandRun, build_evidence, evidence_budget
 from torve.gates.runner import RunReport, battery, battery_budget, run_gates
+
+if TYPE_CHECKING:
+    from torve.application.acceptance import Acceptance
 
 # ----------------------- #
 
@@ -1003,6 +1006,11 @@ def _repro_timeout(run: Dispatch) -> float:
     )
 
 
+#: The suffix of a start-tree checkout's key (S-0129/D-9): after the `~` a
+#: candidate's key carries, so the reaper reads its liveness as the task's.
+START_KEY = "~start"
+
+
 def _probe_refusal(checkout: Path, name: str) -> str | None:
     """Why probe *name* may not be written into *checkout*, or None: its path
     leaves `probes/`, a component of it is a link, or a file is already
@@ -1043,6 +1051,8 @@ def reproduce(
     state: RunState,
     commands: Sequence[str],
     probes: Mapping[str, str | None],
+    *,
+    commit: str | None = None,
 ) -> list[CommandRun]:
     """Each of *commands* re-run against the candidate (S-0127/D-10), in a
     fresh gates sandbox (`_gates_spec`: the battery's image and cache) over a
@@ -1067,7 +1077,12 @@ def reproduce(
     command, its exit None on a timeout, when it was not run, or for every
     command of a refused repro. The checkout and the sandboxes are removed
     when this returns, whatever happened; a checkout or sandbox that fails to
-    open raises, as the battery's does."""
+    open raises, as the battery's does.
+
+    Given a *commit*, the checkout holds that commit instead of the
+    candidate, under a key of its own (`START_KEY`), so a counter-probe is
+    measured on the unit's start tree while the candidate's judge checkout is
+    untouched (S-0129/D-9)."""
 
     minutes = run.task.budget.wallclock_minutes
 
@@ -1078,9 +1093,12 @@ def reproduce(
         None if minutes is None else time.monotonic() + (minutes - _elapsed_minutes(state)) * 60.0
     )
     opener = run.judge or run.deps.workspace
+    key = run.workspace_key if commit is None else f"{run.workspace_key}{START_KEY}"
 
     try:
-        checkout = opener.judge_checkout(run.workspace_key)
+        checkout = (
+            opener.judge_checkout(key) if commit is None else opener.judge_checkout(key, commit)
+        )
 
         return reproduce_over(
             run.deps.runtime,
@@ -1093,7 +1111,7 @@ def reproduce(
         )
 
     finally:
-        opener.remove_judge(run.workspace_key)
+        opener.remove_judge(key)
 
 
 def reproduce_over(
@@ -1864,6 +1882,18 @@ def _list_prices(config: RunnerConfig) -> dict[tuple[str, str], Price]:
     }
 
 
+def _with_probes(commands: Sequence[str], compiled: Acceptance) -> list[str]:
+    """*commands* with the unit's probe commands after them, once each, and
+    without any probe a dispute withdrew (S-0129/D-9), which an earlier
+    attempt may have added."""
+
+    withdrawn = {str(one.get("command")) for one in compiled.withdrawn}
+
+    return list(
+        dict.fromkeys([*(one for one in commands if one not in withdrawn), *compiled.commands])
+    )
+
+
 def _unit_spend(state: RunState) -> float:
     """The unit's notional spend across its attempts (S-0123/D-1): every
     priced candidate and critic call the run's history carries."""
@@ -2039,18 +2069,14 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
             return spend
 
         compiled = await asyncio.to_thread(
-            compile_acceptance, run, state, partial(reproduce, run, state), compile_spend
+            compile_acceptance, run, state, partial(reproduce, run, state), compile_spend, base
         )
         # Added to what each is shown, so a repair command `_route_repair` put
         # there stays, and to the baseline that routing resets to.
         for each in (run, start):
-            each.contract_acceptance = tuple(
-                dict.fromkeys([*each.contract_acceptance, *compiled.commands])
-            )
+            each.contract_acceptance = tuple(_with_probes(each.contract_acceptance, compiled))
             each.task = each.task.model_copy(
-                update={
-                    "acceptance": list(dict.fromkeys([*each.task.acceptance, *compiled.commands]))
-                }
+                update={"acceptance": _with_probes(each.task.acceptance, compiled)}
             )
 
         budget_spent = _unit_spend(state)
@@ -2180,8 +2206,11 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
         taken = [*(run.deps.taken() if run.deps.taken is not None else ()), *reviews]
         review_task = mint_review_task(run.root, run.task, taken=taken)
         reviews.append(review_task.id)
+        before = _unit_spend(state)
         verdict = await asyncio.to_thread(critic_judge, candidate.run, review_task, state)
         candidate.verdict = verdict
+        # S-0129/D-9: what the decision's disputes spent, recorded as they ran.
+        disputed = _unit_spend(state) - before
 
         if critic:
             # S-0123/D-1: the critic call costs the unit too, priced the same
@@ -2198,6 +2227,11 @@ async def select_attempt(run: Dispatch, state: RunState) -> AgentResult:
 
             if candidate.critic_spend is not None:
                 _record_spend(state, candidate.critic_spend, f"critic {candidate.index}")
+
+            # The disputes are on the history already; the attempt's total
+            # counts them beside the critic call that asked for them.
+            if disputed > 0:
+                candidate.critic_spend = (candidate.critic_spend or 0.0) + disputed
 
         state.history.append(
             {

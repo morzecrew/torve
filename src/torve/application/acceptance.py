@@ -3,7 +3,9 @@ reviewer-seat call turns the unit's document into probes, each a file under
 `probes/acceptance/` and a command pinned to one row (S-0129/D-1). The engine
 keeps a probe only when it executes red on the tree the unit starts from
 (S-0129/D-2) and stores the kept ones once per unit (S-0129/D-3); the critic's
-decision re-runs them against every candidate (S-0129/D-4)."""
+decision re-runs them against every candidate (S-0129/D-4), and a probe that
+fails every run is put to a dispute, whose kept counter-probe takes its place
+(S-0129/D-9)."""
 
 from __future__ import annotations
 
@@ -71,6 +73,17 @@ FAILED_FIRST_MARKER = "acceptance failed first "
 #: has the colon, so a reader tells the two apart.
 FINDING_PREFIX = "acceptance:"
 
+#: The dispute's frozen prompt and the schema of its answer (S-0129/D-9).
+DISPUTE_PROMPT_FILE = _PROMPTS / "dispute-v1.md"
+DISPUTE_SCHEMA_FILE = _PROMPTS / "dispute-v1.schema.json"
+DISPUTE_VERSION = "dispute/v1"
+
+#: Where the dispute's inputs sit in its copy, as its frozen prompt names them.
+DISPUTE_DIR = ".torve/dispute"
+
+#: The history fact a dispute leaves.
+DISPUTED_MARKER = "acceptance disputed "
+
 
 def compile_prompt() -> str:
     """The frozen system prompt, byte for byte as shipped."""
@@ -83,6 +96,21 @@ def prompt_sha() -> str:
     compile as the critic's is (S-0122/D-19)."""
 
     return hashlib.sha256(PROMPT_FILE.read_bytes() + SCHEMA_FILE.read_bytes()).hexdigest()
+
+
+def dispute_prompt() -> str:
+    """The dispute's frozen system prompt, byte for byte as shipped."""
+
+    return DISPUTE_PROMPT_FILE.read_text(encoding="utf-8")
+
+
+def dispute_sha() -> str:
+    """The sha256 over the dispute's frozen prompt and its schema, recorded on
+    every dispute (S-0129/D-9)."""
+
+    return hashlib.sha256(
+        DISPUTE_PROMPT_FILE.read_bytes() + DISPUTE_SCHEMA_FILE.read_bytes()
+    ).hexdigest()
 
 
 # ----------------------- #
@@ -144,6 +172,51 @@ def read_compile(output: str) -> tuple[CompileDocument | None, str | None]:
 
 
 # ----------------------- #
+# torve.dispute/v1
+
+
+class DisputeDocument(BaseModel):
+    """torve.dispute/v1: the one JSON document your answer ends with."""
+
+    model_config = ConfigDict(extra="ignore", use_attribute_docstrings=True, populate_by_name=True)
+
+    schema_name: Literal["torve.dispute/v1"] = Field(default="torve.dispute/v1", alias="schema")
+    verdict: Literal["upheld", "disputed"]
+    """`upheld` when the probe asserts what the document states, `disputed` when it does not."""
+    reason: str
+    """Why, in one sentence: what the probe asserts and what the document states."""
+    quote: str = ""
+    """For a dispute: the passage of the document the probe contradicts, copied verbatim."""
+    file: str = ""
+    """For a dispute: the counter-probe's file, a new path under probes/acceptance/."""
+    command: str = ""
+    """For a dispute: the command that runs it from the workspace root, exiting 0 when the
+    behaviour the passage states holds."""
+
+
+def dispute_schema() -> dict[str, Any]:
+    """The JSON schema the dispute's answer is checked against, as staged."""
+
+    return DisputeDocument.model_json_schema(by_alias=True)
+
+
+def read_dispute(output: str) -> tuple[DisputeDocument | None, str | None]:
+    """The last `torve.dispute/v1` document in the output, or None, beside the
+    refusal when the model gave one the schema refuses."""
+
+    last = last_document(output, key="verdict")
+
+    if last is None:
+        return None, None
+
+    try:
+        return DisputeDocument.model_validate(last), None
+
+    except ValidationError as exc:
+        return None, schema_refusal(exc, "dispute document")
+
+
+# ----------------------- #
 # What a unit keeps.
 
 
@@ -177,6 +250,16 @@ class Acceptance:
     #: The digest of the document files and contract rows it was compiled
     #: from (S-0129/D-7); None on a store written before it was recorded.
     source: str | None = None
+    #: The tree the probes were compiled over, where a counter-probe must
+    #: fail (S-0129/D-9); None on a store written before it was recorded.
+    #: shortcut: a start tree with uncommitted work is a snapshot commit no
+    #: ref holds, which git's gc may prune past its expiry (two weeks by
+    #: default); pin it under a ref if a unit ever outlives that.
+    start: str | None = None
+    #: Every probe a kept dispute withdrew, its text left out, with the
+    #: dispute's review, passage and reason and the counter-probe that took
+    #: its place (S-0129/D-9).
+    withdrawn: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def commands(self) -> list[str]:
@@ -277,35 +360,52 @@ def _uncaught(tail: str) -> str | None:
     return next((line for line in frames if line[:1].strip()), None)
 
 
-def _held_unimported(tail: str, tree: Path | None) -> str | None:
+#: The start tree as the files it holds, by path relative to its root: what
+#: a dispute reads it as, the tree itself being a commit (S-0129/D-9).
+Listing = frozenset[str]
+
+
+def _holds_module(tree: Path | Listing, name: str) -> bool:
+    """Whether *tree*, a directory or a listing of one, holds module *name* at
+    its root or under `src/`: as a module, a package, or a namespace package,
+    a folder holding modules at any depth with no `__init__`."""
+
+    # shortcut: the root and `src/` only, so a monorepo's `packages/x/src`
+    # keeps such a probe; read the project's own path config if one appears.
+    for root in ("", "src/"):
+        path = root + "/".join(name.split("."))
+
+        if isinstance(tree, Path):
+            found = tree / path
+
+            if found.with_suffix(".py").is_file() or (found.is_dir() and any(found.rglob("*.py"))):
+                return True
+
+        elif f"{path}.py" in tree or any(
+            one.startswith(f"{path}/") and one.endswith(".py") for one in tree
+        ):
+            return True
+
+    return False
+
+
+def _held_unimported(tail: str, tree: Path | Listing | None) -> str | None:
     """The module whose import ended the probe's run in *tail* although
-    *tree*, the start tree, holds it, or None. Running a file puts its own
-    folder on the import path, not the repository's root, so a probe written
-    as if it did cannot see a project that is not installed, on any tree. A
-    message the probe printed or caught before failing otherwise is not the
-    failure."""
+    *tree*, the start tree or a listing of its files, holds it, or None.
+    Running a file puts its own folder on the import path, not the
+    repository's root, so a probe written as if it did cannot see a project
+    that is not installed, on any tree. A message the probe printed or caught
+    before failing otherwise is not the failure."""
 
     found = _NOT_FOUND.match(_uncaught(tail) or "")
 
     if tree is None or found is None:
         return None
 
-    name = found[1]
-
-    # shortcut: the root and `src/` only, so a monorepo's `packages/x/src`
-    # keeps such a probe; read the project's own path config if one appears.
-    for root in (tree, tree / "src"):
-        path = root.joinpath(*name.split("."))
-
-        # A namespace package is a folder holding modules, at any depth,
-        # with no `__init__`.
-        if path.with_suffix(".py").is_file() or (path.is_dir() and any(path.rglob("*.py"))):
-            return name
-
-    return None
+    return found[1] if _holds_module(tree, found[1]) else None
 
 
-def _base_reason(base: CommandRun | None, tree: Path | None = None) -> str | None:
+def _base_reason(base: CommandRun | None, tree: Path | Listing | None = None) -> str | None:
     """Why a probe whose command ran as *base* on the start tree, *tree*, is
     dropped, or None when it executed and failed there."""
 
@@ -374,6 +474,8 @@ def load(root: Path, task_id: str) -> Acceptance | None:
         spend_usd=data.get("spend_usd"),
         wall_s=data.get("wall_s", 0.0),
         source=data.get("source"),
+        start=data.get("start"),
+        withdrawn=list(data.get("withdrawn", [])),
     )
 
 
@@ -395,6 +497,24 @@ def plant(root: Path, task_id: str, worktree: Path) -> list[str]:
 
     if stored is None:
         return []
+
+    held = {probe.file for probe in stored.kept}
+
+    # A probe a dispute withdrew is no longer the executor's to pass
+    # (S-0129/D-9), so a copy an earlier planting left goes.
+    for one in stored.withdrawn:
+        name = _own_file(str(one.get("file", "")))
+        parts = PurePosixPath(name).parts if name else ()
+
+        if not name or name in held:
+            continue
+
+        if any(
+            worktree.joinpath(*parts[:depth]).is_symlink() for depth in range(1, len(parts) + 1)
+        ):
+            continue
+
+        (worktree / name).unlink(missing_ok=True)
 
     planted: list[str] = []
 
@@ -475,6 +595,31 @@ no `.venv`, no build output.
 """
 
 
+def _read_own(copy: Path, name: str) -> str | None:
+    """The text of *name*, a path under `probes/acceptance/` in *copy*, or
+    None for a link on its path, a path leaving the copy, no file or one over
+    the cap."""
+
+    root = copy.resolve()
+    path = copy / name
+    parts = PurePosixPath(name).parts
+
+    try:
+        if any(copy.joinpath(*parts[:depth]).is_symlink() for depth in range(1, len(parts) + 1)):
+            return None
+
+        if not path.resolve().is_relative_to(root):
+            return None
+
+        if path.is_file() and path.stat().st_size <= PROBE_CAP:
+            return path.read_text(encoding="utf-8", errors="replace")
+
+    except OSError:
+        return None
+
+    return None
+
+
 def _keep_files(copy: Path, document: CompileDocument | None) -> dict[str, str]:
     """The probe files the answer names, read before the copy dies; a path
     outside `probes/acceptance/`, a link or a file over the cap is left."""
@@ -482,7 +627,6 @@ def _keep_files(copy: Path, document: CompileDocument | None) -> dict[str, str]:
     if document is None:
         return {}
 
-    root = copy.resolve()
     kept: dict[str, str] = {}
 
     for probe in document.probes:
@@ -491,24 +635,10 @@ def _keep_files(copy: Path, document: CompileDocument | None) -> dict[str, str]:
         if name is None or name in kept:
             continue
 
-        path = copy / name
+        text = _read_own(copy, name)
 
-        parts = PurePosixPath(name).parts
-
-        try:
-            if any(
-                copy.joinpath(*parts[:depth]).is_symlink() for depth in range(1, len(parts) + 1)
-            ):
-                continue
-
-            if not path.resolve().is_relative_to(root):
-                continue
-
-            if path.is_file() and path.stat().st_size <= PROBE_CAP:
-                kept[name] = path.read_text(encoding="utf-8", errors="replace")
-
-        except OSError:
-            continue
+        if text is not None:
+            kept[name] = text
 
     return kept
 
@@ -557,16 +687,18 @@ def compile_acceptance(
     state: RunState,
     reproduce: Reproduce,
     price: Callable[[Mapping[str, Any]], float | None],
+    start: str | None = None,
 ) -> Acceptance:
     """The unit's probes (S-0129/D-1, S-0129/D-2): its store when that was
     compiled from the document and rows the unit reads now (S-0129/D-7), else
     one compile over the tree the unit starts from, kept and stored.
 
-    *reproduce* runs the probes' commands over a judge checkout of that tree;
-    *price* turns the seat's agent block into the unit spend it records, and
-    returns it. A seat that refuses, errs or answers nothing readable keeps
-    nothing, and so does a document that is not there: the store then holds
-    the empty compile, so the unit never compiles twice."""
+    *reproduce* runs the probes' commands over a judge checkout of that tree,
+    *start*, which the store records for a dispute's counter-probe
+    (S-0129/D-9); *price* turns the seat's agent block into the unit spend it
+    records, and returns it. A seat that refuses, errs or answers nothing
+    readable keeps nothing, and so does a document that is not there: the
+    store then holds the empty compile, so the unit never compiles twice."""
 
     from torve.application.telemetry import config_hash
 
@@ -581,7 +713,9 @@ def compile_acceptance(
     started = time.monotonic()
 
     if not files:
-        acceptance = Acceptance(fact=f"no document to compile for {run.task.spec}", source=source)
+        acceptance = Acceptance(
+            fact=f"no document to compile for {run.task.spec}", source=source, start=start
+        )
         save(run.root, run.task.id, acceptance)
         _fact(state, f"{COMPILED_MARKER}{acceptance.fact}")
 
@@ -725,6 +859,7 @@ def compile_acceptance(
         spend_usd=spend,
         wall_s=round(time.monotonic() - started, 3),
         source=source,
+        start=start,
     )
     record = review_record(
         session,
@@ -759,6 +894,435 @@ def compile_acceptance(
     _fact(state, f"{COMPILED_MARKER}{review.id}: {fact}")
 
     return acceptance
+
+
+# ----------------------- #
+# The dispute (S-0129/D-9).
+
+
+@dataclass(frozen=True)
+class Dispute:
+    """What the dispute of one probe that failed every run came to: whether
+    the engine kept it and why, the seat's verdict and reason, and, for a kept
+    one, the passage it quotes, the counter-probe that takes the probe's place
+    and that counter-probe's run on the candidate."""
+
+    probe: str
+    kept: bool
+    why: str
+    review_id: str | None = None
+    verdict: str | None = None
+    reason: str = ""
+    quote: str = ""
+    counter: Probe | None = None
+    run: CommandRun | None = None
+
+
+#: A dispute of a probe, given its failed runs, as `decide` calls it.
+Disputer = Callable[[Probe, Sequence[CommandRun]], Dispute]
+
+#: The same, given beside them the agent block of the critic call whose
+#: decision asks, which the unit has spent but not yet recorded.
+UnitDisputer = Callable[[Probe, Sequence[CommandRun], Mapping[str, Any]], Dispute]
+
+#: The most disputes a unit makes (S-0129/D-9): a candidate failing many
+#: probes is most likely unfinished, and each dispute is a seat call.
+DISPUTE_CAP = 2
+
+
+def disputes_made(state: RunState) -> int:
+    """How many disputes the unit's history records."""
+
+    return sum(str(entry.get("fact", "")).startswith(DISPUTED_MARKER) for entry in state.history)
+
+
+def _start_files(root: Path, commit: str) -> Listing | None:
+    """Every file *commit* holds, or None when git cannot read it."""
+
+    import subprocess
+
+    listed = subprocess.run(
+        ["git", "-C", str(root), "ls-tree", "-r", "--name-only", "-z", commit],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    return frozenset(filter(None, listed.stdout.split("\0"))) if listed.returncode == 0 else None
+
+
+def _next_id(stored: Acceptance) -> str:
+    """A probe id no kept or withdrawn probe of the unit has held."""
+
+    taken = [probe.id for probe in stored.kept] + [str(one["id"]) for one in stored.withdrawn]
+    numbers = [
+        int(one.removeprefix(FINDING_PREFIX))
+        for one in taken
+        if one.removeprefix(FINDING_PREFIX).isdigit()
+    ]
+
+    return f"{FINDING_PREFIX}{max(numbers, default=0) + 1}"
+
+
+def _counter_reason(
+    answer: DisputeDocument,
+    probe: Probe,
+    stored: Acceptance,
+    documents: Sequence[str],
+    text: str | None,
+) -> str | None:
+    """Why the engine refuses *answer*'s dispute before anything runs its
+    counter-probe, or None: the seat must have disputed, and the counter-probe
+    must pass every rule a compiled probe's text and command do (S-0129/D-2)
+    on the probe's row, in a file no kept probe holds."""
+
+    if answer.verdict != "disputed":
+        return "the seat upheld the probe"
+
+    compiled = CompiledProbe(
+        row=probe.row,
+        quote=answer.quote,
+        claim=answer.reason,
+        file=answer.file,
+        command=answer.command,
+    )
+    why = _written_reason(compiled, [probe.row], documents, text)
+
+    if why is not None:
+        return f"its counter-probe is refused: {why}"
+
+    if _own_file(answer.file) in {one.file for one in stored.kept}:
+        return "its counter-probe's file is a kept probe's"
+
+    return None
+
+
+def dispute_reason(
+    answer: DisputeDocument,
+    probe: Probe,
+    stored: Acceptance,
+    documents: Sequence[str],
+    text: str | None,
+    candidate: CommandRun | None,
+    start: CommandRun | None,
+    tree: Path | Listing | None = None,
+) -> str | None:
+    """Why the engine refuses *answer*'s dispute of *probe*, or None when it
+    keeps it (S-0129/D-9): the seat disputed; its passage occurs in one of
+    the document's files, *documents*, with whitespace collapsed; its
+    counter-probe's *text* and command pass a compiled probe's rules on the
+    probe's row (S-0129/D-2) in a file no kept probe of *stored* holds; and
+    the command, run alone with its file, exited 0 on the candidate as
+    *candidate* and executed red on the unit's start tree as *start*, and not
+    for want of a module the start tree, *tree*, holds: the tree's files as
+    listed from its commit, never the candidate's. *candidate* and *start*
+    are None when that run never happened."""
+
+    why = _counter_reason(answer, probe, stored, documents, text)
+
+    if why is not None:
+        return why
+
+    if candidate is None or candidate.exit_code != 0:
+        exit_code = candidate.exit_code if candidate is not None else None
+        return f"its counter-probe exits {exit_code} on the candidate"
+
+    if start is None:
+        return "the unit records no start tree to run its counter-probe on"
+
+    return _base_reason(start, tree)
+
+
+def _measured(reproduce: Reproduce, command: str, probes: Mapping[str, str]) -> CommandRun:
+    try:
+        (run,) = reproduce([command], probes)
+
+    except Exception as exc:
+        # A checkout or sandbox that would not open measured nothing.
+        return CommandRun(command, None, f"not run: {exc!r}")
+
+    return run
+
+
+def dispute_probe(
+    run: Dispatch,
+    state: RunState,
+    probe: Probe,
+    runs: Sequence[CommandRun],
+    reproduce: Reproduce,
+    reproduce_start: Reproduce | None,
+    price: Callable[[Mapping[str, Any]], float | None],
+) -> Dispute:
+    """One reviewer-tier seat call under the frozen `dispute/v1` over a copy
+    of the candidate, asked whether *probe*, which failed each of *runs*, or
+    the candidate is wrong (S-0129/D-9).
+
+    The engine keeps a dispute only when the seat disputed, its passage occurs
+    in one of the document's files with whitespace collapsed, its
+    counter-probe passes the text and command rules of a compiled probe on the
+    same row in a file no kept probe holds, and the counter-probe's command,
+    run alone with its own file, exits 0 on the candidate through *reproduce*
+    and executes red on the unit's start tree through *reproduce_start*, as a
+    compiled probe must (S-0129/D-2). A kept dispute withdraws *probe* from
+    the unit's store and keeps the counter-probe in its place, under a new id,
+    so every later decision and recheck is judged by it. Anything else leaves
+    the store as it was, and the caller blocks on the probe.
+
+    *price* turns the seat's agent block into the unit spend it records. The
+    call is a `review` with `mode: dispute`, its prompt sha, the probe and
+    what came of it; a seat that could not run records nothing."""
+
+    from torve.application.telemetry import config_hash
+
+    stored = load(run.root, run.task.id)
+
+    if stored is None or all(one.id != probe.id for one in stored.kept):
+        return Dispute(probe=probe.id, kept=False, why="the probe is not in the unit's store")
+
+    # A dispute no start tree can keep is not paid for.
+    if stored.start is None or reproduce_start is None:
+        return Dispute(
+            probe=probe.id,
+            kept=False,
+            why="the unit records no start tree to run a counter-probe on",
+        )
+
+    files, _rows, _source = _inputs(run)
+
+    if not files:
+        return Dispute(probe=probe.id, kept=False, why=f"no document for {run.task.spec}")
+
+    taken = list(run.deps.taken()) if run.deps.taken is not None else []
+    review = mint_review_task(
+        run.root,
+        run.task,
+        intent=f"Dispute {probe.id} of {run.task.id}, which failed every run.",
+        taken=taken,
+    )
+    agent = reviewer_for(run)
+    shown = {
+        "id": probe.id,
+        "row": probe.row,
+        "quote": probe.quote,
+        "claim": probe.claim,
+        "file": probe.file,
+        "command": probe.command,
+        "runs": [{"exit": one.exit_code, "tail": one.tail} for one in runs],
+    }
+    staged = {
+        **{f"document/{name}": text for name, text in files.items()},
+        "probe.yaml": yaml.safe_dump(shown, sort_keys=False, allow_unicode=True),
+        "dispute.schema.json": DISPUTE_SCHEMA_FILE.read_text(encoding="utf-8"),
+    }
+
+    def stage(copy: Path) -> None:
+        scrub_copy(copy)
+
+        for name, text in staged.items():
+            path = copy / DISPUTE_DIR / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+
+        target = copy / probe.file
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(probe.text, encoding="utf-8")
+
+    def harvest(copy: Path, document: DisputeDocument | None) -> dict[str, str]:
+        name = _own_file(document.file) if document is not None else None
+        text = _read_own(copy, name) if name is not None else None
+
+        return {name: text} if name is not None and text is not None else {}
+
+    try:
+        session = run_seat(
+            run.root,
+            run.worktree,
+            run.task,
+            review,
+            run.config,
+            run.deps.runtime,
+            agent,
+            build_dispute_prompt(run.task, probe),
+            stage=stage,
+            read=read_dispute,
+            harvest=harvest,
+            system=dispute_prompt(),
+            broker=run.deps.broker,
+            broker_handle=run.broker_handle,
+        )
+
+    except Exception as exc:
+        failed = Dispute(probe=probe.id, kept=False, why=f"the dispute seat failed: {exc!r}")
+        _fact(state, f"{DISPUTED_MARKER}{probe.id}: {failed.why}")
+
+        return failed
+
+    answer, refusal = session.verdict, session.refusal
+    texts: dict[str, str] = session.harvested or {}
+    own = _own_file(answer.file) if answer is not None else None
+    counter_text = texts.get(own) if own is not None else None
+    counter: Probe | None = None
+    measured: CommandRun | None = None
+    start_run: CommandRun | None = None
+
+    if refusal is not None:
+        why: str | None = f"dispute output refused: {refusal}"
+    elif answer is None:
+        error = seat_api_error(session.result.output)
+        why = (
+            f"the dispute seat gave no answer: {error}"
+            if error is not None
+            else "dispute output unparseable"
+        )
+    else:
+        documents = list(files.values())
+        written = _counter_reason(answer, probe, stored, documents, counter_text)
+
+        # Only a counter-probe the written rules keep costs a run, and only
+        # one that passes on the candidate a run on the start tree.
+        if written is None and own is not None and counter_text is not None:
+            measured = _measured(reproduce, answer.command, {own: counter_text})
+
+            if measured.exit_code == 0:
+                start_run = _measured(reproduce_start, answer.command, {own: counter_text})
+
+        # The module check reads the start tree itself, never the candidate,
+        # which holds every module the unit adds.
+        why = dispute_reason(
+            answer,
+            probe,
+            stored,
+            documents,
+            counter_text,
+            measured,
+            start_run,
+            _start_files(run.root, stored.start),
+        )
+
+        # `dispute_reason` refuses a start run with no exit, so a kept one has it.
+        if (
+            why is None
+            and own is not None
+            and counter_text is not None
+            and start_run is not None
+            and start_run.exit_code is not None
+        ):
+            counter = Probe(
+                id=_next_id(stored),
+                row=probe.row,
+                quote=answer.quote,
+                claim=answer.reason,
+                file=own,
+                command=answer.command,
+                text=counter_text,
+                base_exit=start_run.exit_code,
+            )
+
+    kept = counter is not None
+    fact = f"kept: {counter.id} replaces {probe.id}" if counter is not None else f"not kept: {why}"
+    price(
+        {
+            "cost_usd": session.result.cost_usd,
+            "provider": session.tier.provider or None,
+            "model": session.tier.model or None,
+            **session.token_counts,
+        }
+    )
+
+    if counter is not None and answer is not None:
+        withdrawn = {key: value for key, value in asdict(probe).items() if key != "text"}
+        stored.kept = [counter if one.id == probe.id else one for one in stored.kept]
+        stored.withdrawn.append(
+            {
+                **withdrawn,
+                "review_id": review.id,
+                "reason": answer.reason,
+                "quote": answer.quote,
+                "counter": counter.id,
+            }
+        )
+        save(run.root, run.task.id, stored)
+        # The candidate's copy follows the store, so a revision turn in the
+        # same session meets the counter-probe and not the withdrawn one.
+        plant(run.root, run.task.id, run.worktree)
+
+    record = review_record(
+        session,
+        run.task,
+        review,
+        agent,
+        config_hash(run.manifest_file, run.worktree, run.config, image_digest=run.image_digest),
+        "dispute",
+        {
+            "mode": "dispute",
+            "prompt": DISPUTE_VERSION,
+            "prompt_sha": dispute_sha(),
+            "findings": [],
+            "blocked": False,
+            "probe": probe.id,
+            "row": probe.row,
+            "verdict": answer.verdict if answer is not None else None,
+            "reason": answer.reason if answer is not None else "",
+            "kept": kept,
+            "why": why or "",
+            "counter": (
+                {key: value for key, value in asdict(counter).items() if key != "text"}
+                if counter is not None
+                else None
+            ),
+            "counter_exit": measured.exit_code if measured is not None else None,
+            "start_exit": start_run.exit_code if start_run is not None else None,
+            "unparseable": answer is None and refusal is None,
+            "refusal": refusal,
+        },
+        run.deps.broker,
+    )
+    close_review(run.root, run.worktree, session, record, fact)
+    _fact(state, f"{DISPUTED_MARKER}{probe.id} {review.id}: {fact}")
+
+    return Dispute(
+        probe=probe.id,
+        kept=kept,
+        why=why or "the counter-probe passes on the candidate and fails on the start tree",
+        review_id=review.id,
+        verdict=answer.verdict if answer is not None else None,
+        reason=answer.reason if answer is not None else "",
+        quote=answer.quote if answer is not None else "",
+        counter=counter,
+        run=measured,
+    )
+
+
+def build_dispute_prompt(target: Task, probe: Probe) -> str:
+    """The message beside the dispute's frozen prompt: the unit, the probe's
+    row and where its inputs are."""
+
+    row = next((one for one in target.decisions if one.id == probe.row), None)
+    stated = f"- {row.id} [{row.grade}]: {row.text}" if row is not None else f"- {probe.row}"
+
+    return f"""# Probe {probe.id} of unit {target.id} of {target.spec}
+
+## Its row
+
+{stated}
+
+## What the engine does with your answer
+
+`upheld` leaves the probe blocking the work. A dispute is kept when its `quote` occurs in
+the document, its file is new under `{ACCEPTANCE_DIR}/` within {PROBE_CAP} bytes, its
+command is one simple command that names that file and no other probe, and the command
+exits 0 on this candidate and non-zero, but not 126 or 127 and not because it could not
+import a module that tree holds, on the tree the work started from. A module the work
+adds is not on that tree, so a counter-probe that imports it fails there as it should. The re-runs read a fresh checkout with
+the file written in: no `.venv`, no build output. A kept counter-probe replaces the probe
+for every later candidate of the unit.
+
+## Inputs
+
+- `{DISPUTE_DIR}/document/` — the document's files
+- `{DISPUTE_DIR}/probe.yaml` — the probe and its runs; its file is at `{probe.file}`
+- `{DISPUTE_DIR}/dispute.schema.json` — the shape of your answer
+"""
 
 
 # ----------------------- #
