@@ -758,6 +758,12 @@ def harness_populations(
             continue
 
         block = cast("dict[str, Any]", agent)
+
+        # A replay passes the fold so it never stands in for a live attempt,
+        # and is left out here, after it (S-0124/D-15).
+        if block.get("shadow") is True:
+            continue
+
         bucket = buckets.get(str(block.get("tier") or ""))
 
         if bucket is None:
@@ -1845,7 +1851,11 @@ def _why_regime(task_rows: list[dict[str, Any]], all_rows: list[dict[str, Any]])
 
     if anchor:
         for row in all_rows:
-            if not _is_attempt_row(row) or row.get("config_hash") != anchor:
+            if (
+                not _is_attempt_row(row)
+                or _row_agent(row).get("shadow") is True
+                or row.get("config_hash") != anchor
+            ):
                 continue
 
             cost = _row_agent(row).get("cost_usd")

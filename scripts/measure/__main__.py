@@ -77,7 +77,8 @@ def telemetry_cost(tree: Path) -> float | None:
     costs = [
         (row.get("agent") or {}).get("cost_usd")
         for index, row in enumerate(rows)
-        if attempt_key(row) is None or newest[attempt_key(row)] == index
+        if (attempt_key(row) is None or newest[attempt_key(row)] == index)
+        and (row.get("agent") or {}).get("shadow") is not True
     ]
     known = [c for c in costs if c is not None]
     return sum(known) if known else None
@@ -422,7 +423,8 @@ def selfcheck() -> None:
     assert mcnemar(0, 0) == 1.0 and mcnemar(5, 0) == 0.0625 and mcnemar(3, 3) == 1.0
 
     # A session revision's attempt is costed once, at its newest row; a review
-    # row and an unstamped row each count as they stand.
+    # row and an unstamped row each count as they stand, and a replay costs
+    # nothing.
     with tempfile.TemporaryDirectory() as scratch:
         stream = Path(scratch) / ".torve" / "telemetry.jsonl"
         stream.parent.mkdir()
@@ -433,6 +435,7 @@ def selfcheck() -> None:
                     {"task_id": "T-1", "agent": {"attempt": 1, "cost_usd": 2.0}},
                     {"kind": "review", "task_id": "T-1", "agent": {"attempt": 1, "cost_usd": 0.5}},
                     {"task_id": "T-1", "agent": {"attempt": 1, "cost_usd": 3.4}},
+                    {"task_id": "T-1", "agent": {"attempt": 1, "shadow": True, "cost_usd": 0.4}},
                     {"task_id": "T-1", "agent": {"attempt": 1, "candidate": 2, "cost_usd": 0.25}},
                     {"task_id": "T-2", "agent": {"cost_usd": 1.0}},
                 )

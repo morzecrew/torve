@@ -293,7 +293,8 @@ def test_the_context_report_counts_a_re_gated_attempt_once(tmp_path):
 
 def test_the_why_regime_counts_a_re_gated_attempt_once(tmp_path):
     """S-0124/D-15: the regime comparator's population is the stream's
-    attempts, so a session revision's earlier gate pass is not a second one."""
+    attempts, so a session revision's earlier gate pass is not a second one,
+    and a shadow replay sharing its stamp and hash is not one at all."""
 
     import json
 
@@ -308,9 +309,9 @@ def test_the_why_regime_counts_a_re_gated_attempt_once(tmp_path):
         {
             "task_id": "T-0001",
             "config_hash": "hashA",
-            "agent": {"adapter": "claude", "attempt": 1, "cost_usd": cost},
+            "agent": {"adapter": "claude", "attempt": 1, "cost_usd": cost, **extra},
         }
-        for cost in (2.0, 3.4)
+        for cost, extra in ((2.0, {}), (3.4, {}), (0.4, {"shadow": True}))
     ]
     stream = root / ".torve" / "telemetry.jsonl"
     stream.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")

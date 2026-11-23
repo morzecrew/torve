@@ -316,10 +316,25 @@ amendments:
     md: |
       Measured on the bed (13 documents, 3 trials, a Claude Sonnet 5.5 executor). 29 of the 39 attempts took a session revision. Each re-ran the gates inside its attempt, so the stream held 68 executor rows for 39 attempts, and the second row of each carried the attempt's whole block. The ledger counted 68 attempts, and the ledger and the bed's trial cost summed both rows, counting 1.09M output tokens twice. `torve why` already folded to the later row.
   - id: A-14
-    at: '2026-11-23T14:48:02Z'
+    at: '2026-11-23T15:06:28Z'
     title: >-
-      The attempt fold spares shadow replays and reaches the why regime
+      A replay passes the attempt fold and no spend sum counts it
     changes:
+      - subject: D-15
+        field: paths
+        before:
+          - src/torve/application/streams.py
+          - src/torve/application/ledger.py
+          - src/torve/application/projections.py
+          - src/torve/cli/ledger.py
+          - scripts/measure/__main__.py
+        after:
+          - src/torve/application/streams.py
+          - src/torve/application/ledger.py
+          - src/torve/application/projections.py
+          - src/torve/cli/ledger.py
+          - scripts/measure/__main__.py
+          - scripts/e3_failure_mix.py
       - subject: D-15
         field: text
         before: >-
@@ -338,19 +353,16 @@ amendments:
           counts attempts or sums their spend folds an attempt's rows into its newest,
           keyed by its task, attempt stamp and candidate as `torve why` groups them:
           the ledger's attempts, seats and burn population, the context report's attempt
-          blocks, `torve why`'s regime comparator, the harness populations and the
-          bed's trial cost. A row with a kind, a shadow replay's, or one with no attempt
-          stamp, is counted as it stands: a replay can share a live attempt's stamp,
-          and the readers drop replays only after the fold
+          blocks, `torve why`'s regime comparator, the harness populations, the bed's
+          trial cost and the failure-mix query. A row with a kind, a shadow replay's,
+          or one with no attempt stamp passes the fold as it stands. A replay can
+          share a live attempt's stamp, so it never stands in for one, and each of
+          these readers that sums spend leaves replays out after the fold
       - subject: D-15
         field: fingerprint
         before: 76336cdf82ba390e/89da74ff71f50811
-        after: 5790c93e2aaa60e8/89da74ff71f50811
-    md: >-
-      Found in review of the first change. A shadow replay's row can carry the stamp
-      of the live attempt it replays. Where it followed the live row, the fold kept
-      the replay, and the ledger then dropped it as a replay, so the live attempt
-      and its spend left the count. A replay now passes the fold untouched. `torve
-      why` folded its task's own attempts, but its regime comparator read the unfolded
-      stream, so a re-gated attempt's earlier pass was a second member of the population
-      at a partial cost.
+        after: 9c1dbff3d372ee57/4e12e37db570ab0b
+    md: |-
+      Found in review of the first change. A shadow replay's row can carry the stamp of the live attempt it replays. Where it followed the live row, the fold kept the replay, and the ledger then dropped it as a replay, so the live attempt and its spend left the count. A replay now passes the fold untouched. `torve why` folded its task's own attempts, but its regime comparator read the unfolded stream, so a re-gated attempt's earlier pass was a second member of the population at a partial cost.
+
+      Review of that fix found the readers' treatment of a replay after the fold uneven: the ledger left replays out, while the regime comparator, the harness populations and the bed's trial cost added their spend. Each now leaves them out. The failure-mix query (`scripts/e3_failure_mix.py`) counted attempts and summed their cost over raw rows; it now folds and leaves replays out too. No engine path has written a replay since shadow runs were removed, so this governs streams recorded before then.

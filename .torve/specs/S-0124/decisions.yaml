@@ -272,16 +272,18 @@ decisions:
       or sums their spend folds an attempt's rows into its newest, keyed by its task,
       attempt stamp and candidate as `torve why` groups them: the ledger's attempts,
       seats and burn population, the context report's attempt blocks, `torve why`'s
-      regime comparator, the harness populations and the bed's trial cost. A row with
-      a kind, a shadow replay's, or one with no attempt stamp, is counted as it stands:
-      a replay can share a live attempt's stamp, and the readers drop replays only
-      after the fold
+      regime comparator, the harness populations, the bed's trial cost and the failure-mix
+      query. A row with a kind, a shadow replay's, or one with no attempt stamp passes
+      the fold as it stands. A replay can share a live attempt's stamp, so it never
+      stands in for one, and each of these readers that sums spend leaves replays
+      out after the fold
     paths:
       - src/torve/application/streams.py
       - src/torve/application/ledger.py
       - src/torve/application/projections.py
       - src/torve/cli/ledger.py
       - scripts/measure/__main__.py
+      - scripts/e3_failure_mix.py
     consequence: >-
       `torve ledger`, `torve context` and the harness facts count a session revision's
       attempt once, at its final block, and so do the gate tallies they fold: the
@@ -296,4 +298,4 @@ decisions:
       uv run pytest -q tests/test_streams.py tests/test_ledger.py tests/test_projections.py
       tests/test_intake.py tests/test_measure_harness.py -k "re_gated or session_revision
       or newest_row or selfcheck"
-    fingerprint: 5790c93e2aaa60e8/89da74ff71f50811
+    fingerprint: 9c1dbff3d372ee57/4e12e37db570ab0b
