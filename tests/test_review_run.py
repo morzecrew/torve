@@ -1796,6 +1796,45 @@ def test_the_review_trace_is_the_session_verbatim_not_the_clipped_output(review_
     assert _review_traces(repo, state.reviewed_by, 1) == [f"ask 1: every tool call\n{output}"]
 
 
+def test_a_second_ask_s_cost_and_tokens_are_counted_with_the_first(review_rig):
+    """S-0086/D-1 with S-0123/D-1: the unreadable first answer was a session
+    the unit paid for too, so the review's record carries both asks' cost and
+    token counts together, not the second ask's alone."""
+
+    from torve.adapters.agent.harness import HarnessResult
+
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    (worktree / ".torve").mkdir(parents=True, exist_ok=True)
+    (worktree / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+
+    class Priced(SequencedReviewer):
+        def run(self, ctx):
+            plain = super().run(ctx)
+            return HarnessResult(
+                exit_code=0,
+                output=plain.output,
+                cost_usd=0.25 * self.calls,
+                input_tokens=100 * self.calls,
+                output_tokens=10,
+            )
+
+    reviewer = Priced(["prose, no document", reviewer_output([])])
+    run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
+
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    (record,) = [
+        json.loads(line)
+        for line in telemetry.read_text().splitlines()
+        if json.loads(line).get("kind") == "review"
+    ]
+    assert record["second_ask"] is True
+    assert record["agent"]["cost_usd"] == 0.75
+    assert record["agent"]["input_tokens"] == 300 and record["agent"]["output_tokens"] == 20
+
+
 def test_a_second_ask_keeps_each_asks_own_session(review_rig):
     # Both asks write the same path, so the first ask's session is read before
     # the second runs; each record ref then holds its own ask's whole stream.

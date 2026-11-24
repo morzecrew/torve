@@ -1158,13 +1158,21 @@ def run_seat(
 
     # T-0186: the reviewer's self-reported token counts must survive the
     # rebuild below — the rebuilt AgentResult is the base shape and carries
-    # no token fields, so read them off the original result first.
-    token_counts = agent_token_counts(result)
+    # no token fields, so read them off the original result first. A second
+    # ask is a second session the unit paid for (S-0086/D-1, S-0123/D-1), so
+    # the counts and the cost are both asks' together.
+    token_counts: dict[str, int] = {}
+
+    for ask in asks:
+        for name, count in agent_token_counts(ask).items():
+            token_counts[name] = token_counts.get(name, 0) + count
+
+    costs = [ask.cost_usd for ask in asks if ask.cost_usd is not None]
 
     rebuilt = AgentResult(
         exit_code=result.exit_code,
         output=result.output,
-        cost_usd=result.cost_usd,
+        cost_usd=sum(costs) if costs else None,
         model_version=result.model_version,
         trace_ref=review_trace_refs[-1] if review_trace_refs else None,
     )

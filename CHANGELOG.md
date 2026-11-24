@@ -124,6 +124,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A review whose first answer could not be read is asked again, and its record and the unit's
+  spend now count both asks' cost and tokens. Only the second ask's were counted before.
+
 - `torve run --agent fake` now replays its scenario on a sandbox image that has `python3`
   and no `python`, such as the Claude Code image. It exited 127 there before writing
   anything.
