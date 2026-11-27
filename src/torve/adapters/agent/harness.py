@@ -43,6 +43,7 @@ from torve.application.telemetry import (
     record_receipt,
 )
 from torve.base import naming
+from torve.base.shell import final_envelope
 
 if TYPE_CHECKING:
     from torve.config.runconfig import TierConfig
@@ -689,8 +690,9 @@ def _reported(sources: tuple[dict[str, Any], ...], name: str, kind: type[_T]) ->
 
 def parse_metadata(output: str) -> AgentMetadata:
     """(cost, model, token counts) from a harness result, best effort: the
-    last JSON object line wins (`claude -p --output-format json` and friends
-    emit one). Absence is not an error — it is an uncontrolled regime (S-0004/D-6).
+    last `result` envelope wins, else the last JSON object line (`claude -p
+    --output-format json` and friends emit one; `final_envelope`). Absence is
+    not an error — it is an uncontrolled regime (S-0004/D-6).
 
     opencode's `--format json` nests both under its last `step_finish`
     event's `part` instead of at the top level — `part` is scanned as a
@@ -702,75 +704,62 @@ def parse_metadata(output: str) -> AgentMetadata:
     a breakdown of that count, and recording it would invite double
     counting in readers."""
 
-    for line in reversed(output.strip().splitlines()):
-        line = line.strip()
+    record = final_envelope(output)
 
-        if not (line.startswith("{") and line.endswith("}")):
-            continue
+    if record is None:
+        return AgentMetadata()
 
-        try:
-            data: Any = json.loads(line)
+    part: Any = record.get("part")
+    sources: tuple[dict[str, Any], ...] = (
+        (record, cast("dict[str, Any]", part)) if isinstance(part, dict) else (record,)
+    )
 
-        except ValueError:
-            continue
+    cost: Any = next(
+        (
+            source[k]
+            for source in sources
+            for k in ("total_cost_usd", "cost_usd", "cost")
+            if k in source
+        ),
+        None,
+    )
 
-        if not isinstance(data, dict):
-            continue
+    model: Any = next(
+        (source[k] for source in sources for k in ("model_version", "model") if k in source),
+        None,
+    )
 
-        record = cast("dict[str, Any]", data)
-        part: Any = record.get("part")
-        sources: tuple[dict[str, Any], ...] = (
-            (record, cast("dict[str, Any]", part)) if isinstance(part, dict) else (record,)
-        )
-
-        cost: Any = next(
-            (
-                source[k]
-                for source in sources
-                for k in ("total_cost_usd", "cost_usd", "cost")
-                if k in source
-            ),
+    if not isinstance(model, str) or not model:
+        # The claude CLI reports models as modelUsage keys — the dated
+        # snapshot ids, which are exactly the drift-catcher S-0004/D-6 wants.
+        # opencode reports the same per-model shape as part.tokens.
+        usage: Any = next(
+            (source[k] for source in sources for k in ("modelUsage", "tokens") if k in source),
             None,
         )
 
-        model: Any = next(
-            (source[k] for source in sources for k in ("model_version", "model") if k in source),
-            None,
-        )
+        if isinstance(usage, dict) and usage:
+            model = "+".join(sorted(cast("dict[str, Any]", usage)))
 
-        if not isinstance(model, str) or not model:
-            # The claude CLI reports models as modelUsage keys — the dated
-            # snapshot ids, which are exactly the drift-catcher S-0004/D-6 wants.
-            # opencode reports the same per-model shape as part.tokens.
-            usage: Any = next(
-                (source[k] for source in sources for k in ("modelUsage", "tokens") if k in source),
-                None,
-            )
+    input_tokens, cache_read_tokens, cache_creation_tokens, output_tokens = (
+        _usage_tokens(sources, names) for names in _TOKEN_USAGE_NAMES
+    )
 
-            if isinstance(usage, dict) and usage:
-                model = "+".join(sorted(cast("dict[str, Any]", usage)))
-
-        input_tokens, cache_read_tokens, cache_creation_tokens, output_tokens = (
-            _usage_tokens(sources, names) for names in _TOKEN_USAGE_NAMES
-        )
-
-        return AgentMetadata(
-            cost_usd=float(cost) if isinstance(cost, (int, float)) else None,
-            model_version=str(model) if isinstance(model, str) and model else None,
-            input_tokens=input_tokens,
-            cache_read_tokens=cache_read_tokens,
-            cache_creation_tokens=cache_creation_tokens,
-            output_tokens=output_tokens,
-            terminal_reason=_terminal_reason(sources),
-            session_id=_session_id(sources),
-            num_turns=_reported(sources, "num_turns", int),
-            permission_denials=_reported(sources, "permission_denials", list),
-            subagent_stats=_reported(sources, "subagent_stats", dict),
-            api_error_status=_reported(sources, "api_error_status", int),
-            result=_reported(sources, "result", str),
-        )
-
-    return AgentMetadata()
+    return AgentMetadata(
+        cost_usd=float(cost) if isinstance(cost, (int, float)) else None,
+        model_version=str(model) if isinstance(model, str) and model else None,
+        input_tokens=input_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_creation_tokens=cache_creation_tokens,
+        output_tokens=output_tokens,
+        terminal_reason=_terminal_reason(sources),
+        session_id=_session_id(sources),
+        num_turns=_reported(sources, "num_turns", int),
+        permission_denials=_reported(sources, "permission_denials", list),
+        subagent_stats=_reported(sources, "subagent_stats", dict),
+        api_error_status=_reported(sources, "api_error_status", int),
+        result=_reported(sources, "result", str),
+    )
 
 
 # ....................... #
