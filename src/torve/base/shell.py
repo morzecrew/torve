@@ -102,31 +102,28 @@ def final_envelope(output: str) -> dict[str, Any] | None:
     return last
 
 
-def _rescued_tail(body: str, room: int) -> str | None:
-    """The line an ordinary tail of `room` characters would cut, whole, with
-    every line after it — when that line is the final one and within
+def _rescued_tail(body: str, cut: int) -> str | None:
+    """The line a tail starting at `cut` would cut through, whole, with every
+    line after it — when that line is the final one and within
     FINAL_LINE_LIMIT, or any whole JSON document. The line at risk is where
     the clip lands, not always the final one: claude's envelope can be
-    followed by a background task's short notices."""
+    followed by a background task's short notices. A tail that starts at a
+    line's edge cuts nothing, and nothing before it is restored."""
 
-    end = len(body)
+    if not 0 < cut < len(body):
+        return None
 
-    while end > 0:
-        start = body.rfind("\n", 0, end) + 1
+    start = body.rfind("\n", 0, cut) + 1
+    end = body.find("\n", cut)
+    end = len(body) if end == -1 else end
 
-        if len(body) - start > room:
-            line = body[start:end]
-            final = end == len(body)
+    if not start < cut < end:
+        return None
 
-            return (
-                body[start:]
-                if (final and len(line) <= FINAL_LINE_LIMIT) or _document(line)
-                else None
-            )
+    line = body[start:end]
+    final = end == len(body)
 
-        end = start - 1
-
-    return None
+    return body[start:] if (final and len(line) <= FINAL_LINE_LIMIT) or _document(line) else None
 
 
 def truncate(text: str) -> str:
@@ -146,10 +143,7 @@ def truncate(text: str) -> str:
     # A harness stream ends with a newline, so the final line is the last
     # non-empty one — read after it, the rescue below saw an empty line and
     # clipped through every verdict longer than the tail (T-0103).
-    # A harness stream ends with a newline, so the final line is the last
-    # non-empty one — read after it, the rescue below saw an empty line and
-    # clipped through every verdict longer than the tail (T-0103).
-    rescued = _rescued_tail(text.rstrip("\n"), len(tail))
+    rescued = _rescued_tail(text.rstrip("\n"), len(text) - len(tail))
 
     if rescued is not None:
         tail = rescued

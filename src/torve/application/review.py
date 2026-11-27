@@ -1067,8 +1067,12 @@ def run_seat(
             broker=broker_handle,
         )
         result = agent.run(context)
+        # A blip is still a session the unit paid for, however many turns it
+        # ran before the provider failed: its cost and tokens join the asks'.
+        blips = []
 
         if transient_api_failure(result.output):
+            blips.append(result)
             time.sleep(15)
             result = agent.run(context)
 
@@ -1155,14 +1159,15 @@ def run_seat(
     # rebuild below — the rebuilt AgentResult is the base shape and carries
     # no token fields, so read them off the original result first. A second
     # ask is a second session the unit paid for (S-0086/D-1, S-0123/D-1), so
-    # the counts and the cost are both asks' together.
+    # the counts and the cost are both asks' together — and a retried blip's.
     token_counts: dict[str, int] = {}
+    paid = [*blips, *asks]
 
-    for ask in asks:
+    for ask in paid:
         for name, count in agent_token_counts(ask).items():
             token_counts[name] = token_counts.get(name, 0) + count
 
-    costs = [ask.cost_usd for ask in asks if ask.cost_usd is not None]
+    costs = [ask.cost_usd for ask in paid if ask.cost_usd is not None]
 
     rebuilt = AgentResult(
         exit_code=result.exit_code,

@@ -1838,6 +1838,48 @@ def test_a_second_ask_s_cost_and_tokens_are_counted_with_the_first(review_rig):
     assert record["agent"]["input_tokens"] == 300 and record["agent"]["output_tokens"] == 20
 
 
+def test_a_retried_blip_s_cost_and_tokens_are_counted_with_the_answer(review_rig, monkeypatch):
+    # A session can run many paid turns before the provider fails it; the
+    # retry overwrote that result, and its spend was recorded nowhere.
+    import time
+
+    from torve.adapters.agent.harness import HarnessResult
+
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+    repo, _runtime, deps_for = review_rig
+    worktree = repo.root / ".wt" / "T-9001"
+    (worktree / ".torve").mkdir(parents=True, exist_ok=True)
+    (worktree / ".torve" / "gates.yaml").write_text(
+        "schema_version: 1\ngates: []\n", encoding="utf-8"
+    )
+
+    class Priced(SequencedReviewer):
+        def run(self, ctx):
+            plain = super().run(ctx)
+            return HarnessResult(
+                exit_code=0,
+                output=plain.output,
+                cost_usd=0.25 * self.calls,
+                input_tokens=100 * self.calls,
+                output_tokens=10,
+            )
+
+    blip = _seat_error("API Error: 529 overloaded")
+    reviewer = Priced([blip, reviewer_output([])])
+    run_task(repo.root, task_for(repo), review_config(), deps_for(reviewer))
+
+    telemetry = repo.root / ".torve" / "telemetry.jsonl"
+    (record,) = [
+        json.loads(line)
+        for line in telemetry.read_text().splitlines()
+        if json.loads(line).get("kind") == "review"
+    ]
+    # A blip is not an unreadable answer: no second ask is recorded.
+    assert record["second_ask"] is False
+    assert record["agent"]["cost_usd"] == 0.75
+    assert record["agent"]["input_tokens"] == 300 and record["agent"]["output_tokens"] == 20
+
+
 def test_a_second_ask_keeps_each_asks_own_session(review_rig):
     # Both asks write the same path, so the first ask's session is read before
     # the second runs; each record ref then holds its own ask's whole stream.

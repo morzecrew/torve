@@ -136,6 +136,18 @@ def test_a_long_document_before_a_long_tail_keeps_the_ordinary_clip() -> None:
 
     assert len(clipped) <= OUTPUT_LIMIT + 100
 
+    # A tail that starts exactly where a line starts, or on the newline that
+    # ends one, cuts nothing: the JSON line before it is not restored.
+    room = OUTPUT_LIMIT - 2000
+    document = json.dumps({"x": "y" * 50_000})
+
+    for text in (
+        document + "\n" + "log\n" * (room // 4 - 1) + "end!",
+        document + "\n" + "log\n" * (room // 4 - 1) + "end",
+    ):
+        assert len(text) - len(document) in (room, room + 1)
+        assert len(truncate(text)) <= OUTPUT_LIMIT + 100
+
 
 def test_the_final_envelope_is_the_result_not_the_notices_after_it() -> None:
     envelope = {"type": "result", "total_cost_usd": 1.28}
