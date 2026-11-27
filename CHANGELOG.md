@@ -128,6 +128,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   envelope, not from the notices printed after it. Its cost was recorded as none, and a
   reviewer's verdict was cut by the output clip and asked for again.
 
+- A review retried after a provider error (a 429 or a 5xx) now counts the failed call's cost
+  and tokens in its record and the unit's spend. Only the retry's were counted before.
+
 - A review whose first answer could not be read is asked again, and its record and the unit's
   spend now count both asks' cost and tokens. Only the second ask's were counted before.
 
