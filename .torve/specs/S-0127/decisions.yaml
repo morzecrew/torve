@@ -231,16 +231,18 @@ decisions:
       `PYTHONPYCACHEPREFIX`, `PYTEST_ADDOPTS=-p no:cacheprovider`, `MYPY_CACHE_DIR`,
       `RUFF_CACHE_DIR`), so no command's read-only run can change the candidate; over
       a checkout holding `uv.lock` every sandbox a re-run opens, read-only or writable,
-      first runs `uv sync --frozen --quiet` into that environment within the bound
-      of the command it opens for, its exit never read, so a repro written for an
-      environment that exists (`uv run --no-sync`) imports the project and its dependencies
-      as a plain `uv run` would; and a command whose output reports `Read-only file
-      system` runs once more over the checkout mounted writable, in a sandbox of its
-      own that starts only after the read-only one is closed and gets only what is
-      left of the command's timeout and the unit's clock, that run's exit the one
-      recorded unless it changed or removed a file the checkout held, which refuses
-      the repro the same way, an end-state check that a change restored before the
-      command exits passes, so a denied write never blocks, a printed marker alone
+      first runs `uv sync --frozen --quiet --all-groups` into that environment, or
+      `uv sync --frozen --quiet` when that fails, within the bound of the command
+      it opens for, its exit never read, so a repro written for an environment that
+      exists (`uv run --no-sync`) imports the project and its dependencies, and one
+      that imports a module from a dependency group outside the defaults finds it
+      as the seat that wrote it did; and a command whose output reports `Read-only
+      file system` runs once more over the checkout mounted writable, in a sandbox
+      of its own that starts only after the read-only one is closed and gets only
+      what is left of the command's timeout and the unit's clock, that run's exit
+      the one recorded unless it changed or removed a file the checkout held, which
+      refuses the repro the same way, an end-state check that a change restored before
+      the command exits passes, so a denied write never blocks, a printed marker alone
       never refuses, and only a command the read-only mount denied ever runs writable;
       each command is bounded by the timeout of the `acceptance` gate in the attempt's
       manifest (`run.manifest_file`), or by the runtime's `sandbox_timeout` when the
@@ -264,7 +266,7 @@ decisions:
     cites: [S-0122/D-2, S-0122/D-6, S-0114/D-5, D-9]
     check: >-
       uv run pytest -q tests/test_runner.py -k "reproduce or rerun_bound"
-    fingerprint: 099a82753074196b/14bd8ed0a79735ba
+    fingerprint: 358f94e47afb3025/14bd8ed0a79735ba
   - id: D-11
     grade: OPEN
     text: >-
