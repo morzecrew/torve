@@ -124,6 +124,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A review's re-run now syncs every dependency group of a uv project, not only the
+  defaults. A probe that imported pytest from a `test` group failed on the re-run, so a
+  revision that had fixed its finding was blocked again and the unit escalated.
+
 - A Claude Code seat that leaves a background task running is now read from its result
   envelope, not from the notices printed after it. Its cost was recorded as none, and a
   reviewer's verdict was cut by the output clip and asked for again.

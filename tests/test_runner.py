@@ -6386,6 +6386,39 @@ def test_rerun_bound_a_sandbox_s_sync_shares_the_command_s_timeout(tmp_path, mon
     assert (one.exit_code, one.tail) == (None, "not run: its timeout is spent")
 
 
+@pytest.mark.parametrize(
+    ("all_groups_exit", "syncs"),
+    [
+        (0, ["sync --frozen --quiet --all-groups"]),
+        (2, ["sync --frozen --quiet --all-groups", "sync --frozen --quiet"]),
+    ],
+)
+def test_a_re_run_s_sync_takes_every_group_else_the_defaults(tmp_path, all_groups_exit, syncs):
+    """S-0127/D-10: the sync a re-run's sandbox opens with installs every
+    dependency group, so a repro that imports pytest from a `test` group
+    finds it, as the seat that wrote it did. A project whose groups cannot
+    all be synced (one conflicts, one is not cached) gets the default sync."""
+
+    import os
+    import shlex
+    import subprocess
+
+    from torve.application.runner import REPRO_SYNC
+
+    log = tmp_path / "uv.log"
+    uv = tmp_path / "uv"
+    uv.write_text(
+        f'#!/bin/sh\necho "$*" >> {shlex.quote(str(log))}\n'
+        f'case " $* " in *" --all-groups "*) exit {all_groups_exit};; esac\n'
+    )
+    uv.chmod(0o755)
+
+    env = {**os.environ, "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}"}
+    subprocess.run(["sh", "-c", REPRO_SYNC], env=env, check=False)
+
+    assert log.read_text().splitlines() == syncs
+
+
 def test_reproduce_removes_its_checkout_and_sandbox_when_a_command_raises(tmp_path):
     """S-0127/D-10: the checkout and the sandbox are removed whatever
     happened, a runtime that raises mid-command included."""

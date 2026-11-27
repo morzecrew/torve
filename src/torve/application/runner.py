@@ -982,11 +982,14 @@ REPRO_ENV = {
 }
 
 # What a re-run's sandbox runs as it opens over a checkout holding `uv.lock`
-# (S-0127/D-10): the project environment `REPRO_ENV` points at, synced as a
-# plain `uv run` syncs it. A repro written for an environment that already
-# exists, `uv run --no-sync`, otherwise fails on its first import, which
-# measures the empty environment and nothing of the candidate.
-REPRO_SYNC = "uv sync --frozen --quiet"
+# (S-0127/D-10): the project environment `REPRO_ENV` points at, synced with
+# every dependency group. A repro written for an environment that already
+# exists, `uv run --no-sync`, otherwise fails on its first import, and one
+# that imports a module from a group outside the defaults (pytest in a
+# `test` group, which the seat's own `uv run --group test` installed) fails
+# the same way: both measure the environment and nothing of the candidate.
+# A project whose groups cannot all be synced gets the default sync.
+REPRO_SYNC = "uv sync --frozen --quiet --all-groups || uv sync --frozen --quiet"
 
 
 def _repro_timeout(run: Dispatch) -> float:
