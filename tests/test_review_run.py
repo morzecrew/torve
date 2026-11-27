@@ -749,6 +749,9 @@ def test_a_seat_with_no_credential_is_a_seat_error():
 
     assert seat_api_error(logged_out) == "Not logged in · Please run /login"
     assert not transient_api_failure(logged_out)
+    # A background task's notice printed after the envelope is not the answer.
+    notice = json.dumps({"type": "system", "subtype": "task_notification"}) + "\n"
+    assert seat_api_error(logged_out + notice) == "Not logged in · Please run /login"
 
 
 def test_a_seat_that_gives_no_verdict_escalates_naming_its_error(review_rig, monkeypatch):

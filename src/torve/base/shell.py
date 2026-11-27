@@ -17,6 +17,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 # ----------------------- #
 
@@ -67,6 +68,67 @@ def _document(line: str) -> bool:
     return True
 
 
+def final_envelope(output: str) -> dict[str, Any] | None:
+    """The harness's own report in a stream: its last `result` envelope, else
+    its last JSON object line. claude prints a background task's ending after
+    the result envelope, and a reader that took the last line read that
+    instead: a reviewer's cost lost, its verdict unreadable, a second ask paid."""
+
+    last: dict[str, Any] | None = None
+
+    for line in reversed(output.strip().splitlines()):
+        line = line.strip()
+
+        if not (line.startswith("{") and line.endswith("}")):
+            continue
+
+        try:
+            data: Any = json.loads(line)
+
+        except ValueError:
+            continue
+
+        if not isinstance(data, dict):
+            continue
+
+        record = cast("dict[str, Any]", data)
+
+        if record.get("type") == "result":
+            return record
+
+        if last is None:
+            last = record
+
+    return last
+
+
+def _rescued_tail(body: str, room: int) -> str | None:
+    """The line an ordinary tail of `room` characters would cut, whole, with
+    every line after it — when that line is the final one and within
+    FINAL_LINE_LIMIT, or any whole JSON document. The line at risk is where
+    the clip lands, not always the final one: claude's envelope can be
+    followed by a background task's short notices."""
+
+    end = len(body)
+
+    while end > 0:
+        start = body.rfind("\n", 0, end) + 1
+
+        if len(body) - start > room:
+            line = body[start:end]
+            final = end == len(body)
+
+            return (
+                body[start:]
+                if (final and len(line) <= FINAL_LINE_LIMIT) or _document(line)
+                else None
+            )
+
+        end = start - 1
+
+    return None
+
+
 def truncate(text: str) -> str:
     if len(text) <= OUTPUT_LIMIT:
         return text
@@ -84,13 +146,13 @@ def truncate(text: str) -> str:
     # A harness stream ends with a newline, so the final line is the last
     # non-empty one — read after it, the rescue below saw an empty line and
     # clipped through every verdict longer than the tail (T-0103).
-    body = text.rstrip("\n")
-    final_line = body[body.rfind("\n") + 1 :]
+    # A harness stream ends with a newline, so the final line is the last
+    # non-empty one — read after it, the rescue below saw an empty line and
+    # clipped through every verdict longer than the tail (T-0103).
+    rescued = _rescued_tail(text.rstrip("\n"), len(tail))
 
-    if len(tail) < len(final_line) and (
-        len(final_line) <= FINAL_LINE_LIMIT or _document(final_line)
-    ):
-        tail = final_line
+    if rescued is not None:
+        tail = rescued
 
     return f"{head}{ELISION}{tail}"
 

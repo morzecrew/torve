@@ -8,7 +8,14 @@ from pathlib import Path
 
 from torve.application.contextpack import OUTPUT_TAIL
 from torve.application.telemetry import RECORDED_OUTPUT
-from torve.base.shell import FINAL_LINE_LIMIT, OUTPUT_LIMIT, clip, host_executor, truncate
+from torve.base.shell import (
+    FINAL_LINE_LIMIT,
+    OUTPUT_LIMIT,
+    clip,
+    final_envelope,
+    host_executor,
+    truncate,
+)
 
 # ----------------------- #
 
@@ -97,6 +104,46 @@ def test_the_final_line_rescue_survives_the_streams_trailing_newline() -> None:
     assert (
         json.loads(clipped[clipped.index("{", clipped.index("… truncated …")) :])["findings"] == []
     )
+
+
+def _notices() -> str:
+    """What claude prints after its result envelope when a background task
+    the session started ends late: short `system` lines, none of them the answer."""
+
+    return "".join(
+        json.dumps({"type": "system", "subtype": subtype, "session_id": "s"}) + "\n"
+        for subtype in ("background_tasks_changed", "task_updated", "task_notification")
+    )
+
+
+def test_an_envelope_followed_by_notices_survives_whole() -> None:
+    """A compile reviewer's 14 kB envelope was followed by three notices; the
+    clip kept the tail, cut through the envelope, and the paid verdict read as
+    unparseable — a second ask, and the first ask's cost never recorded."""
+
+    envelope = json.dumps({"type": "result", "result": "z" * OUTPUT_LIMIT, "findings": []})
+    clipped = truncate("noise\n" * 2_000 + envelope + "\n" + _notices())
+
+    assert envelope in clipped
+    assert clipped.endswith(_notices().rstrip("\n"))
+
+
+def test_a_long_document_before_a_long_tail_keeps_the_ordinary_clip() -> None:
+    """Only the line the clip lands in is rescued: a JSON line early in a long
+    log is the log's, and the clip stays bounded."""
+
+    clipped = truncate(json.dumps({"x": "y" * 50_000}) + "\n" + "log line\n" * 2_000)
+
+    assert len(clipped) <= OUTPUT_LIMIT + 100
+
+
+def test_the_final_envelope_is_the_result_not_the_notices_after_it() -> None:
+    envelope = {"type": "result", "total_cost_usd": 1.28}
+
+    assert final_envelope("chatter\n" + json.dumps(envelope) + "\n" + _notices()) == envelope
+    # A harness that prints no result envelope is read off its last object.
+    assert final_envelope('{"a": 1}\n{"b": 2}\nbye') == {"b": 2}
+    assert final_envelope("no json here") is None
 
 
 def test_a_failure_report_survives_every_clip_down_to_the_retry() -> None:

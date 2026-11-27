@@ -51,6 +51,7 @@ from torve.application.ports import (
 from torve.application.runstate import RunState
 from torve.base import naming
 from torve.base.clock import stamp
+from torve.base.shell import final_envelope
 from torve.config import layout
 from torve.config.manifest import Manifest, load_manifest
 from torve.config.runconfig import (
@@ -351,26 +352,20 @@ def seat_api_error(output: str) -> str | None:
     else — is_error, with an API Error as its result or an `api_error` as its
     terminal reason — else None. Judged from the recorded output alone, so
     what the escalation says is auditable. A seat with no credential ends on
-    "Not logged in" and `api_error`, which read as unparseable before."""
+    "Not logged in" and `api_error`, which read as unparseable before. The
+    envelope is `final_envelope`'s: a background task's notices printed after
+    it are not the seat's answer."""
 
-    for line in reversed(output.strip().splitlines()):
-        try:
-            document: Any = json.loads(line)
+    envelope = final_envelope(output)
 
-        except json.JSONDecodeError:
-            continue
+    if envelope is None:
+        return None
 
-        if not isinstance(document, dict):
-            return None
+    result = str(envelope.get("result", ""))
 
-        envelope = cast("dict[str, Any]", document)
-        result = str(envelope.get("result", ""))
+    api_error = "API Error" in result or envelope.get("terminal_reason") == "api_error"
 
-        api_error = "API Error" in result or envelope.get("terminal_reason") == "api_error"
-
-        return result if envelope.get("is_error") and api_error else None
-
-    return None
+    return result if envelope.get("is_error") and api_error else None
 
 
 def transient_api_failure(output: str) -> bool:

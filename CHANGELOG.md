@@ -124,6 +124,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A Claude Code seat that leaves a background task running is now read from its result
+  envelope, not from the notices printed after it. Its cost was recorded as none, and a
+  reviewer's verdict was cut by the output clip and asked for again.
+
 - A review whose first answer could not be read is asked again, and its record and the unit's
   spend now count both asks' cost and tokens. Only the second ask's were counted before.
 

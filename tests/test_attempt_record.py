@@ -335,6 +335,20 @@ def test_the_three_receipt_shapes_the_traces_carry():
 # carries none of them.
 
 
+def test_the_receipt_is_read_off_the_envelope_not_the_notices_after_it():
+    # claude prints a late background task's notices after its result
+    # envelope; read off the last line, a reviewer's $1.28 was recorded as none.
+    meta = parse_metadata(
+        '{"type":"result","subtype":"success","total_cost_usd":1.28,"num_turns":26}\n'
+        '{"type":"system","subtype":"task_updated","session_id":"s"}\n'
+        '{"type":"system","subtype":"task_notification","session_id":"s"}\n'
+    )
+
+    assert meta.cost_usd == 1.28
+    assert meta.num_turns == 26
+    assert meta.terminal_reason == "success"
+
+
 def test_the_receipt_facts_are_read_off_the_envelope():
     meta = parse_metadata(
         '{"type":"result","subtype":"success","num_turns":113,'
